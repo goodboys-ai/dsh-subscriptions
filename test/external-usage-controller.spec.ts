@@ -86,3 +86,27 @@ test('usage-only keys are resolved on every read so DSH credential changes take 
   await controller.usage('opencode-go')
   assert.deepEqual(headers, ['Bearer first', 'Bearer second'])
 })
+
+test('MiniMax returns the standard model beside video for both regions', async () => {
+  // Shaped after the public MiniMax-AI/cli quota fixtures: the standard model
+  // carries explicit remaining percentages with zero counts, video carries counts.
+  const start = Date.now() - 3_600_000
+  const body = { base_resp: { status_code: 0 }, model_remains: [
+    { model_name: 'general', start_time: start, end_time: start + 18_000_000,
+      weekly_start_time: start, weekly_end_time: start + 604_800_000,
+      current_interval_total_count: 0, current_interval_usage_count: 0, current_interval_remaining_percent: 94,
+      current_weekly_total_count: 0, current_weekly_usage_count: 0, current_weekly_remaining_percent: 98 },
+    { model_name: 'video', start_time: start, end_time: start + 86_400_000,
+      weekly_start_time: start, weekly_end_time: start + 604_800_000,
+      current_interval_total_count: 3, current_interval_usage_count: 3, current_interval_remaining_percent: 100,
+      current_weekly_total_count: 21, current_weekly_usage_count: 21, current_weekly_remaining_percent: 100 },
+  ] }
+  for (const [source, ref] of [['minimax', 'MINIMAX_API_KEY'], ['minimax-cn', 'MINIMAX_CN_API_KEY']] as const) {
+    const http = (async () => Response.json(body)) as typeof fetch
+    const controller = new ExternalUsageController(async name => name === ref ? { value: 'secret' } : undefined, http)
+    const usage = await controller.usage(source)
+    assert.deepEqual(usage.windows!.map(w => `${w.scope}/${w.kind}=${w.usedPercent}`),
+      ['general/session=6', 'general/weekly=2', 'video/other=0', 'video/weekly=0'])
+    assert.ok(!JSON.stringify(usage).includes('secret'))
+  }
+})

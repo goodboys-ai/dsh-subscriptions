@@ -19,7 +19,9 @@ enforcement.
 
 Validity and freshness precede pace warnings. Invalid percentages show no fill.
 Failed refreshes, observations older than five minutes and expired readings
-retain absolute green/red colors with an accessible stale explanation. Unknown
+retain absolute green/red colors with an accessible stale explanation. The
+marker does not depend on freshness; see the
+[cursor note](2026-10-06-usage-cursor-timing-only.md). Unknown
 pace also retains green/red: gray fills were barely visible in dark mode.
 The pool cache preserves the original observation timestamp and explicitly
 reports stale fallback after failures; successful RPC receipt is not sufficient
@@ -88,7 +90,8 @@ Chinese-language and narrow-layout host screenshots remain a verification limit.
 Yellow describes pace and red describes little remaining quota; neither predicts
 interruption. Freshness handling prevents cached numbers from gaining pace
 warnings solely as time advances; accessible stale labels qualify their retained
-absolute colors. Unknown intervals keep visible green/red bars without markers.
+absolute colors. Unknown intervals keep visible green/red bars without markers;
+a known interval keeps its marker even when the reading is stale.
 One additional dropdown, localized labels and observation metadata
 buy clearer semantics without provider-specific tuning. Revisit the defaults
 only if real usage shows frequent unactionable or late yellow warnings.
