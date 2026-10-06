@@ -32,7 +32,9 @@ percentage outside the valid range after scaling (including a weekly pool
 boosted past 100% remaining), and a row with neither a usable percentage nor
 usable counts are omitted. Start and end times are attached only when both are
 valid millisecond bounds, so a window without them has no time fields. A
-non-numeric percentage is not read.
+non-numeric percentage is not read. Status 2 does not supply a reading: explicit
+0% remaining shows exhaustion, but status 2 without a usable percentage or
+legacy count does not create a 100%-used bar.
 
 The external usage card labels session and weekly rows with their model scope,
 as the badge dialog and the subscription cards already did. Two models'
@@ -48,9 +50,9 @@ already follows the account's own list.
 
 ## Evidence and what it does not show
 
-Sources are the [CLI quota table renderer](https://raw.githubusercontent.com/MiniMax-AI/cli/main/src/output/quota-table.ts)
-and its [test fixtures](https://raw.githubusercontent.com/MiniMax-AI/cli/main/test/output/quota-table.test.ts),
-the [quota type definitions](https://raw.githubusercontent.com/MiniMax-AI/cli/main/src/types/api.ts),
+Sources are the [CLI quota table renderer](https://raw.githubusercontent.com/MiniMax-AI/cli/06e47c70b76f419196678367dae62acca4c94076/src/output/quota-table.ts)
+and its [test fixtures](https://raw.githubusercontent.com/MiniMax-AI/cli/06e47c70b76f419196678367dae62acca4c94076/test/output/quota-table.test.ts),
+the [quota type definitions](https://raw.githubusercontent.com/MiniMax-AI/cli/06e47c70b76f419196678367dae62acca4c94076/src/types/api.ts),
 [CLI issue 165](https://github.com/MiniMax-AI/cli/issues/165) (zero counts with
 percentages on time-based plans, fixed in the CLI), and the
 [M Plan usage rules](https://platform.minimax.io/docs/m-plan/usage-rules.md),

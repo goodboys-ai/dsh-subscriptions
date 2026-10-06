@@ -115,6 +115,21 @@ test('MiniMax never derives a percentage from nothing', async () => {
   assert.deepEqual(summary(counts), ['general/session=75'])
 })
 
+test('MiniMax status 2 needs a usable reading instead of fabricating exhaustion', async () => {
+  const depleted = { ...standard, current_interval_status: 2, current_weekly_status: 2,
+    current_interval_remaining_percent: undefined, current_weekly_remaining_percent: undefined }
+  // Status is not a reading. Zero counts do not prove 100% usage.
+  await assert.rejects(fetchMiniMaxUsage('key', 'global', body(depleted)), /no supported finite/)
+  const mixed = await fetchMiniMaxUsage('key', 'global', body(depleted, video))
+  assert.deepEqual(summary(mixed), ['video/other=0', 'video/weekly=0'])
+  const explicit = await fetchMiniMaxUsage('key', 'global', body({ ...depleted,
+    current_interval_remaining_percent: 0, current_weekly_remaining_percent: 0 }))
+  assert.deepEqual(summary(explicit), ['general/session=100', 'general/weekly=100'])
+  const legacy = await fetchMiniMaxUsage('key', 'global', body({ ...depleted,
+    current_interval_total_count: 100, current_interval_usage_count: 25 }))
+  assert.deepEqual(summary(legacy), ['general/session=75'])
+})
+
 test('MiniMax percentage-only windows without valid bounds carry no time fields', async () => {
   const usage = await fetchMiniMaxUsage('key', 'global', body({ ...standard, start_time: 0, end_time: 0,
     weekly_start_time: 'soon', weekly_end_time: NOW }))

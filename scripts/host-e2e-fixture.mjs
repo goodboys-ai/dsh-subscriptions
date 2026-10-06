@@ -46,6 +46,18 @@ const fixtureNow = Number(process.env.HOST_E2E_FIXTURE_NOW ?? Date.now())
 const periodStart = new Date(fixtureNow - 6 * 60 * 60_000).toISOString()
 const periodEnd = new Date(fixtureNow + 18 * 60 * 60_000).toISOString()
 
+/**
+ * General has percentage-only quota with zero totals, including an unused
+ * five-hour window. Video has legacy remaining counts. All four windows are
+ * current at fixtureNow and must stay separate in RPC, badge, and settings.
+ */
+export const MINIMAX_WINDOWS = [
+  { kind: 'session', scope: 'general', usedPercent: 0, startsAt: fixtureNow - 60 * 60_000, resetsAt: fixtureNow + 4 * 60 * 60_000 },
+  { kind: 'weekly', scope: 'general', usedPercent: 2, startsAt: fixtureNow - 24 * 60 * 60_000, resetsAt: fixtureNow + 6 * 24 * 60 * 60_000 },
+  { kind: 'other', scope: 'video', usedPercent: 88, startsAt: fixtureNow - 6 * 60 * 60_000, resetsAt: fixtureNow + 18 * 60 * 60_000 },
+  { kind: 'weekly', scope: 'video', usedPercent: 99, startsAt: fixtureNow - 2 * 24 * 60 * 60_000, resetsAt: fixtureNow + 5 * 24 * 60 * 60_000 },
+]
+
 export const FIXTURE_REQUESTS = {
   'POST https://chatgpt.com/backend-api/codex/responses': {
     credential: ['authorization', 'Bearer fake-codex-access'],
@@ -100,6 +112,22 @@ export const FIXTURE_REQUESTS = {
   'GET https://api.kimi.com/coding/v1/usages': {
     credential: ['authorization', 'Bearer fake-kimi-key'],
     body: { usages: { limit_5h: { used_ratio: USAGE_PERCENT['kimi-coding'].percent / 100 } } },
+    required: true,
+  },
+  'GET https://www.minimax.io/v1/token_plan/remains': {
+    credential: ['authorization', 'Bearer fake-minimax-key'],
+    body: { base_resp: { status_code: 0 }, model_remains: [
+      { model_name: 'general',
+        start_time: MINIMAX_WINDOWS[0].startsAt, end_time: MINIMAX_WINDOWS[0].resetsAt,
+        weekly_start_time: MINIMAX_WINDOWS[1].startsAt, weekly_end_time: MINIMAX_WINDOWS[1].resetsAt,
+        current_interval_total_count: 0, current_interval_usage_count: 0, current_interval_remaining_percent: 100, current_interval_status: 1,
+        current_weekly_total_count: 0, current_weekly_usage_count: 0, current_weekly_remaining_percent: 98, current_weekly_status: 1 },
+      { model_name: 'video',
+        start_time: MINIMAX_WINDOWS[2].startsAt, end_time: MINIMAX_WINDOWS[2].resetsAt,
+        weekly_start_time: MINIMAX_WINDOWS[3].startsAt, weekly_end_time: MINIMAX_WINDOWS[3].resetsAt,
+        current_interval_total_count: 100, current_interval_usage_count: 12,
+        current_weekly_total_count: 100, current_weekly_usage_count: 1 },
+    ] },
     required: true,
   },
   'GET https://registry.npmjs.org/@anthropic-ai%2fclaude-code/latest': {

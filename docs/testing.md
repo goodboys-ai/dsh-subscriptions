@@ -300,18 +300,22 @@ script:
    gets 401 and is logged as such, and the driver then fails the run. So only
    a pass proves the plugin sent the credential it read from the profile;
 4. runs `scripts/host-e2e.mjs`, which asserts:
-   - the `usage`, `cursorUsage`, and `externalUsage` RPCs return each
-     source's fixture percentage (exact up to float rounding) as its only
-     window, and Copilot reports no usage support. Every source has a distinct percentage, so a row showing
-     another source's number fails;
+   - the `usage`, `cursorUsage`, and `externalUsage` RPCs return the fixture
+     percentages (exact up to float rounding), and Copilot reports no usage
+     support. MiniMax returns four model-scoped windows with exact boundaries;
+     the other sources return one window each. A row showing another source's
+     number fails;
+   - MiniMax's percentage-only standard windows and count-backed video windows
+     remain distinct in Settings and the badge dialog. Their current windows
+     have time markers, including the standard model at 0% used;
    - the host's model picker lists the plugin's `GPT-6-Astra`;
    - a message to that model streams through the plugin's Codex adapter,
      and the canned reply renders in the transcript;
    - the usage pill (`Codex 5h 11%`) renders inside the host's stats row
      (`data-composer-stats`). Its dialog has one section per source, each
-     named for that source and showing only that source's percentage, and no
-     other section. The badge fills the dialog from RPCs that settle at
-     their own pace, so the driver polls until it matches, and after a
+     named for that source and showing only that source's fixture windows,
+     with no unexpected section. The badge fills the dialog from RPCs that
+     settle at their own pace, so the driver polls until it matches, and after a
      deadline fails on what the dialog then shows;
    - the dialog wears the host's menu material — the `--dsw-specific-menu`
      fill and the `--dsw-menu-backdrop-filter` blur — in the light and dark
@@ -454,7 +458,9 @@ replayed on 2026-10-06 against `pnpm test`.
 | [#46](https://github.com/V1ki/dsh-plugin-subscriptions/issues/46) | A failed usage snapshot was not cached, so `quota_aware` hit the rate-limited endpoint on every request | No cooldown entry after a failed refresh | `pool-usage`, `pool`, `usage` |
 | MiniMax percentage-only windows | The usage UI showed only the video model: standard models report zero counts with an explicit remaining percentage, and the parser dropped any window without a positive total | `fetchMiniMaxUsage` requires `total_count > 0` before reading the percentage; the external card label drops the model scope | `minimax-usage`, `external-usage-controller`, `external-usage-cards`, `subscription-usage-badge` |
 
-The MiniMax row was replayed on 2026-10-06 against `pnpm test`.
+The MiniMax row was replayed on 2026-10-06 against `pnpm test`. The current
+host E2E also checks MiniMax's fixture windows through the RPC and both UI
+locations. Neither layer proves a real account's entitlement or response.
 
 The dialog-surface row is the first bug the host E2E's own checks catch. The
 rest of that driver was checked against injected faults before a bug covered
