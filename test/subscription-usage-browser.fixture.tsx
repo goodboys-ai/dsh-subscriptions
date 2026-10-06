@@ -36,16 +36,18 @@ const rpc = { call: async (_channel: string, method: string, payload: { provider
 
 function App() {
   const [locale, setLocale] = useState<'en' | 'zh'>('en')
+  const [rotationMs, setRotationMs] = useState(10_000)
   const dictionary = locale === 'en' ? en : zh
   const t = (key: keyof typeof en, params?: Record<string, unknown>) => dictionary[key]
     .replace(/\{(\w+)\}/g, (_, name: string) => String(params?.[name] ?? ''))
   return <>
     <button onClick={() => setLocale(locale === 'en' ? 'zh' : 'en')}>Locale</button>
+    <button onClick={() => { setRotationMs(200); document.documentElement.dataset.rotationMs = '200' }}>Fast rotation</button>
     {Object.entries(selections).map(([name, next]) => <button key={name} onClick={() => { selection = next }}>{name}</button>)}
     <UsageBadgeDisplaySetting t={t} />
     <div>
       <div data-composer-stats />
-      <SubscriptionUsageBadge rpc={rpc} currentModel={currentModel} t={t} />
+      <SubscriptionUsageBadge rpc={rpc} currentModel={currentModel} t={t} rotationMs={rotationMs} />
     </div>
   </>
 }

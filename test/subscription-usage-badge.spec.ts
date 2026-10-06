@@ -24,7 +24,7 @@ const css = registerHooks({
   },
 })
 const { AccountWindows, compactSegment, createCurrentModelReader, previewWindows,
-  collapsedDisplays, expandedDisplays, retainSubscriptionSelection, usageBadgeIcon,
+  collapsedDisplays, expandedDisplays, retainSubscriptionSelection, rotatingDisplay, usageBadgeIcon,
   groupUsageDisplays, loadBadgeRoster, usageOf } = await import('../src/client/SubscriptionUsageBadge.js')
 css.deregister()
 import type { ProviderUsageDisplay, UsageRosterEntry } from '../src/client/SubscriptionUsageBadge.js'
@@ -129,6 +129,23 @@ test('Cursor and built-in key providers participate in the session quota selecti
     assert.deepEqual(retainSubscriptionSelection(undefined, selected), selected)
     assert.equal(collapsedDisplays([display('codex'), display(provider)], provider)[0]?.provider, provider)
   }
+})
+
+test('always mode pins the current provider and rotates the rest in display order', () => {
+  const all = [display('codex'), display('grok'), display()]
+  const pick = (step: number) => rotatingDisplay(all, 'grok', step)[0]?.provider
+  // A provider with usage keeps the badge pinned no matter the tick.
+  for (const step of [0, 1, 2, 3, 7]) assert.equal(pick(step), 'grok')
+  // Without a matching provider the rotation walks the display order and wraps.
+  const rotate = (steps: number[]) => steps.map(step => rotatingDisplay(all, undefined, step)[0]?.provider)
+  assert.deepEqual(rotate([0, 1, 2, 3, 4, 5]), ['codex', 'grok', 'antigravity', 'codex', 'grok', 'antigravity'])
+  assert.deepEqual(rotate([-1, -2, -3]), ['antigravity', 'grok', 'codex'])
+  // A shrinking roster keeps every provider reachable: the modulo re-bases as rows drop out.
+  const two = [display('codex'), display('grok')]
+  assert.deepEqual([0, 1, 2, 3].map(step => rotatingDisplay(two, undefined, step)[0]?.provider), ['codex', 'grok', 'codex', 'grok'])
+  // No usage anywhere means no badge; unusable steps stay put on the first row.
+  assert.deepEqual(rotatingDisplay([], undefined, 3), [])
+  assert.equal(rotatingDisplay(all, 'deepseek', Number.NaN)[0]?.provider, 'codex')
 })
 
 test('quota roster and usage calls include Cursor, OpenCode Go and Kimi while tolerating OAuth status failure', async () => {

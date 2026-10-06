@@ -72,7 +72,9 @@ The composer's stats row gains a **provider usage** pill showing the
 used percentage and reset window for the provider of the session's current
 model. It shows at most one provider; switching to a non-subscription model
 keeps the most recent subscription selected in the mounted conversation
-view, or stays hidden if there is none.
+view, or stays hidden if there is none. **Always show** instead rotates
+through the providers that report usage every 10 seconds while the current
+model has no quota source, so the pill never disappears.
 
 ![Provider usage pill in the stats row](docs/images/usage-pill.png)
 

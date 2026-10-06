@@ -87,6 +87,30 @@ try {
   assert.equal(await page.getByRole('dialog').count(), 0, 'unhiding does not reopen the previous dialog')
   await page.waitForFunction(() => localStorage.getItem('dsh.subscriptions.usageBadgeMode') === 'recent')
   console.log('70%: compact Antigravity, cross-tab hiding and persisted preference verified')
+  // Always mode: the current provider pins the pill; without one the badge
+  // rotates through the providers that report usage, in display order.
+  await control.selectOption('always')
+  await page.getByRole('button', { name: 'codex', exact: true }).click()
+  await badge.waitFor()
+  assert.match(await badge.innerText(), /^Codex /)
+  await page.getByRole('button', { name: 'api', exact: true }).click()
+  await page.waitForFunction(() => /^Codex /.test(document.querySelector('[data-composer-stats] button')?.innerText ?? ''))
+  await page.getByRole('button', { name: 'Fast rotation', exact: true }).click()
+  const sequence = []
+  for (let i = 0; i < 4; i++) {
+    await page.waitForFunction(({ seen }) => {
+      const text = document.querySelector('[data-composer-stats] button')?.innerText ?? ''
+      return seen.length === 0 || !text.startsWith(seen[seen.length - 1])
+    }, { seen: sequence })
+    sequence.push((await badge.innerText()).split(' ')[0])
+  }
+  assert.deepEqual(sequence, ['Codex', 'Grok', 'Antigravity', 'Codex'])
+  // Switching back to recent restores the pinned selection.
+  await control.selectOption('recent')
+  await page.getByRole('button', { name: 'codex', exact: true }).click()
+  await badge.waitFor()
+  assert.match(await badge.innerText(), /^Codex /)
+  console.log('85%: always-mode rotation verified')
   await page.evaluate(() => {
     window.savedSetItem = Storage.prototype.setItem
     Storage.prototype.setItem = function (key, value) {
