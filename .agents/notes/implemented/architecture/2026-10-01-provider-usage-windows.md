@@ -11,7 +11,9 @@ from its official CLI, and MiniMax subscription usage was absent.
 ## Decision
 
 Keep absolute green/red fills when timing is unknown or readings are stale.
-Only fresh reliable intervals enable yellow warnings and elapsed markers.
+Only fresh reliable intervals enable yellow warnings. Elapsed markers need
+only the window's own timing; see the
+[cursor note](2026-10-06-usage-cursor-timing-only.md).
 Invalid percentages never receive a fabricated fill.
 
 Codex uses its reported duration with reset. Claude session and weekly buckets

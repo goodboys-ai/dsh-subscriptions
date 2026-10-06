@@ -438,12 +438,14 @@ which test failed before the fix.
 Issue and PR numbers refer to the upstream tracker,
 `V1ki/dsh-plugin-subscriptions`. The upstream rows were last replayed on
 2026-09-29 against `pnpm test`; the dialog-surface row was replayed on
-2026-10-01 against `bash scripts/host-e2e.sh`.
+2026-10-01 against `bash scripts/host-e2e.sh`; the usage-cursor row was
+replayed on 2026-10-06 against `pnpm test`.
 
 | Bug | What broke | Re-introduced as | Specs that failed |
 |---|---|---|---|
 | Plugin display metadata | The card and Settings inventory fell back to English package metadata in Chinese UI | Remove the locale export or duplicate English metadata into `zh.json` | `package-identity` (source and manifest checks; packed assets and rendering verified separately) |
 | Usage dialog surface | The dialog kept the host's translucent menu fill without its backdrop blur, so the transcript behind it stayed readable through the panel | `styles.panel` drops `backdrop-filter` | host E2E (`host-e2e.mjs`, dialog surface) |
+| Usage cursor tied to freshness | The elapsed-time cursor vanished at 0% used, after a failed refresh, and once a reading was five minutes old, though the window's timing was unchanged | `UsageMeter` computes the cursor only when `isUsageFresh` holds | `usage-pace`, `usage-cursor-providers` |
 | [PR #116](https://github.com/V1ki/dsh-plugin-subscriptions/pull/116) | DSH 0.1.7 renamed the host icons, and the badge lost its glyphs | `hostIcon` reads only `Icon<Name>16` | `host-icons`, `subscription-usage-badge` |
 | [#80](https://github.com/V1ki/dsh-plugin-subscriptions/issues/80) | Every `/subscriptions-auth` RPC answered 405, so login was impossible | Routes registered as `/subscriptions-auth/<endpoint>` instead of `/api/subscriptions-auth.<endpoint>` | `login`, `rpc`, `model-defaults-rpc`, `provider-settings-rpc`, `usage-bar` |
 | [#22](https://github.com/V1ki/dsh-plugin-subscriptions/issues/22) | A settled background subagent put `tool_use` in a user message, and Claude answered 400 from then on | `tool-call` blocks become `tool_use` in every role | `translate` |

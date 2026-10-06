@@ -83,13 +83,15 @@ neither do accounts without a usage window. Antigravity previews only the
 current model's windows; the other model windows stay in a closed
 disclosure.
 
-Quota bars include a dark elapsed-time cursor when a fresh reading has a
-known window interval. Compare the colored fill (quota used) with the
-cursor (time elapsed); hover for the percentages and reset countdown.
-Standard coloring turns the fill orange when usage leads elapsed time by
-10 points, and Relaxed uses 15; 90% used turns it red and takes priority.
-Stale readings and windows without known timing omit the cursor. Choose
-Standard, Relaxed, or Remaining colors in **Settings → Subscriptions**.
+Quota bars include a dark elapsed-time cursor whenever the provider's
+timing places the window in time, including at 0% used and for stale or old
+readings. Compare the colored fill (quota used) with the cursor (time
+elapsed); hover for the percentages and reset countdown. Standard coloring
+turns the fill orange when a fresh reading leads elapsed time by 10 points,
+and Relaxed uses 15; 90% used turns it red and takes priority. Windows
+without known timing omit the cursor, and a stale or old reading keeps its
+cursor without a pace warning. Choose Standard, Relaxed, or Remaining colors
+in **Settings → Subscriptions**.
 
 ![Usage dialog with elapsed-time cursors](docs/images/usage-badge.png)
 
@@ -191,7 +193,7 @@ Every preset shows reported usage of 90% or more in red, before considering pace
 
 A vertical marker shows elapsed time only for an explicit valid start/end interval or a provider-verified fixed duration. A session/weekly label alone does not establish a fixed window; rolling or unknown intervals have no marker. Claude's recognized five-hour/seven-day buckets and Codex's reported quota durations supply fixed-window metadata. Unknown timing falls back to green below 90%, without a marker or yellow warning.
 
-Expired, failed-refresh or more-than-five-minute-old readings retain the last reported green/red color, without pace warnings or markers. Cached numbers remain visible, with an accessible stale label; refresh to confirm them. Invalid percentages show an unavailable state without a fabricated fill. Tooltips explain remaining quota, time progress and reset countdown where available. See the [decision record](.agents/notes/implemented/architecture/2026-10-01-usage-pace-colors.md) for rationale and verification limits.
+The marker depends on the window's timing alone, not on the reading: it stays at 0% used, for an invalid percentage, and when a refresh failed or the reading is more than five minutes old. Such a reading is not set against the current time, so it gets no yellow pace warning and its tooltip omits the ahead/behind comparison. It retains the last reported green/red color with an accessible stale label; refresh to confirm it. Once the reset time has passed the window has no position and the marker disappears. Invalid percentages show an unavailable state without a fabricated fill. Tooltips explain remaining quota, time progress and reset countdown where available. See the [decision record](.agents/notes/implemented/architecture/2026-10-01-usage-pace-colors.md) and the [cursor note](.agents/notes/implemented/architecture/2026-10-06-usage-cursor-timing-only.md) for rationale and verification limits.
 
 ### MiniMax subscription usage
 

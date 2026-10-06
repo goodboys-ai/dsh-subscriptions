@@ -32,6 +32,12 @@ export function resetCountdownParts(ms: number): CountdownPart[] {
   ]
   return parts.filter(part => part.count > 0).slice(0, 2)
 }
+/**
+ * Whether the reported percentage still describes the window now. Only a fresh
+ * reading may be compared with the current time (pace warnings); an old one
+ * keeps its absolute color. This does not decide whether the time cursor is
+ * drawn: where the window stands in time never depends on the reading.
+ */
 export function isUsageFresh(window: UsageWindow, observation: UsageObservation, now = Date.now()): boolean {
   return validUsage(window.usedPercent) && observation.stale !== true
     && observation.observedAt !== undefined && Number.isFinite(observation.observedAt)
@@ -39,7 +45,14 @@ export function isUsageFresh(window: UsageWindow, observation: UsageObservation,
     && (window.resetsAt === undefined || Number.isFinite(window.resetsAt) && window.resetsAt > now)
 }
 
-/** Only explicit intervals or provider-verified fixed durations support linear pace. */
+/**
+ * How far through its window the clock is, from the window's own timing alone.
+ * It ignores the percentage and how recently it was read, so an unused,
+ * stale, aged or unobserved reading keeps its cursor whenever the timing
+ * places it. Returns undefined when the timing cannot: only an explicit
+ * interval or a provider-verified fixed duration supports linear pace, and no
+ * start is invented from a window's kind or label.
+ */
 export function elapsedPercent(window: UsageWindow, now = Date.now()): number | undefined {
   const end = window.resetsAt
   if (end === undefined || !Number.isFinite(end) || end <= now) return undefined
