@@ -315,8 +315,8 @@ script:
      (`data-composer-stats`). Its dialog has one section per source, each
      named for that source and showing only that source's fixture windows,
      with no unexpected section. The badge fills the dialog from RPCs that
-     settle at their own pace, so the driver polls until it matches, and after a
-     deadline fails on what the dialog then shows;
+     settle at their own pace, so the driver polls until it matches, and
+     after a deadline fails on what the dialog then shows;
    - the dialog wears the host's menu material — the `--dsw-specific-menu`
      fill and the `--dsw-menu-backdrop-filter` blur — in the light and dark
      themes, and the collapsed pill stays transparent. The driver switches
@@ -456,7 +456,7 @@ replayed on 2026-10-06 against `pnpm test`.
 | [#24](https://github.com/V1ki/dsh-plugin-subscriptions/issues/24) | The Claude route sent no `cache_control`, so every request reprocessed the whole prompt | `markMessageCache` does nothing; separately, the system block gets no breakpoint | `translate`, `models`, `anthropic-messages.property` |
 | [#27](https://github.com/V1ki/dsh-plugin-subscriptions/issues/27) | A closed rate-limit window failed the turn instead of waiting | The configured wait no longer widens the retry ceiling | `rate-limit` |
 | [#46](https://github.com/V1ki/dsh-plugin-subscriptions/issues/46) | A failed usage snapshot was not cached, so `quota_aware` hit the rate-limited endpoint on every request | No cooldown entry after a failed refresh | `pool-usage`, `pool`, `usage` |
-| MiniMax percentage-only windows | The usage UI showed only the video model: standard models report zero counts with an explicit remaining percentage, and the parser dropped any window without a positive total | `fetchMiniMaxUsage` requires `total_count > 0` before reading the percentage; the external card label drops the model scope | `minimax-usage`, `external-usage-controller`, `external-usage-cards`, `subscription-usage-badge` |
+| MiniMax percentage-only windows | The usage UI showed only the video model: standard models report zero counts with an explicit remaining percentage, and the parser dropped any window without a positive total | `fetchMiniMaxUsage` requires `total_count > 0` before reading the percentage; the external card label drops the model scope | `minimax-usage`, `external-usage-controller`, `subscription-usage-badge`; baseline label-expression replay |
 
 The MiniMax row was replayed on 2026-10-06 against `pnpm test`. The current
 host E2E also checks MiniMax's fixture windows through the RPC and both UI
