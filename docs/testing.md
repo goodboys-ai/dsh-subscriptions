@@ -452,6 +452,9 @@ replayed on 2026-10-06 against `pnpm test`.
 | [#24](https://github.com/V1ki/dsh-plugin-subscriptions/issues/24) | The Claude route sent no `cache_control`, so every request reprocessed the whole prompt | `markMessageCache` does nothing; separately, the system block gets no breakpoint | `translate`, `models`, `anthropic-messages.property` |
 | [#27](https://github.com/V1ki/dsh-plugin-subscriptions/issues/27) | A closed rate-limit window failed the turn instead of waiting | The configured wait no longer widens the retry ceiling | `rate-limit` |
 | [#46](https://github.com/V1ki/dsh-plugin-subscriptions/issues/46) | A failed usage snapshot was not cached, so `quota_aware` hit the rate-limited endpoint on every request | No cooldown entry after a failed refresh | `pool-usage`, `pool`, `usage` |
+| MiniMax percentage-only windows | The usage UI showed only the video model: standard models report zero counts with an explicit remaining percentage, and the parser dropped any window without a positive total | `fetchMiniMaxUsage` requires `total_count > 0` before reading the percentage; the external card label drops the model scope | `minimax-usage`, `external-usage-controller`, `external-usage-cards`, `subscription-usage-badge` |
+
+The MiniMax row was replayed on 2026-10-06 against `pnpm test`.
 
 The dialog-surface row is the first bug the host E2E's own checks catch. The
 rest of that driver was checked against injected faults before a bug covered

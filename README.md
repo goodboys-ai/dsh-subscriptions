@@ -203,11 +203,17 @@ The plugin reuses those credential references; no separate subscription ref is
 required. Quota reads require subscription keys, not `sk-api-*` pay-as-you-go keys. The plugin reads the
 region's `/v1/token_plan/remains` endpoint and displays finite per-model quotas
 with API-provided start/end times. It does not add model routing or OAuth login.
-Unlimited, boosted-above-100% and unsupported quotas are omitted; if none remain,
-the card reports unavailable rather than inventing a percentage. Explicit
-remaining percentages take priority; older responses follow the official CLI's
-remaining-count compatibility convention. No live-account response was used in
-verification.
+Rows are labelled with the model name, and the plugin shows the windows the API
+returns for each model. MiniMax documents a five-hour and a weekly window for
+non-video models and only a weekly one for video. Standard (non-video) models
+on time-based plans report an explicit remaining percentage beside zero counts,
+and that percentage is enough for a row. Unlimited, boosted-above-100% and
+unsupported quotas are omitted (a status-3 row also covers a model the plan
+does not include); if none remain, the card reports unavailable rather than
+inventing a percentage. Explicit remaining percentages take priority; older
+responses follow the official CLI's remaining-count compatibility convention. No
+live-account response was used in verification, so a missing model may still
+come from the account or the plan rather than from this plugin.
 
 ## Development
 

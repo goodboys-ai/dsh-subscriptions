@@ -35,8 +35,11 @@ Usage-only integrations reuse the host's credential references rather than
 introducing a parallel configuration. Key presence means configured, not that
 subscription quota is available; key type and the quota response determine
 support. Finite quotas preserve model scope and API millisecond bounds.
-Explicit remaining percentages win; absent percentages use the official
-CLI's legacy remaining-count convention. Unlimited and boosted-above-100% pools
+Explicit remaining percentages win and need no counts; absent percentages use
+the official CLI's legacy remaining-count convention, which does need a
+positive total (see the
+[percentage-only note](../provider/2026-10-06-minimax-percentage-only-windows.md)).
+Unlimited and boosted-above-100% pools
 are omitted rather than forced into finite bars. HTTP and business errors fail
 without exposing keys. Pay-as-you-go keys are not subscription credentials.
 
@@ -55,7 +58,8 @@ without exposing keys. Pay-as-you-go keys are not subscription credentials.
 Adapter tests exercise fixed-window metadata through elapsed percentage and
 color classification, not only object shape. Kimi tests cover official counts,
 remaining values and uncertain summary timing. MiniMax tests cover millisecond
-bounds, explicit percentages, legacy counts, region routing and error states.
+bounds, explicit percentages with and without counts, legacy counts, region
+routing and error states.
 No real account credentials or live quota responses were used. Official source
 fixtures prove parsing, not deployment parity or each account's plan semantics.
 
