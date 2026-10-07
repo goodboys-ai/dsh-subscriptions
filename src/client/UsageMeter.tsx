@@ -27,17 +27,22 @@ export function UsageMeter({ window: quota, t, style, observedAt, stale }: {
   const valid = validUsage(quota.usedPercent)
   const used = valid ? quota.usedPercent : 0
   const fresh = isUsageFresh(quota, { observedAt, stale }, current)
-  const elapsed = fresh ? elapsedPercent(quota, current) : undefined
-  const state = usageColorState(quota.usedPercent, elapsed, preset, fresh)
-  const lead = elapsed === undefined ? 0 : Math.round(used - elapsed)
+  // The cursor is where the window stands in time. It needs only the window's
+  // own timing, so it stays for an unused, stale, aged or unobserved reading.
+  const elapsed = elapsedPercent(quota, current)
+  // Comparing usage with elapsed time is meaningful only while the percentage
+  // is current; an old one is not set against today's clock.
+  const pace = fresh ? elapsed : undefined
+  const state = usageColorState(quota.usedPercent, pace, preset, fresh)
+  const lead = pace === undefined ? 0 : Math.round(used - pace)
   const label = [
     valid ? t('usageMeterUsed', { used: Math.round(used), remaining: Math.round(100 - used) }) : t('usageMeterInvalid'),
     // An invalid reading already states unavailability; the stale line would repeat it.
     !valid ? '' : !fresh ? t('usageMeterStale') : state === 'red' ? t('usageMeterNearLimit')
-      : elapsed === undefined && preset !== 'remaining' ? t('usageMeterUnknownTime')
+      : pace === undefined && preset !== 'remaining' ? t('usageMeterUnknownTime')
         : state === 'yellow' ? t('usageMeterAhead') : t('usageMeterNoWarning'),
     elapsed === undefined ? '' : t('usageMeterPace', { elapsed: Math.round(elapsed) }),
-    elapsed === undefined ? '' : lead > 0 ? t('usageMeterPaceAhead', { points: lead })
+    pace === undefined ? '' : lead > 0 ? t('usageMeterPaceAhead', { points: lead })
       : lead < 0 ? t('usageMeterPaceBehind', { points: -lead }) : t('usageMeterPaceEven'),
     quota.resetsAt !== undefined && quota.resetsAt > current ? t('usageMeterReset', {
       duration: resetCountdownParts(quota.resetsAt - current)
@@ -51,7 +56,7 @@ export function UsageMeter({ window: quota, t, style, observedAt, stale }: {
     ...style, position: 'relative',
   }}>
     <div style={{ height: '100%', borderRadius: 'inherit', width: `${used}%`,
-      background: usageBarColor(quota.usedPercent, elapsed, preset, fresh) }} />
+      background: usageBarColor(quota.usedPercent, pace, preset, fresh) }} />
     {elapsed !== undefined && <span aria-hidden="true" data-usage-time-marker style={{
       position: 'absolute', left: `clamp(0px, calc(${elapsed}% - 1px), calc(100% - 2px))`,
       top: 0, bottom: 0, width: 2, background: 'var(--dsw-alias-label-primary)',

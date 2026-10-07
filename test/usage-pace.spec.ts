@@ -97,9 +97,17 @@ test('localized meter labels distinguish fresh, unknown and stale readings', () 
     assert.ok(!html.includes('-30'), html)
     // The reset countdown is humanized and pluralized, never raw minutes.
     assert.ok(html.includes(t('usageMeterReset', { duration: t('usageUnitMinutes', { count: 2 }) })), html)
+    // A failed refresh does not move the window: the cursor stays, the reading
+    // is labelled stale, and the old percentage is not compared with the
+    // current time.
     const stale = renderToStaticMarkup(createElement(UsageMeter, { ...props, stale: true }))
-    assert.doesNotMatch(stale, /data-usage-time-marker/)
+    assert.match(stale, /data-usage-time-marker/)
     assert.match(stale, /data-usage-color="green"/)
+    assert.ok(stale.includes(t('usageMeterStale')), stale)
+    assert.ok(stale.includes(t('usageMeterPace', { elapsed: 50 })), stale)
+    assert.ok(!stale.includes(t('usageMeterPaceBehind', { points: 30 })), stale)
+    assert.ok(!stale.includes(t('usageMeterPaceAhead', { points: 30 })), stale)
+    assert.ok(!stale.includes(t('usageMeterPaceEven')), stale)
     const noTime = renderToStaticMarkup(createElement(UsageMeter, { t, observedAt: realNow, window: { kind: 'other', usedPercent: 80 } }))
     assert.doesNotMatch(noTime, /data-usage-time-marker/)
     assert.match(noTime, /data-usage-color="green"/)
@@ -124,4 +132,83 @@ test('localized meter labels distinguish fresh, unknown and stale readings', () 
     assert.ok(ahead.includes(t('usageMeterPaceAhead', { points: 30 })), ahead)
     assert.match(ahead, /data-usage-color="yellow"/)
   }
+})
+
+/**
+ * The cursor shows where the window stands in time. Nothing about it depends on
+ * how much was used or on how recently the percentage was read, so each case
+ * pins one reading condition and asks only whether the cursor is drawn.
+ */
+test('the cursor follows the window interval, not the reading: 0%, stale, aged, unobserved, invalid', () => {
+  const realNow = Date.now()
+  const t = (key: keyof typeof en, params?: Record<string, unknown>) => en[key]
+    .replace(/\{(\w+)\}/g, (_, name: string) => String(params?.[name] ?? ''))
+  const interval = { startsAt: realNow - 100_000, resetsAt: realNow + 100_000 }
+  const cursor = (props: { usedPercent: number; observedAt?: number; stale?: boolean; timing?: object }) =>
+    /data-usage-time-marker/.test(renderToStaticMarkup(createElement(UsageMeter, {
+      t,
+      window: { kind: 'session' as const, usedPercent: props.usedPercent, ...(props.timing ?? interval) },
+      ...props.observedAt === undefined ? {} : { observedAt: props.observedAt },
+      ...props.stale === undefined ? {} : { stale: props.stale },
+    })))
+  for (const usedPercent of [0, 40]) {
+    assert.equal(cursor({ usedPercent, observedAt: realNow }), true, `${usedPercent}% fresh`)
+    assert.equal(cursor({ usedPercent, observedAt: realNow, stale: true }), true, `${usedPercent}% refresh failed`)
+    assert.equal(cursor({ usedPercent, observedAt: realNow - USAGE_FRESHNESS_MS - 1 }), true, `${usedPercent}% aged`)
+    assert.equal(cursor({ usedPercent }), true, `${usedPercent}% no observation time`)
+    assert.equal(cursor({ usedPercent, observedAt: realNow + 60_000 }), true, `${usedPercent}% observation in the future`)
+  }
+  // An unusable percentage says nothing about the window's time.
+  for (const usedPercent of [NaN, -1, 150]) {
+    assert.equal(cursor({ usedPercent, observedAt: realNow }), true, `${usedPercent} is invalid but the interval is known`)
+  }
+  // Timing that cannot place a cursor still draws none, however fresh the reading.
+  for (const timing of [{}, { resetsAt: realNow + 100_000 }, { resetsAt: realNow - 1, startsAt: realNow - 100_000 },
+    { startsAt: realNow + 50_000, resetsAt: realNow + 100_000 }, { resetsAt: realNow + 100_000, windowDurationMs: 200_000 }]) {
+    assert.equal(cursor({ usedPercent: 0, observedAt: realNow, timing }), false, JSON.stringify(timing))
+  }
+})
+
+test('a stale or aged reading keeps its cursor but never compares its old percentage with the current time', () => {
+  const realNow = Date.now()
+  for (const dictionary of [en, zh]) {
+    const t = (key: keyof typeof en, params?: Record<string, unknown>) => dictionary[key]
+      .replace(/\{(\w+)\}/g, (_, name: string) => String(params?.[name] ?? ''))
+    const window = { kind: 'session' as const, usedPercent: 80, startsAt: realNow - 100_000, resetsAt: realNow + 100_000 }
+    const aged = renderToStaticMarkup(createElement(UsageMeter, { t, window, observedAt: realNow - USAGE_FRESHNESS_MS - 1 }))
+    assert.match(aged, /data-usage-time-marker/)
+    assert.ok(aged.includes(t('usageMeterStale')), aged)
+    assert.ok(aged.includes(t('usageMeterPace', { elapsed: 50 })), aged)
+    // 80% used at 50% elapsed would be a yellow warning on a fresh reading; an old reading gets no warning.
+    assert.match(aged, /data-usage-color="green"/)
+    assert.ok(!aged.includes(t('usageMeterAhead')), aged)
+    for (const key of ['usageMeterPaceAhead', 'usageMeterPaceBehind'] as const) {
+      assert.ok(!aged.includes(t(key, { points: 30 })), aged)
+    }
+    // The same reading, fresh, still warns and compares.
+    const fresh = renderToStaticMarkup(createElement(UsageMeter, { t, window, observedAt: realNow }))
+    assert.match(fresh, /data-usage-color="yellow"/)
+    assert.ok(fresh.includes(t('usageMeterPaceAhead', { points: 30 })), fresh)
+    // Near exhaustion is still red when old: red reports the percentage alone.
+    const red = renderToStaticMarkup(createElement(UsageMeter, { t, window: { ...window, usedPercent: 95 }, stale: true }))
+    assert.match(red, /data-usage-color="red"/)
+    assert.match(red, /data-usage-time-marker/)
+  }
+})
+
+test('an invalid percentage is reported as unavailable and still shows the interval cursor', () => {
+  const realNow = Date.now()
+  const t = (key: keyof typeof en, params?: Record<string, unknown>) => en[key]
+    .replace(/\{(\w+)\}/g, (_, name: string) => String(params?.[name] ?? ''))
+  const html = renderToStaticMarkup(createElement(UsageMeter, { t, observedAt: realNow, window: {
+    kind: 'other' as const, usedPercent: 150, startsAt: realNow - 100_000, resetsAt: realNow + 100_000,
+  } }))
+  assert.match(html, /data-usage-time-marker/)
+  assert.match(html, /data-usage-color="neutral"/)
+  assert.ok(html.includes(t('usageMeterInvalid')), html)
+  assert.ok(html.includes(t('usageMeterPace', { elapsed: 50 })), html)
+  // No fill and no pace comparison for a number that cannot be trusted.
+  assert.ok(!html.includes('width:150%'), html)
+  assert.ok(!html.includes(t('usageMeterPaceAhead', { points: 100 })), html)
+  assert.doesNotMatch(html, /NaN|150%/)
 })

@@ -31,6 +31,9 @@ import type { ProviderUsageDisplay, UsageRosterEntry } from '../src/client/Subsc
 import type { ClientConnectionRpc } from '@deepseek-ai/dsh-client-connection/client'
 import type { UsageWindow } from '../src/client/SubscriptionsSection.js'
 import { en, zh } from '../src/client/locales.js'
+import { fetchMiniMaxUsage } from '../src/providers/minimax-usage.js'
+import { fetchKimiCodeUsage } from '../src/providers/external-usage.js'
+import { externalUsageWindowLabel } from '../src/client/ExternalUsageCards.js'
 
 const windows: UsageWindow[] = Array.from({ length: 60 }, (_, i) => ({
   kind: 'other', scope: `gemini-model-${i}`, usedPercent: i,
@@ -253,4 +256,47 @@ test('model reader observes switches within the same provider and handles missin
   assert.deepEqual(await read(), { provider: 'antigravity', model: 'two' })
   assert.equal(await createCurrentModelReader(() => undefined, 'session')(), undefined)
   assert.equal(await createCurrentModelReader(() => ({ directoryFor: () => ({ load: async () => ({ current: null }) }) }), 'session')(), undefined)
+})
+
+test('MiniMax pill and dialog show the standard model, not only video', async () => {
+  // The standard model's windows carry explicit percentages with zero counts.
+  const start = Date.now() - 3_600_000
+  const rows = [
+    { model_name: 'general', start_time: start, end_time: start + 18_000_000,
+      weekly_start_time: start, weekly_end_time: start + 604_800_000,
+      current_interval_total_count: 0, current_interval_usage_count: 0, current_interval_remaining_percent: 94,
+      current_weekly_total_count: 0, current_weekly_usage_count: 0, current_weekly_remaining_percent: 98 },
+    { model_name: 'video', start_time: start, end_time: start + 86_400_000,
+      weekly_start_time: start, weekly_end_time: start + 604_800_000,
+      current_interval_total_count: 3, current_interval_usage_count: 3, current_interval_remaining_percent: 100,
+      current_weekly_total_count: 21, current_weekly_usage_count: 21, current_weekly_remaining_percent: 100 },
+  ]
+  const usage = await fetchMiniMaxUsage('key', 'global', (async () => Response.json({ model_remains: rows })) as typeof fetch)
+  const d = display('minimax', usage.windows!)
+  d.name = 'MiniMax'
+  // The pill reads the first two windows in the API's order: the standard model's two.
+  const pill = compactSegment(d)
+  assert.match(pill, /^MiniMax \S+ 6% · \S+ 2% · \+2$/)
+  const translate = (key: keyof typeof en, params?: Record<string, unknown>) => en[key]
+    .replace(/\{(\w+)\}/g, (_, name: string) => String(params?.[name] ?? ''))
+  const html = renderToStaticMarkup(createElement(AccountWindows, { windows: usage.windows!, model: undefined, provider: 'minimax', translate }))
+  for (const label of ['5-hour window · general', 'Weekly · general', 'Weekly · video']) {
+    assert.ok(html.includes(label), label)
+  }
+})
+
+test('a named Kimi limit is labelled the same on the settings card and in the dialog', async () => {
+  // Kimi's `limits[]` entries may carry a `name`; the parser keeps it as the
+  // window's scope. The dialog has always shown it, and the external card now
+  // does too, so the two surfaces must not disagree.
+  const usage = await fetchKimiCodeUsage('key', (async () => Response.json({ limits: [
+    { name: 'Coding', window: { duration: 300, timeUnit: 'MINUTE' }, detail: { limit: 100, used: 10 } },
+    { window: { duration: 7, timeUnit: 'DAY' }, detail: { limit: 100, used: 20 } },
+  ] })) as typeof fetch)
+  const translate = (key: keyof typeof en, params?: Record<string, unknown>) => en[key]
+    .replace(/\{(\w+)\}/g, (_, name: string) => String(params?.[name] ?? ''))
+  const cardLabels = usage.windows!.map(window => externalUsageWindowLabel(translate, window))
+  assert.deepEqual(cardLabels, ['5-hour window · Coding', 'Weekly'])
+  const html = renderToStaticMarkup(createElement(AccountWindows, { windows: usage.windows!, model: undefined, provider: 'kimi-coding', translate }))
+  for (const label of cardLabels) assert.ok(html.includes(`>${label}<`), label)
 })

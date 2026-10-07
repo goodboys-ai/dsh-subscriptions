@@ -48,6 +48,7 @@ import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { isDeepStrictEqual } from 'node:util'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -107,12 +108,12 @@ process.on('unhandledRejection', exitFor)
 
 // Loaded here rather than imported statically, so a missing or unreadable
 // module is a harness failure (exit 2) instead of Node's own exit 1.
-let CODEX_MODEL, CODEX_PILL, CODEX_REPLY, EXPECTED_REFUSALS, FIXTURE_REQUESTS, USAGE_PERCENT
+let CODEX_MODEL, CODEX_PILL, CODEX_REPLY, EXPECTED_REFUSALS, FIXTURE_REQUESTS, USAGE_PERCENT, MINIMAX_WINDOWS
 let HOST_CONTRACT, HOST_CONTRACT_MISS, SECTION_EN
 
 try {
   ;({
-    CODEX_MODEL, CODEX_PILL, CODEX_REPLY, EXPECTED_REFUSALS, FIXTURE_REQUESTS, USAGE_PERCENT,
+    CODEX_MODEL, CODEX_PILL, CODEX_REPLY, EXPECTED_REFUSALS, FIXTURE_REQUESTS, USAGE_PERCENT, MINIMAX_WINDOWS,
   } = await import('./host-e2e-fixture.mjs'))
   // Node strips the types from these dependency-free modules; see their headers.
   ;({ HOST_CONTRACT, HOST_CONTRACT_MISS } = await import(join(root, 'src/client/host-contract.ts')))
@@ -199,7 +200,8 @@ async function waitForFixture(cookies) {
       const providers = status?.value?.providers ?? {}
       const accounts = Object.fromEntries(oauth.map(id => [id, providers[id]?.accounts?.find(a => a.isDefault)?.key]))
       const signedIn = oauth.every(id => accounts[id] !== undefined)
-      const keys = external?.value?.['opencode-go']?.configured === true && external?.value?.['kimi-code']?.configured === true
+      const keys = ['opencode-go', 'kimi-code', 'minimax'].every(source => external?.value?.[source]?.configured === true)
+        && external?.value?.['minimax-cn']?.configured === false
       const cursorIn = cursor?.value?.authenticated === true
       if (signedIn && keys && cursorIn) return accounts
       last = `oauth=${JSON.stringify(accounts)} keys=${keys} cursor=${cursorIn}`
@@ -213,10 +215,10 @@ async function waitForFixture(cookies) {
 }
 
 /**
- * Each usage RPC returns exactly one window, carrying the percentage its own
- * fixture serves. The fixture gives each source one window and a distinct
- * percentage, so a window taken from another source or a stray extra window
- * both fail. Copilot has no usage endpoint.
+ * Single-window sources return their own distinct fixture percentage. MiniMax
+ * returns four exact scoped windows, including percentage-only quota and its
+ * own millisecond bounds; merged rows or fabricated counts fail. Copilot has
+ * no usage endpoint.
  */
 async function checkUsageRpcs(cookies, accounts) {
   const calls = [
@@ -238,6 +240,15 @@ async function checkUsageRpcs(cookies, accounts) {
       || typeof percents[0] !== 'number' || Math.abs(percents[0] - USAGE_PERCENT[source].percent) > 1e-9) {
       wrong.push(`${endpoint}(${JSON.stringify(payload)}) → ${JSON.stringify(result)}`)
     }
+  }
+  const minimax = await rpc(cookies, 'externalUsage', { source: 'minimax' })
+  if (minimax?.ok !== true || minimax.value.supported !== true || minimax.value.plan !== 'MiniMax'
+    || !isDeepStrictEqual(minimax.value.windows, MINIMAX_WINDOWS)) {
+    wrong.push(`externalUsage(minimax) should return exact scoped windows ${JSON.stringify(MINIMAX_WINDOWS)} → ${JSON.stringify(minimax)}`)
+  }
+  const now = Date.now()
+  if (!MINIMAX_WINDOWS.every(window => window.startsAt <= now && now < window.resetsAt)) {
+    throw new HarnessFailure('MiniMax fixture bounds are not current; omit HOST_E2E_FIXTURE_NOW or use a current epoch')
   }
   const copilot = await rpc(cookies, 'usage', { provider: 'copilot', account: accounts.copilot })
   if (copilot?.ok !== true || copilot.value.supported !== false) {
@@ -435,6 +446,8 @@ async function drive(cdp, page, evidence) {
   console.log(`ok: usage pill ${CODEX_PILL} renders inside ${statsRow}`)
 
   // Product: the dialog lists every source with its own percentage.
+  const colorPreset = await cdp.evaluate(`localStorage.getItem('dsh.subscriptions.usageColorPreset')`)
+  if (colorPreset !== null && colorPreset !== 'standard') throw new HarnessFailure('MiniMax zero-used marker check requires Standard usage coloring')
   if (!await cdp.evaluate(`(() => { const button = [...document.querySelectorAll('[data-composer-stats] button[aria-haspopup="dialog"]')].find(b => b.getAttribute('aria-label')?.includes('Codex ')); if (!button) return false; button.click(); return true })()`)) throw new HarnessFailure('the usage pill could not be clicked')
   if (!await waitFor(cdp, '(() => document.querySelector(\'[role="dialog"]\') !== null)()', 10_000)) {
     throw new ProductFailure('the usage dialog did not open')
@@ -470,7 +483,16 @@ async function drive(cdp, page, evidence) {
   if (paceMissing.length) throw new ProductFailure(`fixed-window time markers missing: ${paceMissing.join(', ')}`)
   console.log('ok: Codex and Claude fixed-window time markers render')
   console.log('ok: usage dialog lists every source with its fixture percentage')
+  await checkMiniMaxRows(cdp)
   await captureNamedScreenshot(cdp, 'usage-dialog')
+  const minimaxSection = await cdp.evaluate(`(() => {
+    const section = [...document.querySelectorAll('${USAGE_DIALOG} section')].find(section => section.querySelector('span')?.textContent === 'MiniMax')
+    if (!section) return false
+    section.scrollIntoView({ block: 'center' })
+    return true
+  })()`)
+  if (!minimaxSection) throw new ProductFailure('MiniMax badge section missing before screenshot')
+  await captureNamedScreenshot(cdp, 'usage-dialog-minimax')
 
   // Product: the dialog wears the host's menu material in both themes, and
   // the collapsed pill is still transparent.
@@ -540,7 +562,7 @@ async function checkSettingsSection(cdp) {
       'Codex (ChatGPT)', 'Claude', 'Grok (X Premium)', 'GitHub Copilot', 'Google Antigravity',
       ${JSON.stringify(t.loggedInCount.replace('{count}', '1'))},
       ${JSON.stringify(t.cursorTitle)},
-      'OpenCode Go', 'Kimi Code',
+      'OpenCode Go', 'Kimi Code', 'MiniMax',
       ${JSON.stringify(t.externalUsageConnected)},
     ]
     return wanted.filter(line => !text.includes(line))
@@ -557,6 +579,15 @@ async function checkSettingsSection(cdp) {
   }
   console.log(`ok: settings section ${t.nav} renders intro, provider cards, and the display control`)
   await captureNamedScreenshot(cdp, 'settings')
+  await checkMiniMaxRows(cdp, outlet)
+  const minimaxCard = await cdp.evaluate(`(() => {
+    const name = [...document.querySelectorAll(${JSON.stringify(`${outlet} span`)})].find(span => span.textContent === 'MiniMax')
+    if (!name) return false
+    name.parentElement.parentElement.scrollIntoView({ block: 'center' })
+    return true
+  })()`)
+  if (!minimaxCard) throw new ProductFailure('MiniMax settings card missing before screenshot')
+  await captureNamedScreenshot(cdp, 'settings-minimax')
   if (process.env.HOST_E2E_COLOR_CHECK === '1') {
     const colorSelect = `document.querySelector(${JSON.stringify(`${outlet} select[aria-label="${t.usageColorLabel}"]`)})`
     if (!await waitFor(cdp, `(() => ${colorSelect} !== null)()`, 10_000)) throw new ProductFailure('usage coloring control missing')
@@ -644,6 +675,51 @@ function dialogSections(cdp) {
   }))`)
 }
 
+/** MiniMax rows retain scope, percentage, and a visible time cursor, even at 0% used. */
+async function checkMiniMaxRows(cdp, settingsOutlet) {
+  const settings = settingsOutlet !== undefined
+  const expression = `(() => {
+    const root = document.querySelector(${JSON.stringify(settingsOutlet ?? USAGE_DIALOG)})
+    const matches = root === null ? [] : ${settings
+      ? `[...root.querySelectorAll('span')].filter(span => span.textContent === 'MiniMax' && span.parentElement?.firstElementChild?.tagName === 'SPAN').map(span => span.parentElement.parentElement)`
+      : `[...root.querySelectorAll('section')].filter(section => [...(section.querySelector('span')?.childNodes ?? [])].filter(node => node.nodeType === Node.TEXT_NODE).map(node => node.textContent).join('').trim() === 'MiniMax')`}
+    if (matches.length !== 1) return { cards: matches.length, rows: [] }
+    const card = matches[0]
+    for (const details of card.querySelectorAll('details')) if (!details.open) details.querySelector('summary')?.click()
+    const rows = ${settings
+      ? `[...card.querySelectorAll('[role="img"][data-usage-color]')].map(meter => ({ label: meter.previousElementSibling?.firstElementChild?.textContent, value: meter.previousElementSibling?.lastElementChild?.textContent, meter }))`
+      : `[...card.querySelectorAll('dt')].map(dt => ({ label: dt.textContent, value: dt.nextElementSibling?.textContent, meter: dt.nextElementSibling?.nextElementSibling }))`}
+    return { cards: matches.length, rows: rows.map(({ label, value, meter }) => {
+      const marker = meter?.querySelector('[data-usage-time-marker]')
+      const rect = marker?.getBoundingClientRect()
+      return { label, percent: /^\\s*(\\d+)%/.exec(value ?? '')?.[1],
+        fill: meter?.firstElementChild?.style.width,
+        markers: meter?.querySelectorAll('[data-usage-time-marker]').length ?? 0,
+        visible: !!rect && rect.width > 0 && rect.height > 0 && getComputedStyle(marker).visibility !== 'hidden' }
+    }) }
+  })()`
+  let snapshot, wrong
+  const deadline = Date.now() + DIALOG_SETTLE_MS
+  for (;;) {
+    snapshot = await cdp.evaluate(expression)
+    wrong = []
+    if (snapshot.cards !== 1) wrong.push(`${snapshot.cards} MiniMax cards`)
+    if (snapshot.rows.length !== MINIMAX_WINDOWS.length) wrong.push(`${snapshot.rows.length} rows, expected ${MINIMAX_WINDOWS.length}`)
+    for (const [index, window] of MINIMAX_WINDOWS.entries()) {
+      const base = window.kind === 'session' ? SECTION_EN.usageSession : window.kind === 'weekly' ? SECTION_EN.usageWeekly : SECTION_EN.usageWindow
+      const label = settings && window.kind === 'other' ? window.scope : `${base} · ${window.scope}`
+      const row = snapshot.rows[index]
+      if (row?.label !== label || row?.percent !== String(window.usedPercent)
+        || Math.abs(Number.parseFloat(row?.fill) - window.usedPercent) > 1e-9 || !Number.isFinite(Number.parseFloat(row?.fill))
+        || row?.markers !== 1 || row?.visible !== true) wrong.push(`${label}: expected ${window.usedPercent}% with its own visible time marker`)
+    }
+    if (wrong.length === 0 || Date.now() >= deadline) break
+    await delay(250)
+  }
+  if (wrong.length) throw new ProductFailure(`MiniMax ${settings ? 'settings' : 'expanded badge'} rows mismatch: ${wrong.join('; ')} → ${JSON.stringify(snapshot)}`)
+  console.log(`ok: MiniMax ${settings ? 'settings' : 'expanded badge'} keeps four scoped rows and time markers, including Standard 0% used`)
+}
+
 /** How the dialog's sections differ from the fixture; empty when they match. */
 function dialogMismatches(sections) {
   const wrong = []
@@ -656,7 +732,12 @@ function dialogMismatches(sections) {
     }
   }
   // Copilot is signed in, but the plugin has no Copilot usage endpoint.
-  const expectedNames = new Set(Object.values(USAGE_PERCENT).map(({ name }) => name))
+  const minimax = sections.filter(section => section.name === 'MiniMax')
+  const minimaxPercents = MINIMAX_WINDOWS.map(window => String(window.usedPercent))
+  if (minimax.length !== 1 || !isDeepStrictEqual(minimax[0]?.percents, minimaxPercents)) {
+    wrong.push(`MiniMax: expected separate percentages ${JSON.stringify(minimaxPercents)}, shows ${JSON.stringify(minimax)}`)
+  }
+  const expectedNames = new Set([...Object.values(USAGE_PERCENT).map(({ name }) => name), 'MiniMax'])
   for (const { name } of sections) {
     if (!expectedNames.has(name)) wrong.push(`unexpected section ${JSON.stringify(name)}`)
   }

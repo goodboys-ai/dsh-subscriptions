@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-api-remotes/client'
-import type { ProviderUsage, SubscriptionsSectionInjected } from './SubscriptionsSection.js'
+import type { ProviderUsage, SubscriptionsSectionInjected, UsageWindow } from './SubscriptionsSection.js'
 import { callSubscriptionsAuth } from './subscriptions-rpc.js'
 import { subscriptionCardStyles as styles } from './subscription-card-styles.js'
 import { USAGE_BADGE_REFRESH_EVENT } from './usage-badge-preferences.js'
@@ -21,6 +21,24 @@ type Status = Record<Source, { configured: boolean }>
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+/**
+ * Row label of one window on an external usage card. A session or weekly
+ * window appends the model it belongs to when the provider names one (MiniMax
+ * reports a window per model), so two models' weekly rows stay distinguishable.
+ * The monthly pool is a scope on an `other` window, not a model.
+ * @param t - section translate.
+ * @param window - the reported window.
+ * @returns the localized label, e.g. "Weekly · general".
+ */
+export function externalUsageWindowLabel(t: Translate, window: UsageWindow): string {
+  const named = window.scope !== undefined && window.scope !== ''
+  if (window.kind === 'other') {
+    return window.scope === 'Monthly' ? t('usageMonthly') : named ? window.scope! : t('usageWindow')
+  }
+  const base = window.kind === 'session' ? t('usageSession') : t('usageWeekly')
+  return named ? `${base} · ${window.scope}` : base
 }
 
 /** Quota cards for API-key providers already available through DSH itself. */
@@ -95,9 +113,7 @@ export function ExternalUsageCards({ rpc, t }: { rpc: ConnectionHandle['rpc']; t
             {snapshot?.windows?.length === 0 && <p style={styles.status}>{t('usageEmpty')}</p>}
             {snapshot?.windows?.map((window, index) => {
               const percent = displayUsedPercent(window.usedPercent)
-              const label = window.kind === 'session' ? t('usageSession')
-                : window.kind === 'weekly' ? t('usageWeekly')
-                  : window.scope === 'Monthly' ? t('usageMonthly') : window.scope ?? t('usageWindow')
+              const label = externalUsageWindowLabel(t, window)
               return <div key={index} style={styles.usageRow}>
                 <div style={styles.usageMeta}>
                   <span>{label}</span>
