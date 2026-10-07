@@ -316,12 +316,15 @@ export function collapsedDisplays(
 }
 
 /**
- * `always` mode: the current provider while it reports usage, otherwise the
- * rotation steps through the providers that do, in display order, wrapping
- * around. The rotation index stays inside the provider count so it survives
- * providers appearing or dropping out without jumping the sequence.
+ * `always` mode: the current model's provider while it reports usage,
+ * otherwise the rotation steps through the providers that do, in display
+ * order, wrapping around. The index is taken modulo the current provider
+ * count, so providers appearing or dropping out stay inside range; the
+ * sequence itself may shift when the roster changes. Unlike `recent`, the
+ * retained subscription does not pin the pill — that retention is exactly
+ * what this mode exists to escape.
  * @param displays - providers with usage, in display order.
- * @param current - the provider the badge follows (retained subscription or current model).
+ * @param current - the provider of the session's current model.
  * @param step - rotation tick; consecutive ticks advance one provider.
  */
 export function rotatingDisplay(
@@ -391,6 +394,9 @@ export function SubscriptionUsageBadge({ rpc, currentModel, t, rotationMs }: Sub
   const [hover, setHover] = useState(false)
   // Rotation tick for `always` mode; the interval runs only in that mode.
   const [rotation, setRotation] = useState(0)
+  // The provider the pill showed when the dialog opened; an open dialog
+  // keeps leading with it while the rotation keeps ticking underneath.
+  const [dialogLead, setDialogLead] = useState<string | undefined>(undefined)
   const inflightRef = useRef(false)
   const mountedRef = useRef(true)
   const rootRef = useRef<HTMLSpanElement | null>(null)
@@ -565,19 +571,33 @@ export function SubscriptionUsageBadge({ rpc, currentModel, t, rotationMs }: Sub
   }, [displayMode, rotationMs])
 
   const seat = <span ref={seatRef} style={styles.seat} aria-hidden />
+  // `always` follows the live model, not the retained subscription: the
+  // retention pins the pill in `recent`, which is what this mode escapes.
   const collapsed = displayMode === 'always'
-    ? rotatingDisplay(displays, badgeSelection?.provider, rotation)
+    ? rotatingDisplay(displays, current, rotation)
     : collapsedDisplays(displays, badgeSelection?.provider)
   if (displayMode === 'hidden' || collapsed.length === 0) return seat
 
-  const label = compactSegment(collapsed[0]!, displayMode === 'always' ? undefined : badgeSelection?.model, translate)
+  // Model scope only while the pill shows the current model's provider;
+  // a rotated provider has no live model, so it reads at account level.
+  const pillModel = displayMode === 'always'
+    ? (current === collapsed[0]?.provider ? selection?.model : undefined)
+    : badgeSelection?.model
+  const label = compactSegment(collapsed[0]!, pillModel, translate)
   // The dialog opens from the badge, so it follows the provider and model the
   // badge shows (a retained subscription when the current model is not one).
-  const expanded = expandedDisplays(displays, badgeSelection?.provider)
+  // In `always` mode the pill moves under the cursor, so an open dialog keeps
+  // the provider that was showing when it opened instead of reordering live.
+  const dialogProvider = open && displayMode === 'always' ? dialogLead : badgeSelection?.provider
+  const dialogModel = open && displayMode === 'always'
+    ? (dialogLead === current ? selection?.model : undefined)
+    : badgeSelection?.model
+  const expanded = expandedDisplays(displays, dialogProvider)
   const title = translate('usageBadgeTitle')
 
   const toggle = (): void => {
     const next = !open
+    setDialogLead(collapsed[0]?.provider)
     setOpen(next)
     if (next) void refresh()
   }
@@ -629,10 +649,10 @@ export function SubscriptionUsageBadge({ rpc, currentModel, t, rotationMs }: Sub
                     </div>
                   )}
                   <AccountWindows
-                    key={`${d.provider}:${badgeSelection?.model ?? ''}`}
+                    key={`${d.provider}:${dialogModel ?? ''}`}
                     windows={account.windows}
                     observedAt={account.observedAt} stale={account.stale}
-                    model={d.provider === badgeSelection?.provider ? badgeSelection.model : undefined}
+                    model={d.provider === dialogProvider ? dialogModel : undefined}
                     provider={d.provider}
                     translate={translate}
                   />

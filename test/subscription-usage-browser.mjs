@@ -89,12 +89,13 @@ try {
   console.log('70%: compact Antigravity, cross-tab hiding and persisted preference verified')
   // Always mode: the current provider pins the pill; without one the badge
   // rotates through the providers that report usage, in display order.
+  // Unlike recent, a retained subscription must not pin: after switching to
+  // the API model the pill has to start moving.
   await control.selectOption('always')
-  await page.getByRole('button', { name: 'codex', exact: true }).click()
+  await choose('codex', 'codex')
   await badge.waitFor()
   assert.match(await badge.innerText(), /^Codex /)
-  await page.getByRole('button', { name: 'api', exact: true }).click()
-  await page.waitForFunction(() => /^Codex /.test(document.querySelector('[data-composer-stats] button')?.innerText ?? ''))
+  await choose('api', 'deepseek')
   await page.getByRole('button', { name: 'Fast rotation', exact: true }).click()
   const sequence = []
   for (let i = 0; i < 4; i++) {
@@ -105,9 +106,22 @@ try {
     sequence.push((await badge.innerText()).split(' ')[0])
   }
   assert.deepEqual(sequence, ['Codex', 'Grok', 'Antigravity', 'Codex'])
+  // A pinned current model keeps its model scope in always mode: the
+  // Antigravity pill reads the exact model, not the catalog count.
+  await choose('antigravity', 'antigravity')
+  await page.waitForFunction(() => /^Antigravity Window 29%/.test(document.querySelector('[data-composer-stats] button')?.innerText ?? ''))
+  // The dialog opened from a rotated pill leads with the provider shown,
+  // not the roster's first row.
+  await choose('api', 'deepseek')
+  await page.waitForFunction(() => /^Grok /.test(document.querySelector('[data-composer-stats] button')?.innerText ?? ''))
+  await badge.click()
+  await panel.waitFor()
+  assert.match(await panel.locator('section').first().innerText(), /^Grok/)
+  await page.keyboard.press('Escape')
+  await panel.waitFor({ state: 'detached' })
   // Switching back to recent restores the pinned selection.
   await control.selectOption('recent')
-  await page.getByRole('button', { name: 'codex', exact: true }).click()
+  await choose('codex', 'codex')
   await badge.waitFor()
   assert.match(await badge.innerText(), /^Codex /)
   console.log('85%: always-mode rotation verified')

@@ -149,6 +149,12 @@ test('always mode pins the current provider and rotates the rest in display orde
   // No usage anywhere means no badge; unusable steps stay put on the first row.
   assert.deepEqual(rotatingDisplay([], undefined, 3), [])
   assert.equal(rotatingDisplay(all, 'deepseek', Number.NaN)[0]?.provider, 'codex')
+  // A roster change at one step re-bases the index: in range, but the
+  // provider under the tick may shift — the modulo bounds, it does not anchor.
+  assert.equal(rotatingDisplay(all, undefined, 3)[0]?.provider, 'codex')
+  assert.equal(rotatingDisplay(two, undefined, 3)[0]?.provider, 'grok')
+  // A provider gaining usage while current stops the rotation at once.
+  assert.equal(rotatingDisplay([display('grok')], 'grok', 5)[0]?.provider, 'grok')
 })
 
 test('quota roster and usage calls include Cursor, OpenCode Go and Kimi while tolerating OAuth status failure', async () => {
