@@ -557,6 +557,7 @@ async function checkSettingsSection(cdp) {
       ${JSON.stringify(t.intro)},
       ${JSON.stringify(t.usageBadgeDisplay)},
       ${JSON.stringify(t.usageBadgeDisplayRecent)},
+      ${JSON.stringify(t.usageBadgeDisplayAlways)},
       ${JSON.stringify(t.usageBadgeDisplayHidden)},
       ${JSON.stringify(t.usageBadgeDisplayHint)},
       'Codex (ChatGPT)', 'Claude', 'Grok (X Premium)', 'GitHub Copilot', 'Google Antigravity',
@@ -607,6 +608,7 @@ async function checkSettingsSection(cdp) {
   const options = await cdp.evaluate(`(() => [...${select}.options].map(option => ({ value: option.value, text: option.textContent })))()`)
   const expectedOptions = [
     { value: 'recent', text: t.usageBadgeDisplayRecent },
+    { value: 'always', text: t.usageBadgeDisplayAlways },
     { value: 'hidden', text: t.usageBadgeDisplayHidden },
   ]
   if (JSON.stringify(options) !== JSON.stringify(expectedOptions)) {

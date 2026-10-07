@@ -21,7 +21,7 @@ export function UsageBadgeDisplaySetting({ t }: { t: Translate }) {
           value={mode}
           onChange={event => {
             const value = event.currentTarget.value
-            if (value !== 'recent' && value !== 'hidden') return
+            if (value !== 'recent' && value !== 'always' && value !== 'hidden') return
             try {
               setUsageBadgeMode(value)
               setFailed(false)
@@ -32,6 +32,7 @@ export function UsageBadgeDisplaySetting({ t }: { t: Translate }) {
           }}
         >
           <option value="recent">{t('usageBadgeDisplayRecent')}</option>
+          <option value="always">{t('usageBadgeDisplayAlways')}</option>
           <option value="hidden">{t('usageBadgeDisplayHidden')}</option>
         </select>
       </label>
