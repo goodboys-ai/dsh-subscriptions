@@ -41,7 +41,7 @@ const USED = {
 } as const
 
 const CODEX_URL = 'https://chatgpt.com/backend-api/wham/usage'
-const CLAUDE_URL = 'https://api.anthropic.com/api/oauth/usage'
+const CLAUDE_URL = 'https://api.anthropic.com/api/oauth/usage?cedar_ember=1'
 const GROK_URL = 'https://cli-chat-proxy.grok.com/v1/billing?format=credits'
 const ANTIGRAVITY_MODELS_URL = 'https://daily-cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels'
 const ANTIGRAVITY_TIER_URL = 'https://daily-cloudcode-pa.googleapis.com/v1internal:loadCodeAssist'

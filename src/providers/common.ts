@@ -494,11 +494,26 @@ export interface UsageWindow {
   fixedWindow?: boolean
 }
 
-/** One banked Codex reset credit, returned by the private ChatGPT backend API. */
+/** One banked reset credit (Codex), or one grant containing resets (Claude). */
 export interface ResetCredit {
   id?: string
   grantedAt?: number
+  /** Expiration in epoch ms; never a recurring usage-window reset. */
   expiresAt?: number
+  /** Claude grant counts; one array entry per grant, not per remaining reset. */
+  resetsTotal?: number
+  resetsLeft?: number
+  /** Claude's disclosed grant state, absent when the server omits it. */
+  usableNow?: boolean
+  paused?: boolean
+  /**
+   * Claude server-selected grant is currently usable. Read-only metadata, not
+   * permission to redeem; no Claude redemption endpoint is implemented.
+   * Codex entries omit this field and retain their existing semantics.
+   */
+  claimable?: boolean
+  /** Claude program cooldown in epoch ms, repeated on each grant when disclosed. */
+  cooldownUntil?: number
 }
 
 /** Subscription usage of one provider, as served by the `usage` RPC endpoint. */
@@ -513,7 +528,7 @@ export interface ProviderUsage {
   windows?: UsageWindow[]
   /** Plan name the usage endpoint reported, when present. */
   plan?: string
-  /** Available banked Codex full resets, when the backend discloses them. */
+  /** Banked Codex resets or Claude grants, when the provider discloses them. */
   resetCredits?: ResetCredit[]
   /** Optional reset lookup failure; ordinary usage remains usable. */
   resetCreditsError?: string

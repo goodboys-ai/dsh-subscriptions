@@ -133,7 +133,7 @@ test('claude: usage limits array is classified into windows', async (t) => {
   assert.equal(windows[1].usedPercent, 12)
   assert.ok((windows[1].resetsAt ?? 0) > Date.now())
 
-  const usageCall = fake.calls.find(call => call.url === CLAUDE_USAGE_URL)
+  const usageCall = fake.calls.find(call => call.url === `${CLAUDE_USAGE_URL}?cedar_ember=1`)
   assert.ok(usageCall !== undefined)
   assert.equal(usageCall.headers['authorization'], `Bearer ${session.accessToken}`)
   assert.match(usageCall.headers['user-agent'] ?? '', /claude/)
