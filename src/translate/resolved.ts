@@ -7,6 +7,7 @@
  */
 
 import { LlmError } from '@deepseek-ai/dsh-llm'
+import * as llm from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, Message, RequestMessage } from '@deepseek-ai/dsh-llm'
 import type { AttachmentStore, ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 
@@ -86,6 +87,52 @@ export interface ImageRequestLimit {
 }
 
 /**
+ * Failure code a host's image-offload executor answers by replacing the oldest
+ * retained images with text and retrying (`IMAGE_OFFLOAD_REQUIRED_CODE` in
+ * dsh-llm 0.2+). Spelled out so the build links against older hosts too.
+ */
+export const IMAGE_OFFLOAD_REQUIRED = 'IMAGE_OFFLOAD_REQUIRED'
+
+/**
+ * Whether the installed host records image offloads. Hosts that predate the
+ * executor never mark images `offloaded`, so asking them to would fail every
+ * later request instead of shrinking it.
+ */
+export function hostSupportsImageOffload(): boolean {
+  const exports = llm as Record<string, unknown>
+  return exports['IMAGE_OFFLOAD_REQUIRED_CODE'] === IMAGE_OFFLOAD_REQUIRED
+    && typeof exports['offloadedImageText'] === 'function'
+}
+
+/**
+ * How many of the oldest images still sent inline must be offloaded before
+ * the resolved request fits `maxBase64Bytes` of image data; zero when it fits.
+ * Images are counted depth-first in request order, skipping assistant
+ * messages, the same order the host's executor selects occurrences in.
+ * @param messages - the resolved request, after {@link resolveImages}.
+ * @param maxBase64Bytes - the route's budget for all inline image data.
+ */
+export function requiredImageOffloadCount(messages: readonly TranslatableMessage[], maxBase64Bytes: number): number {
+  const lengths: number[] = []
+  const visit = (blocks: readonly TranslatableBlock[]): void => {
+    for (const block of blocks) {
+      if (block.type === 'image' && 'dataBase64' in block) lengths.push(block.dataBase64.length)
+      else if (block.type === 'tool-result') visit(block.content)
+    }
+  }
+  for (const message of messages) {
+    if (message.role !== 'assistant') visit(message.content)
+  }
+  let excess = lengths.reduce((sum, bytes) => sum + bytes, 0) - maxBase64Bytes
+  let count = 0
+  while (excess > 0 && count < lengths.length) {
+    excess -= lengths[count]!
+    count += 1
+  }
+  return count
+}
+
+/**
  * The request projection for one oversized image, or undefined when it fits.
  * Hosts before DSH 0.1.7 read a pixel budget (`maxPixels`), later ones the
  * target edges (`width`/`height`); each validates only its own fields, so
@@ -121,8 +168,11 @@ export async function resolveImages(
   signal?: AbortSignal,
   limit?: ImageRequestLimit,
 ): Promise<readonly TranslatableMessage[]> {
-  const hasImage = messages.some(message => message.content.some(block => block.type === 'image'))
-  if (hasImage && attachments === undefined) {
+  const hasRetainedImage = (block: TranslatableBlock): boolean => block.type === 'image'
+    ? !('offloaded' in block && block.offloaded === true)
+    : block.type === 'tool-result' && block.content.some(hasRetainedImage)
+  if (attachments === undefined
+    && messages.some(message => message.content.some(hasRetainedImage))) {
     throw new LlmError(
       'dsh-subscriptions: the request carries an image but no attachments service is mounted; '
       + 'image input requires the harness attachment store',
@@ -144,8 +194,20 @@ export async function resolveImages(
     const stored = await attachments.readImage(ref, signal)
     return { data: stored.data, mediaType: stored.ref.mediaType, ref: stored.ref }
   }
-  const resolveBlock = async (block: ContentBlock): Promise<TranslatableBlock[]> => {
-    if (block.type !== 'image') return [block]
+  const resolveBlock = async (block: TranslatableBlock): Promise<TranslatableBlock[]> => {
+    if (block.type === 'tool-result') {
+      return [{ ...block, content: (await Promise.all(block.content.map(resolveBlock))).flat() }]
+    }
+    if (block.type !== 'image' || 'dataBase64' in block) return [block]
+    if ('offloaded' in block && block.offloaded === true) {
+      // The host owns omission decisions. Never restore offloaded bytes, even
+      // when the original attachment is unreadable or no store is mounted.
+      const format = (llm as {
+        offloadedImageText?: (ref: ImageAttachmentRef) => string
+      }).offloadedImageText
+      return [{ type: 'text', text: format?.(block.attachment)
+        ?? `[image omitted to fit request image limits; ${block.attachment.attachmentId}]` }]
+    }
     const { data, mediaType: sentType, ref } = await readForRequest(block.attachment)
     const { attachmentId, mediaType, bytes, width, height, name } = ref
     return [{
