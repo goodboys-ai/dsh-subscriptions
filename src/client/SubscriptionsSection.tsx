@@ -21,6 +21,7 @@ import { providerSettingsCss } from './provider-settings-styles.js'
 import { ExternalUsageCards } from './ExternalUsageCards.js'
 import { CursorCard } from './CursorCard.js'
 import { UsageMeter } from './UsageMeter.js'
+import { ResetCreditsDisclosure, ResetCreditsErrorLine, showsResetCredits } from './reset-credits-view.js'
 import { displayUsedPercent } from './usage-pace.js'
 import { UsageBadgeDisplaySetting } from './UsageBadgeDisplaySetting.js'
 import { USAGE_BADGE_REFRESH_EVENT } from './usage-badge-preferences.js'
@@ -93,8 +94,29 @@ export interface ProviderUsage {
   supported: boolean
   windows?: UsageWindow[]
   plan?: string
-  resetCredits?: { id?: string; grantedAt?: number; expiresAt?: number }[]
+  /**
+   * Banked limit-reset grants. Codex entries carry id/expiry only. Claude
+   * entries are one row per grant: `expiresAt` is when the grant expires, not
+   * a window reset, and `resetsLeft` is the remaining credit count.
+   */
+  resetCredits?: ResetCreditView[]
   resetCreditsError?: string
+}
+
+/** One banked reset grant as the usage RPC returns it. */
+export interface ResetCreditView {
+  id?: string
+  grantedAt?: number
+  /** Epoch milliseconds when the grant expires. Never a periodic window reset. */
+  expiresAt?: number
+  resetsTotal?: number
+  resetsLeft?: number
+  usableNow?: boolean
+  paused?: boolean
+  /** Server metadata only. Claude has no redemption control. */
+  claimable?: boolean
+  /** Epoch milliseconds until which the grant is visible but not usable. */
+  cooldownUntil?: number
 }
 
 /** One model's default-effort picker state as answered by `modelDefaults`. */
@@ -783,43 +805,25 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
                           </div>
                         )
                       })}
-                      {id === 'codex' && usage?.resetCreditsError !== undefined && (
-                        <p style={styles.errorLine}>{t('resetCreditsError', { message: usage.resetCreditsError })}</p>
+                      {(id === 'codex' || id === 'claude') && usage?.resetCreditsError !== undefined && (
+                        <ResetCreditsErrorLine provider={id} message={usage.resetCreditsError} t={t} />
                       )}
-                      {id === 'codex' && usage?.resetCredits !== undefined && (
-                        <details className="subscriptions-reset-credits" style={styles.usageRow}>
-                          <summary style={{ ...styles.usageMeta, cursor: 'pointer', listStyle: 'none', justifyContent: 'flex-start', gap: 6 }}>
-                            <svg aria-hidden="true" width="12" height="12" viewBox="0 0 16 16" style={{ flexShrink: 0 }}>
-                              <path d="m6 3 5 5-5 5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                            <span>{t('resetCreditsTitle')}</span>
-                            <span style={{ marginLeft: 'auto' }}>{t('resetCreditsAvailable', { count: usage.resetCredits.length })}</span>
-                          </summary>
-                          <style>{
-                            '.subscriptions-reset-credits > summary::-webkit-details-marker { display: none; }'
-                            + '.subscriptions-reset-credits[open] > summary > svg { transform: rotate(90deg); }'
-                          }</style>
-                          <div style={{ paddingLeft: 18, marginTop: 6 }}>
-                            {sortedCredits.map((credit, index) => (
-                              <div key={credit.id ?? index} style={{ ...styles.usageMeta, minHeight: 28, gap: 12 }}>
-                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                                  {t('resetCreditFull')}
-                                  {credit === nextReset && (
-                                    <button type="button" aria-disabled={resetDisabled}
-                                      title={t(resetBusy ? 'resetUseChecking' : resetBlock ?? 'resetUseReady')}
-                                      style={{ minHeight: 22, height: 22, padding: '0 7px', borderRadius: 6,
-                                        opacity: resetDisabled ? 0.35 : 1, cursor: resetDisabled ? 'not-allowed' : 'pointer' }}
-                                      onClick={() => { if (!resetDisabled) void prepareReset(account.key) }}>
-                                      {resetBusy && resetAccount === account.key ? t('resetUseChecking') : t('resetUseButton')}
-                                    </button>
-                                  )}
-                                </span>
-                                <span style={{ textAlign: 'right' }}>{credit.expiresAt === undefined ? t('resetCreditExpiryUnknown') : t('resetCreditExpires', { date: new Date(credit.expiresAt).toLocaleString() })}</span>
-                              </div>
-                            ))}
-                            {resetAccount === account.key && resetMessage && <p role="status" style={styles.statusLine}>{resetMessage}</p>}
-                          </div>
-                        </details>
+                      {(id === 'codex' || id === 'claude') && showsResetCredits(id, usage?.resetCredits) && (
+                        <ResetCreditsDisclosure
+                          mode={id === 'claude' ? 'grants' : 'credits'}
+                          credits={sortedCredits}
+                          t={t}
+                          {...nextReset !== undefined ? { nextCredit: nextReset } : {}}
+                          {...id === 'codex' ? { useAction: {
+                            accountKey: account.key,
+                            busy: resetBusy && resetAccount === account.key,
+                            disabled: resetDisabled,
+                            title: t(resetBusy ? 'resetUseChecking' : resetBlock ?? 'resetUseReady'),
+                            label: t('resetUseButton'),
+                            onUse: () => { if (!resetDisabled) void prepareReset(account.key) },
+                          } } : {}}
+                          {...resetAccount === account.key && resetMessage !== '' ? { statusMessage: resetMessage } : {}}
+                        />
                       )}
                     </div>
                   )}

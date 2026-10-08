@@ -111,19 +111,29 @@ test('restyle leaves the ten-second rotation and meter observation plumbing inta
 
 test('Codex disclosure, chevron and guarded confirmation wiring survive the restyle', () => {
   const settings = source('SubscriptionsSection.tsx')
-  assert.match(settings, /<details className="subscriptions-reset-credits"/)
-  assert.match(settings, /<svg aria-hidden="true" width="12" height="12"/)
-  assert.ok(settings.includes('.subscriptions-reset-credits[open] > summary > svg { transform: rotate(90deg); }'))
-  assert.match(settings, /aria-disabled=\{resetDisabled\}/)
+  const disclosure = source('reset-credits-view.tsx')
+  assert.match(settings, /<ResetCreditsDisclosure/)
+  assert.match(disclosure, /<details className="subscriptions-reset-credits"/)
+  assert.match(disclosure, /<svg aria-hidden="true" width="12" height="12"/)
+  assert.ok(disclosure.includes('.subscriptions-reset-credits[open] > summary > svg { transform: rotate(90deg); }'))
+  assert.match(disclosure, /aria-disabled=\{useAction.disabled\}/)
+  assert.match(disclosure, /if \(!useAction.disabled\) useAction.onUse\(\)/)
   assert.match(settings, /if \(!resetDisabled\) void prepareReset\(account.key\)/)
   assert.match(settings, /resetDialogRef.current\?\.showModal\(\)/)
   assert.match(settings, /aria-labelledby="subscriptions-reset-title"/)
   assert.match(settings, /disabled=\{!resetAcknowledged \|\| resetBusy\}/)
   assert.match(settings, /void consumeReset\(\)/)
+  const owner: Record<string, string> = {
+    resetCreditsTitle: disclosure,
+    resetUseButton: settings,
+    resetUseConfirmTitle: settings,
+    resetUseAcknowledge: settings,
+    resetUseConfirm: settings,
+  }
   for (const dictionary of [en, zh]) {
     for (const key of ['resetCreditsTitle', 'resetUseButton', 'resetUseConfirmTitle', 'resetUseAcknowledge', 'resetUseConfirm'] as const) {
       assert.ok(dictionary[key], key)
-      assert.ok(settings.includes(`t('${key}')`), key)
+      assert.ok(owner[key].includes(`t('${key}')`), key)
     }
   }
 })

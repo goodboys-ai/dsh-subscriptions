@@ -115,6 +115,23 @@ The private endpoint is covered by offline fakes, not live-account checks.
 See the [manual reset decision](.agents/notes/implemented/provider/2026-10-04-codex-manual-reset.md)
 for the retry boundary and verification limits.
 
+#### Claude usage limit resets
+
+The Claude account card uses the same closed disclosure. It lists one row
+per banked grant, not one row per credit. The summary counts remaining
+resets by summing `resetsLeft` on grants that are neither expired nor
+paused. Each row states whether that grant is available, not yet usable,
+paused, exhausted, or expired, plus the remaining count and the expiry
+time. That time is when the grant expires. It is not a window reset and
+does not move the elapsed-time cursor.
+
+The closed summary says the list is read-only. `claimable` is shown only
+as data on a text row; this page has no control that spends a Claude reset.
+A failed optional lookup shows a fixed sentence and does not include the
+provider's error text. An ineligible account omits the list, so the card
+does not add an empty disclosure. See the
+[Claude display decision](.agents/notes/implemented/provider/2026-10-08-claude-banked-reset-display.md).
+
 ## Install
 
 Current source is tested with DSH `0.1.7-rc.2`, `0.2.0-rc.1`, and
