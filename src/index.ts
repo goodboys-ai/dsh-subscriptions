@@ -1245,6 +1245,10 @@ export function apply(ctx: Context, config: Config): void {
       await consumeCodexResetCredit(await codexTokens.session(account), creditId, requestId, hostFetch, signal)
     },
     account => poolUsage?.invalidate('codex', account),
+    // The browser may name the account by canonical id, legacy key, email, or
+    // workspace id. The session layer resolves those to one account, so the
+    // redemption guards must key on that, not on whatever arrived.
+    async (account, signal) => (await codexTokens?.session(account))?.accountId ?? account,
   )
   registerAuthRpc(ctx, new SubscriptionsAuthController(
     flows, deviceFlows, authChanged, resolveAttachments, usageFetchers, undefined, poolUsage, config.antigravity,

@@ -2,6 +2,13 @@
  * The host loads one JS client bundle, so keep this small, scoped stylesheet
  * with the dialog instead of relying on a separate CSS asset. Geometry and
  * theme tokens follow the host's settings-form and ui-primitives controls.
+ *
+ * `color-scheme` is left to the host deliberately. Its boot script sets the
+ * property on `:root`, and it inherits, so native controls inside these panels
+ * follow the theme. Upstream also pins `color-scheme: light` here and flips it
+ * back under `body[data-ds-dark-theme]`; without that flip our scoped rules are
+ * more specific than `:root` and would force every native control light inside
+ * a dark theme.
  */
 const formScope = ':is(.dsh-subscription-manager, .dsh-subscriptions-settings)'
 

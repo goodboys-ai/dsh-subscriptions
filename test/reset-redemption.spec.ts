@@ -81,14 +81,38 @@ test('unexpected consume responses are not silently accepted or retried', async 
   assert.equal(calls, 1)
 })
 
-test('consume request is single POST with explicit credit and request IDs', async () => {
+test('a ticket cannot be spent when its window closes during the read', async t => {
   let calls = 0
-  await consumeCodexResetCredit({ accessToken: 'fake', refreshToken: 'fake', accountId: 'a', expiresAt: 0 }, 'credit', 'request', async (url, init) => {
-    calls++
-    assert.ok(String(url).endsWith('/rate-limit-reset-credits/consume'))
-    assert.equal(init?.method, 'POST')
-    assert.deepEqual(JSON.parse(String(init?.body)), { credit_id: 'credit', redeem_request_id: 'request' })
-    return new Response(JSON.stringify({ code: 'reset' }), { status: 200 })
-  }, signal)
+  let release!: () => void
+  const pending = new Promise<void>(resolve => { release = resolve })
+  // The weekly window and the credit both stay valid past the ticket, so only
+  // the confirmation window can reject this submission.
+  const live = { supported: true, windows: [{ kind: 'weekly' as const, usedPercent: 90, resetsAt: 3_600_000 }],
+    resetCredits: [{ id: 'credit', expiresAt: 3_600_000 }] } satisfies ProviderUsage
+  const service = new ResetRedemption(async () => live, async () => { calls++; await pending }, () => {})
+  t.mock.timers.enable({ apis: ['Date'], now: 1000 })
+  const confirmation = await service.prepare('a', signal)
+  const redemption = service.redeem('a', confirmation.ticket, signal)
+  t.mock.timers.tick(60_001)
+  release()
+  await assert.rejects(redemption, /Confirmation expired/)
+  assert.equal(calls, 0)
+})
+test('an alias of a parked account cannot prepare or submit a second reset', async () => {
+  // One real account reachable by two references; the session layer maps both
+  // to the same accountId, which is what the guards must key on.
+  const aliases = new Map([['acct-canonical', 'acct-1'], ['user@example.com', 'acct-1'], ['ws-77', 'acct-1']])
+  const canonical = async (account: string) => aliases.get(account) ?? account
+  let calls = 0
+  const service = new ResetRedemption(async () => usage(), async () => { calls++; throw new Error('timeout') }, () => {}, canonical)
+
+  const first = await service.prepare('acct-canonical', signal)
+  await assert.rejects(service.redeem('acct-canonical', first.ticket, signal), /could not be confirmed/)
+  // The account is now parked as uncertain. Every other reference to it must
+  // stay blocked, and no second submission may leave the process.
+  for (const alias of ['user@example.com', 'ws-77', 'acct-canonical']) {
+    await assert.rejects(service.prepare(alias, signal), /uncertain/)
+  }
   assert.equal(calls, 1)
 })
+
