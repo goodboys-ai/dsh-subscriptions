@@ -59,6 +59,9 @@ export class ResetRedemption {
     try {
       const usage = await this.read(account, signal)
       this.eligible(usage)
+      // Re-check both windows after the read: the ticket bounds how long the
+      // confirmation counts, and a slow read must not spend it past its end.
+      if (pending.expiresAt <= Date.now()) throw new Error('Confirmation expired. Start again.')
       if (!usage.resetCredits?.some(c => c.id === pending.creditId && (c.expiresAt === undefined || c.expiresAt > Date.now()))) throw new Error('The selected reset is no longer available.')
       // Mark before submission: no blind retry after transport or response ambiguity.
       this.uncertain.add(account)
