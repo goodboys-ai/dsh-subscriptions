@@ -117,15 +117,22 @@ for the retry boundary and verification limits.
 
 #### Claude usage limit resets
 
-The Claude account card shows banked limit resets from Anthropic's `cedar_ember`
-program, with their counts, expiration, and whether one is currently usable.
-This is **display only**: there is no redemption, because the response shape is
-not an Anthropic contract. If the account is not eligible, has no grants, or the
-endpoint rejects the optional query, ordinary session and weekly windows are
-unaffected and no row appears. A grant's expiration is when the credit lapses,
-not a window reset. See
-[the evidence and limits](docs/claude-banked-resets.md); no live account was
-used to verify what Anthropic actually returns.
+The Claude account card shows banked limit resets from Anthropic's
+`cedar_ember` program, in the same closed disclosure Codex uses. It lists one
+row per grant, not one per credit, and the summary counts remaining resets by
+summing `resetsLeft` over grants that are neither expired nor paused. Each row
+states whether that grant is available, not yet usable, paused, exhausted, or
+expired, with its remaining count and when it lapses. That time is the grant's
+expiry: it is not a window reset and does not move the elapsed-time cursor.
+
+This is **display only**. `claimable` is shown as data on a text row, and the
+page has no control that spends a Claude reset, because the response shape is
+not an Anthropic contract. An ineligible account, a grant-less block, or a
+rejected optional query leaves ordinary session and weekly windows untouched
+and shows no list; a failed lookup shows a fixed sentence rather than the
+provider's text. No live account was used to verify what Anthropic returns. See
+[the evidence and limits](docs/claude-banked-resets.md) and the
+[display decision](.agents/notes/implemented/provider/2026-10-08-claude-banked-reset-display.md).
 
 ## Install
 
