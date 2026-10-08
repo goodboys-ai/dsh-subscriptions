@@ -115,6 +115,18 @@ The private endpoint is covered by offline fakes, not live-account checks.
 See the [manual reset decision](.agents/notes/implemented/provider/2026-10-04-codex-manual-reset.md)
 for the retry boundary and verification limits.
 
+#### Claude usage limit resets
+
+The Claude account card shows banked limit resets from Anthropic's `cedar_ember`
+program, with their counts, expiration, and whether one is currently usable.
+This is **display only**: there is no redemption, because the response shape is
+not an Anthropic contract. If the account is not eligible, has no grants, or the
+endpoint rejects the optional query, ordinary session and weekly windows are
+unaffected and no row appears. A grant's expiration is when the credit lapses,
+not a window reset. See
+[the evidence and limits](docs/claude-banked-resets.md); no live account was
+used to verify what Anthropic actually returns.
+
 ## Install
 
 Current source is tested with DSH `0.1.7-rc.2`, `0.2.0-rc.1`, and
