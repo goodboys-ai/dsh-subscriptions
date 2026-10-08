@@ -183,6 +183,33 @@ usage.
 The plugin follows DSH network settings. Its former proxy configuration and
 UI have been retired; an old plugin proxy config file is ignored.
 
+## Claude prompt-cache TTL
+
+Set `claudePromptCacheTtl: '5m'` (default) or `'1h'` in the plugin config and
+restart DSH. This affects Claude only; other providers keep their own caching.
+Five minutes omits the wire `ttl` field, preserving the existing request. One
+hour adds `ttl: "1h"` to the tools+system prefix and up to three conversation
+breakpoints. All marks share one TTL: Anthropic rejects a one-hour mark after
+a five-minute mark. Requests classified with `purpose` as compaction or
+session-title keep five minutes. Unclassified calls, including subagents and
+calls from hosts that do not supply `purpose`, follow the configured TTL.
+The TTL setting does not require a newer host capability or dependency.
+
+Cache reads have the same API price for either TTL. One-hour writes are priced
+at 2× base input instead of 1.25×. They may pay off with reusable prefixes and
+5–60-minute pauses; benefits depend on the workload and do not establish
+subscription quota savings. Frequent reuse within five minutes may not offset
+the higher write price. Claude Code requests one hour for its main subscription
+conversation; see
+[Claude Code's prompt-caching notes](https://code.claude.com/docs/en/prompt-caching#which-ttl-each-request-gets).
+
+Changing TTL on a cached conversation may rewrite the prefix. Upstream testing
+found that the first one-hour request after five-minute writes rewrote a
+conversation-tail prefix, while a system-only breakpoint could hit. A
+five-minute request can read a one-hour entry; a one-hour-marked read does not
+upgrade an existing five-minute entry's lifetime. These observations are not
+live-account verification of this fork.
+
 ## Usage coloring
 
 **Settings → Subscriptions → Usage coloring** offers one browser-local dropdown:

@@ -27,6 +27,7 @@ import {
   toAnthropicSystem,
   toAnthropicTools,
 } from '../translate/anthropic.js'
+import type { PromptCacheTtl } from '../translate/anthropic.js'
 import {
   httpLlmError,
   idleWatchdog,
@@ -567,6 +568,8 @@ export interface ClaudeAdapterOptions {
   defaultEffortOf?: (model: string) => string | undefined
   /** Resolves the Claude Code version to present (npm-backed); absent means the local floor. */
   resolveCliVersion?: () => Promise<string>
+  /** Cache breakpoint lifetime; absent means the API's five-minute default. */
+  promptCacheTtl?: PromptCacheTtl
 }
 
 /**
@@ -593,6 +596,10 @@ const CLAUDE_MODALITIES: readonly ('text' | 'image')[] = ['text', 'image']
  * @param maxTokens - the resolved output cap.
  * @param thinking - the thinking parameter, when the model takes one.
  * @param effort - the reasoning effort, when the model advertises efforts.
+ * @param cacheTtl - lifetime of every cache breakpoint; defaults to five minutes.
+ * Requests that carry a `purpose` (compaction, session titles) always use five
+ * minutes to preserve their existing auxiliary-request behavior. A five-minute
+ * mark can still read an entry a one-hour mark wrote.
  * @returns the JSON body to POST.
  */
 export function claudeRequestBody(
@@ -601,13 +608,18 @@ export function claudeRequestBody(
   maxTokens: number,
   thinking?: Record<string, unknown>,
   effort?: string,
+  cacheTtl?: PromptCacheTtl,
 ): Record<string, unknown> {
+  // Read structurally so older host types need not declare `purpose`. Hosts
+  // that do not classify auxiliary calls follow the configured TTL.
+  const purpose = (options as GenerateOptions & { purpose?: string }).purpose
+  const ttl = purpose === undefined ? cacheTtl : undefined
   const anthropicMessages = toAnthropicMessages(messages)
-  markMessageCache(anthropicMessages)
+  markMessageCache(anthropicMessages, ttl)
   return {
     model: options.model,
     max_tokens: maxTokens,
-    system: toAnthropicSystem(options.system, messages),
+    system: toAnthropicSystem(options.system, messages, ttl),
     messages: anthropicMessages,
     ...options.tools !== undefined && options.tools.length > 0
       ? { tools: toAnthropicTools(options.tools) }
@@ -841,7 +853,9 @@ export class ClaudeAdapter extends LlmAdapter {
     const effort = options.reasoningEffort !== undefined && disc?.reasoning !== undefined
       ? String(options.reasoningEffort)
       : undefined
-    const body = claudeRequestBody(options, messages, maxTokens, thinking, effort)
+    const body = claudeRequestBody(
+      options, messages, maxTokens, thinking, effort, this.options.promptCacheTtl,
+    )
     const cliVersion = await (this.options.resolveCliVersion ?? localClaudeCliVersion)()
     return hostFetch(CLAUDE_API_URL, {
       method: 'POST',
