@@ -1,5 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
 import { MessageId } from '@deepseek-ai/dsh-llm'
 import type { GenerateOptions, ImageBlock, Message } from '@deepseek-ai/dsh-llm'
 import { imageRequestTarget, resolveImages } from '../src/translate/resolved.js'
@@ -112,5 +113,60 @@ test('Claude turns send images within the 2000px many-image limit (#110)', async
     assert.deepEqual(calls, ['request:tall'])
   } finally {
     globalThis.fetch = original
+  }
+})
+
+// Isolate namespace exports in a child process: ESM bindings cannot be mocked
+// in place. Fetch stays stubbed and the hermetic preloader forbids live I/O.
+test('hosts missing either offload export keep sending images as before', () => {
+  const adapterUrl = new URL('../src/providers/claude.js', import.meta.url).href
+  const accountsUrl = new URL('../src/providers/accounts.js', import.meta.url).href
+  const hermetic = new URL('../../test/hermetic.mjs', import.meta.url)
+  for (const missing of ['IMAGE_OFFLOAD_REQUIRED_CODE', 'offloadedImageText']) {
+    const script = `
+      import { registerHooks } from 'node:module';
+      const real = import.meta.resolve('@deepseek-ai/dsh-llm');
+      const source = 'export * from ' + JSON.stringify(real)
+        + '; export const ${missing} = undefined;';
+      const replacement = 'data:text/javascript,' + encodeURIComponent(source);
+      registerHooks({ resolve(specifier, context, next) {
+        return specifier === '@deepseek-ai/dsh-llm'
+          ? { url: replacement, shortCircuit: true }
+          : next(specifier, context);
+      }});
+      const { ClaudeAdapter } = await import(${JSON.stringify(adapterUrl)});
+      const { AccountTokenManager } = await import(${JSON.stringify(accountsUrl)});
+      const session = { accessToken: 'at', refreshToken: 'rt',
+        expiresAt: Date.now() + 3600000, scopes: 'scope' };
+      const tokens = new AccountTokenManager({ provider: 'claude', displayName: 'Test',
+        makeOptions: () => ({ preemptMs: 0, refresh: async s => s, isPermanent: () => false }),
+        io: { list: async () => [{ key: 'acct', session }], get: async () => session,
+          save: async () => {}, remove: async () => {} } });
+      let fetches = 0;
+      globalThis.fetch = async () => { fetches++; return new Response('{}', { status: 400 }); };
+      const data = new Uint8Array(3750000);
+      const adapter = new ClaudeAdapter({ models: [{ id: 'claude-opus-5-5' }],
+        streamIdleTimeoutMs: 1000, tokens, discovery: false,
+        resolveCliVersion: async () => '2.1.999',
+        resolveAttachments: () => ({ readImage: async ref => ({ ref, data }) }) });
+      const messages = [{ id: 'm', role: 'user', source: { kind: 'user' },
+        content: Array.from({ length: 7 }, (_, i) => ({ type: 'image', attachment: {
+          attachmentId: 'shot' + i, mediaType: 'image/png', bytes: data.length,
+          width: 800, height: 600 } })) }];
+      let code;
+      try { for await (const chunk of adapter.stream({ provider: 'claude',
+        model: 'claude-opus-5-5', messages, maxTokens: 1000 })) {} }
+      catch (error) { code = error.code; }
+      console.log(JSON.stringify({ fetches, code }));
+    `
+    const child = spawnSync(process.execPath, [
+      '--import', hermetic.href, '--input-type=module', '-e', script,
+    ], { encoding: 'utf8' })
+    assert.equal(child.status, 0, child.stderr)
+    const result = JSON.parse(child.stdout) as {
+      fetches: number; code?: string
+    }
+    assert.equal(result.fetches, 1, missing)
+    assert.notEqual(result.code, 'IMAGE_OFFLOAD_REQUIRED', missing)
   }
 })
