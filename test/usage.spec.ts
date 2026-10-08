@@ -426,7 +426,7 @@ test('usage(): a manual (forced) refresh bypasses a fresh cached snapshot, not a
   assert.equal(calls, 2, 'a forced call re-checks despite the fresh cache')
 })
 
-test('usage(): pool cache and RPC preserve reset credits and optional errors', async () => {
+test('usage(): the controller preserves reset credits and optional lookup errors', async () => {
   let snapshot: ProviderUsage = { supported: true, windows: [], resetCredits: [{ expiresAt: 1791152194306 }] }
   const tracker = new PoolUsageTracker(() => async () => snapshot)
   const controller = new SubscriptionsAuthController(

@@ -172,16 +172,28 @@ test('a host without the offload exports still receives images unchanged', () =>
   }
 })
 
-// Blocked on the host, not ported: our floor ships IMAGE_OFFLOAD_REQUIRED_CODE
-// and offloadedImageText but nothing consumes the error, so upstream's guard
-// would fail a multi-image turn before sending. This pins the state that makes
-// the port unsafe, so it stops looking like missing coverage.
-test('the floor host exports the offload contract but has no consumer for it', async () => {
+// Blocked on the host, not ported. Our floor ships IMAGE_OFFLOAD_REQUIRED_CODE
+// and offloadedImageText, so upstream's export probe always passes here, yet
+// this package never turns that error into a retry. This asserts only what can
+// be asserted from the package itself: the symbol is defined and exported, and
+// nothing in its runtime references it again. It is NOT a full host-composition
+// check -- confirming no consumer exists anywhere would mean auditing the host,
+// its compaction plugins, and every supported version's shipped code, which is
+// the release-time capability check recorded in the sync ledger, not a unit test.
+test('the offload error is exported by the floor but never consumed by that package', async () => {
   const llm = await import('@deepseek-ai/dsh-llm') as Record<string, unknown>
   assert.equal(llm['IMAGE_OFFLOAD_REQUIRED_CODE'], 'IMAGE_OFFLOAD_REQUIRED')
   assert.equal(typeof llm['offloadedImageText'], 'function')
-  // Resolve through the real package specifier; the compiled spec lives under lib-test.
   const source = await readFile(new URL(import.meta.resolve('@deepseek-ai/dsh-llm')), 'utf8')
-  const consumers = source.match(/catch[^]{0,200}IMAGE_OFFLOAD_REQUIRED|IMAGE_OFFLOAD_REQUIRED[^]{0,80}requiredImageOffload\(/g)
-  assert.equal(consumers, null, 'a consumer appeared: upstream eb42966 can be ported after review')
+  // Definition and re-export only. Code (not the doc comments above it) must
+  // never branch on the code or hand it to a retry.
+  const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
+  // One definition, one re-export, and nothing that branches on it or drives a
+  // retry from it. A real consumer would compare the code or pair it with
+  // requiredImageOffload(); a definition cannot satisfy either shape.
+  // Exactly once in code: the definition. The export list carries the suffixed
+  // `IMAGE_OFFLOAD_REQUIRED_CODE`, so it does not match the bare name.
+  assert.equal(code.match(/IMAGE_OFFLOAD_REQUIRED(?!_CODE)\b/g)?.length ?? 0, 1, 'only the definition')
+  assert.equal(/[^\w.]IMAGE_OFFLOAD_REQUIRED\s*(===|!==|\?|:)/.test(code), false, 'the code is never branched on')
+  assert.equal(/requiredImageOffload\([^)]*\)[\s\S]{0,80}IMAGE_OFFLOAD_REQUIRED/.test(code), false, 'no retry is driven by it')
 })

@@ -109,16 +109,37 @@ test('a ticket cannot be spent when its window closes during the read', async t 
   assert.equal(calls, 0, 'no reset may be submitted on an expired confirmation')
 })
 
-test('a redeemed credit is submitted once with its own credit and request ids', async () => {
+test('a redeemed credit is submitted once, and the service passes its own ids', async () => {
   const seen: { creditId: string; requestId: string }[] = []
   const service = new ResetRedemption(async () => usage(), async (_account, creditId, requestId) => {
     seen.push({ creditId, requestId })
   }, () => {}, async account => account)
   const confirmation = await service.prepare('a', signal)
   await service.redeem('a', confirmation.ticket, signal)
-  assert.equal(seen.length, 1)
-  assert.equal(seen[0]?.creditId, 'first')
-  assert.ok(seen[0]?.requestId && seen[0].requestId.length > 0)
+  assert.equal(seen.length, 1, 'exactly one submission')
+  assert.equal(seen[0]?.creditId, 'first', 'the earliest-expiring available credit')
+  assert.ok(seen[0]?.requestId && seen[0].requestId.length > 0, 'each submission carries its own request id')
+})
+
+// The seam above proves the state machine submits once; this proves what goes
+// on the wire for that one submission.
+test('the consume call posts one reset with the credit and request ids', async () => {
+  const sent: { url: string; init: RequestInit }[] = []
+  const fetcher = (async (url: string | URL | Request, init?: RequestInit) => {
+    sent.push({ url: String(url), init: init ?? {} })
+    return Response.json({ code: 'reset' })
+  }) as unknown as typeof fetch
+  await consumeCodexResetCredit(
+    { accessToken: 'fake-access', refreshToken: 'fake-refresh', accountId: 'acct-1', expiresAt: 0 },
+    'credit-7', 'req-9', fetcher, signal,
+  )
+  assert.equal(sent.length, 1)
+  assert.equal(sent[0]?.url, 'https://chatgpt.com/backend-api/wham/rate-limit-reset-credits/consume')
+  assert.equal(sent[0]?.init.method, 'POST')
+  assert.deepEqual(JSON.parse(String(sent[0]?.init.body)), { redeem_request_id: 'req-9', credit_id: 'credit-7' })
+  const headers = sent[0]?.init.headers as Record<string, string>
+  assert.equal(headers.authorization, 'Bearer fake-access')
+  assert.equal(headers['chatgpt-account-id'], 'acct-1')
 })
 
 test('an alias of a parked account cannot prepare or submit a second reset', async () => {
