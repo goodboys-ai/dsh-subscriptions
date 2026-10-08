@@ -287,6 +287,74 @@ export function isCodexPermanentRefreshError(error: unknown): boolean {
 }
 
 export const CODEX_USAGE_URL = 'https://chatgpt.com/backend-api/wham/usage'
+export const CODEX_RESET_CREDITS_URL = 'https://chatgpt.com/backend-api/wham/rate-limit-reset-credits'
+
+/** One banked reset credit returned by the private ChatGPT backend (subset). */
+interface CodexResetCredit {
+  id?: unknown
+  reset_type?: unknown
+  status?: unknown
+  granted_at?: unknown
+  expires_at?: unknown
+}
+
+function parseResetDate(value: unknown): number | undefined {
+  if (typeof value !== 'string') return undefined
+  const timestamp = Date.parse(value)
+  return Number.isFinite(timestamp) ? timestamp : undefined
+}
+
+/** Read banked resets without spending them; consumption uses a separate explicit POST. */
+export async function fetchCodexResetCredits(
+  session: CodexSession,
+  fetchFn: FetchFn = hostFetch,
+  signal?: AbortSignal,
+): Promise<NonNullable<ProviderUsage['resetCredits']>> {
+  const response = await fetchFn(CODEX_RESET_CREDITS_URL, {
+    headers: {
+      authorization: `Bearer ${session.accessToken}`,
+      'chatgpt-account-id': session.accountId,
+      originator: 'Codex Desktop',
+      'openai-beta': 'codex-1',
+      accept: 'application/json',
+      ...attributionHeaders(),
+    },
+    ...signal === undefined ? {} : { signal },
+  })
+  if (!response.ok) throw await oauthEndpointError(response, 'codex reset credits')
+  const payload = await response.json() as { credits?: unknown }
+  if (!Array.isArray(payload?.credits)) throw new Error('codex reset credits: unexpected response (missing credits array)')
+  return payload.credits.flatMap((value): NonNullable<ProviderUsage['resetCredits']> => {
+    if (typeof value !== 'object' || value === null) return []
+    const credit = value as CodexResetCredit
+    if (credit.status !== 'available' || credit.reset_type !== 'codex_rate_limits') return []
+    const grantedAt = parseResetDate(credit.granted_at)
+    const expiresAt = parseResetDate(credit.expires_at)
+    return [{ ...(typeof credit.id === 'string' ? { id: credit.id } : {}), ...(grantedAt === undefined ? {} : { grantedAt }), ...(expiresAt === undefined ? {} : { expiresAt }) }]
+  })
+}
+
+/** Submit one explicit reset; ambiguous or unconfirmed responses throw without retry. */
+export async function consumeCodexResetCredit(
+  session: CodexSession, creditId: string, requestId: string,
+  fetchFn: FetchFn = hostFetch, signal?: AbortSignal,
+): Promise<void> {
+  const response = await fetchFn(CODEX_RESET_CREDITS_URL + '/consume', {
+    method: 'POST',
+    headers: {
+      authorization: 'Bearer ' + session.accessToken,
+      'chatgpt-account-id': session.accountId,
+      originator: 'Codex Desktop', 'openai-beta': 'codex-1',
+      'content-type': 'application/json', accept: 'application/json',
+      ...attributionHeaders(),
+    },
+    body: JSON.stringify({ redeem_request_id: requestId, credit_id: creditId }),
+    ...signal === undefined ? {} : { signal },
+  })
+  if (!response.ok) throw await oauthEndpointError(response, 'codex consume reset')
+  const payload = await response.json() as { code?: unknown }
+  if (payload?.code !== 'reset') throw new Error('Reset was not confirmed. Verify the account in Codex before retrying.')
+}
 
 /** One `rate_limit.*_window` object of the wham/usage payload (subset). */
 interface CodexUsageWindow {
@@ -470,8 +538,10 @@ export async function fetchCodexModels(
     // codex-rs ModelVisibility: only "list" is picker-visible; hide/none are
     // dropped, and an absent or unknown value is included (in doubt, include).
     if (entry.visibility === 'hide' || entry.visibility === 'none') continue
+    // "ultra" is a Codex-client mode (max reasoning + automatic sub-agent
+    // delegation), not a wire value: the Responses API rejects it with HTTP 400.
     const efforts = (entry.supported_reasoning_levels ?? [])
-      .filter(level => typeof level.effort === 'string' && level.effort.length > 0)
+      .filter(level => typeof level.effort === 'string' && level.effort.length > 0 && level.effort !== 'ultra')
       .map(level => ({
         id: ReasoningEffortId(level.effort as string),
         name: effortDisplayName(level.effort as string),
@@ -642,6 +712,17 @@ export function reconcileResponsesToolCalls(input: ResponsesRequestInput['input'
 }
 
 /**
+ * The `reasoning.effort` wire value for a selected effort. Codex's "ultra" is
+ * a client-side selection (max reasoning plus proactive sub-agent delegation)
+ * that the Codex CLI itself lowers to `max` at the Responses API boundary;
+ * the backend answers HTTP 400 to a literal `ultra`. Discovery no longer
+ * lists it, but an effort saved before that change may still arrive here.
+ */
+export function codexWireEffort(effort: string): string {
+  return effort === 'ultra' ? 'max' : effort
+}
+
+/**
  * The Responses request body for one generation. A fast-tier request (the
  * composer Speed toggle, the codex CLI's fast mode) carries
  * `service_tier: priority`; the tier field is omitted entirely otherwise,
@@ -663,7 +744,7 @@ export function codexRequestBody(
       ? { tools: toResponsesTools(options.tools, { strict: false }), tool_choice: 'auto', parallel_tool_calls: true }
       : {},
     ...options.reasoningEffort !== undefined
-      ? { reasoning: { effort: String(options.reasoningEffort), summary: 'auto' } }
+      ? { reasoning: { effort: codexWireEffort(String(options.reasoningEffort)), summary: 'auto' } }
       : {},
     store: false,
     stream: true,

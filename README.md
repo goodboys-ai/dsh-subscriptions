@@ -97,6 +97,24 @@ in **Settings → Subscriptions**.
 
 ![Usage dialog with elapsed-time cursors](docs/images/usage-badge.png)
 
+#### Codex usage limit resets
+
+The Codex account card shows banked full-reset credits and their expirations
+in a closed disclosure. A failed optional lookup reports an error without
+hiding ordinary quota windows. **Use…** selects the earliest-expiring available
+credit and requires a fresh unscoped weekly reading of at least 80%, then an
+explicit confirmation and acknowledgment. Confirmation expires after 60
+seconds; the server rechecks usage and credit availability before submission.
+
+One reset consumes one credit and resets weekly and 5-hour limits. This
+interface cannot undo it. An unconfirmed outcome blocks further redemption
+for that account in the current host process. Restarting clears that block,
+but must not be used to bypass it: check credits and limits in Codex before
+retrying, because the first submission may already have spent a credit.
+The private endpoint is covered by offline fakes, not live-account checks.
+See the [manual reset decision](.agents/notes/implemented/provider/2026-10-04-codex-manual-reset.md)
+for the retry boundary and verification limits.
+
 ## Install
 
 Current source is tested with DSH `0.1.7-rc.2`, `0.2.0-rc.1`, and

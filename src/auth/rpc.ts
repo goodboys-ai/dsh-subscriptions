@@ -36,7 +36,7 @@ export const SUBSCRIPTIONS_AUTH_ENDPOINTS = [
   'externalStatus', 'externalUsage',
   'cursorStatus', 'cursorLogin', 'cursorCancel', 'cursorLogout', 'cursorUsage', 'cursorModels',
   'cursorSettings', 'cursorSetSettings',
-  'image', 'video',
+  'image', 'video', 'prepareReset', 'consumeReset',
   'speed', 'setSpeed',
   'modelDefaults', 'setModelDefault',
 ] as const
@@ -151,6 +151,8 @@ export interface ModelDefaultsController {
 
 /** Provider-agnostic auth operations the RPC handler delegates to. */
 export interface AuthController {
+  prepareReset?(account: string, signal: AbortSignal): Promise<unknown>
+  consumeReset?(account: string, ticket: string, signal: AbortSignal): Promise<void>
   /** Current status of one provider. */
   status(provider: ProviderId): Promise<ProviderStatus>
   /**
@@ -538,6 +540,13 @@ async function dispatch(
       if (!cursor) throw new BadRequest('Cursor account is unavailable')
       if (payload === null || typeof payload !== 'object') throw new BadRequest('payload must be an object')
       await cursor.setSettings((payload as Record<string, unknown>).settings)
+      return ok({ ok: true })
+    case 'prepareReset':
+      if (!controller.prepareReset) throw new BadRequest('Reset redemption unavailable')
+      return ok(await controller.prepareReset(readString(payload, 'account'), signal))
+    case 'consumeReset':
+      if (!controller.consumeReset) throw new BadRequest('Reset redemption unavailable')
+      await controller.consumeReset(readString(payload, 'account'), readString(payload, 'ticket'), signal)
       return ok({ ok: true })
     case 'image':
       return ok(await controller.readImage(readImageRef(payload), signal))

@@ -18,11 +18,13 @@ import type { FakeConnectionHandler } from './fake-connection.js'
 process.env.DSH_HOME ??= mkdtempSync(join(tmpdir(), 'router-usage-test-'))
 
 // Imports after the env override so the store path resolves under the temp home.
-const { fetchCodexUsage } = await import('../src/providers/codex.js')
+const { fetchCodexUsage, fetchCodexResetCredits } = await import('../src/providers/codex.js')
 const { fetchClaudeUsage } = await import('../src/providers/claude.js')
 const { fetchGrokUsage, grokTierName } = await import('../src/providers/grok.js')
 const plugin = await import('../src/index.js')
 const { SubscriptionsAuthController } = plugin
+const { registerAuthRpc } = await import('../src/auth/rpc.js')
+const { ResetRedemption } = await import('../src/providers/reset-redemption.js')
 const { OAuthFlowManager } = await import('../src/auth/oauth-flow.js')
 const { DeviceFlowManager } = await import('../src/auth/device-flow.js')
 const { PoolUsageTracker } = await import('../src/providers/pool-usage.js')
@@ -86,6 +88,33 @@ test('fetchCodexUsage maps windows, plan, and reset timestamps', async () => {
   assert.match(requests[0].url, /backend-api\/wham\/usage/)
   assert.equal(requests[0].headers['chatgpt-account-id'], 'acct-1')
   assert.equal(requests[0].headers.authorization, 'Bearer at')
+})
+
+test('fetchCodexResetCredits maps only available Codex reset credits', async () => {
+  const { fetchFn, requests } = fakeFetch({ credits: [
+    { id: 'credit-1', reset_type: 'codex_rate_limits', status: 'available', granted_at: '2026-09-20T00:00:00Z', expires_at: '2026-10-20T00:00:00Z' },
+    { id: 'credit-2', reset_type: 'codex_rate_limits', status: 'redeemed' },
+    { id: 'credit-3', reset_type: 'other', status: 'available' },
+    { id: 'credit-4', reset_type: 'codex_rate_limits', status: 'available', expires_at: null },
+  ] })
+  const credits = await fetchCodexResetCredits(codexSession, fetchFn)
+  assert.deepEqual(credits, [
+    { id: 'credit-1', grantedAt: Date.parse('2026-09-20T00:00:00Z'), expiresAt: Date.parse('2026-10-20T00:00:00Z') },
+    { id: 'credit-4' },
+  ])
+  assert.equal(requests.length, 1)
+  assert.ok(requests[0].url.includes('/rate-limit-reset-credits'))
+  assert.equal(requests[0].headers.authorization, 'Bearer at')
+  assert.equal(requests[0].headers['chatgpt-account-id'], 'acct-1')
+})
+
+test('fetchCodexResetCredits reports malformed payloads and endpoint errors', async () => {
+  const { fetchFn } = fakeFetch({ available_count: 0 })
+  await assert.rejects(fetchCodexResetCredits(codexSession, fetchFn), /missing credits array/)
+  const { fetchFn: empty } = fakeFetch({ credits: [] })
+  assert.deepEqual(await fetchCodexResetCredits(codexSession, empty), [])
+  const { fetchFn: failing } = fakeFetch({ error: 'nope' }, 500)
+  await assert.rejects(fetchCodexResetCredits(codexSession, failing), /codex reset credits/)
 })
 
 test('fetchCodexUsage classifies a weekly primary window by duration', async () => {
@@ -397,6 +426,20 @@ test('usage(): a manual (forced) refresh bypasses a fresh cached snapshot, not a
   assert.equal(calls, 2, 'a forced call re-checks despite the fresh cache')
 })
 
+test('usage(): pool cache and RPC preserve reset credits and optional errors', async () => {
+  let snapshot: ProviderUsage = { supported: true, windows: [], resetCredits: [{ expiresAt: 1791152194306 }] }
+  const tracker = new PoolUsageTracker(() => async () => snapshot)
+  const controller = new SubscriptionsAuthController(
+    new OAuthFlowManager(), new DeviceFlowManager(), () => {}, () => undefined,
+    { codex: unreachableFetcher }, undefined, tracker,
+  )
+  const signal = new AbortController().signal
+  assert.deepEqual((await controller.usage('codex', 'a1', signal)).resetCredits, snapshot.resetCredits)
+  assert.deepEqual((await controller.usage('codex', 'a1', signal)).resetCredits, snapshot.resetCredits)
+  snapshot = { supported: true, windows: [], resetCreditsError: 'HTTP 403' }
+  assert.equal((await controller.usage('codex', 'a1', signal, true)).resetCreditsError, 'HTTP 403')
+})
+
 test('usage(): with no pool tracker (pool disabled), every call hits the raw fetcher directly', async () => {
   let calls = 0
   const controller = new SubscriptionsAuthController(
@@ -406,4 +449,66 @@ test('usage(): with no pool tracker (pool disabled), every call hits the raw fet
   await controller.usage('codex', 'a1', new AbortController().signal)
   await controller.usage('codex', 'a1', new AbortController().signal)
   assert.equal(calls, 2, 'unchanged prior behavior when the pool usage cache is unavailable')
+})
+
+// Drive the same exact POST route and controller as the browser, with only
+// redemption I/O replaced. No provider or credential store participates.
+test('reset RPC requires a prepared account-bound ticket and surfaces ambiguous outcomes', async () => {
+  let submissions = 0
+  let ambiguous = false
+  let invalidations = 0
+  const redemption = new ResetRedemption(async () => ({
+    supported: true,
+    windows: [{ kind: 'weekly', usedPercent: 92, resetsAt: Date.now() + 120_000 }],
+    resetCredits: [{ id: 'credit', expiresAt: Date.now() + 120_000 }],
+  }), async (account, credit, request, signal) => {
+    assert.equal(account, 'a1')
+    assert.equal(credit, 'credit')
+    assert.match(request, /^[0-9a-f-]{36}$/)
+    assert.equal(signal.aborted, false)
+    submissions++
+    if (ambiguous) throw new Error('lost response')
+  }, () => { invalidations++ })
+  const controller = new SubscriptionsAuthController(
+    new OAuthFlowManager(), new DeviceFlowManager(), () => {}, () => undefined,
+    {}, undefined, undefined, {}, {}, redemption,
+  )
+  const ctx = new Context()
+  const fake = createFakeConnection()
+  ctx.provide('connection', fake.connection)
+  registerAuthRpc(ctx, controller, {
+    speed: async () => ({ tier: 'standard', fastModels: [] }), setSpeed: async () => {},
+  })
+  await ctx.start()
+  try {
+    const signal = new AbortController().signal
+    const unprepared = await fake.handler('consumeReset', { account: 'a1', ticket: 'invented' }, signal)
+    assert.equal(unprepared.ok, false)
+    assert.equal(submissions, 0)
+    const invalid = await fake.handler('prepareReset', { account: '' }, signal)
+    assert.equal(invalid.ok, false)
+    if (!invalid.ok) assert.equal(invalid.error.code, 'bad-request')
+    const prepared = await fake.handler('prepareReset', { account: 'a1' }, signal)
+    assert.equal(prepared.ok, true)
+    if (!prepared.ok) return
+    const confirmation = prepared.value as { ticket: string; weeklyUsedPercent: number; expiresAt: number }
+    assert.equal(confirmation.weeklyUsedPercent, 92)
+    assert.ok(confirmation.expiresAt > Date.now())
+    assert.deepEqual(await fake.handler('consumeReset', { account: 'a1', ticket: confirmation.ticket }, signal),
+      { ok: true, value: { ok: true } })
+    assert.equal(submissions, 1)
+    assert.equal(invalidations, 1)
+    const again = await fake.handler('prepareReset', { account: 'a1' }, signal)
+    assert.equal(again.ok, true)
+    if (!again.ok) return
+    ambiguous = true
+    const failed = await fake.handler('consumeReset', { account: 'a1', ticket: (again.value as { ticket: string }).ticket }, signal)
+    assert.equal(failed.ok, false)
+    if (!failed.ok) assert.match(failed.error.message, /Do not retry or restart/)
+    const blocked = await fake.handler('prepareReset', { account: 'a1' }, signal)
+    assert.equal(blocked.ok, false)
+    if (!blocked.ok) assert.match(blocked.error.message, /uncertain/)
+    assert.equal(submissions, 2)
+    assert.equal(invalidations, 2)
+  } finally { await ctx.stop() }
 })
