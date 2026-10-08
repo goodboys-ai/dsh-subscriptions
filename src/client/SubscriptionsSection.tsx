@@ -9,8 +9,7 @@
  * design-platform.css values flip under `body[data-ds-dark-theme]`), and
  * every user-visible string goes through the locale-bound `t` of the
  * 'settings.subscriptions' namespace. Buttons and inputs take the
- * ModelsSection vocabulary minus hover rules, which inline styles cannot
- * express.
+ * native settings vocabulary with shared, scoped control states.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
@@ -18,6 +17,7 @@ import type { ConnectionHandle } from '@deepseek-ai/dsh-api-remotes/client'
 import { en } from './locales.js'
 import { resetActionBlock } from './reset-action.js'
 import { ProviderAccountManager } from './ProviderAccountManager.js'
+import { providerSettingsCss } from './provider-settings-styles.js'
 import { ExternalUsageCards } from './ExternalUsageCards.js'
 import { CursorCard } from './CursorCard.js'
 import { UsageMeter } from './UsageMeter.js'
@@ -178,7 +178,10 @@ const styles: Record<string, CSSProperties> = {
     color: 'var(--dsw-alias-label-primary)',
   },
   intro: { margin: 0, color: 'var(--dsw-alias-label-tertiary)', fontSize: 14, lineHeight: '22px' },
-  card: cardStyles.card,
+  card: { ...cardStyles.card,
+    border: '0.5px solid var(--dsw-alias-settings-card-stroke, var(--dsw-alias-border-l4))',
+    borderRadius: 'var(--dsw-radius-xl, 20px)', background: 'var(--dsw-alias-settings-card-fill, var(--dsw-alias-bg-layer-2))',
+  },
   cardHeader: cardStyles.header,
   dot: cardStyles.dot,
   name: cardStyles.name,
@@ -186,44 +189,46 @@ const styles: Record<string, CSSProperties> = {
   clientVersion: { fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary)', fontVariantNumeric: 'tabular-nums' },
   errorLine: cardStyles.error,
   actions: cardStyles.actions,
-  button: cardStyles.button,
-  usage: cardStyles.usage,
+  usage: { ...cardStyles.usage, borderTop: '0.5px solid var(--dsw-alias-border-l2)' },
   usageHeader: cardStyles.usageHeader,
   usageTitle: cardStyles.usageTitle,
   usagePlan: cardStyles.usagePlan,
-  usageRefresh: cardStyles.usageRefresh,
+  usageRefresh: { minHeight: 22, height: 22, padding: '0 8px', marginLeft: 'auto' },
   usageRow: cardStyles.usageRow,
   usageMeta: cardStyles.usageMeta,
-  accountRow: cardStyles.account,
+  accountRow: { ...cardStyles.account, border: '0.5px solid var(--dsw-alias-border-l2)', borderRadius: 'var(--dsw-radius-lg, 16px)' },
   accountHeader: cardStyles.accountHeader,
   accountName: cardStyles.accountName,
   starButton: {
-    border: 'none', background: 'transparent', padding: 0,
+    border: 'none', padding: 0, width: 28,
     font: 'inherit', fontSize: 14, lineHeight: '20px', cursor: 'pointer',
     color: 'var(--dsw-alias-state-warn-label)',
   },
   deviceCode: {
     marginTop: 4, display: 'flex', flexDirection: 'column', gap: 6,
-    border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 8,
+    border: '0.5px solid var(--dsw-alias-border-l2)', borderRadius: 'var(--dsw-radius-lg, 16px)',
     padding: '10px 12px', background: 'var(--dsw-alias-bg-layer-1)',
   },
   deviceCodeText: {
     fontFamily: 'monospace', fontSize: 18, lineHeight: '24px', letterSpacing: 2,
     color: 'var(--dsw-alias-label-primary)', userSelect: 'all',
   },
+  manual: { fontSize: 13, lineHeight: '20px' },
+  manualRow: { display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginTop: 8 },
+  manualInput: { flex: '1 1 200px', minWidth: 0 },
   modalOverlay: {
     position: 'fixed', inset: 0, zIndex: 1000,
     display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
-    background: 'rgba(0, 0, 0, 0.45)',
+    background: 'var(--dsw-alias-bg-mask-1, #0006)', backdropFilter: 'var(--dsw-mask-blur, none)',
   },
   modal: {
     width: 460, maxWidth: '100%', maxHeight: '90vh', overflowY: 'auto',
     boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: 12,
-    padding: '16px 18px', borderRadius: 12,
-    background: 'var(--dsw-alias-bg-layer-1)', border: '1px solid var(--dsw-alias-border-l2)',
+    padding: '16px 18px', borderRadius: 'var(--dsw-radius-panel, 28px)',
+    background: 'var(--dsw-alias-bg-layer-2)', border: 0, boxShadow: 'var(--dsw-elevation-prominent)',
   },
   modalHeader: { display: 'flex', alignItems: 'center', gap: 8 },
-  modalTitle: { fontWeight: 600, fontSize: 15, lineHeight: '22px', color: 'var(--dsw-alias-label-primary)' },
+  modalTitle: { fontWeight: 500, fontSize: 16, lineHeight: '24px', color: 'var(--dsw-alias-label-primary)' },
 }
 
 /** Status dot color for one provider state. */
@@ -670,7 +675,8 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
   }
 
   return (
-    <div style={styles.section}>
+    <div className="dsh-subscriptions-settings" style={styles.section}>
+      <style>{providerSettingsCss}</style>
       <p style={styles.intro}>{t('intro')}</p>
       <UsageBadgeDisplaySetting t={t} />
       {PROVIDERS.map(({ id, name }) => {
@@ -730,7 +736,7 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
                     )}
                     <button
                       type="button"
-                      style={{ ...styles.button, marginLeft: 'auto', flexShrink: 0 }}
+                      style={{ marginLeft: 'auto', flexShrink: 0 }}
                       onClick={() => { void logout(id, account.key, display, name) }}
                     >
                       {t('logout')}
@@ -745,7 +751,7 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
                         )}
                         <button
                           type="button"
-                          style={{ ...styles.usageRefresh, ...usageLoading[usageKey] === true ? { opacity: 0.5, cursor: 'default' } : {} }}
+                          style={styles.usageRefresh}
                           disabled={usageLoading[usageKey] === true}
                           onClick={() => { void loadUsage(id, account.key, true) }}
                         >
@@ -801,7 +807,7 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
                                   {credit === nextReset && (
                                     <button type="button" aria-disabled={resetDisabled}
                                       title={t(resetBusy ? 'resetUseChecking' : resetBlock ?? 'resetUseReady')}
-                                      style={{ ...styles.button, height: 22, padding: '0 7px', borderRadius: 6,
+                                      style={{ minHeight: 22, height: 22, padding: '0 7px', borderRadius: 6,
                                         opacity: resetDisabled ? 0.35 : 1, cursor: resetDisabled ? 'not-allowed' : 'pointer' }}
                                       onClick={() => { if (!resetDisabled) void prepareReset(account.key) }}>
                                       {resetBusy && resetAccount === account.key ? t('resetUseChecking') : t('resetUseButton')}
@@ -822,31 +828,31 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
             })}
             <div style={styles.actions}>
               {!busy && accounts.length === 0 && (
-                <button type="button" style={styles.button} onClick={() => { void login(id) }}>
+                <button type="button" onClick={() => { void login(id) }}>
                   {t('login')}
                 </button>
               )}
               {!busy && accounts.length > 0 && id === 'claude' && (
                 <>
-                  <button type="button" style={styles.button} onClick={() => { void login(id, 'oauth') }}>
+                  <button type="button" onClick={() => { void login(id, 'oauth') }}>
                     {t('addAccountOAuth')}
                   </button>
-                  <button type="button" style={styles.button} onClick={() => { void login(id, 'keychain') }}>
+                  <button type="button" onClick={() => { void login(id, 'keychain') }}>
                     {t('addAccountKeychain')}
                   </button>
                 </>
               )}
               {!busy && accounts.length > 0 && id !== 'claude' && (
-                <button type="button" style={styles.button} onClick={() => { void login(id) }}>
+                <button type="button" onClick={() => { void login(id) }}>
                   {t('addAccount')}
                 </button>
               )}
-              <button type="button" style={styles.button} aria-haspopup="dialog"
+              <button type="button" aria-haspopup="dialog"
                 onClick={() => setManagedProvider({ id, name })}>
                 {t('accountsManage')}
               </button>
               {busy && (
-                <button type="button" style={styles.button} onClick={() => { void cancel(id) }}>
+                <button type="button" onClick={() => { void cancel(id) }}>
                   {t('cancel')}
                 </button>
               )}
@@ -860,12 +866,11 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
                 <span style={styles.statusLine}>{t('deviceCodePrompt')}</span>
                 <span style={styles.deviceCodeText}>{deviceCode.userCode}</span>
                 <div style={styles.actions}>
-                  <button type="button" style={styles.button} onClick={() => { copyDeviceCode(id, deviceCode.userCode) }}>
+                  <button type="button" onClick={() => { copyDeviceCode(id, deviceCode.userCode) }}>
                     {copiedCode === id ? t('deviceCodeCopied') : t('deviceCodeCopy')}
                   </button>
                   <button
                     type="button"
-                    style={styles.button}
                     onClick={() => { window.open(deviceCode.verificationUrl, '_blank', 'noopener') }}
                   >
                     {t('deviceCodeOpenPage')}
@@ -883,7 +888,7 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
                     placeholder={t('manualPlaceholder')}
                     onChange={event => setManualDrafts(prev => ({ ...prev, [id]: event.target.value }))}
                   />
-                  <button type="button" style={styles.button} onClick={() => { void submitManual(id) }}>
+                  <button type="button" onClick={() => { void submitManual(id) }}>
                     {t('submit')}
                   </button>
                 </div>
@@ -896,7 +901,7 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
       <ExternalUsageCards rpc={rpc} t={t} />
       {managedProvider && <ProviderAccountManager provider={managedProvider.id} name={managedProvider.name}
         rpc={rpc} t={t} onClose={() => setManagedProvider(undefined)} />}
-      <style>{'.subscriptions-reset-dialog::backdrop { background: rgba(0,0,0,.5); }'}</style>
+      <style>{'.subscriptions-reset-dialog::backdrop { background: var(--dsw-alias-bg-mask-1, #0006); backdrop-filter: var(--dsw-mask-blur, none); }'}</style>
       <dialog ref={resetDialogRef} className="subscriptions-reset-dialog"
         aria-labelledby="subscriptions-reset-title" onCancel={() => setResetConfirmation(undefined)}
         onClose={() => setResetConfirmation(undefined)}
@@ -915,10 +920,9 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
             <input type="checkbox" checked={resetAcknowledged} onChange={e => setResetAcknowledged(e.target.checked)} />
             {t('resetUseAcknowledge')}
           </label>
-          <div style={{ ...styles.actions, justifyContent: 'flex-end', marginTop: 8 }}>
-            <button type="button" autoFocus style={styles.button} onClick={() => setResetConfirmation(undefined)}>{t('cancel')}</button>
-            <button type="button" style={{ ...styles.button, opacity: resetAcknowledged ? 1 : 0.35,
-              cursor: resetAcknowledged ? 'pointer' : 'not-allowed' }} disabled={!resetAcknowledged || resetBusy}
+          <div className="dsh-subscription-dialog-actions" style={{ ...styles.actions, justifyContent: 'flex-end', marginTop: 8 }}>
+            <button type="button" autoFocus onClick={() => setResetConfirmation(undefined)}>{t('cancel')}</button>
+            <button type="button" className="dsh-subscription-primary" disabled={!resetAcknowledged || resetBusy}
               onClick={() => { void consumeReset() }}>{t('resetUseConfirm')}</button>
           </div>
         </>}
