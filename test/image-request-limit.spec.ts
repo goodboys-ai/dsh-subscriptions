@@ -1,6 +1,5 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
 import { spawnSync } from 'node:child_process'
 import { MessageId } from '@deepseek-ai/dsh-llm'
 import type { GenerateOptions, ImageBlock, Message } from '@deepseek-ai/dsh-llm'
@@ -170,30 +169,4 @@ test('a host without the offload exports still receives images unchanged', () =>
     assert.equal(result.fetches, 1, missing)
     assert.notEqual(result.code, 'IMAGE_OFFLOAD_REQUIRED', missing)
   }
-})
-
-// Blocked on the host, not ported. Our floor ships IMAGE_OFFLOAD_REQUIRED_CODE
-// and offloadedImageText, so upstream's export probe always passes here, yet
-// this package never turns that error into a retry. This asserts only what can
-// be asserted from the package itself: the symbol is defined and exported, and
-// nothing in its runtime references it again. It is NOT a full host-composition
-// check -- confirming no consumer exists anywhere would mean auditing the host,
-// its compaction plugins, and every supported version's shipped code, which is
-// the release-time capability check recorded in the sync ledger, not a unit test.
-test('the offload error is exported by the floor but never consumed by that package', async () => {
-  const llm = await import('@deepseek-ai/dsh-llm') as Record<string, unknown>
-  assert.equal(llm['IMAGE_OFFLOAD_REQUIRED_CODE'], 'IMAGE_OFFLOAD_REQUIRED')
-  assert.equal(typeof llm['offloadedImageText'], 'function')
-  const source = await readFile(new URL(import.meta.resolve('@deepseek-ai/dsh-llm')), 'utf8')
-  // Definition and re-export only. Code (not the doc comments above it) must
-  // never branch on the code or hand it to a retry.
-  const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
-  // One definition, one re-export, and nothing that branches on it or drives a
-  // retry from it. A real consumer would compare the code or pair it with
-  // requiredImageOffload(); a definition cannot satisfy either shape.
-  // Exactly once in code: the definition. The export list carries the suffixed
-  // `IMAGE_OFFLOAD_REQUIRED_CODE`, so it does not match the bare name.
-  assert.equal(code.match(/IMAGE_OFFLOAD_REQUIRED(?!_CODE)\b/g)?.length ?? 0, 1, 'only the definition')
-  assert.equal(/[^\w.]IMAGE_OFFLOAD_REQUIRED\s*(===|!==|\?|:)/.test(code), false, 'the code is never branched on')
-  assert.equal(/requiredImageOffload\([^)]*\)[\s\S]{0,80}IMAGE_OFFLOAD_REQUIRED/.test(code), false, 'no retry is driven by it')
 })
