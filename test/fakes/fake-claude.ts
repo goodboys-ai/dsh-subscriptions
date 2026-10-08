@@ -170,7 +170,7 @@ export function installFakeClaude(t: TestContext): FakeClaude {
       })
     }
 
-    if (url === CLAUDE_USAGE_URL && method === 'GET') {
+    if ((url === CLAUDE_USAGE_URL || url === `${CLAUDE_USAGE_URL}?cedar_ember=1`) && method === 'GET') {
       const now = Date.now()
       return Response.json({
         limits: [

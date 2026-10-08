@@ -324,11 +324,63 @@ export function isClaudePermanentRefreshError(error: unknown): boolean {
 
 export const CLAUDE_USAGE_URL = 'https://api.anthropic.com/api/oauth/usage'
 
-/** RFC3339 `resets_at` value → epoch ms, or undefined when absent/unparsable. */
+/** ISO-8601 or numeric epoch (seconds below 1e10 in magnitude, otherwise ms). */
 function claudeResetsAt(value: unknown): number | undefined {
-  if (typeof value !== 'string' || value.length === 0) return undefined
-  const parsed = Date.parse(value)
-  return Number.isFinite(parsed) ? parsed : undefined
+  let parsed: number
+  if (typeof value === 'number') {
+    parsed = Math.trunc(Math.abs(value) < 1e10 ? value * 1000 : value)
+  } else if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value)) {
+    parsed = Date.parse(value)
+  } else {
+    return undefined
+  }
+  return Number.isFinite(parsed) && Number.isFinite(new Date(parsed).getTime()) ? parsed : undefined
+}
+
+/**
+ * Read the observed cedar_ember shape from ItsJazii/pane, not an official
+ * contract. Each entry retains its grant id and counts; claimable is only
+ * read-only server-selection metadata, never an implemented redemption path.
+ */
+function claudeResetCredits(value: unknown, now: number): ProviderUsage['resetCredits'] {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined
+  const ember = value as Record<string, unknown>
+  if (ember.eligible !== true || !Array.isArray(ember.grants)) return undefined
+  const cooldownUntil = claudeResetsAt(ember.cooldown_until)
+  // An unparseable disclosed cooldown must not assert that claims are available.
+  const cooling = cooldownUntil === undefined
+    ? ember.cooldown_until !== undefined && ember.cooldown_until !== null
+    : cooldownUntil > now
+  const credits: NonNullable<ProviderUsage['resetCredits']> = []
+  let selected = false
+  for (const raw of ember.grants) {
+    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) continue
+    const grant = raw as Record<string, unknown>
+    const { id, resets_total: total, resets_left: left, usable_now: usable, paused } = grant
+    const expiresAt = claudeResetsAt(grant.ends_at)
+    if (typeof id !== 'string' || id.trim().length === 0
+      || typeof total !== 'number' || !Number.isSafeInteger(total) || total < 1
+      || typeof left !== 'number' || !Number.isSafeInteger(left)
+      || expiresAt === undefined
+      || (usable !== undefined && typeof usable !== 'boolean')
+      || (paused !== undefined && typeof paused !== 'boolean')) continue
+    const resetsLeft = Math.max(0, Math.min(left, total))
+    if (resetsLeft === 0) continue
+    const claimable = !selected && id === ember.next_grant_id && usable === true
+      && paused !== true && !cooling && expiresAt > now
+    if (claimable) selected = true
+    credits.push({
+      id,
+      expiresAt,
+      resetsTotal: total,
+      resetsLeft,
+      ...usable === undefined ? {} : { usableNow: usable },
+      ...paused === undefined ? {} : { paused },
+      claimable,
+      ...cooldownUntil === undefined ? {} : { cooldownUntil },
+    })
+  }
+  return credits.length > 0 ? credits : undefined
 }
 
 /** Claude session and weekly buckets reset as whole five-hour/seven-day windows. */
@@ -340,7 +392,7 @@ function claudeWindowTiming(kind: UsageWindow['kind']): Pick<UsageWindow, 'windo
 /** Map one legacy `{utilization, resets_at}` bucket; undefined when null or unusable. */
 function claudeLegacyWindow(value: unknown, kind: UsageWindow['kind'], scope?: string): UsageWindow | undefined {
   if (typeof value !== 'object' || value === null) return undefined
-  const bucket = value as { utilization?: number; resets_at?: string }
+  const bucket = value as { utilization?: number; resets_at?: unknown }
   if (typeof bucket.utilization !== 'number' || !Number.isFinite(bucket.utilization)) return undefined
   const resetsAt = claudeResetsAt(bucket.resets_at)
   return {
@@ -356,7 +408,7 @@ function claudeLegacyWindow(value: unknown, kind: UsageWindow['kind'], scope?: s
 interface ClaudeLimitEntry {
   kind?: string
   percent?: number
-  resets_at?: string
+  resets_at?: unknown
   scope?: { model?: { display_name?: string } }
 }
 
@@ -389,6 +441,10 @@ function claudeLimitsWindows(value: unknown): UsageWindow[] {
  * source of Claude Code's `/usage` screen). Newer responses carry a
  * structured `limits` array; older ones the flat `five_hour`/`seven_day*`
  * buckets — both shapes are read, the array winning when it has entries.
+ * Requests the optional cedar_ember banked-reset block with the existing CLI
+ * identity. A 400/403 retries once without that parameter; ordinary windows
+ * remain available and resetCreditsError records the optional lookup failure.
+ * Missing/ineligible blocks and empty or unusable grants expose no credits.
  * @param session - the stored session (used as-is; never refreshed here).
  * @param fetchFn - fetch implementation (injectable for tests).
  * @param signal - caller cancellation from the RPC transport.
@@ -402,7 +458,7 @@ export async function fetchClaudeUsage(
   cliVersion: () => Promise<string> = localClaudeCliVersion,
 ): Promise<ProviderUsage> {
   const userAgent = claudeCliUserAgent(await cliVersion())
-  const response = await fetchFn(CLAUDE_USAGE_URL, {
+  const init: RequestInit = {
     headers: {
       'authorization': `Bearer ${session.accessToken}`,
       'anthropic-beta': 'oauth-2025-04-20',
@@ -412,11 +468,23 @@ export async function fetchClaudeUsage(
       'accept': 'application/json',
     },
     ...signal === undefined ? {} : { signal },
-  })
+  }
+  let response = await fetchFn(`${CLAUDE_USAGE_URL}?cedar_ember=1`, init)
+  let resetCreditsError: string | undefined
+  if (response.status === 400 || response.status === 403) {
+    resetCreditsError = `Claude banked resets lookup failed (HTTP ${response.status}); using plain usage.`
+    // Optional program support must not turn a working usage endpoint into an error.
+    response = await fetchFn(CLAUDE_USAGE_URL, init)
+  }
   if (!response.ok) throw await oauthEndpointError(response, 'claude usage')
   const payload = await response.json() as Record<string, unknown>
+  const resetCredits = resetCreditsError === undefined ? claudeResetCredits(payload.cedar_ember, Date.now()) : undefined
+  const resets = {
+    ...resetCredits === undefined ? {} : { resetCredits },
+    ...resetCreditsError === undefined ? {} : { resetCreditsError },
+  }
   const modern = claudeLimitsWindows(payload.limits)
-  if (modern.length > 0) return { supported: true, windows: modern }
+  if (modern.length > 0) return { supported: true, windows: modern, ...resets }
   const windows: UsageWindow[] = []
   const legacy = [
     claudeLegacyWindow(payload.five_hour, 'session'),
@@ -427,7 +495,7 @@ export async function fetchClaudeUsage(
   for (const window of legacy) {
     if (window !== undefined) windows.push(window)
   }
-  return { supported: true, windows }
+  return { supported: true, windows, ...resets }
 }
 
 interface ClaudeModelCapabilities {
