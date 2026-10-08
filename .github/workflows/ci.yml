@@ -44,6 +44,12 @@ jobs:
       # It catches a compatibility statement that drifted from the window.
       - run: node scripts/check-compat-docs.mjs
       - run: node scripts/check-image-budget.mjs
+      # The upstream-port ledger. CI checks out this repository alone, so the
+      # sync half skips itself here and a scheduled run with --require-upstream
+      # makes that fatal; the ledger's own consistency, the prose drift, and the
+      # host-capability re-checks always run.
+      - name: Check the upstream-port ledger
+        run: node scripts/check-upstream-ports.mjs
 
   build-and-test:
     # Per-version API checks: compile and test against each DSH version's
