@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.1.3 — 2026-10-08
+
+- Usage bars keep their elapsed-time cursor whenever the provider's timing
+  places the current window, including at 0% used, after a failed refresh, and
+  for stale or unobserved readings. Only a current reading drives the pace
+  warning; an ended, future-starting, or reset-only window still shows no
+  cursor, and an unusable percentage still shows no fill.
+- MiniMax standard (non-video) quotas that report a remaining percentage
+  beside zero counts appear again next to the count-backed video quotas.
+  Settings rows and the badge keep the model name, and a status-2 row without
+  a usable reading does not imply an exhausted bar.
+- Settings → Subscriptions → Status-bar quota display gains **Always show**,
+  which rotates through the providers that report usage every 10 seconds while
+  the current model has no quota source, so the pill never disappears.
+- README screenshots show the current pill and dialog.
+
 ## v0.1.2 — 2026-10-02
 
 - Usage meters show elapsed-time markers and Standard, Relaxed, or Remaining

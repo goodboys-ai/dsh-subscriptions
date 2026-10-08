@@ -1,6 +1,6 @@
 {
   "name": "dsh-subscriptions",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Unified subscription providers and usage dashboard for DeepSeek Harness",
   "icon": "./icon.svg",
   "license": "MIT",
