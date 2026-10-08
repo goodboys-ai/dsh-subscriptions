@@ -9,8 +9,8 @@
   cursor, and an unusable percentage still shows no fill.
 - MiniMax standard (non-video) quotas that report a remaining percentage
   beside zero counts appear again next to the count-backed video quotas.
-  Settings rows and the badge keep the model name, and status 2 without a
-  usable reading no longer implies an exhausted bar.
+  Settings rows and the badge keep the model name, and a status-2 row without
+  a usable reading does not imply an exhausted bar.
 - Settings → Subscriptions → Status-bar quota display gains **Always show**,
   which rotates through the providers that report usage every 10 seconds while
   the current model has no quota source, so the pill never disappears.
