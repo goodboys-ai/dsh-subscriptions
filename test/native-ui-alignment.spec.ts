@@ -38,7 +38,7 @@ test('native control states stay scoped and do not restyle meter internals', () 
   }
   for (const token of ['--dsw-alias-bg-layer-3', '--dsw-alias-border-l4', '--dsw-alias-button-primary-fill',
     '--dsw-focus-ring-color', '--dsw-radius-panel']) assert.ok(providerSettingsCss.includes(token), token)
-  assert.match(providerSettingsCss, /body\[data-ds-dark-theme\]/)
+  assert.doesNotMatch(providerSettingsCss, /color-scheme|body\[data-ds-dark-theme\]/)
   assert.match(subscriptionChromeCss, /\.dsh-subscription-usage-panel\s*\{[^}]*--dsw-elevation-stroke-color/s)
   assert.match(subscriptionChromeCss, /\.dsh-subscription-speed button:disabled/)
   assert.doesNotMatch(providerSettingsCss + subscriptionChromeCss, /data-usage-time-marker|data-usage-color|\bspan\s*\{|\bdiv\s*\{/)

@@ -17,16 +17,11 @@ export const providerSettingsCss = `
   font-family: inherit;
   font-size: 13px;
   line-height: 1.5;
-  color-scheme: light;
 }
 .dsh-subscriptions-settings {
   font-family: inherit;
   font-size: 13px;
   line-height: 1.5;
-  color-scheme: light;
-}
-body[data-ds-dark-theme] ${formScope} {
-  color-scheme: dark;
 }
 .dsh-subscription-manager::backdrop {
   background: var(--dsw-alias-bg-mask-1, #0006);
