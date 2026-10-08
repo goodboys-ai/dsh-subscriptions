@@ -1167,6 +1167,30 @@ test('concurrent call-id collisions stay isolated per conversation', async () =>
   }
 })
 
+test('identity-free requests cannot replay reasoning from another request',
+  async () => {
+  const { calls, restore } = recordingSseFetch([
+    reasoningToolCallSse('PRIVATE'), COMPLETED_SSE,
+  ])
+  try {
+    const adapter = responsesAdapter()
+    const { sessionId: omitted, ...bare } = STREAM_OPTIONS
+    void omitted
+    const request: GenerateOptions = { ...bare, messages: [
+      { role: 'user', content: [{ type: 'text', text: 'first request' }] },
+    ] }
+    for await (const chunk of adapter.stream(request)) void chunk
+    const other: GenerateOptions = { ...bare, messages: [
+      { role: 'user', content: [{ type: 'text', text: 'independent request' }] },
+      ...toolRoundTripHistory(),
+    ] }
+    for await (const chunk of adapter.stream(other)) void chunk
+    assert.deepEqual(replayedEncrypted(inputOf(calls, 1)), [])
+  } finally {
+    restore()
+  }
+})
+
 test('hand-built requests anchor replay on the first message id', async () => {
   // Without a loop-stamped sessionId, the conversation scope falls back to
   // the FIRST message's id: a continuation whose history still opens with

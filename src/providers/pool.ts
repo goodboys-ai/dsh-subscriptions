@@ -26,6 +26,7 @@ import type { ConcretePoolMember, PoolDefinition, PoolMemberRef } from './pool-f
 import { poolKey } from './pool-family.js'
 import { accountKey, classifyPoolFailure, memberKey, PoolHealthRegistry } from './pool-health.js'
 import type { MemberQuota, PoolUsageTracker } from './pool-usage.js'
+import { streamAccountWithReplay } from './replay.js'
 
 /** Member-selection strategy: plain priority failover or quota-aware scheduling. */
 export type PoolStrategy = 'priority' | 'quota_aware'
@@ -250,9 +251,9 @@ export class PoolAdapter extends LlmAdapter {
     for (const member of candidates) {
       const adapter = this.options.adapters[member.provider]
       if (adapter === undefined) continue
-      const iterator = adapter.streamAccount(
-        { ...options, provider: member.provider, model: member.model },
-        member.account,
+      const iterator = streamAccountWithReplay(
+        adapter, { ...options, provider: member.provider },
+        member.account, member.model,
       )[Symbol.asyncIterator]()
       let first: IteratorResult<StreamChunk>
       try {

@@ -5,6 +5,7 @@ import type { ProviderSettingsStore, AccountPreferences } from '../provider-sett
 import type { AccountAwareAdapter } from './accounts.js'
 import { DISCOVERY_TIMEOUT_MS, withTimeout } from './common.js'
 import type { PoolAdapter } from './pool.js'
+import { streamAccountWithReplay } from './replay.js'
 
 /** Reserved namespace, recognized even when malformed or no longer enabled. */
 export const ACCOUNT_MODEL_PREFIX = '~account:'
@@ -129,11 +130,15 @@ export class AccountPreferencesAdapter extends LlmAdapter {
     const independent = parseAccountModelId(options.model)
     if (independent) {
       await this.requireAccount(independent.account, independent.model, true)
-      yield* this.options.adapter.streamAccount({ ...options, model: independent.model }, independent.account)
+      yield* streamAccountWithReplay(
+        this.options.adapter, options, independent.account, independent.model,
+      )
       return
     }
     const pool = this.options.pool()
     if (pool && await pool.owns(this.options.provider, options.model)) { yield* pool.stream(options); return }
-    yield* this.options.adapter.streamAccount(options, await this.fallback(options.model))
+    yield* streamAccountWithReplay(
+      this.options.adapter, options, await this.fallback(options.model),
+    )
   }
 }
