@@ -479,36 +479,35 @@ test('reset RPC requires a prepared account-bound ticket and surfaces ambiguous 
   registerAuthRpc(ctx, controller, {
     speed: async () => ({ tier: 'standard', fastModels: [] }), setSpeed: async () => {},
   })
-  await ctx.start()
-  try {
-    const signal = new AbortController().signal
-    const unprepared = await fake.handler('consumeReset', { account: 'a1', ticket: 'invented' }, signal)
-    assert.equal(unprepared.ok, false)
-    assert.equal(submissions, 0)
-    const invalid = await fake.handler('prepareReset', { account: '' }, signal)
-    assert.equal(invalid.ok, false)
-    if (!invalid.ok) assert.equal(invalid.error.code, 'bad-request')
-    const prepared = await fake.handler('prepareReset', { account: 'a1' }, signal)
-    assert.equal(prepared.ok, true)
-    if (!prepared.ok) return
-    const confirmation = prepared.value as { ticket: string; weeklyUsedPercent: number; expiresAt: number }
-    assert.equal(confirmation.weeklyUsedPercent, 92)
-    assert.ok(confirmation.expiresAt > Date.now())
-    assert.deepEqual(await fake.handler('consumeReset', { account: 'a1', ticket: confirmation.ticket }, signal),
-      { ok: true, value: { ok: true } })
-    assert.equal(submissions, 1)
-    assert.equal(invalidations, 1)
-    const again = await fake.handler('prepareReset', { account: 'a1' }, signal)
-    assert.equal(again.ok, true)
-    if (!again.ok) return
-    ambiguous = true
-    const failed = await fake.handler('consumeReset', { account: 'a1', ticket: (again.value as { ticket: string }).ticket }, signal)
-    assert.equal(failed.ok, false)
-    if (!failed.ok) assert.match(failed.error.message, /Do not retry or restart/)
-    const blocked = await fake.handler('prepareReset', { account: 'a1' }, signal)
-    assert.equal(blocked.ok, false)
-    if (!blocked.ok) assert.match(blocked.error.message, /uncertain/)
-    assert.equal(submissions, 2)
-    assert.equal(invalidations, 2)
-  } finally { await ctx.stop() }
+  await new Promise(resolve => setTimeout(resolve, 50))
+  assert.ok(fake.registered(), 'the reset routes were registered')
+  const signal = new AbortController().signal
+  const unprepared = await fake.handler('consumeReset', { account: 'a1', ticket: 'invented' }, signal)
+  assert.equal(unprepared.ok, false)
+  assert.equal(submissions, 0)
+  const invalid = await fake.handler('prepareReset', { account: '' }, signal)
+  assert.equal(invalid.ok, false)
+  if (!invalid.ok) assert.equal(invalid.error.code, 'bad-request')
+  const prepared = await fake.handler('prepareReset', { account: 'a1' }, signal)
+  assert.equal(prepared.ok, true)
+  if (!prepared.ok) return
+  const confirmation = prepared.value as { ticket: string; weeklyUsedPercent: number; expiresAt: number }
+  assert.equal(confirmation.weeklyUsedPercent, 92)
+  assert.ok(confirmation.expiresAt > Date.now())
+  assert.deepEqual(await fake.handler('consumeReset', { account: 'a1', ticket: confirmation.ticket }, signal),
+    { ok: true, value: { ok: true } })
+  assert.equal(submissions, 1)
+  assert.equal(invalidations, 1)
+  const again = await fake.handler('prepareReset', { account: 'a1' }, signal)
+  assert.equal(again.ok, true)
+  if (!again.ok) return
+  ambiguous = true
+  const failed = await fake.handler('consumeReset', { account: 'a1', ticket: (again.value as { ticket: string }).ticket }, signal)
+  assert.equal(failed.ok, false)
+  if (!failed.ok) assert.match(failed.error.message, /Do not retry or restart/)
+  const blocked = await fake.handler('prepareReset', { account: 'a1' }, signal)
+  assert.equal(blocked.ok, false)
+  if (!blocked.ok) assert.match(blocked.error.message, /uncertain/)
+  assert.equal(submissions, 2)
+  assert.equal(invalidations, 2)
 })
