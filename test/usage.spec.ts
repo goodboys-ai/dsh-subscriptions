@@ -468,7 +468,7 @@ test('reset RPC requires a prepared account-bound ticket and surfaces ambiguous 
     assert.equal(signal.aborted, false)
     submissions++
     if (ambiguous) throw new Error('lost response')
-  }, () => { invalidations++ })
+  }, () => { invalidations++ }, async account => account)
   const controller = new SubscriptionsAuthController(
     new OAuthFlowManager(), new DeviceFlowManager(), () => {}, () => undefined,
     {}, undefined, undefined, {}, {}, redemption,

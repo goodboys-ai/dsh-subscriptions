@@ -12,7 +12,7 @@ const signal = new AbortController().signal
 test('manual reset blocks low/missing usage and selects earliest expiry', async () => {
   let snapshot = usage(79)
   const calls: string[] = []
-  const service = new ResetRedemption(async () => snapshot, async (_, id) => { calls.push(id) }, () => {})
+  const service = new ResetRedemption(async () => snapshot, async (_, id) => { calls.push(id) }, () => {}, async account => account)
   await assert.rejects(service.prepare('a', signal), /80%/)
   snapshot = usage()
   const confirmation = await service.prepare('a', signal)
@@ -26,7 +26,7 @@ test('manual reset blocks low/missing usage and selects earliest expiry', async 
 test('manual reset rechecks usage, binds account and parks uncertain submissions', async () => {
   let snapshot = usage()
   let calls = 0
-  const service = new ResetRedemption(async () => snapshot, async () => { calls++; throw new Error('timeout') }, () => {})
+  const service = new ResetRedemption(async () => snapshot, async () => { calls++; throw new Error('timeout') }, () => {}, async account => account)
   let confirmation = await service.prepare('a', signal)
   await assert.rejects(service.redeem('b', confirmation.ticket, signal), /expired/)
   confirmation = await service.prepare('a', signal)
@@ -43,7 +43,7 @@ test('manual reset rechecks usage, binds account and parks uncertain submissions
 test('expired confirmation and removed credit never submit a reset', async t => {
   let snapshot = usage()
   let calls = 0
-  const service = new ResetRedemption(async () => snapshot, async () => { calls++ }, () => {})
+  const service = new ResetRedemption(async () => snapshot, async () => { calls++ }, () => {}, async account => account)
   t.mock.timers.enable({ apis: ['Date'], now: 1000 })
   snapshot = usage()
   const expired = await service.prepare('a', signal)
@@ -61,7 +61,7 @@ test('in-flight redemption blocks another confirmation and invalidates usage onc
   const pending = new Promise<void>(resolve => { release = resolve })
   let invalidations = 0
   let calls = 0
-  const service = new ResetRedemption(async () => usage(), async () => { calls++; await pending }, () => { invalidations++ })
+  const service = new ResetRedemption(async () => usage(), async () => { calls++; await pending }, () => { invalidations++ }, async account => account)
   const confirmation = await service.prepare('a', signal)
   const redemption = service.redeem('a', confirmation.ticket, signal)
   await assert.rejects(service.prepare('a', signal), /pending/)
@@ -83,21 +83,44 @@ test('unexpected consume responses are not silently accepted or retried', async 
 
 test('a ticket cannot be spent when its window closes during the read', async t => {
   let calls = 0
+  let reads = 0
   let release!: () => void
-  const pending = new Promise<void>(resolve => { release = resolve })
-  // The weekly window and the credit both stay valid past the ticket, so only
-  // the confirmation window can reject this submission.
+  const gate = new Promise<void>(resolve => { release = resolve })
+  // The weekly window and the credit stay valid past the ticket, so only the
+  // confirmation window can reject this submission.
   const live = { supported: true, windows: [{ kind: 'weekly' as const, usedPercent: 90, resetsAt: 3_600_000 }],
     resetCredits: [{ id: 'credit', expiresAt: 3_600_000 }] } satisfies ProviderUsage
-  const service = new ResetRedemption(async () => live, async () => { calls++; await pending }, () => {})
+  // The FIRST read backs prepare(); the SECOND one is the re-check inside
+  // redeem(), and it is the one that must outlive the ticket.
+  const read = async (): Promise<ProviderUsage> => {
+    if (++reads === 2) await gate
+    return live
+  }
+  const service = new ResetRedemption(read, async () => { calls++ }, () => {}, async account => account)
   t.mock.timers.enable({ apis: ['Date'], now: 1000 })
   const confirmation = await service.prepare('a', signal)
   const redemption = service.redeem('a', confirmation.ticket, signal)
+  // Let redeem() pass its entry check and reach the read before time passes.
+  await Promise.resolve()
+  assert.equal(reads, 2, 'redeem should be inside the re-check read')
   t.mock.timers.tick(60_001)
   release()
   await assert.rejects(redemption, /Confirmation expired/)
-  assert.equal(calls, 0)
+  assert.equal(calls, 0, 'no reset may be submitted on an expired confirmation')
 })
+
+test('a redeemed credit is submitted once with its own credit and request ids', async () => {
+  const seen: { creditId: string; requestId: string }[] = []
+  const service = new ResetRedemption(async () => usage(), async (_account, creditId, requestId) => {
+    seen.push({ creditId, requestId })
+  }, () => {}, async account => account)
+  const confirmation = await service.prepare('a', signal)
+  await service.redeem('a', confirmation.ticket, signal)
+  assert.equal(seen.length, 1)
+  assert.equal(seen[0]?.creditId, 'first')
+  assert.ok(seen[0]?.requestId && seen[0].requestId.length > 0)
+})
+
 test('an alias of a parked account cannot prepare or submit a second reset', async () => {
   // One real account reachable by two references; the session layer maps both
   // to the same accountId, which is what the guards must key on.

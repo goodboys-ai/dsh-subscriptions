@@ -1,5 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
 import { spawnSync } from 'node:child_process'
 import { MessageId } from '@deepseek-ai/dsh-llm'
 import type { GenerateOptions, ImageBlock, Message } from '@deepseek-ai/dsh-llm'
@@ -118,7 +119,7 @@ test('Claude turns send images within the 2000px many-image limit (#110)', async
 
 // Isolate namespace exports in a child process: ESM bindings cannot be mocked
 // in place. Fetch stays stubbed and the hermetic preloader forbids live I/O.
-test('hosts missing either offload export keep sending images as before', () => {
+test('a host without the offload exports still receives images unchanged', () => {
   const adapterUrl = new URL('../src/providers/claude.js', import.meta.url).href
   const accountsUrl = new URL('../src/providers/accounts.js', import.meta.url).href
   const hermetic = new URL('../../test/hermetic.mjs', import.meta.url)
@@ -169,4 +170,18 @@ test('hosts missing either offload export keep sending images as before', () => 
     assert.equal(result.fetches, 1, missing)
     assert.notEqual(result.code, 'IMAGE_OFFLOAD_REQUIRED', missing)
   }
+})
+
+// Blocked on the host, not ported: our floor ships IMAGE_OFFLOAD_REQUIRED_CODE
+// and offloadedImageText but nothing consumes the error, so upstream's guard
+// would fail a multi-image turn before sending. This pins the state that makes
+// the port unsafe, so it stops looking like missing coverage.
+test('the floor host exports the offload contract but has no consumer for it', async () => {
+  const llm = await import('@deepseek-ai/dsh-llm') as Record<string, unknown>
+  assert.equal(llm['IMAGE_OFFLOAD_REQUIRED_CODE'], 'IMAGE_OFFLOAD_REQUIRED')
+  assert.equal(typeof llm['offloadedImageText'], 'function')
+  // Resolve through the real package specifier; the compiled spec lives under lib-test.
+  const source = await readFile(new URL(import.meta.resolve('@deepseek-ai/dsh-llm')), 'utf8')
+  const consumers = source.match(/catch[^]{0,200}IMAGE_OFFLOAD_REQUIRED|IMAGE_OFFLOAD_REQUIRED[^]{0,80}requiredImageOffload\(/g)
+  assert.equal(consumers, null, 'a consumer appeared: upstream eb42966 can be ported after review')
 })

@@ -25,28 +25,18 @@ export class ResetRedemption {
     private readonly consume: (account: string, creditId: string, requestId: string, signal: AbortSignal) => Promise<void>,
     private readonly invalidate: (account: string) => void,
     /**
-     * Stable identity for one real account. The RPC carries whatever reference
-     * the browser holds — a canonical id, a legacy key, an email, a workspace
-     * id — and the session layer resolves all of them to one Codex account.
-     * Keying the guards on the raw reference would let an alias slip past the
-     * busy and uncertain checks and spend a second credit, so state is keyed
-     * on this instead. Falls back to the raw reference when it cannot resolve.
+     * Stable identity for one real account: the same key the usage cache uses,
+     * so the guards and the cache invalidate together. The RPC carries whatever
+     * reference the browser holds — a canonical id, a legacy key, an email, a
+     * workspace id — and all of them resolve to one stored account.
+     *
+     * It must not fall back to the raw reference on failure. A fallback would
+     * re-key the state by whatever happened to arrive, so a transient lookup
+     * error could let a later alias past an uncertain park. Resolution here
+     * reads the local credential store only, so failing is safe and honest.
      */
-    private readonly canonical: (account: string, signal: AbortSignal) => Promise<string> = async account => account,
+    private readonly canonical: (account: string, signal: AbortSignal) => Promise<string>,
   ) {}
-
-  /**
-   * The identity the guards key on. Aliases of one account resolve together, so
-   * a pending or uncertain operation blocks every reference to that account.
-   */
-  private async identity(account: string, signal: AbortSignal): Promise<string> {
-    try {
-      const resolved = await this.canonical(account, signal)
-      return typeof resolved === 'string' && resolved.length > 0 ? resolved : account
-    } catch {
-      return account
-    }
-  }
 
   private eligible(usage: ProviderUsage): number {
     const weekly = usage.windows?.find(w => w.kind === 'weekly' && w.scope === undefined)
@@ -59,7 +49,7 @@ export class ResetRedemption {
   }
 
   async prepare(account: string, signal: AbortSignal): Promise<ResetConfirmation> {
-    const who = await this.identity(account, signal)
+    const who = await this.canonical(account, signal)
     if (this.busy.has(who) || this.uncertain.has(who)) throw new Error('Reset blocked: an operation is pending or its outcome is uncertain. Check Codex before retrying.')
     const usage = await this.read(account, signal)
     const weeklyUsedPercent = this.eligible(usage)
@@ -74,7 +64,7 @@ export class ResetRedemption {
   }
 
   async redeem(account: string, ticket: string, signal: AbortSignal): Promise<void> {
-    const who = await this.identity(account, signal)
+    const who = await this.canonical(account, signal)
     const pending = this.tickets.get(ticket)
     this.tickets.delete(ticket)
     if (!pending || pending.account !== who || pending.expiresAt <= Date.now()) throw new Error('Confirmation expired. Start again.')

@@ -53,6 +53,7 @@ import {
 } from './model-defaults.js'
 import {
   accountKeyOf,
+  resolveAccountKey,
   deleteAccountSession,
   listAccounts,
   saveAccountSession,
@@ -830,10 +831,13 @@ export function apply(ctx: Context, config: Config): void {
           try {
             const resetCredits = await fetchCodexResetCredits(session, hostFetch, signal)
             return { ...usage, resetCredits }
-          } catch (error) {
-            // Reset credits are an optional private endpoint; preserve ordinary usage.
-            const message = error instanceof Error ? error.message : String(error)
-            return { ...usage, resetCreditsError: message }
+          } catch {
+            // Reset credits are an optional private endpoint, so a failure here
+            // must not cost the caller its ordinary usage. The provider's own
+            // message is not carried into the result: this string is rendered
+            // in Settings, and a private endpoint echoing a token would put it
+            // on screen. The consume path takes the same posture.
+            return { ...usage, resetCreditsError: 'the usage-limit reset lookup did not answer' }
           }
         }
         let adapter!: CodexAdapter
@@ -1246,9 +1250,10 @@ export function apply(ctx: Context, config: Config): void {
     },
     account => poolUsage?.invalidate('codex', account),
     // The browser may name the account by canonical id, legacy key, email, or
-    // workspace id. The session layer resolves those to one account, so the
-    // redemption guards must key on that, not on whatever arrived.
-    async (account, signal) => (await codexTokens?.session(account))?.accountId ?? account,
+    // workspace id. The guards must key on the stored account's key — the same
+    // one the usage cache uses — so an alias cannot slip past a parked
+    // outcome, and an invalidation actually clears that account's cache.
+    async account => resolveAccountKey('codex', account),
   )
   registerAuthRpc(ctx, new SubscriptionsAuthController(
     flows, deviceFlows, authChanged, resolveAttachments, usageFetchers, undefined, poolUsage, config.antigravity,

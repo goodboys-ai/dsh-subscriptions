@@ -51,9 +51,13 @@ invalidation and a forced usage refresh follow the redemption attempt; lookup
 errors remain visible. Reset-credit discovery also adds an optional request to
 Codex usage polling.
 
-Offline tests cover eligibility, expiry, account binding, selected-credit
-revalidation, concurrency, uncertain outcomes, exact consume request shape,
-and the Settings RPC entry path. They do not prove the private endpoint's live
-contract or native-dialog focus and disclosure behavior in a browser. Host E2E
-owns those UI checks with fake accounts; live providers are not verification
-fixtures.
+Offline tests cover eligibility, expiry, account binding, alias identity,
+selected-credit revalidation, concurrency, uncertain outcomes, exact consume
+request shape, and the Settings RPC entry path.
+
+What is NOT covered: the private endpoint's live contract, and the native
+confirmation dialog's focus, Escape and cancel behavior, plus the collapsible
+disclosure, in a real browser. The host E2E plans the reset-credits request so
+the plugin loads, but asserts no redemption interaction; those UI behaviors
+remain unverified and must be checked by hand before release. Live providers are
+not verification fixtures either way.
