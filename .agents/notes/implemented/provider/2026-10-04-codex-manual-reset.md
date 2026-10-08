@@ -55,6 +55,22 @@ Offline tests cover eligibility, expiry, account binding, alias identity,
 selected-credit revalidation, concurrency, uncertain outcomes, exact consume
 request shape, and the Settings RPC entry path.
 
+Two follow-on fixes from review changed the concurrency around this flow.
+`prepare` now re-checks the pending and uncertain marks after its read, so a
+confirmation cannot be minted while another client's submission is parked as
+uncertain. The usage cache no longer lets a request that an `invalidate`
+abandoned overwrite a newer result, whether that older request settles with a
+value or with a failure. The client-side forced refresh after a redemption now
+waits out an in-flight poll instead of being dropped behind it; without that,
+the card could keep showing the pre-redemption percentage next to a success
+message until the next automatic poll.
+
+What is NOT covered: that forced-refresh sequencing has no unit test. It lives
+in a React effect, so server rendering never runs it, and this repo has no
+component harness that mounts the section against a stub connection. It rests
+on the host E2E and on review, not on a fast test; a regression there would show
+up as a stale card, not a failing suite.
+
 What is NOT covered: the private endpoint's live contract, and the native
 confirmation dialog's focus, Escape and cancel behavior, plus the collapsible
 disclosure, in a real browser. The host E2E plans the reset-credits request so

@@ -52,6 +52,10 @@ export class ResetRedemption {
     const who = await this.canonical(account, signal)
     if (this.busy.has(who) || this.uncertain.has(who)) throw new Error('Reset blocked: an operation is pending or its outcome is uncertain. Check Codex before retrying.')
     const usage = await this.read(account, signal)
+    // Re-check after the read. A confirmation prepared while another client was
+    // redeeming would otherwise be minted against a park that has since been
+    // cleared, letting the next click spend a second credit.
+    if (this.busy.has(who) || this.uncertain.has(who)) throw new Error('Reset blocked: an operation is pending or its outcome is uncertain. Check Codex before retrying.')
     const weeklyUsedPercent = this.eligible(usage)
     const credit = usage.resetCredits?.filter(c => c.id && (c.expiresAt === undefined || c.expiresAt > Date.now()))
       .sort((a, b) => (a.expiresAt ?? Infinity) - (b.expiresAt ?? Infinity))[0]

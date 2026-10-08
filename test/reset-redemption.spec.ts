@@ -36,7 +36,7 @@ test('manual reset rechecks usage, binds account and parks uncertain submissions
   snapshot = usage()
   confirmation = await service.prepare('a', signal)
   await assert.rejects(service.redeem('a', confirmation.ticket, signal), /could not be confirmed/)
-  await assert.rejects(service.prepare('a', signal), /uncertain/)
+  await assert.rejects(service.prepare('a', signal), /outcome is uncertain/)
   assert.equal(calls, 1)
 })
 
@@ -160,3 +160,30 @@ test('an alias of a parked account cannot prepare or submit a second reset', asy
   assert.equal(calls, 1)
 })
 
+
+test('a prepare that reads across an uncertain redemption is refused a ticket', async () => {
+  // The hazard is a prepare blocked on its read while another client's
+  // redemption ends ambiguously. Minting a ticket then would leave the account
+  // parked and handable at the same time. A completed, successful redemption
+  // deliberately clears the park and must still allow a later prepare.
+  let release!: () => void
+  const gate = new Promise<void>(resolve => { release = resolve })
+  let reads = 0
+  const live = (): ProviderUsage => ({ supported: true,
+    windows: [{ kind: 'weekly', usedPercent: 90, resetsAt: Date.now() + 3_600_000 }],
+    resetCredits: [{ id: 'credit', expiresAt: Date.now() + 3_600_000 }] })
+  let attempt = 0
+  const service = new ResetRedemption(async () => {
+    if (++reads === 1) await gate
+    return live()
+  }, async () => { attempt += 1; throw new Error('ambiguous response') }, () => {}, async account => account)
+
+  const preparing = service.prepare('a', signal)
+  const first = await service.prepare('a', signal)
+  // This one fails in flight, so the account stays parked as uncertain.
+  await assert.rejects(service.redeem('a', first.ticket, signal), /could not be confirmed/)
+  release()
+  await assert.rejects(preparing, /pending or its outcome is uncertain/)
+  assert.equal(attempt, 1, 'the ambiguous submission is the only one that leaves the process')
+  await assert.rejects(service.prepare('a', signal), /outcome is uncertain/)
+})

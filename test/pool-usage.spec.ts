@@ -204,3 +204,29 @@ test('snapshotFor: an invalidate during a fetch neither repopulates the cache no
     assert.equal(cached.windows?.[0]?.usedPercent, 11, 'the abandoned result must not be cached')
   }
 })
+
+test('snapshotFor: a discarded fetch that fails after a newer success cannot cache its cooldown', async () => {
+  // A starts, an invalidate abandons it, B starts and succeeds, then A rejects
+  // late. A must not bury B's fresh numbers under a negative cache.
+  let releaseA!: () => void
+  const gateA = new Promise<void>(resolve => { releaseA = resolve })
+  let calls = 0
+  let rejectA!: (error: Error) => void
+  const failureA = new Promise<never>((_resolve, reject) => { rejectA = reject })
+  const fresh: ProviderUsage = { supported: true, windows: [{ kind: 'weekly', usedPercent: 11, resetsAt: Date.now() + 3_600_000 }] }
+  const tracker = new PoolUsageTracker(() => async () => {
+    calls += 1
+    if (calls === 1) { await gateA; return failureA }
+    return fresh
+  })
+  const stale = tracker.snapshotFor('claude', 'a1', true).catch(() => undefined)
+  tracker.invalidate('claude', 'a1')
+  const newer = await tracker.snapshotFor('claude', 'a1', true)
+  assert.equal(newer.windows?.[0]?.usedPercent, 11)
+  releaseA()
+  rejectA(new Error('late 429'))
+  await stale
+  // The cached entry must still be the newer success, not a cooldown.
+  const cached = await tracker.snapshotFor('claude', 'a1')
+  assert.equal(cached.windows?.[0]?.usedPercent, 11, 'the late failure must not displace the fresh success')
+})

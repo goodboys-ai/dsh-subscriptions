@@ -419,7 +419,8 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
   const mountedRef = useRef(true)
   const pollersRef = useRef(new Map<SubscriptionProvider, ReturnType<typeof setInterval>>())
   /** Accounts with a `usage` call in flight; guards the auto-fetch effect against re-entry. */
-  const usageInflightRef = useRef(new Set<string>())
+  /** In-flight usage reads per key, holding the promise so a forced read can wait one out. */
+  const usageInflightRef = useRef(new Map<string, Promise<void>>())
   const usageRosterSignatureRef = useRef<string>()
   const [managedProvider, setManagedProvider] = useState<{ id: SubscriptionProvider; name: string }>()
   const setProviderError = useCallback((provider: SubscriptionProvider, message: string | undefined): void => {
@@ -505,27 +506,41 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
   }, [refresh, startPolling])
 
   const loadUsage = useCallback(async (provider: SubscriptionProvider, account: string, force = false): Promise<void> => {
+    if (rpc === undefined) return
     const key = `${provider}:${account}`
-    if (rpc === undefined || usageInflightRef.current.has(key)) return
-    usageInflightRef.current.add(key)
-    setUsageLoading(prev => ({ ...prev, [key]: true }))
-    try {
-      const usage = await callSubscriptionsAuth<ProviderUsage>(rpc, 'usage', { provider, account, ...force ? { force: true } : {} })
-      if (!mountedRef.current) return
-      setUsages(prev => ({ ...prev, [key]: usage }))
-      setObservedAt(prev => ({ ...prev, [key]: usage.observedAt ?? Date.now() }))
-      window.dispatchEvent(new Event(USAGE_BADGE_REFRESH_EVENT))
-      setUsageErrors((prev) => {
-        const next = { ...prev }
-        delete next[key]
-        return next
-      })
-    } catch (error) {
-      if (mountedRef.current) setUsageErrors(prev => ({ ...prev, [key]: messageOf(error) }))
-    } finally {
-      usageInflightRef.current.delete(key)
-      if (mountedRef.current) setUsageLoading(prev => ({ ...prev, [key]: false }))
+    const pending = usageInflightRef.current.get(key)
+    // A forced read must never be dropped behind a poll that started before the
+    // state changed. The refresh after a credit redemption is the only thing
+    // that picks up the new numbers, and the next automatic poll is minutes
+    // away, so waiting the earlier read out is cheaper than showing a stale
+    // percentage next to a success message.
+    if (pending !== undefined) {
+      if (!force) return
+      await pending
     }
+    if (rpc === undefined || usageInflightRef.current.has(key)) return
+    const read = (async () => {
+      setUsageLoading(prev => ({ ...prev, [key]: true }))
+      try {
+        const usage = await callSubscriptionsAuth<ProviderUsage>(rpc, 'usage', { provider, account, ...force ? { force: true } : {} })
+        if (!mountedRef.current) return
+        setUsages(prev => ({ ...prev, [key]: usage }))
+        setObservedAt(prev => ({ ...prev, [key]: usage.observedAt ?? Date.now() }))
+        window.dispatchEvent(new Event(USAGE_BADGE_REFRESH_EVENT))
+        setUsageErrors((prev) => {
+          const next = { ...prev }
+          delete next[key]
+          return next
+        })
+      } catch (error) {
+        if (mountedRef.current) setUsageErrors(prev => ({ ...prev, [key]: messageOf(error) }))
+      } finally {
+        usageInflightRef.current.delete(key)
+        if (mountedRef.current) setUsageLoading(prev => ({ ...prev, [key]: false }))
+      }
+    })()
+    usageInflightRef.current.set(key, read)
+    await read
   }, [rpc])
 
   async function prepareReset(account: string): Promise<void> {
