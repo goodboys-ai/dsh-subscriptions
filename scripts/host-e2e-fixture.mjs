@@ -72,6 +72,15 @@ export const FIXTURE_REQUESTS = {
     },
     required: true,
   },
+  'GET https://chatgpt.com/backend-api/wham/rate-limit-reset-credits': {
+    credential: ['authorization', 'Bearer fake-codex-access'],
+    body: {
+      credits: [
+        { id: 'fake-reset', reset_type: 'codex_rate_limits', status: 'available', expires_at: new Date(fixtureNow + 5 * 86_400_000).toISOString() },
+      ],
+    },
+    required: true,
+  },
   'GET https://api.anthropic.com/api/oauth/usage': {
     credential: ['authorization', 'Bearer fake-claude-access'],
     body: { five_hour: { utilization: USAGE_PERCENT.claude.percent, resets_at: new Date(fixtureNow + 4 * 60 * 60_000).toISOString() } },
