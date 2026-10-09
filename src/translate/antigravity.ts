@@ -429,7 +429,7 @@ export async function* streamAntigravity(
     try {
       parsed = JSON.parse(event.data) as AntigravityResponseEvent
     } catch {
-      throw new LlmError(`malformed Antigravity SSE payload: ${event.data.slice(0, 120)}`, 'MALFORMED_RESPONSE')
+      throw new LlmError('malformed Antigravity SSE payload (MALFORMED_RESPONSE): [provider response body omitted]', 'MALFORMED_RESPONSE')
     }
     yield* translator.push(parsed)
     if (translator.terminated) return

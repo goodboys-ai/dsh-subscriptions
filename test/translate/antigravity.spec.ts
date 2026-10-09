@@ -1,8 +1,29 @@
 import { strict as assert } from 'node:assert'
 import { test } from 'node:test'
 import { ToolCallId } from '../../src/compat.js'
-import { toAntigravityContents } from '../../src/translate/antigravity.js'
+import { LlmError } from '@deepseek-ai/dsh-llm'
+import { streamAntigravity, toAntigravityContents } from '../../src/translate/antigravity.js'
 import type { TranslatableBlock, TranslatableMessage } from '../../src/translate/resolved.js'
+
+test('Antigravity SSE: malformed body is omitted without changing the error type', async () => {
+  const marker = 'customer-input SHORT_SECRET!'
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode(`data: {"error":{"message":"${marker}"}} trailing\n\n`))
+      controller.close()
+    },
+  })
+  await assert.rejects(async () => {
+    for await (const chunk of streamAntigravity(body)) void chunk
+  }, (error: unknown) => {
+    assert.ok(error instanceof LlmError)
+    assert.equal(error.code, 'MALFORMED_RESPONSE')
+    assert.ok(!error.message.includes(marker), `provider text leaked: ${error.message}`)
+    assert.ok(error.message.includes('[provider response body omitted]'))
+    assert.ok(error.message.includes('MALFORMED_RESPONSE'))
+    return true
+  })
+})
 
 const MODEL = 'gemini-3.8-flash-tiered'
 

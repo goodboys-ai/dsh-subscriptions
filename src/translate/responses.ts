@@ -267,15 +267,16 @@ export function mapResponsesUsage(usage: ResponsesUsage): TokenUsage {
  * @returns the mapped error (context overflow, quota, otherwise SERVER).
  */
 export function responsesFailure(code: string | undefined, message: string | undefined): LlmError {
-  const text = message ?? code ?? 'the provider reported a failed response'
+  // Safe here means this diagnostic path carries no provider-controlled free text,
+  // not that no secret can exist anywhere. Raw values remain local classification inputs.
   const detail = `${code ?? ''} ${message ?? ''}`
+  let classification: LlmError['code'] = 'SERVER'
   if (code === 'context_window_exceeded' || isContextWindowExceededError(detail)) {
-    return new LlmError(text, CONTEXT_WINDOW_EXCEEDED_CODE)
+    classification = CONTEXT_WINDOW_EXCEEDED_CODE
+  } else if ((code !== undefined && /insufficient|quota/i.test(code)) || isQuotaExceededError(detail)) {
+    classification = QUOTA_EXCEEDED_CODE
   }
-  if ((code !== undefined && /insufficient|quota/i.test(code)) || isQuotaExceededError(detail)) {
-    return new LlmError(text, QUOTA_EXCEEDED_CODE)
-  }
-  return new LlmError(text, 'SERVER')
+  return new LlmError(`Responses failure (${classification}): [provider response body omitted]`, classification)
 }
 
 /** One open harness block under assembly. */
@@ -511,7 +512,7 @@ export async function* streamResponses(
     try {
       event = JSON.parse(sseEvent.data) as ResponsesStreamEvent
     } catch {
-      throw new LlmError(`malformed SSE payload: ${sseEvent.data.slice(0, 120)}`, 'MALFORMED_RESPONSE')
+      throw new LlmError('malformed SSE payload (MALFORMED_RESPONSE): [provider response body omitted]', 'MALFORMED_RESPONSE')
     }
     if (transform !== undefined) event = transform(event)
     yield* translator.push(event)

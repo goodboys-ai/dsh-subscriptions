@@ -13,12 +13,16 @@ import { ToolCallId } from '../src/compat.js'
 import type { ContentBlock, ImageBlock, Message, RequestMessage, StreamChunk, ToolResultMessage } from '@deepseek-ai/dsh-llm'
 import {
   ResponsesStreamTranslator,
+  responsesFailure,
+  streamResponses,
   toResponsesInput,
   toResponsesTools,
 } from '../src/translate/responses.js'
 import type { ReasoningReplayItem, ResponsesStreamEvent } from '../src/translate/responses.js'
 import {
   AnthropicStreamTranslator,
+  anthropicFailure,
+  streamAnthropic,
   CLAUDE_CODE_IDENTITY,
   markMessageCache,
   toAnthropicMessages,
@@ -88,6 +92,99 @@ function requestToolResult(callId: string, content: readonly ContentBlock[], isE
     content,
     isError,
   }
+}
+
+function sseBody(data: string): ReadableStream<Uint8Array> {
+  return new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode(`data: ${data}\n\n`))
+      controller.close()
+    },
+  })
+}
+
+function assertOmittedFailure(error: unknown, code: string, withheld: readonly string[]): true {
+  assert.ok(error instanceof LlmError)
+  assert.equal(error.code, code)
+  for (const text of withheld) assert.ok(!error.message.includes(text), `provider text leaked: ${error.message}`)
+  assert.ok(error.message.includes('[provider response body omitted]'))
+  assert.ok(error.message.includes(code))
+  return true
+}
+
+for (const [label, stream] of [
+  ['Responses', streamResponses],
+  ['Anthropic', streamAnthropic],
+] as const) {
+  test(`${label} SSE: malformed body is omitted without changing the error type`, async () => {
+    const marker = 'customer-input SHORT_SECRET!'
+    const chunks: StreamChunk[] = []
+    await assert.rejects(async () => {
+      for await (const chunk of stream(sseBody(`{"error":{"message":"${marker}"}} trailing`))) chunks.push(chunk)
+    }, error => assertOmittedFailure(error, 'MALFORMED_RESPONSE', [marker]))
+    assert.deepEqual(chunks, [])
+  })
+}
+
+for (const [code, message, expected] of [
+  ['CUSTOM_CODE_SHORT_SECRET!', 'customer-input SHORT_SECRET!', 'SERVER'],
+  ['CUSTOM_CODE_ONLY_SECRET!', undefined, 'SERVER'],
+  ['context_window_exceeded', 'customer-input SHORT_SECRET!', 'CONTEXT_WINDOW_EXCEEDED'],
+  ['insufficient_quota_SHORT_SECRET!', 'customer-input SHORT_SECRET!', 'QUOTA'],
+  [undefined, 'maximum context length exceeded SHORT_SECRET!', 'CONTEXT_WINDOW_EXCEEDED'],
+  [undefined, 'insufficient quota SHORT_SECRET!', 'QUOTA'],
+  [undefined, undefined, 'SERVER'],
+] as const) {
+  test(`responsesFailure: omits provider text for ${String(code)} / ${String(message)}`, () => {
+    const failure = responsesFailure(code, message)
+    assertOmittedFailure(failure, expected, [code, message].filter(value => value !== undefined))
+  })
+}
+
+for (const [type, message, expected] of [
+  ['CUSTOM_TYPE_SHORT_SECRET!', 'customer-input SHORT_SECRET!', 'SERVER'],
+  ['CUSTOM_TYPE_ONLY_SECRET!', undefined, 'SERVER'],
+  ['invalid_request_error', 'prompt is too long SHORT_SECRET!', 'CONTEXT_WINDOW_EXCEEDED'],
+  ['invalid_request_error', 'customer-input SHORT_SECRET!', 'SERVER'],
+  ['rate_limit_error', 'customer-input SHORT_SECRET!', 'RATE_LIMIT'],
+  ['authentication_error', 'customer-input SHORT_SECRET!', 'AUTH'],
+  ['overloaded_error', 'customer-input SHORT_SECRET!', 'SERVER'],
+  [undefined, undefined, 'SERVER'],
+] as const) {
+  test(`anthropicFailure: omits provider text for ${String(type)} / ${String(message)}`, () => {
+    const failure = anthropicFailure({
+      ...type === undefined ? {} : { type },
+      ...message === undefined ? {} : { message },
+    })
+    assertOmittedFailure(failure, expected, [type, message].filter(value => value !== undefined))
+  })
+}
+
+// These byte-stream failures occur before any chunk, where the pool passes SERVER and AUTH through.
+for (const event of [
+  { type: 'error', code: 'CUSTOM_CODE_SHORT_SECRET!', message: 'customer-input SHORT_SECRET!' },
+  { type: 'response.failed', response: { error: { code: 'CUSTOM_CODE_SHORT_SECRET!', message: 'customer-input SHORT_SECRET!' } } },
+  { type: 'response.incomplete', response: { incomplete_details: { reason: 'CUSTOM_REASON_SHORT_SECRET!' } } },
+  { type: 'error', error: { message: 'customer-input SHORT_SECRET!' } },
+]) {
+  test(`Responses SSE: ${event.type} omits provider text before the first chunk`, async () => {
+    const chunks: StreamChunk[] = []
+    await assert.rejects(async () => {
+      for await (const chunk of streamResponses(sseBody(JSON.stringify(event)))) chunks.push(chunk)
+    }, error => assertOmittedFailure(error, 'SERVER', ['customer-input SHORT_SECRET!', 'CUSTOM_CODE_SHORT_SECRET!', 'CUSTOM_REASON_SHORT_SECRET!']))
+    assert.deepEqual(chunks, [])
+  })
+}
+
+for (const [type, expected] of [['authentication_error', 'AUTH'], ['CUSTOM_TYPE_SHORT_SECRET!', 'SERVER']] as const) {
+  test(`Anthropic SSE: ${type} omits provider text before the first chunk`, async () => {
+    const chunks: StreamChunk[] = []
+    const event = { type: 'error', error: { type, message: 'customer-input SHORT_SECRET!' } }
+    await assert.rejects(async () => {
+      for await (const chunk of streamAnthropic(sseBody(JSON.stringify(event)))) chunks.push(chunk)
+    }, error => assertOmittedFailure(error, expected, [type, event.error.message]))
+    assert.deepEqual(chunks, [])
+  })
 }
 
 /** Feed every event through a translator and flatten the chunks. */

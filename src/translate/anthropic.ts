@@ -380,14 +380,19 @@ function closeBlock(block: OpenBlock): ContentBlock {
  * @returns the mapped error.
  */
 export function anthropicFailure(error: { type?: string; message?: string } | undefined): LlmError {
+  // Safe here means this diagnostic path carries no provider-controlled free text,
+  // not that no secret can exist anywhere. Raw values remain local classification inputs.
   const type = error?.type ?? 'unknown_error'
   const message = error?.message ?? `Anthropic reported ${type}`
+  let classification: LlmError['code'] = 'SERVER'
   if (type === 'invalid_request_error' && /prompt is too long/i.test(message)) {
-    return new LlmError(message, CONTEXT_WINDOW_EXCEEDED_CODE)
+    classification = CONTEXT_WINDOW_EXCEEDED_CODE
+  } else if (type === 'rate_limit_error') {
+    classification = 'RATE_LIMIT'
+  } else if (type === 'authentication_error') {
+    classification = 'AUTH'
   }
-  if (type === 'rate_limit_error') return new LlmError(message, 'RATE_LIMIT')
-  if (type === 'authentication_error') return new LlmError(message, 'AUTH')
-  return new LlmError(message, 'SERVER')
+  return new LlmError(`Anthropic failure (${classification}): [provider response body omitted]`, classification)
 }
 
 /**
@@ -590,7 +595,7 @@ export async function* streamAnthropic(
     try {
       event = JSON.parse(sseEvent.data) as AnthropicStreamEvent
     } catch {
-      throw new LlmError(`malformed SSE payload: ${sseEvent.data.slice(0, 120)}`, 'MALFORMED_RESPONSE')
+      throw new LlmError('malformed SSE payload (MALFORMED_RESPONSE): [provider response body omitted]', 'MALFORMED_RESPONSE')
     }
     yield* translator.push(event)
     if (translator.terminated) return

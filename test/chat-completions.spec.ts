@@ -342,9 +342,17 @@ test('streamChatCompletions: a stream without a finish chunk throws STREAM_CLOSE
   }, (error: unknown) => error instanceof LlmError && error.code === 'STREAM_CLOSED')
 })
 
-test('streamChatCompletions: malformed payload throws MALFORMED_RESPONSE', async () => {
-  const stream = byteStream(['data: {not json\n\n'])
+test('streamChatCompletions: malformed payload throws MALFORMED_RESPONSE without provider text', async () => {
+  const marker = 'customer-input SHORT_SECRET!'
+  const stream = byteStream([`data: {"error":{"message":"${marker}"}} trailing\n\n`])
   await assert.rejects(async () => {
     for await (const chunk of streamChatCompletions(stream)) void chunk
-  }, (error: unknown) => error instanceof LlmError && error.code === 'MALFORMED_RESPONSE')
+  }, (error: unknown) => {
+    assert.ok(error instanceof LlmError)
+    assert.equal(error.code, 'MALFORMED_RESPONSE')
+    assert.ok(!error.message.includes(marker), `provider text leaked: ${error.message}`)
+    assert.ok(error.message.includes('[provider response body omitted]'))
+    assert.ok(error.message.includes('MALFORMED_RESPONSE'))
+    return true
+  })
 })
