@@ -161,12 +161,16 @@
     {
       "upstream": "c5cc37fe",
       "subject": "fix: support DSH 0.2.0-rc.2 and harden provider routing",
-      "status": "pending",
+      "status": "ported",
       "area": "routing",
       "evidence": {
-        "test": "test/sse-lifecycle.spec.ts"
+        "test": "test/account-replay.spec.ts",
+        "note": "docs/replay-sse-port-verification.md"
       },
-      "reason": "Release mechanics in this commit are not applicable (lockfile and devDependency floor moves). The account-scoped replay and SSE stream-cancellation halves are genuine gaps in our fork and are being ported on their own. Split, not cherry-picked."
+      "reason": "Split, not cherry-picked. Ported: SSE readers now cancel the unread body, and signed replay is scoped to the originating account and model. Not ported: lockfile and devDependency floor moves, prepared-call routing, abort hardening, and release mechanics, which belong to a release strategy this fork does not use. Legacy unwrapped replay still passes through when provider and model match the route; that limit is stated in the code and the report rather than papered over.",
+      "forkCommits": [
+        "6aaeac9b"
+      ]
     },
     {
       "upstream": "8a80d4e4",
