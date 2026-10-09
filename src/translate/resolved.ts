@@ -88,8 +88,11 @@ export interface ImageRequestLimit {
 
 /**
  * Failure code a host's image-offload executor answers by replacing the oldest
- * retained images with text and retrying (`IMAGE_OFFLOAD_REQUIRED_CODE` in
- * dsh-llm 0.2+). Spelled out so the build links against older hosts too.
+ * retained images with text and retrying. Every host in our support window
+ * exports the equivalent as `IMAGE_OFFLOAD_REQUIRED_CODE`, from the window floor
+ * `0.1.7-rc.2` up, so this is not a newer-host path. The value is spelled out
+ * rather than imported so the plugin keeps building if a host stops exporting
+ * it.
  */
 export const IMAGE_OFFLOAD_REQUIRED = 'IMAGE_OFFLOAD_REQUIRED'
 
