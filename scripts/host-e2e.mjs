@@ -589,6 +589,20 @@ async function checkSettingsSection(cdp) {
   })()`)
   if (!minimaxCard) throw new ProductFailure('MiniMax settings card missing before screenshot')
   await captureNamedScreenshot(cdp, 'settings-minimax')
+  // The Claude card carries the read-only banked-reset disclosure. Bring it
+  // into view and expand it, so its summary and per-grant rows are captured
+  // rather than left below the fold.
+  const claudeCard = await cdp.evaluate(`(() => {
+    const name = [...document.querySelectorAll(${JSON.stringify(`${outlet} span`)})].find(span => span.textContent === 'Claude')
+    const card = name?.parentElement?.parentElement
+    if (!card) return false
+    card.scrollIntoView({ block: 'center' })
+    for (const details of card.querySelectorAll('details')) if (!details.open) details.querySelector('summary')?.click()
+    return true
+  })()`)
+  if (!claudeCard) throw new ProductFailure('Claude settings card missing before screenshot')
+  await delay(300)
+  await captureNamedScreenshot(cdp, 'settings-claude-resets')
   if (process.env.HOST_E2E_COLOR_CHECK === '1') {
     const colorSelect = `document.querySelector(${JSON.stringify(`${outlet} select[aria-label="${t.usageColorLabel}"]`)})`
     if (!await waitFor(cdp, `(() => ${colorSelect} !== null)()`, 10_000)) throw new ProductFailure('usage coloring control missing')

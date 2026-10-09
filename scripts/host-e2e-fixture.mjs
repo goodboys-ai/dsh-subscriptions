@@ -81,10 +81,28 @@ export const FIXTURE_REQUESTS = {
     },
     required: true,
   },
+  // The adapter asks for the banked-reset block on the same call, so this exact
+  // URL is what the plugin requests; the plain one stays for the fallback path.
+  'GET https://api.anthropic.com/api/oauth/usage?cedar_ember=1': {
+    credential: ['authorization', 'Bearer fake-claude-access'],
+    body: {
+      five_hour: { utilization: USAGE_PERCENT.claude.percent, resets_at: new Date(fixtureNow + 4 * 60 * 60_000).toISOString() },
+      cedar_ember: {
+        eligible: true,
+        next_grant_id: 'grant-now',
+        cooldown_until: null,
+        grants: [
+          { id: 'grant-now', resets_total: 2, resets_left: 2, ends_at: new Date(fixtureNow + 3 * 86_400_000).toISOString(), usable_now: true, paused: false },
+          { id: 'grant-later', resets_total: 1, resets_left: 1, ends_at: new Date(fixtureNow + 9 * 86_400_000).toISOString(), usable_now: false, paused: false },
+        ],
+      },
+    },
+    required: true,
+  },
   'GET https://api.anthropic.com/api/oauth/usage': {
     credential: ['authorization', 'Bearer fake-claude-access'],
     body: { five_hour: { utilization: USAGE_PERCENT.claude.percent, resets_at: new Date(fixtureNow + 4 * 60 * 60_000).toISOString() } },
-    required: true,
+    required: false,
   },
   'GET https://cli-chat-proxy.grok.com/v1/billing?format=credits': {
     credential: ['authorization', 'Bearer fake-grok-access'],
