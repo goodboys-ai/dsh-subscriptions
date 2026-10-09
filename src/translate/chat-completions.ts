@@ -420,7 +420,7 @@ export async function* streamChatCompletions(
     try {
       event = JSON.parse(sseEvent.data) as ChatCompletionsStreamEvent
     } catch {
-      throw new LlmError(`malformed SSE payload: ${sseEvent.data.slice(0, 120)}`, 'MALFORMED_RESPONSE')
+      throw new LlmError('malformed SSE payload (MALFORMED_RESPONSE): [provider response body omitted]', 'MALFORMED_RESPONSE')
     }
     yield* translator.push(event)
     if (translator.terminated) return
