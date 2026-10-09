@@ -1895,7 +1895,8 @@ test('oauthEndpointError reads the code from both the RFC 6749 and the OpenAI en
     'codex',
   )
   assert.equal(rfc.oauthCode, 'invalid_grant')
-  assert.match(rfc.message, /HTTP 400\): gone/)
+  assert.equal(rfc.message, 'codex token endpoint error (HTTP 400): [provider response body omitted]')
+  assert.doesNotMatch(rfc.message, /gone|invalid_grant/)
   assert.equal(isCodexPermanentRefreshError(rfc), true)
 
   // auth.openai.com answers a burned refresh token like this (observed
@@ -1911,7 +1912,8 @@ test('oauthEndpointError reads the code from both the RFC 6749 and the OpenAI en
     'codex',
   )
   assert.equal(envelope.oauthCode, 'refresh_token_reused')
-  assert.match(envelope.message, /already been used/)
+  assert.equal(envelope.message, 'codex token endpoint error (HTTP 401): [provider response body omitted]')
+  assert.doesNotMatch(envelope.message, /already been used|refresh_token_reused/)
   assert.equal(isCodexPermanentRefreshError(envelope), true)
 
   const ended = await oauthEndpointError(
@@ -1926,5 +1928,5 @@ test('oauthEndpointError reads the code from both the RFC 6749 and the OpenAI en
   assert.equal(isCodexPermanentRefreshError(transient), false)
   const garbage = await oauthEndpointError(new Response('<html>', { status: 502 }), 'codex')
   assert.equal(garbage.oauthCode, undefined)
-  assert.match(garbage.message, /HTTP 502\)$/)
+  assert.equal(garbage.message, 'codex token endpoint error (HTTP 502): [provider response body omitted]')
 })

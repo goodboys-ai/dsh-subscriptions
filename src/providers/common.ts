@@ -15,7 +15,7 @@ import {
   QUOTA_EXCEEDED_CODE,
   ReasoningEffortId,
 } from '@deepseek-ai/dsh-llm'
-import { durationMs, rateLimitDiagnostics, retryAfterInstant, waitFromReset } from './rate-limit.js'
+import { durationMs, retryAfterInstant, waitFromReset } from './rate-limit.js'
 import type { RateLimitResetReader } from './rate-limit.js'
 
 /** One configured model catalog entry. */
@@ -79,6 +79,18 @@ export function validateModels(models: readonly ModelEntry[], label: string): Mo
   })
 }
 
+/**
+ * Provider failures can echo credentials or customer input in any format.
+ * Shape-based filtering cannot make arbitrary response text safe to display.
+ * Here, safe means this diagnostic carries no provider-controlled free text,
+ * not that secrets cannot exist elsewhere in the system. Keep raw responses
+ * internal for classification and reset parsing; display only local summaries.
+ * This deliberately loses model, parameter and plan details useful to support.
+ */
+function providerDiagnostic(summary: string, hasBody: boolean): string {
+  return hasBody ? `${summary}: [provider response body omitted]` : summary
+}
+
 /** Optional per-call hooks {@link httpLlmError} uses to read a rate-limit window. */
 export interface HttpLlmErrorOptions {
   /**
@@ -118,11 +130,8 @@ export async function httpLlmError(
   } catch {
     // Only swallow error-body reading: the HTTP status still identifies the failure.
   }
-  // Truncated for display only; the readers below need the whole body to parse it.
+  // Preserve the existing classification window; reset readers need the full body.
   const shown = body.slice(0, 500)
-  const message = shown.length > 0
-    ? `${label} error (HTTP ${String(response.status)}): ${shown}`
-    : `${label} error (HTTP ${String(response.status)})`
   let code: string
   if (response.status === 401 || response.status === 403) code = 'AUTH'
   else if (response.status === 429) code = 'RATE_LIMIT'
@@ -131,6 +140,10 @@ export async function httpLlmError(
   else if (response.status === 408 || response.status === 504) code = 'TIMEOUT'
   else if (response.status >= 500) code = 'SERVER'
   else code = `HTTP_${String(response.status)}`
+  const message = providerDiagnostic(
+    `${label} error (HTTP ${String(response.status)}, ${code})`,
+    body.length > 0,
+  )
   const now = Date.now()
   // The provider's reader runs on a 429 and nowhere else. Providers attach
   // their rate-limit headers to every response, so reading them on a transient
@@ -149,7 +162,11 @@ export async function httpLlmError(
     ? options.rateLimitReset?.(response, body, now) ?? googleQuotaReset(body, now) ?? retryAfterInstant(response, now)
     : retryAfterInstant(response, now)
   if (reset === undefined && rateLimited) {
-    options.onWarn?.(`${label}: ${rateLimitDiagnostics(response, body)}`)
+    // Header names and values are provider-controlled too; none are displayed.
+    options.onWarn?.(providerDiagnostic(
+      `${label}: 429 disclosed no reset time; [provider response headers omitted]`,
+      body.length > 0,
+    ))
   }
   return new LlmError(message, code, {
     status: response.status,
@@ -298,24 +315,24 @@ export class OAuthEndpointError extends Error {
  */
 export async function oauthEndpointError(response: Response, label: string): Promise<OAuthEndpointError> {
   let oauthCode: string | undefined
-  let detail = ''
+  let body = ''
   try {
-    const parsed = await response.json() as { error?: unknown; error_description?: unknown }
+    body = await response.text()
+    const parsed = JSON.parse(body) as { error?: unknown }
     if (typeof parsed.error === 'string') {
       oauthCode = parsed.error
     } else if (typeof parsed.error === 'object' && parsed.error !== null) {
-      const nested = parsed.error as { code?: unknown; message?: unknown }
+      const nested = parsed.error as { code?: unknown }
       if (typeof nested.code === 'string' && nested.code.length > 0) oauthCode = nested.code
-      if (typeof nested.message === 'string') detail = nested.message
     }
-    if (typeof parsed.error_description === 'string') detail = parsed.error_description
-    if (detail.length === 0) detail = oauthCode ?? ''
   } catch {
-    // Only swallow error-body parsing: the HTTP status still identifies the failure.
+    // Only swallow error-body reading/parsing: HTTP status still identifies the failure.
   }
-  const message = detail.length > 0
-    ? `${label} token endpoint error (HTTP ${String(response.status)}): ${detail}`
-    : `${label} token endpoint error (HTTP ${String(response.status)})`
+  // oauthCode remains structural for auth classification, never display text.
+  const message = providerDiagnostic(
+    `${label} token endpoint error (HTTP ${String(response.status)})`,
+    body.length > 0,
+  )
   return new OAuthEndpointError(message, response.status, oauthCode, parseRetryAfterMs(response))
 }
 

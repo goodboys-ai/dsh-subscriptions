@@ -87,8 +87,8 @@ const CLAUDE_RESET_FIELDS = ['resets_at', 'resetsAt', 'reset_at', 'retry_after']
  * headers are deliberately not read: they are rollover snapshots attached to
  * every response, so on a 429 they cannot say which bucket refused, and the
  * earliest of them is typically the bucket that still had room — a wait that
- * lands straight back in the closed window. They reach the operator through
- * `rateLimitDiagnostics` instead.
+ * lands straight back in the closed window. The parsed reset supplies the retry
+ * hint; diagnostics omit raw provider headers and body text.
  */
 export const claudeRateLimitReset: RateLimitResetReader = (response, body, now) => {
   const unified = earliestReset(

@@ -222,7 +222,7 @@ test('quota wording still classifies as QUOTA on any other status', async () => 
   assert.equal(error.code, 'QUOTA')
 })
 
-test('a rate-limit reset survives a body longer than the truncated message', async () => {
+test('a rate-limit reset parses the full body even though display omits it', async () => {
   const padding = 'x'.repeat(2_000)
   const body = JSON.stringify({ note: padding, detail: { resets_in_seconds: 600 } })
   const error = await httpLlmError(failure(429, {}, body), 'codex API', {
@@ -231,8 +231,10 @@ test('a rate-limit reset survives a body longer than the truncated message', asy
   assert.equal(error.code, 'RATE_LIMIT')
   assert.ok(error.failure.providerRetryAfterMs !== undefined)
   assert.ok(error.failure.providerRetryAfterMs > 590_000)
-  // The message itself stays truncated.
-  assert.ok(error.message.length < 600)
+  assert.equal(error.message, 'codex API error (HTTP 429, RATE_LIMIT): [provider response body omitted]')
+  assert.equal(error.failure.message, error.message)
+  assert.doesNotMatch(error.message, /xxxx|resets_in_seconds/)
+  assert.doesNotMatch(error.failure.message, /xxxx|resets_in_seconds/)
 })
 
 test("the provider's own field beats a short retry-after on the same response", async () => {
@@ -253,7 +255,7 @@ test('retry-after still serves a provider that disclosed nothing else', async ()
   assert.ok(error.failure.providerRetryAfterMs >= 30_000)
 })
 
-test('a 429 that disclosed no reset warns with the headers that would have carried one', async () => {
+test('a 429 that disclosed no reset warns without provider headers or body text', async () => {
   const warnings: string[] = []
   const response = failure(429, {
     'x-ratelimit-remaining-requests': '0',
@@ -266,10 +268,9 @@ test('a 429 that disclosed no reset warns with the headers that would have carri
   assert.equal(error.failure.providerRetryAfterMs, undefined)
   assert.equal(warnings.length, 1)
   assert.match(warnings[0], /grok API: 429 disclosed no reset time/)
-  assert.match(warnings[0], /x-ratelimit-remaining-requests: 0/)
-  assert.match(warnings[0], /slow down/)
-  // Headers that say nothing about rate limits stay out of the diagnostic.
-  assert.doesNotMatch(warnings[0], /content-type/)
+  assert.match(warnings[0], /\[provider response headers omitted\]/)
+  assert.match(warnings[0], /\[provider response body omitted\]/)
+  assert.doesNotMatch(warnings[0], /x-ratelimit|slow down|content-type/)
 })
 
 test('a non-429 failure never emits the rate-limit diagnostic', async () => {
@@ -301,7 +302,7 @@ test('retry-after still serves a non-429 that asked for a backoff', async () => 
   assert.ok(error.failure.providerRetryAfterMs >= 30_000)
 })
 
-test('a 429 whose only signal is a snapshot header warns instead of waiting', async () => {
+test('a 429 whose only signal is a snapshot header warns without displaying it', async () => {
   const warnings: string[] = []
   const response = failure(429, {
     'x-codex-primary-reset-after-seconds': '17000',
@@ -313,7 +314,9 @@ test('a 429 whose only signal is a snapshot header warns instead of waiting', as
   assert.equal(error.code, 'RATE_LIMIT')
   assert.equal(error.failure.providerRetryAfterMs, undefined)
   assert.equal(warnings.length, 1)
-  assert.match(warnings[0], /x-codex-primary-reset-after-seconds: 17000/)
+  assert.match(warnings[0], /429 disclosed no reset time/)
+  assert.match(warnings[0], /\[provider response headers omitted\]/)
+  assert.doesNotMatch(warnings[0], /x-codex|17000|Too many requests/)
 })
 
 test('an Antigravity quota body discloses its reset without a provider reader', async () => {
@@ -414,7 +417,9 @@ test('copilot uses generic retry-after and diagnoses unrecognized reset signals'
   assert.equal(noRetryAfter.failure.providerRetryAfterMs, undefined)
   assert.equal(warnings.length, 1)
   assert.match(warnings[0], /copilot API: 429 disclosed no reset time/)
-  assert.match(warnings[0], /x-ratelimit-reset: 2027-01-15T10:30:00Z/)
+  assert.match(warnings[0], /\[provider response headers omitted\]/)
+  assert.match(warnings[0], /\[provider response body omitted\]/)
+  assert.doesNotMatch(warnings[0], /x-ratelimit|2027-01-15|rate limited/)
 })
 
 test('waiting widens the delay ceiling to the configured maximum', () => {

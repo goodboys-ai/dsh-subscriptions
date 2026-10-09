@@ -247,33 +247,6 @@ export function waitFromReset(instant: number, now: number): number {
   return Math.max(MIN_WAIT_MS, instant - now + RESET_GRACE_MS)
 }
 
-/** Header names worth showing when a 429 disclosed no reset this code recognizes. */
-const DIAGNOSTIC_HEADER = /rate-?limit|retry|reset|^x-codex-/i
-
-/**
- * Render the rate-limit-shaped headers and the head of the body of a 429 whose
- * reset instant nothing parsed. Emitted through the adapter's `onWarn`, this is
- * how an unrecognized provider field gets named from live traffic instead of
- * being guessed at.
- *
- * It is also where the per-bucket rollover snapshots land by design — no reader
- * parks a turn on one, because on a 429 they cannot say which bucket refused —
- * so the operator still sees what the provider disclosed.
- * @param response - the failed response.
- * @param body - the complete response body.
- * @returns a one-line diagnostic.
- */
-export function rateLimitDiagnostics(response: Response, body: string): string {
-  const headers: string[] = []
-  response.headers.forEach((value, key) => {
-    if (DIAGNOSTIC_HEADER.test(key)) headers.push(`${key}: ${value}`)
-  })
-  headers.sort()
-  const rendered = headers.length > 0 ? headers.join('; ') : '(none)'
-  const head = body.slice(0, 200)
-  return `429 disclosed no reset time; headers [${rendered}]; body ${head.length > 0 ? head : '(empty)'}`
-}
-
 /** Per-route retry shape a subscription adapter starts from. */
 export interface RetryDefaults {
   /** Retries after the first attempt. */
