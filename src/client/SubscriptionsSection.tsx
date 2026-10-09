@@ -9,17 +9,19 @@
  * design-platform.css values flip under `body[data-ds-dark-theme]`), and
  * every user-visible string goes through the locale-bound `t` of the
  * 'settings.subscriptions' namespace. Buttons and inputs take the
- * ModelsSection vocabulary minus hover rules, which inline styles cannot
- * express.
+ * native settings vocabulary with shared, scoped control states.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-api-remotes/client'
 import { en } from './locales.js'
+import { resetActionBlock } from './reset-action.js'
 import { ProviderAccountManager } from './ProviderAccountManager.js'
+import { providerSettingsCss } from './provider-settings-styles.js'
 import { ExternalUsageCards } from './ExternalUsageCards.js'
 import { CursorCard } from './CursorCard.js'
 import { UsageMeter } from './UsageMeter.js'
+import { ResetCreditsDisclosure, ResetCreditsErrorLine, showsResetCredits } from './reset-credits-view.js'
 import { displayUsedPercent } from './usage-pace.js'
 import { UsageBadgeDisplaySetting } from './UsageBadgeDisplaySetting.js'
 import { USAGE_BADGE_REFRESH_EVENT } from './usage-badge-preferences.js'
@@ -92,6 +94,29 @@ export interface ProviderUsage {
   supported: boolean
   windows?: UsageWindow[]
   plan?: string
+  /**
+   * Banked limit-reset grants. Codex entries carry id/expiry only. Claude
+   * entries are one row per grant: `expiresAt` is when the grant expires, not
+   * a window reset, and `resetsLeft` is the remaining credit count.
+   */
+  resetCredits?: ResetCreditView[]
+  resetCreditsError?: string
+}
+
+/** One banked reset grant as the usage RPC returns it. */
+export interface ResetCreditView {
+  id?: string
+  grantedAt?: number
+  /** Epoch milliseconds when the grant expires. Never a periodic window reset. */
+  expiresAt?: number
+  resetsTotal?: number
+  resetsLeft?: number
+  usableNow?: boolean
+  paused?: boolean
+  /** Server metadata only. Claude has no redemption control. */
+  claimable?: boolean
+  /** Epoch milliseconds until which the grant is visible but not usable. */
+  cooldownUntil?: number
 }
 
 /** One model's default-effort picker state as answered by `modelDefaults`. */
@@ -175,7 +200,10 @@ const styles: Record<string, CSSProperties> = {
     color: 'var(--dsw-alias-label-primary)',
   },
   intro: { margin: 0, color: 'var(--dsw-alias-label-tertiary)', fontSize: 14, lineHeight: '22px' },
-  card: cardStyles.card,
+  card: { ...cardStyles.card,
+    border: '0.5px solid var(--dsw-alias-settings-card-stroke, var(--dsw-alias-border-l4))',
+    borderRadius: 'var(--dsw-radius-xl, 20px)', background: 'var(--dsw-alias-settings-card-fill, var(--dsw-alias-bg-layer-2))',
+  },
   cardHeader: cardStyles.header,
   dot: cardStyles.dot,
   name: cardStyles.name,
@@ -183,44 +211,46 @@ const styles: Record<string, CSSProperties> = {
   clientVersion: { fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary)', fontVariantNumeric: 'tabular-nums' },
   errorLine: cardStyles.error,
   actions: cardStyles.actions,
-  button: cardStyles.button,
-  usage: cardStyles.usage,
+  usage: { ...cardStyles.usage, borderTop: '0.5px solid var(--dsw-alias-border-l2)' },
   usageHeader: cardStyles.usageHeader,
   usageTitle: cardStyles.usageTitle,
   usagePlan: cardStyles.usagePlan,
-  usageRefresh: cardStyles.usageRefresh,
+  usageRefresh: { minHeight: 22, height: 22, padding: '0 8px', marginLeft: 'auto' },
   usageRow: cardStyles.usageRow,
   usageMeta: cardStyles.usageMeta,
-  accountRow: cardStyles.account,
+  accountRow: { ...cardStyles.account, border: '0.5px solid var(--dsw-alias-border-l2)', borderRadius: 'var(--dsw-radius-lg, 16px)' },
   accountHeader: cardStyles.accountHeader,
   accountName: cardStyles.accountName,
   starButton: {
-    border: 'none', background: 'transparent', padding: 0,
+    border: 'none', padding: 0, width: 28,
     font: 'inherit', fontSize: 14, lineHeight: '20px', cursor: 'pointer',
     color: 'var(--dsw-alias-state-warn-label)',
   },
   deviceCode: {
     marginTop: 4, display: 'flex', flexDirection: 'column', gap: 6,
-    border: '1px solid var(--dsw-alias-border-l2)', borderRadius: 8,
+    border: '0.5px solid var(--dsw-alias-border-l2)', borderRadius: 'var(--dsw-radius-lg, 16px)',
     padding: '10px 12px', background: 'var(--dsw-alias-bg-layer-1)',
   },
   deviceCodeText: {
     fontFamily: 'monospace', fontSize: 18, lineHeight: '24px', letterSpacing: 2,
     color: 'var(--dsw-alias-label-primary)', userSelect: 'all',
   },
+  manual: { fontSize: 13, lineHeight: '20px' },
+  manualRow: { display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginTop: 8 },
+  manualInput: { flex: '1 1 200px', minWidth: 0 },
   modalOverlay: {
     position: 'fixed', inset: 0, zIndex: 1000,
     display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
-    background: 'rgba(0, 0, 0, 0.45)',
+    background: 'var(--dsw-alias-bg-mask-1, #0006)', backdropFilter: 'var(--dsw-mask-blur, none)',
   },
   modal: {
     width: 460, maxWidth: '100%', maxHeight: '90vh', overflowY: 'auto',
     boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: 12,
-    padding: '16px 18px', borderRadius: 12,
-    background: 'var(--dsw-alias-bg-layer-1)', border: '1px solid var(--dsw-alias-border-l2)',
+    padding: '16px 18px', borderRadius: 'var(--dsw-radius-panel, 28px)',
+    background: 'var(--dsw-alias-bg-layer-2)', border: 0, boxShadow: 'var(--dsw-elevation-prominent)',
   },
   modalHeader: { display: 'flex', alignItems: 'center', gap: 8 },
-  modalTitle: { fontWeight: 600, fontSize: 15, lineHeight: '22px', color: 'var(--dsw-alias-label-primary)' },
+  modalTitle: { fontWeight: 500, fontSize: 16, lineHeight: '24px', color: 'var(--dsw-alias-label-primary)' },
 }
 
 /** Status dot color for one provider state. */
@@ -397,10 +427,22 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
   const [observedAt, setObservedAt] = useState<Record<string, number>>({})
   const [usageErrors, setUsageErrors] = useState<Record<string, string>>({})
   const [usageLoading, setUsageLoading] = useState<Record<string, boolean>>({})
+  const [resetConfirmation, setResetConfirmation] = useState<{ account: string; ticket: string; expiresAt: number; creditExpiresAt?: number; weeklyUsedPercent: number }>()
+  const [resetBusy, setResetBusy] = useState(false)
+  const [resetAcknowledged, setResetAcknowledged] = useState(false)
+  const [resetMessage, setResetMessage] = useState('')
+  const [resetAccount, setResetAccount] = useState<string>()
+  const resetDialogRef = useRef<HTMLDialogElement>(null)
+  useEffect(() => {
+    if (resetConfirmation) resetDialogRef.current?.showModal()
+    else resetDialogRef.current?.close()
+  }, [resetConfirmation])
+  const resetInflight = useRef(false)
   const mountedRef = useRef(true)
   const pollersRef = useRef(new Map<SubscriptionProvider, ReturnType<typeof setInterval>>())
   /** Accounts with a `usage` call in flight; guards the auto-fetch effect against re-entry. */
-  const usageInflightRef = useRef(new Set<string>())
+  /** In-flight usage reads per key, holding the promise so a forced read can wait one out. */
+  const usageInflightRef = useRef(new Map<string, Promise<void>>())
   const usageRosterSignatureRef = useRef<string>()
   const [managedProvider, setManagedProvider] = useState<{ id: SubscriptionProvider; name: string }>()
   const setProviderError = useCallback((provider: SubscriptionProvider, message: string | undefined): void => {
@@ -486,28 +528,73 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
   }, [refresh, startPolling])
 
   const loadUsage = useCallback(async (provider: SubscriptionProvider, account: string, force = false): Promise<void> => {
+    if (rpc === undefined) return
     const key = `${provider}:${account}`
-    if (rpc === undefined || usageInflightRef.current.has(key)) return
-    usageInflightRef.current.add(key)
-    setUsageLoading(prev => ({ ...prev, [key]: true }))
-    try {
-      const usage = await callSubscriptionsAuth<ProviderUsage>(rpc, 'usage', { provider, account, ...force ? { force: true } : {} })
-      if (!mountedRef.current) return
-      setUsages(prev => ({ ...prev, [key]: usage }))
-      setObservedAt(prev => ({ ...prev, [key]: usage.observedAt ?? Date.now() }))
-      window.dispatchEvent(new Event(USAGE_BADGE_REFRESH_EVENT))
-      setUsageErrors((prev) => {
-        const next = { ...prev }
-        delete next[key]
-        return next
-      })
-    } catch (error) {
-      if (mountedRef.current) setUsageErrors(prev => ({ ...prev, [key]: messageOf(error) }))
-    } finally {
-      usageInflightRef.current.delete(key)
-      if (mountedRef.current) setUsageLoading(prev => ({ ...prev, [key]: false }))
+    const pending = usageInflightRef.current.get(key)
+    // A forced read must never be dropped behind a poll that started before the
+    // state changed. The refresh after a credit redemption is the only thing
+    // that picks up the new numbers, and the next automatic poll is minutes
+    // away, so waiting the earlier read out is cheaper than showing a stale
+    // percentage next to a success message.
+    if (pending !== undefined) {
+      if (!force) return
+      await pending
     }
+    if (rpc === undefined || usageInflightRef.current.has(key)) return
+    const read = (async () => {
+      setUsageLoading(prev => ({ ...prev, [key]: true }))
+      try {
+        const usage = await callSubscriptionsAuth<ProviderUsage>(rpc, 'usage', { provider, account, ...force ? { force: true } : {} })
+        if (!mountedRef.current) return
+        setUsages(prev => ({ ...prev, [key]: usage }))
+        setObservedAt(prev => ({ ...prev, [key]: usage.observedAt ?? Date.now() }))
+        window.dispatchEvent(new Event(USAGE_BADGE_REFRESH_EVENT))
+        setUsageErrors((prev) => {
+          const next = { ...prev }
+          delete next[key]
+          return next
+        })
+      } catch (error) {
+        if (mountedRef.current) setUsageErrors(prev => ({ ...prev, [key]: messageOf(error) }))
+      } finally {
+        usageInflightRef.current.delete(key)
+        if (mountedRef.current) setUsageLoading(prev => ({ ...prev, [key]: false }))
+      }
+    })()
+    usageInflightRef.current.set(key, read)
+    await read
   }, [rpc])
+
+  async function prepareReset(account: string): Promise<void> {
+    if (!rpc || resetInflight.current) return
+    resetInflight.current = true
+    setResetBusy(true)
+    setResetAccount(account)
+    setResetConfirmation(undefined)
+    setResetMessage('')
+    try {
+      const result = await callSubscriptionsAuth<Omit<NonNullable<typeof resetConfirmation>, 'account'>>(rpc, 'prepareReset', { account })
+      setResetAcknowledged(false)
+      setResetConfirmation({ ...result, account })
+    } catch (error) { setResetMessage(messageOf(error)) }
+    finally { resetInflight.current = false; setResetBusy(false) }
+  }
+
+  async function consumeReset(): Promise<void> {
+    if (!rpc || !resetConfirmation || !resetAcknowledged || resetInflight.current) return
+    const { account, ticket } = resetConfirmation
+    resetInflight.current = true
+    setResetBusy(true)
+    setResetConfirmation(undefined)
+    try {
+      await callSubscriptionsAuth(rpc, 'consumeReset', { account, ticket })
+      setResetMessage(t('resetUseSuccess'))
+    } catch (error) { setResetMessage(messageOf(error)) }
+    finally {
+      await loadUsage('codex', account, true)
+      resetInflight.current = false; setResetBusy(false)
+    }
+  }
 
   // Fetch usage once an account is logged in; drop the snapshots of accounts
   // that vanished so a re-login refetches. A failed lookup does not auto-retry
@@ -625,7 +712,8 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
   }
 
   return (
-    <div style={styles.section}>
+    <div className="dsh-subscriptions-settings" style={styles.section}>
+      <style>{providerSettingsCss}</style>
       <p style={styles.intro}>{t('intro')}</p>
       <UsageBadgeDisplaySetting t={t} />
       {PROVIDERS.map(({ id, name }) => {
@@ -654,6 +742,10 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
               const usage = usages[usageKey]
               const usageError = usageErrors[usageKey]
               const display = account.account ?? account.key
+              const sortedCredits = [...(usage?.resetCredits ?? [])].sort((a, b) => (a.expiresAt ?? Infinity) - (b.expiresAt ?? Infinity))
+              const nextReset = sortedCredits.find(c => c.expiresAt === undefined || c.expiresAt > Date.now())
+              const resetBlock = usage ? resetActionBlock(usage) : 'resetUseRefresh'
+              const resetDisabled = resetBusy || resetBlock !== undefined
               // Providers without a usage endpoint answer supported:false — no block.
               const showUsage = usage?.supported !== false
                 && (usage !== undefined || usageError !== undefined || usageLoading[usageKey] === true)
@@ -681,7 +773,7 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
                     )}
                     <button
                       type="button"
-                      style={{ ...styles.button, marginLeft: 'auto', flexShrink: 0 }}
+                      style={{ marginLeft: 'auto', flexShrink: 0 }}
                       onClick={() => { void logout(id, account.key, display, name) }}
                     >
                       {t('logout')}
@@ -696,7 +788,7 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
                         )}
                         <button
                           type="button"
-                          style={{ ...styles.usageRefresh, ...usageLoading[usageKey] === true ? { opacity: 0.5, cursor: 'default' } : {} }}
+                          style={styles.usageRefresh}
                           disabled={usageLoading[usageKey] === true}
                           onClick={() => { void loadUsage(id, account.key, true) }}
                         >
@@ -728,6 +820,26 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
                           </div>
                         )
                       })}
+                      {(id === 'codex' || id === 'claude') && usage?.resetCreditsError !== undefined && (
+                        <ResetCreditsErrorLine provider={id} message={usage.resetCreditsError} t={t} />
+                      )}
+                      {(id === 'codex' || id === 'claude') && showsResetCredits(id, usage?.resetCredits) && (
+                        <ResetCreditsDisclosure
+                          mode={id === 'claude' ? 'grants' : 'credits'}
+                          credits={sortedCredits}
+                          t={t}
+                          {...nextReset !== undefined ? { nextCredit: nextReset } : {}}
+                          {...id === 'codex' ? { useAction: {
+                            accountKey: account.key,
+                            busy: resetBusy && resetAccount === account.key,
+                            disabled: resetDisabled,
+                            title: t(resetBusy ? 'resetUseChecking' : resetBlock ?? 'resetUseReady'),
+                            label: t('resetUseButton'),
+                            onUse: () => { if (!resetDisabled) void prepareReset(account.key) },
+                          } } : {}}
+                          {...resetAccount === account.key && resetMessage !== '' ? { statusMessage: resetMessage } : {}}
+                        />
+                      )}
                     </div>
                   )}
                 </div>
@@ -735,31 +847,31 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
             })}
             <div style={styles.actions}>
               {!busy && accounts.length === 0 && (
-                <button type="button" style={styles.button} onClick={() => { void login(id) }}>
+                <button type="button" onClick={() => { void login(id) }}>
                   {t('login')}
                 </button>
               )}
               {!busy && accounts.length > 0 && id === 'claude' && (
                 <>
-                  <button type="button" style={styles.button} onClick={() => { void login(id, 'oauth') }}>
+                  <button type="button" onClick={() => { void login(id, 'oauth') }}>
                     {t('addAccountOAuth')}
                   </button>
-                  <button type="button" style={styles.button} onClick={() => { void login(id, 'keychain') }}>
+                  <button type="button" onClick={() => { void login(id, 'keychain') }}>
                     {t('addAccountKeychain')}
                   </button>
                 </>
               )}
               {!busy && accounts.length > 0 && id !== 'claude' && (
-                <button type="button" style={styles.button} onClick={() => { void login(id) }}>
+                <button type="button" onClick={() => { void login(id) }}>
                   {t('addAccount')}
                 </button>
               )}
-              <button type="button" style={styles.button} aria-haspopup="dialog"
+              <button type="button" aria-haspopup="dialog"
                 onClick={() => setManagedProvider({ id, name })}>
                 {t('accountsManage')}
               </button>
               {busy && (
-                <button type="button" style={styles.button} onClick={() => { void cancel(id) }}>
+                <button type="button" onClick={() => { void cancel(id) }}>
                   {t('cancel')}
                 </button>
               )}
@@ -773,12 +885,11 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
                 <span style={styles.statusLine}>{t('deviceCodePrompt')}</span>
                 <span style={styles.deviceCodeText}>{deviceCode.userCode}</span>
                 <div style={styles.actions}>
-                  <button type="button" style={styles.button} onClick={() => { copyDeviceCode(id, deviceCode.userCode) }}>
+                  <button type="button" onClick={() => { copyDeviceCode(id, deviceCode.userCode) }}>
                     {copiedCode === id ? t('deviceCodeCopied') : t('deviceCodeCopy')}
                   </button>
                   <button
                     type="button"
-                    style={styles.button}
                     onClick={() => { window.open(deviceCode.verificationUrl, '_blank', 'noopener') }}
                   >
                     {t('deviceCodeOpenPage')}
@@ -796,7 +907,7 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
                     placeholder={t('manualPlaceholder')}
                     onChange={event => setManualDrafts(prev => ({ ...prev, [id]: event.target.value }))}
                   />
-                  <button type="button" style={styles.button} onClick={() => { void submitManual(id) }}>
+                  <button type="button" onClick={() => { void submitManual(id) }}>
                     {t('submit')}
                   </button>
                 </div>
@@ -809,6 +920,32 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
       <ExternalUsageCards rpc={rpc} t={t} />
       {managedProvider && <ProviderAccountManager provider={managedProvider.id} name={managedProvider.name}
         rpc={rpc} t={t} onClose={() => setManagedProvider(undefined)} />}
+      <style>{'.subscriptions-reset-dialog::backdrop { background: var(--dsw-alias-bg-mask-1, #0006); backdrop-filter: var(--dsw-mask-blur, none); }'}</style>
+      <dialog ref={resetDialogRef} className="subscriptions-reset-dialog"
+        aria-labelledby="subscriptions-reset-title" onCancel={() => setResetConfirmation(undefined)}
+        onClose={() => setResetConfirmation(undefined)}
+        style={{ ...styles.modal, display: resetConfirmation ? 'flex' : 'none', margin: 'auto', color: 'var(--dsw-alias-label-primary)' }}>
+        {resetConfirmation && <>
+          <h3 id="subscriptions-reset-title" style={{ ...styles.modalTitle, margin: 0 }}>{t('resetUseConfirmTitle')}</h3>
+          <p style={{ ...styles.statusLine, overflowWrap: 'anywhere' }}>{statuses.codex?.accounts.find(a => a.key === resetConfirmation.account)?.account ?? resetConfirmation.account}</p>
+          <div style={{ ...styles.usageMeta, gap: 12 }}>
+            <span>{t('usageWeekly')}</span><strong>{Math.round(resetConfirmation.weeklyUsedPercent)}%</strong>
+          </div>
+          <div style={styles.usageMeta}>
+            <span>{resetConfirmation.creditExpiresAt === undefined ? t('resetCreditExpiryUnknown') : t('resetCreditExpires', { date: new Date(resetConfirmation.creditExpiresAt).toLocaleString() })}</span>
+          </div>
+          <p style={{ ...styles.statusLine, margin: '4px 0' }}>{t('resetUseWarning')}</p>
+          <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 12 }}>
+            <input type="checkbox" checked={resetAcknowledged} onChange={e => setResetAcknowledged(e.target.checked)} />
+            {t('resetUseAcknowledge')}
+          </label>
+          <div className="dsh-subscription-dialog-actions" style={{ ...styles.actions, justifyContent: 'flex-end', marginTop: 8 }}>
+            <button type="button" autoFocus onClick={() => setResetConfirmation(undefined)}>{t('cancel')}</button>
+            <button type="button" className="dsh-subscription-primary" disabled={!resetAcknowledged || resetBusy}
+              onClick={() => { void consumeReset() }}>{t('resetUseConfirm')}</button>
+          </div>
+        </>}
+      </dialog>
     </div>
   )
 }

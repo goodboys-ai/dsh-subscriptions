@@ -24,6 +24,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ComponentType, CSSProperties } from 'react'
+import { subscriptionChromeCss } from './provider-settings-styles.js'
 import { createPortal } from 'react-dom'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-api-remotes/client'
@@ -604,8 +605,10 @@ export function SubscriptionUsageBadge({ rpc, currentModel, t, rotationMs }: Sub
 
   const pill = (
     <span ref={rootRef} style={styles.anchor}>
+      <style>{subscriptionChromeCss}</style>
       <button
         type="button"
+        className="dsh-subscription-usage-pill"
         style={{ ...styles.pill, ...(hover || open ? styles.pillActive : {}) }}
         aria-haspopup="dialog"
         aria-expanded={open}
@@ -623,6 +626,7 @@ export function SubscriptionUsageBadge({ rpc, currentModel, t, rotationMs }: Sub
           ref={panelRef}
           role="dialog"
           aria-label={title}
+          className="dsh-subscription-usage-panel"
           style={{ ...styles.panel, ...(pos ?? MEASURE_STYLE) }}
         >
           <div style={styles.title}>
@@ -755,9 +759,9 @@ const styles: Record<string, CSSProperties> = {
   pill: {
     boxSizing: 'border-box', maxWidth: '100%',
     color: 'var(--dsw-alias-label-tertiary)',
-    font: 'inherit', fontSize: 'var(--dsh-content-font-size-secondary, 13px)',
-    fontVariantNumeric: 'tabular-nums', lineHeight: '20px', whiteSpace: 'nowrap',
-    background: 'transparent', border: 'none', borderRadius: 24,
+    font: 'inherit', fontSize: 'calc(var(--dsh-content-font-size-secondary, 13px) - 1px)',
+    fontVariantNumeric: 'tabular-nums', lineHeight: 'calc(20px + var(--dsh-content-font-delta-secondary, 0px))', whiteSpace: 'nowrap',
+    background: 'transparent', border: 'none', borderRadius: 999,
     alignItems: 'center', gap: 6, padding: '1px 8px', display: 'inline-flex', cursor: 'pointer',
   },
   pillActive: {
@@ -777,7 +781,7 @@ const styles: Record<string, CSSProperties> = {
     maxHeight: 'min(560px, 100dvh - 24px)', overflowY: 'auto', overscrollBehavior: 'contain',
     boxShadow: 'var(--dsw-elevation-prominent)',
     color: 'var(--dsw-alias-label-secondary)', cursor: 'default',
-    border: 0, borderRadius: 12, padding: 16, fontSize: 12, lineHeight: '18px',
+    border: 0, borderRadius: 'var(--dsw-radius-lg, 16px)', padding: 16, fontSize: 12, lineHeight: '18px',
   },
   title: {
     color: 'var(--dsw-alias-label-primary)', display: 'flex',

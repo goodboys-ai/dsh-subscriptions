@@ -97,6 +97,43 @@ in **Settings → Subscriptions**.
 
 ![Usage dialog with elapsed-time cursors](docs/images/usage-badge.png)
 
+#### Codex usage limit resets
+
+The Codex account card shows banked full-reset credits and their expirations
+in a closed disclosure. A failed optional lookup reports an error without
+hiding ordinary quota windows. **Use…** selects the earliest-expiring available
+credit and requires a fresh unscoped weekly reading of at least 80%, then an
+explicit confirmation and acknowledgment. Confirmation expires after 60
+seconds; the server rechecks usage and credit availability before submission.
+
+One reset consumes one credit and resets weekly and 5-hour limits. This
+interface cannot undo it. An unconfirmed outcome blocks further redemption
+for that account in the current host process. Restarting clears that block,
+but must not be used to bypass it: check credits and limits in Codex before
+retrying, because the first submission may already have spent a credit.
+The private endpoint is covered by offline fakes, not live-account checks.
+See the [manual reset decision](.agents/notes/implemented/provider/2026-10-04-codex-manual-reset.md)
+for the retry boundary and verification limits.
+
+#### Claude usage limit resets
+
+The Claude account card shows banked limit resets from Anthropic's
+`cedar_ember` program, in the same closed disclosure Codex uses. It lists one
+row per grant, not one per credit, and the summary counts remaining resets by
+summing `resetsLeft` over grants that are neither expired nor paused. Each row
+states whether that grant is available, not yet usable, paused, exhausted, or
+expired, with its remaining count and when it lapses. That time is the grant's
+expiry: it is not a window reset and does not move the elapsed-time cursor.
+
+This is **display only**. `claimable` is shown as data on a text row, and the
+page has no control that spends a Claude reset, because the response shape is
+not an Anthropic contract. An ineligible account, a grant-less block, or a
+rejected optional query leaves ordinary session and weekly windows untouched
+and shows no list; a failed lookup shows a fixed sentence rather than the
+provider's text. No live account was used to verify what Anthropic returns. See
+[the evidence and limits](docs/claude-banked-resets.md) and the
+[display decision](.agents/notes/implemented/provider/2026-10-08-claude-banked-reset-display.md).
+
 ## Install
 
 Current source is tested with DSH `0.1.7-rc.2`, `0.2.0-rc.1`, and
@@ -182,6 +219,33 @@ usage.
 
 The plugin follows DSH network settings. Its former proxy configuration and
 UI have been retired; an old plugin proxy config file is ignored.
+
+## Claude prompt-cache TTL
+
+Set `claudePromptCacheTtl: '5m'` (default) or `'1h'` in the plugin config and
+restart DSH. This affects Claude only; other providers keep their own caching.
+Five minutes omits the wire `ttl` field, preserving the existing request. One
+hour adds `ttl: "1h"` to the tools+system prefix and up to three conversation
+breakpoints. All marks share one TTL: Anthropic rejects a one-hour mark after
+a five-minute mark. Requests classified with `purpose` as compaction or
+session-title keep five minutes. Unclassified calls, including subagents and
+calls from hosts that do not supply `purpose`, follow the configured TTL.
+The TTL setting does not require a newer host capability or dependency.
+
+Cache reads have the same API price for either TTL. One-hour writes are priced
+at 2× base input instead of 1.25×. They may pay off with reusable prefixes and
+5–60-minute pauses; benefits depend on the workload and do not establish
+subscription quota savings. Frequent reuse within five minutes may not offset
+the higher write price. Claude Code requests one hour for its main subscription
+conversation; see
+[Claude Code's prompt-caching notes](https://code.claude.com/docs/en/prompt-caching#which-ttl-each-request-gets).
+
+Changing TTL on a cached conversation may rewrite the prefix. Upstream testing
+found that the first one-hour request after five-minute writes rewrote a
+conversation-tail prefix, while a system-only breakpoint could hit. A
+five-minute request can read a one-hour entry; a one-hour-marked read does not
+upgrade an existing five-minute entry's lifetime. These observations are not
+live-account verification of this fork.
 
 ## Usage coloring
 

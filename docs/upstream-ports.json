@@ -1,0 +1,259 @@
+{
+  "$comment": "Machine-readable record of how each upstream commit since the baseline was treated in this fork. docs/upstream-sync.md renders its Sync point section from this file; scripts/check-upstream-ports.mjs fails when the two drift, when a commit is unclassified, or when a decline rests on a host-capability claim the host contradicts.",
+  "upstream": "https://github.com/V1ki/dsh-plugin-subscriptions",
+  "baseline": {
+    "sha": "75a83460b27f869d6972c6d0a2b39d76ca49eabb",
+    "tag": "v0.9.5",
+    "date": "2026-09-28"
+  },
+  "upstreamRef": {
+    "sha": "85e6c6c9",
+    "note": "Full sha is re-derived by the check from the remote ref; recorded here for humans."
+  },
+  "updatedAt": "2026-10-08",
+  "entries": [
+    {
+      "upstream": "527f4d90",
+      "subject": "fix(codex): lower a saved \"ultra\" reasoning effort to \"max\" on the wire",
+      "status": "ported",
+      "area": "codex",
+      "forkCommits": [
+        "bfc4dbe"
+      ],
+      "evidence": {
+        "test": "test/models.spec.ts"
+      },
+      "reason": "Codex answered HTTP 400 for a literal ultra; we sent the stored preference unchanged."
+    },
+    {
+      "upstream": "69ac9c37",
+      "subject": "ci: print OIDC claims and token-exchange result before publishing",
+      "status": "not-applicable",
+      "area": "release",
+      "reason": "Fork's release.yml already owns publishing; this debug aid targets their workflow."
+    },
+    {
+      "upstream": "800a08f5",
+      "subject": "ci: let npm publish authenticate via OIDC",
+      "status": "not-applicable",
+      "area": "release",
+      "reason": "Fork already publishes through OIDC trusted publishing since v0.1.0."
+    },
+    {
+      "upstream": "74f44a29",
+      "subject": "chore: release v0.9.8",
+      "status": "not-applicable",
+      "area": "release",
+      "reason": "Upstream release line; the fork versions independently (see docs/compatibility.md)."
+    },
+    {
+      "upstream": "564be625",
+      "subject": "ci: publish releases from GitHub Actions with npm provenance",
+      "status": "not-applicable",
+      "area": "release",
+      "reason": "Fork shipped its own release.yml with the same mechanism; see docs/compatibility.md step 5."
+    },
+    {
+      "upstream": "eb429662",
+      "subject": "fix(claude): offload the oldest images before a request exceeds the 32MB limit (#136)",
+      "status": "ported",
+      "area": "claude",
+      "forkCommits": [
+        "cf9e0ff",
+        "48a4bd8"
+      ],
+      "evidence": {
+        "test": "test/image-request-limit.spec.ts"
+      },
+      "reason": "Long sessions accumulated inline images until every turn and compaction failed HTTP 413. The host executor that performs the offload ships in dsh-base on every version in our window; the plugin only asks, never trims history itself.",
+      "capabilityClaim": {
+        "claim": "host mounts the offload executor",
+        "package": "@deepseek-ai/dsh-base",
+        "symbol": "@deepseek-ai/dsh-compaction-image-offload",
+        "versions": [
+          "0.1.7-rc.2",
+          "0.2.0-rc.1",
+          "0.2.0-rc.2"
+        ],
+        "expect": "present"
+      }
+    },
+    {
+      "upstream": "b0c6220a",
+      "subject": "feat(codex): add guarded manual reset redemption",
+      "status": "ported",
+      "area": "codex",
+      "forkCommits": [
+        "bfc4dbe",
+        "bf305fd"
+      ],
+      "evidence": {
+        "note": ".agents/notes/implemented/provider/2026-10-04-codex-manual-reset.md",
+        "test": "test/reset-redemption.spec.ts"
+      },
+      "reason": "New capability; reimplemented on our rewritten subscription section, with the guard re-keyed on the resolved account."
+    },
+    {
+      "upstream": "53577040",
+      "subject": "fix(settings): polish reset disclosure and remove server diagnostic",
+      "status": "ported",
+      "area": "codex",
+      "forkCommits": [
+        "bfc4dbe"
+      ],
+      "evidence": {
+        "test": "test/reset-action.spec.ts"
+      },
+      "reason": "Part of the reset-credit series; only the UI half applies to us."
+    },
+    {
+      "upstream": "d7a7f752",
+      "subject": "fix(settings): use a subtle chevron for reset credits",
+      "status": "ported",
+      "area": "codex",
+      "forkCommits": [
+        "bfc4dbe"
+      ],
+      "evidence": {
+        "test": "test/native-ui-alignment.spec.ts"
+      },
+      "reason": "Part of the reset-credit series."
+    },
+    {
+      "upstream": "9c0ae036",
+      "subject": "feat(settings): make Codex reset credits collapsible",
+      "status": "ported",
+      "area": "codex",
+      "forkCommits": [
+        "bfc4dbe"
+      ],
+      "evidence": {
+        "test": "test/reset-action.spec.ts"
+      },
+      "reason": "Part of the reset-credit series."
+    },
+    {
+      "upstream": "62453f2f",
+      "subject": "feat(codex): display available reset credits and expirations",
+      "status": "ported",
+      "area": "codex",
+      "forkCommits": [
+        "bfc4dbe"
+      ],
+      "evidence": {
+        "test": "test/usage.spec.ts"
+      },
+      "reason": "Part of the reset-credit series."
+    },
+    {
+      "upstream": "0c65c7d0",
+      "subject": "Drop Codex \"ultra\" from discovered reasoning efforts",
+      "status": "ported",
+      "area": "codex",
+      "forkCommits": [
+        "bfc4dbe"
+      ],
+      "evidence": {
+        "test": "test/models.spec.ts"
+      },
+      "reason": "Paired with the wire mapping; discovery alone would leave saved ultra reaching the backend."
+    },
+    {
+      "upstream": "c5cc37fe",
+      "subject": "fix: support DSH 0.2.0-rc.2 and harden provider routing",
+      "status": "ported",
+      "area": "routing",
+      "evidence": {
+        "test": "test/account-replay.spec.ts",
+        "note": "docs/replay-sse-port-verification.md"
+      },
+      "reason": "Split, not cherry-picked. Ported: SSE readers now cancel the unread body, and signed replay is scoped to the originating account and model. Not ported: lockfile and devDependency floor moves, prepared-call routing, abort hardening, and release mechanics, which belong to a release strategy this fork does not use. Legacy unwrapped replay still passes through when provider and model match the route; that limit is stated in the code and the report rather than papered over.",
+      "forkCommits": [
+        "6aaeac9b"
+      ]
+    },
+    {
+      "upstream": "8a80d4e4",
+      "subject": "docs(claude): qualify cache TTL costs and interoperability",
+      "status": "ported",
+      "area": "claude",
+      "forkCommits": [
+        "e3fcd52"
+      ],
+      "evidence": {
+        "test": "test/claude-cache-ttl.spec.ts"
+      },
+      "reason": "Documents the same TTL setting; travels with the feature."
+    },
+    {
+      "upstream": "867136be",
+      "subject": "Admit DSH 0.2.0-rc.2 in peer ranges",
+      "status": "not-applicable",
+      "area": "release",
+      "reason": "Our bounded range >=0.1.7-rc.2 <0.3.0-0 already admits it; see docs/compatibility.md."
+    },
+    {
+      "upstream": "f2622e49",
+      "subject": "feat(claude): make the prompt-cache TTL configurable (5m or 1h)",
+      "status": "ported",
+      "area": "claude",
+      "forkCommits": [
+        "e3fcd52"
+      ],
+      "evidence": {
+        "test": "test/claude-cache-ttl.spec.ts"
+      },
+      "reason": "Cost control for cache writes. Default 5m keeps the previous wire bytes unchanged."
+    },
+    {
+      "upstream": "f359301e",
+      "subject": "perf: serve cached model catalogs and refresh hourly",
+      "status": "pending",
+      "area": "performance",
+      "reason": "Changes when the model list refreshes; needs a maintainer decision because it alters freshness semantics on our rewritten catalog path."
+    },
+    {
+      "upstream": "a85fb93a",
+      "subject": "fix: apply subscription names to model picker groups",
+      "status": "pending",
+      "area": "settings",
+      "reason": "Depends on upstream's displayName field, which our fork's preference validator does not carry. Needs the field decision first."
+    },
+    {
+      "upstream": "080450d0",
+      "subject": "style: align subscription controls and usage popover with native UI",
+      "status": "ported",
+      "area": "ui",
+      "forkCommits": [
+        "53a618c",
+        "632c2ae",
+        "a5e41c1"
+      ],
+      "evidence": {
+        "test": "test/native-ui-alignment.spec.ts"
+      },
+      "reason": "Restyled on our rewritten components. Deviation: color-scheme is left to the host, because our scoped rules outrank :root and would pin native controls light in a dark theme."
+    },
+    {
+      "upstream": "998cea06",
+      "subject": "feat: add subscription and model display names",
+      "status": "pending",
+      "area": "settings",
+      "reason": "Collides with this fork's own localized plugin naming; needs a maintainer decision before adopting."
+    },
+    {
+      "upstream": "d8ab13e9",
+      "subject": "chore: release v0.9.6",
+      "status": "not-applicable",
+      "area": "release",
+      "reason": "Upstream release line."
+    },
+    {
+      "upstream": "f6e1b3f1",
+      "subject": "feat(settings): show the CLI version Codex and Claude present",
+      "status": "already-covered",
+      "area": "settings",
+      "reason": "Behaviour ported before this ledger existed. The fork commit is not a descendant of the upstream sha, which is exactly the case this ledger makes visible."
+    }
+  ]
+}

@@ -20,7 +20,9 @@ class Raw extends LlmAdapter {
   async *stream(): AsyncIterable<StreamChunk> { throw new Error('default path forbidden') }
   async *streamAccount(options: GenerateOptions, account: string): AsyncIterable<StreamChunk> { this.calls.push(`stream:${account}:${options.model}`); if (this.failAccount === account) throw new LlmError('quota exhausted', 'RATE_LIMIT'); yield { type: 'text-delta', index: 0, text: 'ok' }; yield { type: 'finish', reason: { kind: 'stop' } } }
 }
-const options = (model: string) => ({ provider: 'codex', model } as GenerateOptions)
+const options = (model: string): GenerateOptions => ({
+  provider: 'codex', model, messages: [],
+})
 async function consume(route: LlmAdapter, id: string) { for await (const _ of route.stream(options(id))) { /* collect */ } }
 
 test('account preferences validate, persist and distinguish absent and empty allowlists', async () => {

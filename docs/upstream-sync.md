@@ -10,15 +10,34 @@ though, and this repo tracks them selectively.
 
 ## Sync point
 
+The machine-readable record is [upstream-ports.json](upstream-ports.json): one
+entry per upstream commit since the baseline, with how this fork treated it.
+`node scripts/check-upstream-ports.mjs` fails when a commit is unclassified,
+when a ported entry names a commit that is not in our history, or when a decline
+rests on a host-capability claim the published host package contradicts. This
+section is the human summary; the JSON is the source of truth.
+
 - **Baseline:** upstream `v0.9.5` — commit `75a83460b27f869d6972c6d0a2b39d76ca49eabb` (2026-09-28).
-- **Ported on top:** `f6e1b3f177bd6c9dcb09bbbe7649dbbb0d6b92ab` — the
-  Settings card shows the CLI version Codex and Claude present, with its
-  source (npm latest / local CLI / built-in fallback / configured), so a
-  failed npm lookup no longer masquerades as a plan limit
-  (upstream issue [#108](https://github.com/V1ki/dsh-plugin-subscriptions/issues/108)).
-- **Deliberately untracked:** `d8ab13e91fd6747e419a1f5e965bce42bdfc3ad8`
-  (the v0.9.6 release chore: a `package.json` version bump). Release
-  mechanics live in this repo's own CI.
+- **Reviewed up to:** upstream `v0.9.8` — commit `85e6c6c9`.
+- **Already covered before this ledger existed:** `f6e1b3f1` (the Settings card
+  shows the CLI version Codex and Claude present, upstream issue
+  [#108](https://github.com/V1ki/dsh-plugin-subscriptions/issues/108)). Ported
+  under a fork commit that is not a descendant of the upstream sha, which is
+  why the ledger exists.
+- **Ported since:** Codex reasoning-effort `ultra` handling (`0c65c7d0`,
+  `527f4d90`); Codex reset credits, end to end (`62453f2f`, `9c0ae036`,
+  `d7a7f752`, `53577040`, `b0c6220a`); the Claude prompt-cache TTL setting
+  (`f2622e49`, `8a80d4e4`); the Claude image-request budget (`eb429662`); and
+  the native-UI restyle (`080450d0`).
+- **Deliberately not taken:** upstream's release and CI work (`564be625`,
+  `800a08f5`, `69ac9c37`, `74f44a29`, `d8ab13e9`) and its peer-range move
+  (`867136be`) — this repo versions and releases on its own policy, and its
+  bounded range already admits the DSH versions upstream is adding.
+- **Open decisions:** `998cea06` and `a85fb93a` (display names) collide with
+  this fork's own localized naming; `f359301e` (hourly catalog refresh)
+  changes list freshness; `c5cc37fe` is being split, since its release
+  mechanics do not apply but its account-scoped replay and SSE stream cleanup
+  are real gaps here.
 
 ## How the baseline was determined
 

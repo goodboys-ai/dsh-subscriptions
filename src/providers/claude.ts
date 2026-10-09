@@ -18,7 +18,7 @@ import type { ClaudeSession } from '../auth/store.js'
 import type { ProviderId } from '../auth/store.js'
 import type { PoolAdapter } from './pool.js'
 import type { AttachmentStore } from '@deepseek-ai/dsh-attachment'
-import { resolveImages } from '../translate/resolved.js'
+import { hostSupportsImageOffload, IMAGE_OFFLOAD_REQUIRED, requiredImageOffloadCount, resolveImages } from '../translate/resolved.js'
 import type { TranslatableMessage } from '../translate/resolved.js'
 import {
   markMessageCache,
@@ -27,6 +27,7 @@ import {
   toAnthropicSystem,
   toAnthropicTools,
 } from '../translate/anthropic.js'
+import type { PromptCacheTtl } from '../translate/anthropic.js'
 import {
   httpLlmError,
   idleWatchdog,
@@ -323,11 +324,63 @@ export function isClaudePermanentRefreshError(error: unknown): boolean {
 
 export const CLAUDE_USAGE_URL = 'https://api.anthropic.com/api/oauth/usage'
 
-/** RFC3339 `resets_at` value → epoch ms, or undefined when absent/unparsable. */
+/** ISO-8601 or numeric epoch (seconds below 1e10 in magnitude, otherwise ms). */
 function claudeResetsAt(value: unknown): number | undefined {
-  if (typeof value !== 'string' || value.length === 0) return undefined
-  const parsed = Date.parse(value)
-  return Number.isFinite(parsed) ? parsed : undefined
+  let parsed: number
+  if (typeof value === 'number') {
+    parsed = Math.trunc(Math.abs(value) < 1e10 ? value * 1000 : value)
+  } else if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value)) {
+    parsed = Date.parse(value)
+  } else {
+    return undefined
+  }
+  return Number.isFinite(parsed) && Number.isFinite(new Date(parsed).getTime()) ? parsed : undefined
+}
+
+/**
+ * Read the observed cedar_ember shape from ItsJazii/pane, not an official
+ * contract. Each entry retains its grant id and counts; claimable is only
+ * read-only server-selection metadata, never an implemented redemption path.
+ */
+function claudeResetCredits(value: unknown, now: number): ProviderUsage['resetCredits'] {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined
+  const ember = value as Record<string, unknown>
+  if (ember.eligible !== true || !Array.isArray(ember.grants)) return undefined
+  const cooldownUntil = claudeResetsAt(ember.cooldown_until)
+  // An unparseable disclosed cooldown must not assert that claims are available.
+  const cooling = cooldownUntil === undefined
+    ? ember.cooldown_until !== undefined && ember.cooldown_until !== null
+    : cooldownUntil > now
+  const credits: NonNullable<ProviderUsage['resetCredits']> = []
+  let selected = false
+  for (const raw of ember.grants) {
+    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) continue
+    const grant = raw as Record<string, unknown>
+    const { id, resets_total: total, resets_left: left, usable_now: usable, paused } = grant
+    const expiresAt = claudeResetsAt(grant.ends_at)
+    if (typeof id !== 'string' || id.trim().length === 0
+      || typeof total !== 'number' || !Number.isSafeInteger(total) || total < 1
+      || typeof left !== 'number' || !Number.isSafeInteger(left)
+      || expiresAt === undefined
+      || (usable !== undefined && typeof usable !== 'boolean')
+      || (paused !== undefined && typeof paused !== 'boolean')) continue
+    const resetsLeft = Math.max(0, Math.min(left, total))
+    if (resetsLeft === 0) continue
+    const claimable = !selected && id === ember.next_grant_id && usable === true
+      && paused !== true && !cooling && expiresAt > now
+    if (claimable) selected = true
+    credits.push({
+      id,
+      expiresAt,
+      resetsTotal: total,
+      resetsLeft,
+      ...usable === undefined ? {} : { usableNow: usable },
+      ...paused === undefined ? {} : { paused },
+      claimable,
+      ...cooldownUntil === undefined ? {} : { cooldownUntil },
+    })
+  }
+  return credits.length > 0 ? credits : undefined
 }
 
 /** Claude session and weekly buckets reset as whole five-hour/seven-day windows. */
@@ -339,7 +392,7 @@ function claudeWindowTiming(kind: UsageWindow['kind']): Pick<UsageWindow, 'windo
 /** Map one legacy `{utilization, resets_at}` bucket; undefined when null or unusable. */
 function claudeLegacyWindow(value: unknown, kind: UsageWindow['kind'], scope?: string): UsageWindow | undefined {
   if (typeof value !== 'object' || value === null) return undefined
-  const bucket = value as { utilization?: number; resets_at?: string }
+  const bucket = value as { utilization?: number; resets_at?: unknown }
   if (typeof bucket.utilization !== 'number' || !Number.isFinite(bucket.utilization)) return undefined
   const resetsAt = claudeResetsAt(bucket.resets_at)
   return {
@@ -355,7 +408,7 @@ function claudeLegacyWindow(value: unknown, kind: UsageWindow['kind'], scope?: s
 interface ClaudeLimitEntry {
   kind?: string
   percent?: number
-  resets_at?: string
+  resets_at?: unknown
   scope?: { model?: { display_name?: string } }
 }
 
@@ -388,6 +441,10 @@ function claudeLimitsWindows(value: unknown): UsageWindow[] {
  * source of Claude Code's `/usage` screen). Newer responses carry a
  * structured `limits` array; older ones the flat `five_hour`/`seven_day*`
  * buckets — both shapes are read, the array winning when it has entries.
+ * Requests the optional cedar_ember banked-reset block with the existing CLI
+ * identity. A 400/403 retries once without that parameter; ordinary windows
+ * remain available and resetCreditsError records the optional lookup failure.
+ * Missing/ineligible blocks and empty or unusable grants expose no credits.
  * @param session - the stored session (used as-is; never refreshed here).
  * @param fetchFn - fetch implementation (injectable for tests).
  * @param signal - caller cancellation from the RPC transport.
@@ -401,7 +458,7 @@ export async function fetchClaudeUsage(
   cliVersion: () => Promise<string> = localClaudeCliVersion,
 ): Promise<ProviderUsage> {
   const userAgent = claudeCliUserAgent(await cliVersion())
-  const response = await fetchFn(CLAUDE_USAGE_URL, {
+  const init: RequestInit = {
     headers: {
       'authorization': `Bearer ${session.accessToken}`,
       'anthropic-beta': 'oauth-2025-04-20',
@@ -411,11 +468,23 @@ export async function fetchClaudeUsage(
       'accept': 'application/json',
     },
     ...signal === undefined ? {} : { signal },
-  })
+  }
+  let response = await fetchFn(`${CLAUDE_USAGE_URL}?cedar_ember=1`, init)
+  let resetCreditsError: string | undefined
+  if (response.status === 400 || response.status === 403) {
+    resetCreditsError = `Claude banked resets lookup failed (HTTP ${response.status}); using plain usage.`
+    // Optional program support must not turn a working usage endpoint into an error.
+    response = await fetchFn(CLAUDE_USAGE_URL, init)
+  }
   if (!response.ok) throw await oauthEndpointError(response, 'claude usage')
   const payload = await response.json() as Record<string, unknown>
+  const resetCredits = resetCreditsError === undefined ? claudeResetCredits(payload.cedar_ember, Date.now()) : undefined
+  const resets = {
+    ...resetCredits === undefined ? {} : { resetCredits },
+    ...resetCreditsError === undefined ? {} : { resetCreditsError },
+  }
   const modern = claudeLimitsWindows(payload.limits)
-  if (modern.length > 0) return { supported: true, windows: modern }
+  if (modern.length > 0) return { supported: true, windows: modern, ...resets }
   const windows: UsageWindow[] = []
   const legacy = [
     claudeLegacyWindow(payload.five_hour, 'session'),
@@ -426,7 +495,7 @@ export async function fetchClaudeUsage(
   for (const window of legacy) {
     if (window !== undefined) windows.push(window)
   }
-  return { supported: true, windows }
+  return { supported: true, windows, ...resets }
 }
 
 interface ClaudeModelCapabilities {
@@ -567,6 +636,8 @@ export interface ClaudeAdapterOptions {
   defaultEffortOf?: (model: string) => string | undefined
   /** Resolves the Claude Code version to present (npm-backed); absent means the local floor. */
   resolveCliVersion?: () => Promise<string>
+  /** Cache breakpoint lifetime; absent means the API's five-minute default. */
+  promptCacheTtl?: PromptCacheTtl
 }
 
 /**
@@ -576,6 +647,15 @@ export interface ClaudeAdapterOptions {
  * this cap; 3.75MB encoded stays under the 5MB base64 per-image limit.
  */
 const CLAUDE_IMAGE_LIMIT = { maxEdge: 2000, maxBytes: 3_750_000 }
+
+/**
+ * Inline image data a Claude request may carry, in base64 bytes. Every turn
+ * resends the history, so screenshots accumulate until the request passes the
+ * API's 32MB body limit and every later turn and compaction fails with HTTP
+ * 413 `request_too_large`. Past this budget the host offloads the oldest
+ * images to text and retries; the remaining 12MB holds prompts, tools, and text.
+ */
+export const CLAUDE_REQUEST_IMAGE_BUDGET = 20 * 1024 * 1024
 
 /** The Claude 4.5 family accepts image input. */
 const CLAUDE_MODALITIES: readonly ('text' | 'image')[] = ['text', 'image']
@@ -593,6 +673,10 @@ const CLAUDE_MODALITIES: readonly ('text' | 'image')[] = ['text', 'image']
  * @param maxTokens - the resolved output cap.
  * @param thinking - the thinking parameter, when the model takes one.
  * @param effort - the reasoning effort, when the model advertises efforts.
+ * @param cacheTtl - lifetime of every cache breakpoint; defaults to five minutes.
+ * Requests that carry a `purpose` (compaction, session titles) always use five
+ * minutes to preserve their existing auxiliary-request behavior. A five-minute
+ * mark can still read an entry a one-hour mark wrote.
  * @returns the JSON body to POST.
  */
 export function claudeRequestBody(
@@ -601,13 +685,18 @@ export function claudeRequestBody(
   maxTokens: number,
   thinking?: Record<string, unknown>,
   effort?: string,
+  cacheTtl?: PromptCacheTtl,
 ): Record<string, unknown> {
+  // Read structurally so older host types need not declare `purpose`. Hosts
+  // that do not classify auxiliary calls follow the configured TTL.
+  const purpose = (options as GenerateOptions & { purpose?: string }).purpose
+  const ttl = purpose === undefined ? cacheTtl : undefined
   const anthropicMessages = toAnthropicMessages(messages)
-  markMessageCache(anthropicMessages)
+  markMessageCache(anthropicMessages, ttl)
   return {
     model: options.model,
     max_tokens: maxTokens,
-    system: toAnthropicSystem(options.system, messages),
+    system: toAnthropicSystem(options.system, messages, ttl),
     messages: anthropicMessages,
     ...options.tools !== undefined && options.tools.length > 0
       ? { tools: toAnthropicTools(options.tools) }
@@ -834,6 +923,18 @@ export class ClaudeAdapter extends LlmAdapter {
 
   private async request(options: GenerateOptions, session: ClaudeSession, signal: AbortSignal): Promise<Response> {
     const messages = await resolveImages(options.messages, this.options.resolveAttachments?.(), signal, CLAUDE_IMAGE_LIMIT)
+    if (hostSupportsImageOffload()) {
+      const offloadImages = requiredImageOffloadCount(messages, CLAUDE_REQUEST_IMAGE_BUDGET)
+      if (offloadImages > 0) {
+        // Older dsh-llm option types lack `offloadImages`; 0.2+ hosts read it.
+        throw new LlmError(
+          `claude request images exceed the ${CLAUDE_REQUEST_IMAGE_BUDGET}-byte base64 budget; `
+          + `${offloadImages} more oldest image(s) must be offloaded`,
+          IMAGE_OFFLOAD_REQUIRED,
+          { offloadImages } as ErrorOptions,
+        )
+      }
+    }
     const disc = await this.discovered(options.model)
     const maxTokens = options.maxTokens
       ?? claudeMaxTokens(this.options.models.find(entry => entry.id === options.model), disc)
@@ -841,7 +942,9 @@ export class ClaudeAdapter extends LlmAdapter {
     const effort = options.reasoningEffort !== undefined && disc?.reasoning !== undefined
       ? String(options.reasoningEffort)
       : undefined
-    const body = claudeRequestBody(options, messages, maxTokens, thinking, effort)
+    const body = claudeRequestBody(
+      options, messages, maxTokens, thinking, effort, this.options.promptCacheTtl,
+    )
     const cliVersion = await (this.options.resolveCliVersion ?? localClaudeCliVersion)()
     return hostFetch(CLAUDE_API_URL, {
       method: 'POST',

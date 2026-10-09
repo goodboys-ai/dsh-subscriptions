@@ -26,6 +26,7 @@ import { DeviceFlowManager, type DeviceAttempt } from './auth/device-flow.js'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { readClaudeCodeCredentials, refreshClaudeSynced } from './auth/claude-code-creds.js'
+import { ResetRedemption } from './providers/reset-redemption.js'
 import { BadRequest, registerAuthRpc } from './auth/rpc.js'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import { ExternalUsageController } from './providers/external-usage-controller.js'
@@ -52,6 +53,7 @@ import {
 } from './model-defaults.js'
 import {
   accountKeyOf,
+  resolveAccountKey,
   deleteAccountSession,
   listAccounts,
   saveAccountSession,
@@ -73,6 +75,8 @@ import { AccountTokenManager } from './providers/accounts.js'
 import type { AccountAwareAdapter } from './providers/accounts.js'
 import { DEFAULT_RATE_LIMIT_MAX_WAIT_MS, resolveRateLimitWait } from './providers/rate-limit.js'
 import type { RateLimitConfig } from './providers/rate-limit.js'
+import { DEFAULT_PROMPT_CACHE_TTL } from './translate/anthropic.js'
+import type { PromptCacheTtl } from './translate/anthropic.js'
 import { accountCatalogStore, catalogStore } from './providers/catalog-store.js'
 import { ClaudeCliVersionCache } from './providers/claude-cli-version.js'
 import type { CliVersion, NpmCliVersionCache } from './providers/npm-cli-version.js'
@@ -94,6 +98,8 @@ import {
   codexProfileClaims,
   exchangeCodexCode,
   fetchCodexUsage,
+  fetchCodexResetCredits,
+  consumeCodexResetCredit,
   isCodexPermanentRefreshError,
   refreshCodex,
 } from './providers/codex.js'
@@ -163,6 +169,14 @@ export interface Config {
   providers?: ProviderId[]
   /** Maximum provider idle time while one stream read is outstanding (default five minutes). */
   streamIdleTimeoutMs?: number
+  /**
+   * How long Anthropic keeps the Claude conversation cache after its last use:
+   * `'5m'` (default, the API's own default) or `'1h'`. One hour writes cache
+   * entries at 2× the input price instead of 1.25×; benefits depend on reuse
+   * and do not establish subscription quota savings. Claude only; requests
+   * classified as compaction or session titles stay on five minutes.
+   */
+  claudePromptCacheTtl?: PromptCacheTtl
   /** Whether and how long a route waits out a closed rate-limit window. */
   rateLimit?: RateLimitConfig
   /** Advisory model catalogs overriding the built-in defaults, per provider. */
@@ -219,6 +233,7 @@ export const Config: z<Config> = z.object({
   providers: z.array(providerIdSchema).default(['codex', 'claude', 'grok', 'copilot', 'antigravity']),
   codexClientVersion: z.string(),
   streamIdleTimeoutMs: z.number().min(1).default(DEFAULT_STREAM_IDLE_TIMEOUT_MS),
+  claudePromptCacheTtl: z.union(['5m', '1h']).default(DEFAULT_PROMPT_CACHE_TTL),
   rateLimit: z.object({
     wait: z.boolean().default(true),
     maxWaitMs: z.number().min(1).default(DEFAULT_RATE_LIMIT_MAX_WAIT_MS),
@@ -415,7 +430,18 @@ export class SubscriptionsAuthController implements AuthController {
     private readonly antigravityConfig: Config['antigravity'] = {},
     /** The CLI version each route presents, shown beside the provider in Settings. */
     private readonly clientVersions: Partial<Record<ProviderId, () => Promise<CliVersion | undefined>>> = {},
+    private readonly resetRedemption?: ResetRedemption,
   ) {}
+
+  prepareReset(account: string, signal: AbortSignal) {
+    if (!this.resetRedemption) throw new BadRequest('Reset redemption unavailable')
+    return this.resetRedemption.prepare(account, AbortSignal.any([signal, AbortSignal.timeout(20_000)]))
+  }
+
+  async consumeReset(account: string, ticket: string, signal: AbortSignal): Promise<void> {
+    if (!this.resetRedemption) throw new BadRequest('Reset redemption unavailable')
+    await this.resetRedemption.redeem(account, ticket, AbortSignal.any([signal, AbortSignal.timeout(20_000)]))
+  }
 
   usage(provider: ProviderId, account: string, signal: AbortSignal, force = false): Promise<ProviderUsage> {
     const fetcher = this.usageFetchers[provider]
@@ -698,6 +724,12 @@ export function apply(ctx: Context, config: Config): void {
   if (!Number.isFinite(streamIdleTimeoutMs) || streamIdleTimeoutMs <= 0) {
     throw new Error(`${name}: streamIdleTimeoutMs must be a positive finite number`)
   }
+  // The schema rejects anything else in the settings UI, but `apply` is also
+  // called with a plain object (tests, `--patch` overlays), so check here too.
+  const claudePromptCacheTtl = config.claudePromptCacheTtl ?? DEFAULT_PROMPT_CACHE_TTL
+  if (claudePromptCacheTtl !== '5m' && claudePromptCacheTtl !== '1h') {
+    throw new Error(`${name}: claudePromptCacheTtl must be '5m' or '1h'`)
+  }
   const rateLimit = resolveRateLimitWait(config.rateLimit, `${name}: rateLimit`)
   const catalog = resolveCatalog(config.models)
   // A non-empty configured catalog is an explicit override: it wins over live
@@ -793,8 +825,21 @@ export function apply(ctx: Context, config: Config): void {
         })
         codexTokens = tokens
         accountTokens.set('codex', tokens as AccountTokenManager<StoredSession>)
-        usageFetchers.codex = async (account, signal) =>
-          fetchCodexUsage(await tokens.session(account), hostFetch, signal)
+        usageFetchers.codex = async (account, signal) => {
+          const session = await tokens.session(account)
+          const usage = await fetchCodexUsage(session, hostFetch, signal)
+          try {
+            const resetCredits = await fetchCodexResetCredits(session, hostFetch, signal)
+            return { ...usage, resetCredits }
+          } catch {
+            // Reset credits are an optional private endpoint, so a failure here
+            // must not cost the caller its ordinary usage. The provider's own
+            // message is not carried into the result: this string is rendered
+            // in Settings, and a private endpoint echoing a token would put it
+            // on screen. The consume path takes the same posture.
+            return { ...usage, resetCreditsError: 'the usage-limit reset lookup did not answer' }
+          }
+        }
         let adapter!: CodexAdapter
         adapter = new CodexAdapter({
           ...config.codexClientVersion === undefined ? {} : { clientVersion: config.codexClientVersion },
@@ -853,6 +898,7 @@ export function apply(ctx: Context, config: Config): void {
           catalogStore: catalogStore('claude'),
           defaultEffortOf: (model: string) => defaultEffortOf('claude', model),
           resolveCliVersion: () => claudeVersion.resolve(),
+          promptCacheTtl: claudePromptCacheTtl,
           pool: () => poolAdapter,
         })
         adapters.set('claude', adapter)
@@ -972,9 +1018,10 @@ export function apply(ctx: Context, config: Config): void {
     const fetcherFor = (provider: ProviderId, account: string): (() => Promise<ProviderUsage>) | undefined => {
       switch (provider) {
         case 'codex': {
-          const tokens = codexTokens
-          return tokens === undefined ? undefined : async () =>
-            fetchCodexUsage(await tokens.session(account), hostFetch, AbortSignal.timeout(POOL_USAGE_TIMEOUT_MS))
+          // Settings shares this cache; keep optional reset credits and errors.
+          const fetcher = usageFetchers.codex
+          return fetcher === undefined ? undefined : () =>
+            fetcher(account, AbortSignal.timeout(POOL_USAGE_TIMEOUT_MS))
         }
         case 'claude': {
           const tokens = claudeTokens
@@ -1192,6 +1239,22 @@ export function apply(ctx: Context, config: Config): void {
     async name => resolveExternalCredential?.(name),
     hostFetch,
   )
+  const resetRedemption = new ResetRedemption(
+    async (account, signal) => {
+      if (!usageFetchers.codex) throw new BadRequest('Codex unavailable')
+      return usageFetchers.codex(account, signal)
+    },
+    async (account, creditId, requestId, signal) => {
+      if (!codexTokens) throw new BadRequest('Codex unavailable')
+      await consumeCodexResetCredit(await codexTokens.session(account), creditId, requestId, hostFetch, signal)
+    },
+    account => poolUsage?.invalidate('codex', account),
+    // The browser may name the account by canonical id, legacy key, email, or
+    // workspace id. The guards must key on the stored account's key — the same
+    // one the usage cache uses — so an alias cannot slip past a parked
+    // outcome, and an invalidation actually clears that account's cache.
+    async account => resolveAccountKey('codex', account),
+  )
   registerAuthRpc(ctx, new SubscriptionsAuthController(
     flows, deviceFlows, authChanged, resolveAttachments, usageFetchers, undefined, poolUsage, config.antigravity,
     {
@@ -1202,6 +1265,7 @@ export function apply(ctx: Context, config: Config): void {
       } : {},
       ...providers.includes('claude') ? { claude: presentedVersion(claudeVersion) } : {},
     },
+    resetRedemption,
   ), speed, modelDefaults, {
     async get(provider, force) {
       await loadModelDefaults()

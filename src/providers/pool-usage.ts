@@ -82,6 +82,11 @@ type CacheEntry = SnapshotEntry | FailureEntry
 export class PoolUsageTracker {
   private readonly entries = new Map<string, CacheEntry>()
   private readonly inflight = new Map<string, Promise<ProviderUsage>>()
+  /** Bumped by {@link invalidate} so a fetch started before it cannot repopulate the cache. */
+  private readonly generation = new Map<string, number>()
+  /** Monotonic per-key write order: only the newest settled fetch may cache. */
+  private nextSequence = 0
+  private readonly lastWritten = new Map<string, number>()
 
   constructor(
     private readonly fetcherFor: (provider: ProviderId, account: string) => (() => Promise<ProviderUsage>) | undefined,
@@ -168,14 +173,26 @@ export class PoolUsageTracker {
     }
   }
 
-  /** Drop cached snapshots: one account, or a whole provider when `account` is omitted. */
+  /**
+   * Drop cached snapshots: one account, or a whole provider when `account` is
+   * omitted. A fetch already in flight is abandoned too. It was started against
+   * state the caller has just declared changed — a redeemed credit, a completed
+   * login — so joining it would return the pre-change numbers and cache them for
+   * the full freshness window. Its result is discarded on arrival by the
+   * generation check in {@link refresh}.
+   */
   invalidate(provider: ProviderId, account?: string): void {
+    const drop = (key: string): void => {
+      this.entries.delete(key)
+      this.inflight.delete(key)
+      this.generation.set(key, (this.generation.get(key) ?? 0) + 1)
+    }
     if (account !== undefined) {
-      this.entries.delete(`${provider}/${account}`)
+      drop(`${provider}/${account}`)
       return
     }
-    for (const key of [...this.entries.keys()]) {
-      if (key.startsWith(`${provider}/`)) this.entries.delete(key)
+    for (const key of [...this.entries.keys(), ...this.inflight.keys()]) {
+      if (key.startsWith(`${provider}/`)) drop(key)
     }
   }
 
@@ -197,15 +214,28 @@ export class PoolUsageTracker {
       // consecutive failure, even though nothing newer ever replaced it.
       const prior = this.entries.get(key)
       const lastSnapshot = prior?.snapshot ?? prior?.lastSnapshot
+      const generation = this.generation.get(key) ?? 0
+      // A newer fetch may settle before this one does. The generation only
+      // catches an invalidate; the sequence catches a plain race, where this
+      // fetch fails late and would otherwise cache a cooldown over a fresher
+      // success that already landed.
+      const sequence = ++this.nextSequence
       pending = fetcher().then(
         (value) => {
           const at = Date.now()
           const snapshot = { ...value, observedAt: at, stale: false }
-          this.entries.set(key, { snapshot, at })
+          // An invalidate() during the fetch means this result describes a world
+          // that has moved on; caching it would resurrect the old numbers.
+          if ((this.generation.get(key) ?? 0) === generation && (this.lastWritten.get(key) ?? 0) < sequence) {
+            this.lastWritten.set(key, sequence)
+            this.entries.set(key, { snapshot, at })
+          }
           return snapshot
         },
         (error: unknown) => {
-          if (!isMissingOrInvalidCredential(error)) {
+          if (!isMissingOrInvalidCredential(error) && (this.generation.get(key) ?? 0) === generation
+            && (this.lastWritten.get(key) ?? 0) < sequence) {
+            this.lastWritten.set(key, sequence)
             this.entries.set(key, {
               error,
               at: Date.now(),
@@ -216,7 +246,8 @@ export class PoolUsageTracker {
           throw error
         },
       ).finally(() => {
-        this.inflight.delete(key)
+        // Only clear our own slot: an invalidate may have replaced it.
+        if (this.inflight.get(key) === pending) this.inflight.delete(key)
       })
       this.inflight.set(key, pending)
     }
