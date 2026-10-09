@@ -1,39 +1,35 @@
 import { strict as assert } from 'node:assert'
 import { test } from 'node:test'
+import { ToolCallId } from '../../src/compat.js'
 import { toAntigravityContents } from '../../src/translate/antigravity.js'
+import type { TranslatableBlock, TranslatableMessage } from '../../src/translate/resolved.js'
 
 const MODEL = 'gemini-3.8-flash-tiered'
 
 type Messages = Parameters<typeof toAntigravityContents>[0]
 
-/**
- * Build one tool result whose text is exactly the supplied payload, then read
- * back the response the adapter would put on the wire.
- */
-function responseFor(text: string, isError = false): unknown {
-  const messages = [
+function contentsFor(content: readonly TranslatableBlock[], isError?: boolean, role: 'user' | 'tool' = 'user') {
+  const flag = isError === undefined ? {} : { isError }
+  const result: TranslatableMessage = role === 'tool'
+    ? { role, toolCallId: 'c1', content, ...flag }
+    : { role, content: [{ type: 'tool-result', toolCallId: 'c1', content, ...flag }] }
+  return toAntigravityContents([
     {
       role: 'assistant',
-      content: [{ type: 'tool-call', id: 'c1', name: 'tool', arguments: '{}' }],
+      content: [{ type: 'tool-call', id: ToolCallId('c1'), name: 'tool', arguments: '{}' }],
     },
-    {
-      role: 'user',
-      content: [
-        {
-          type: 'tool-result',
-          toolCallId: 'c1',
-          content: [{ type: 'text', text }],
-          isError,
-        },
-      ],
-    },
-  ] as unknown as Messages
-  for (const entry of toAntigravityContents(messages, MODEL)) {
-    for (const part of entry.parts) {
-      if (part.functionResponse !== undefined) return part.functionResponse.response
-    }
-  }
-  return undefined
+    result,
+  ], MODEL)
+}
+
+function responseFrom(contents: ReturnType<typeof toAntigravityContents>): Record<string, unknown> {
+  const response = contents.flatMap(entry => entry.parts).find(part => part.functionResponse)?.functionResponse?.response
+  assert.notEqual(response, undefined, 'tool result must have a function response')
+  return response!
+}
+
+function responseFor(text: string, isError?: boolean, role: 'user' | 'tool' = 'user'): Record<string, unknown> {
+  return responseFrom(contentsFor([{ type: 'text', text }], isError, role))
 }
 
 /** Antigravity maps this field to a singular protobuf Struct. */
@@ -69,6 +65,84 @@ test('scalar JSON tool results are wrapped', () => {
 test('non-JSON tool results keep their existing envelope', () => {
   assert.deepEqual(responseFor('plain output'), { output: 'plain output' })
   assert.deepEqual(responseFor('boom', true), { output: 'boom', isError: true })
+})
+
+test('failed JSON object tool results carry the error flag', () => {
+  assert.deepEqual(responseFor('{"message":"denied"}', true), { message: 'denied', isError: true })
+  assert.deepEqual(responseFor('{"isError":false,"message":"denied"}', true), { isError: true, message: 'denied' })
+})
+
+test('failed JSON arrays and scalars carry the error flag in a Struct compatible envelope', () => {
+  for (const text of ['null', '42', 'true', 'false', '"denied"', '[]', '[1,{"a":2}]']) {
+    const response = responseFor(text, true)
+    assertStructCompatible(response)
+    assert.deepEqual(response, { output: JSON.parse(text) as unknown, isError: true })
+  }
+})
+
+test('successful JSON results preserve their serialized bytes with absent or false error flags', () => {
+  for (const [text, expected] of [
+    ['{ "z":1,"a":{"b":[2,3]} }', '{"z":1,"a":{"b":[2,3]}}'],
+    ['{"output":"value","isError":false}', '{"output":"value","isError":false}'],
+    ['null', '{"output":null}'],
+    ['42', '{"output":42}'],
+    ['true', '{"output":true}'],
+    ['"value"', '{"output":"value"}'],
+    ['[1,2]', '{"output":[1,2]}'],
+  ]) {
+    for (const role of ['user', 'tool'] as const) {
+      for (const flag of [undefined, false]) assert.equal(JSON.stringify(responseFor(text, flag, role)), expected)
+    }
+  }
+})
+
+test('successful text results preserve their serialized bytes', () => {
+  for (const role of ['user', 'tool'] as const) {
+    for (const flag of [undefined, false]) {
+      assert.equal(JSON.stringify(responseFor('plain output', flag, role)), '{"output":"plain output"}')
+    }
+  }
+})
+
+test('errored JSON tool-role messages carry the error flag', () => {
+  assert.deepEqual(responseFor('{"message":"denied"}', true, 'tool'), { message: 'denied', isError: true })
+})
+
+test('errored plain-text tool-role messages carry the error flag', () => {
+  assert.deepEqual(responseFor('denied', true, 'tool'), { output: 'denied', isError: true })
+})
+
+test('empty tool-result content keeps its output envelope and error flag', () => {
+  for (const role of ['user', 'tool'] as const) {
+    assert.equal(JSON.stringify(responseFrom(contentsFor([], undefined, role))), '{"output":""}')
+    assert.deepEqual(responseFrom(contentsFor([], true, role)), { output: '', isError: true })
+  }
+})
+
+test('mixed tool-result content joins text and retains images after the function response', () => {
+  const image: TranslatableBlock = { type: 'image', mediaType: 'image/png', dataBase64: 'aW1hZ2U=' }
+  for (const role of ['user', 'tool'] as const) {
+    for (const [text, expected] of [
+      ['{"message":"denied"}', { message: 'denied' }],
+      ['plain output', { output: 'plain output' }],
+    ] as const) {
+      const content: TranslatableBlock[] = [
+        { type: 'text', text: text.slice(0, 5) },
+        image,
+        { type: 'reasoning', text: 'not tool output' },
+        { type: 'text', text: text.slice(5) },
+      ]
+      for (const flag of [undefined, true]) {
+        const contents = contentsFor(content, flag, role)
+        assert.deepEqual(responseFrom(contents), { ...expected, ...flag === true ? { isError: true } : {} })
+        const parts = contents.flatMap(entry => entry.parts)
+        const responseIndex = parts.findIndex(part => part.functionResponse)
+        const imageIndex = parts.findIndex(part => part.inlineData)
+        assert.ok(imageIndex > responseIndex)
+        assert.deepEqual(parts[imageIndex].inlineData, { mimeType: 'image/png', data: 'aW1hZ2U=' })
+      }
+    }
+  }
 })
 
 test('multiple tool results in one turn stay Struct compatible', () => {
