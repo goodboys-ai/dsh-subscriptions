@@ -1,7 +1,7 @@
 /**
  * Subscriptions settings section: one card per subscription provider with an
- * OAuth login/logout flow driven by the node half's `/subscriptions-auth` RPC
- * channel. Login state lives server-side; the page polls `status` only while
+ * OAuth login/logout flow driven by the node half's
+ * `/api/subscriptions-auth.<endpoint>` RPC routes. Login state lives server-side; the page polls `status` only while
  * a login attempt is busy, so an idle page never polls. All state is local
  * React state — the page has no store.
  *
@@ -33,12 +33,6 @@ export { callSubscriptionsAuth } from './subscriptions-rpc.js'
 
 /** Poll cadence while a provider login attempt is busy. */
 const POLL_INTERVAL_MS = 2000
-
-/**
- * Model count above which the expanded default-effort list also offers a name
- * filter; below it the list is short enough to scan.
- */
-const MODEL_FILTER_THRESHOLD = 8
 
 /** Subscription provider ids, fixed by the node half's OAuth adapters. */
 export type SubscriptionProvider = 'codex' | 'claude' | 'grok' | 'copilot' | 'antigravity'
@@ -117,22 +111,6 @@ export interface ResetCreditView {
   claimable?: boolean
   /** Epoch milliseconds until which the grant is visible but not usable. */
   cooldownUntil?: number
-}
-
-/** One model's default-effort picker state as answered by `modelDefaults`. */
-export interface ModelDefaultView {
-  id: string
-  name: string
-  /** Advertised effort levels, in catalog order (empty when the model has no reasoning). */
-  efforts: { id: string; name: string }[]
-  /** The user-configured default effort, when set. */
-  configured?: string
-}
-
-/** `modelDefaults` endpoint value: one provider's picker state. */
-export interface ModelDefaultsCatalog {
-  provider: SubscriptionProvider
-  models: ModelDefaultView[]
 }
 
 /** `login` endpoint value: the URL the user completes OAuth at. */
@@ -313,98 +291,6 @@ function usageWindowLabel(t: SubscriptionsSectionInjected['t'], window: UsageWin
 
 /** Meter fill color lives with the pace logic: fresh 90%+ is red, pace presets add a yellow lead threshold. */
 export { usageBarColor } from './usage-pace.js'
-
-/** What one provider's collapsible default-effort section renders. */
-export interface ModelDefaultsView {
-  /** Models with reasoning levels, after the name filter — one row each. */
-  shown: ModelDefaultView[]
-  /** Models with reasoning levels before filtering (the header total). */
-  total: number
-  /** How many of those carry a user override (the header count). */
-  overridden: number
-  /** Models without reasoning levels: one count line, never a row each. */
-  withoutEfforts: number
-  /** Whether the list is long enough to deserve a filter box. */
-  showFilter: boolean
-}
-
-/**
- * Derive one provider's default-effort section from its catalog and filter.
- * Pure so the collapsed-header counts and the filter stay testable without a
- * DOM: rows come only from models that advertise levels, the count of the rest
- * rides as one line, and the filter matches display name or model id.
- * @param models - the provider's catalog models, or undefined while loading.
- * @param filter - the raw filter input (trimmed and lowercased here).
- * @returns the section's rows and header counts.
- */
-export function deriveModelDefaultsView(
-  models: readonly ModelDefaultView[] | undefined,
-  filter: string,
-): ModelDefaultsView {
-  const all = models ?? []
-  const withEfforts = all.filter(model => model.efforts.length > 0)
-  const query = filter.trim().toLowerCase()
-  const shown = query === ''
-    ? withEfforts
-    : withEfforts.filter(model => model.name.toLowerCase().includes(query)
-      || model.id.toLowerCase().includes(query))
-  return {
-    shown,
-    total: withEfforts.length,
-    overridden: withEfforts.filter(model => model.configured !== undefined).length,
-    withoutEfforts: all.length - withEfforts.length,
-    showFilter: withEfforts.length > MODEL_FILTER_THRESHOLD,
-  }
-}
-
-/** Inputs of the default-effort fetch decision (see {@link shouldFetchModelDefaults}). */
-export interface ModelDefaultsFetchInput {
-  /** Providers that currently have at least one account. */
-  loggedIn: readonly SubscriptionProvider[]
-  /** Providers whose disclosure is open. */
-  open: readonly SubscriptionProvider[]
-  /** The account signature the last completed fetch was answered for. */
-  loadedFor: string | undefined
-  /** The account signature of the current status snapshot. */
-  signature: string
-  /** Whether the last attempt failed (a failure latches until Retry). */
-  failed: boolean
-}
-
-/**
- * Whether the default-effort catalog needs (re)fetching.
- *
- * Fetching is gated on an *attempt* signature rather than on the payload
- * being empty: an empty answer is a legitimate result (a narrowed
- * `config.providers`, or a catalog that is momentarily unavailable), and
- * treating it as "not loaded yet" re-ran this effect forever. The signature
- * also covers the accounts, so logging a second provider in refetches
- * instead of leaving that card on the previous answer.
- * @param input - the decision inputs.
- * @returns true when the caller should start a fetch.
- */
-export function shouldFetchModelDefaults(input: ModelDefaultsFetchInput): boolean {
-  if (input.failed) return false
-  if (input.loggedIn.length === 0) return false
-  // Only an open disclosure pays for the per-model live resolve.
-  if (!input.open.some(provider => input.loggedIn.includes(provider))) return false
-  return input.loadedFor !== input.signature
-}
-
-/**
- * Stable signature of the accounts a catalog answer depends on. A change
- * means a previous answer is stale (an account arrived or left), so the next
- * open disclosure refetches.
- * @param statuses - the per-provider status snapshot.
- * @returns a signature string, stable across renders with equal accounts.
- */
-export function modelDefaultsSignature(
-  statuses: Partial<Record<SubscriptionProvider, ProviderStatus>>,
-): string {
-  return PROVIDERS
-    .map(({ id }) => `${id}:${(statuses[id]?.accounts ?? []).map(account => account.key).sort().join(',')}`)
-    .join('|')
-}
 
 /**
  * The Subscriptions settings page component.

@@ -8,10 +8,10 @@
  * chip the model picker shows when the discovered catalog advertises no
  * default at all.
  *
- * Writes are single-process and atomic, but *not* as serialised as the rest
- * of the page: the Settings page disables only the row being saved, so two
- * rows saved back to back can overlap. The write chain below serialises them,
- * so no update is lost to a read-modify-write race. Every read comes from the
+ * Writes are single-process and atomic. The account manager submits effort
+ * edits sequentially and disables its editor while saving, but concurrent RPC
+ * callers can still overlap. The write chain below serialises them, so no
+ * update is lost to a read-modify-write race. Every read comes from the
  * in-memory snapshot, so the on-disk file only needs to survive a restart: a
  * malformed file reads as empty and is rewritten on the next save, never
  * taking the plugin down with it.
@@ -36,13 +36,13 @@ const EMPTY: ModelDefaults = Object.freeze({})
 let current: ModelDefaults = EMPTY
 /** One lazy load of the on-disk file (read once per process). */
 let ready: Promise<void> | undefined
-/** Last load failure, surfaced to callers that care; defaults stay empty. */
+/** Last load failure or skipped-entry warning, inspected only by tests. */
 let loadError: unknown
 /**
  * Serialises every write: the read-modify-write sequence must not interleave,
  * or a fast second save would compute its snapshot from the stale `current`
- * and silently drop the first update (the UI disables only the row being
- * saved, so overlaps are reachable).
+ * and silently drop the first update. Concurrent RPC callers can overlap
+ * even though one account-manager dialog submits its edits sequentially.
  */
 let writeChain: Promise<void> = Promise.resolve()
 
@@ -50,8 +50,8 @@ let writeChain: Promise<void> = Promise.resolve()
  * Validate one persisted provider section: a string→string map, or undefined.
  * Malformed *entries* are skipped, not the whole section: one bad value (a
  * hand edit losing its quotes) must not silently un-configure every model in
- * that provider. What was dropped is reported so the caller can surface it
- * instead of the loss disappearing.
+ * that provider. Dropped model ids are recorded in a test-only load warning;
+ * production callers do not surface this warning.
  */
 function sanitizeProvider(value: unknown, dropped: string[]): ModelDefaultMap | undefined {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined
@@ -146,16 +146,17 @@ function sectionOf(defaults: ModelDefaults, provider: ProviderId): ModelDefaultM
 
 /**
  * Ready the defaults store.
- * @internal Exported for tests; index.ts calls it at apply time so every
- * later synchronous read sees the persisted state.
+ * index.ts calls it at apply time so every later synchronous read sees the
+ * persisted state; store tests also call it after resetting the singleton.
  */
 export async function loadModelDefaults(): Promise<void> {
   await ensureReady()
 }
 
 /**
- * The last load failure, or a warning about entries that were skipped while
- * loading; consumers only use it for diagnostics.
+ * Test-only observation of the last load failure or skipped-entry warning.
+ * No production diagnostic consumer currently reads it.
+ * @internal Exported for tests only.
  */
 export function modelDefaultsLoadError(): unknown {
   return loadError
@@ -176,7 +177,10 @@ export function defaultEffortOf(provider: ProviderId, model: string): string | u
   return Object.prototype.hasOwnProperty.call(section, model) ? section[model] : undefined
 }
 
-/** A detached snapshot for the RPC surface (render + diffing). */
+/**
+ * Detached snapshot for store assertions in tests; no production RPC uses it.
+ * @internal Exported for tests only.
+ */
 export function modelDefaultsSnapshot(): ModelDefaults {
   const result: Partial<Record<ProviderId, ModelDefaultMap>> = {}
   for (const provider of PROVIDER_IDS) {
