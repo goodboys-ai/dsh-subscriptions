@@ -49,15 +49,13 @@ jobs:
       # It catches a compatibility statement that drifted from the window.
       - run: node scripts/check-compat-docs.mjs
       - run: node scripts/check-image-budget.mjs
-      # The upstream-port ledger. CI checks out this repository alone, so the
-      # half that enumerates upstream commits skips itself here; a scheduled run
-      # that fetches the upstream remote passes --require-upstream to make that
-      # fatal. What always runs: every ported entry must name a commit that is an
-      # ancestor of this branch, every decline must exist as evidence, the prose
-      # must not drift from the ledger, and a host-capability claim is
-      # re-checked against the published package.
+      # Local ledger checks only: fork ancestry, evidence, prose status, and
+      # host-capability re-verification. No upstream repository is fetched on PRs.
+      # upstream-audit.yml independently fetches and enumerates upstream/main
+      # on a schedule or workflow_dispatch, with --require-upstream; fetch/setup
+      # failures go red as "cannot answer", not as unclassified commits.
       - name: Check the upstream-port ledger
-        run: node scripts/check-upstream-ports.mjs
+        run: node scripts/check-upstream-ports.mjs --local-only
 
   build-and-test:
     # Per-version API checks: compile and test against each DSH version's

@@ -41,8 +41,10 @@
   including dark mode. Prompt-cache TTL is configurable, and the status-bar
   quota display can pin one provider or rotate through them.
 - The repository now carries a checked ledger of what was taken from upstream,
-  what was declined and why. CI fails if the ledger drifts from the tree, and a
-  decline that rests on a host capability is re-verified against the published
+  what was declined and why. Per-PR CI checks local ledger consistency; the separate
+  scheduled/manual upstream audit checks remote commits after a successful
+  fetch and reports fetch/setup failures separately from ledger findings, and
+  a decline that rests on a host capability is re-verified against the published
   package, which is the specific mistake that produced this ledger.
 - Live-provider gaps, not verified by this release: no live account was used to
   exercise the Codex reset endpoint or Claude's banked-reset block, so what
