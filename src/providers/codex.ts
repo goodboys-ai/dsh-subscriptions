@@ -82,8 +82,8 @@ const CODEX_RESET_FIELDS = ['resets_in_seconds', 'reset_after_seconds', 'resets_
  * rollover snapshots the backend attaches to every response, one per window,
  * so they say nothing about which window refused: a burst 429 that would clear
  * in seconds still carries a primary rollover hours out, and reading it would
- * park the turn for those hours. They reach the operator through
- * `rateLimitDiagnostics` instead.
+ * park the turn for those hours. The parsed body reset supplies the retry hint;
+ * diagnostics omit raw provider headers and body text.
  */
 export const codexRateLimitReset: RateLimitResetReader = (_response, body, now) =>
   resetFromFields(jsonBody(body), CODEX_RESET_FIELDS, now)

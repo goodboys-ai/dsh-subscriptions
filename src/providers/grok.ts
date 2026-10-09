@@ -73,8 +73,8 @@ const GROK_RESET_FIELDS = ['retry_after', 'retry_after_seconds', 'resets_at', 'r
  * whose values are rollover durations (`6m0s`) present on every response, one
  * per bucket — on a 429 the earliest of them is usually a bucket with room
  * (`0s` for the request bucket while the token bucket is the one exhausted),
- * which would burn the whole retry budget in seconds. They reach the operator
- * through `rateLimitDiagnostics` instead.
+ * which would burn the whole retry budget in seconds. The parsed body reset
+ * supplies the retry hint; diagnostics omit raw provider headers and body text.
  */
 export const grokRateLimitReset: RateLimitResetReader = (_response, body, now) =>
   resetFromFields(jsonBody(body), GROK_RESET_FIELDS, now)
