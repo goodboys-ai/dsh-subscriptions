@@ -13,7 +13,7 @@
  */
 
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
-import { dirname } from 'node:path'
+import { dirname, resolve } from 'node:path'
 import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type { ProviderId } from '../auth/store.js'
@@ -173,9 +173,31 @@ async function writeCatalogFile(store: CatalogFile, path: string): Promise<void>
 }
 
 /**
+ * Like the auth store, mutations of one resolved path share an in-process
+ * write chain in call order. Each reads after the preceding mutation settles;
+ * a failure rejects its caller without blocking later mutations. Idle chains
+ * are removed. Separate processes (or filesystem aliases of a path) are not
+ * locked and remain last-writer-wins.
+ */
+const writeChains = new Map<string, Promise<unknown>>()
+
+async function serialize<T>(path: string, action: () => Promise<T>): Promise<T> {
+  const key = resolve(path)
+  const previous = writeChains.get(key) ?? Promise.resolve()
+  const next = previous.then(action, action)
+  const tail = next.then(() => undefined, () => undefined)
+  writeChains.set(key, tail)
+  try {
+    return await next
+  } finally {
+    if (writeChains.get(key) === tail) writeChains.delete(key)
+  }
+}
+
+/**
  * Build the durable half of one provider's catalog cache over the shared
- * models.json file (concurrent writers are last-writer-wins, acceptable for
- * a cache).
+ * models.json file. Saves and clears serialize with all accounts at this path
+ * in this process; readers see a complete file before or after an atomic rename.
  * @param provider - the provider route keying the file entry.
  * @param path - store file path; defaults to {@link modelsFilePath}.
  * @returns the persistence hooks for {@link ModelCatalogCache}.
@@ -186,15 +208,19 @@ export function catalogStore(provider: ProviderId, path = modelsFilePath()): Cat
       return sanitizeSnapshot((await readCatalogFile(path))[provider])
     },
     async save(snapshot) {
-      const store = await readCatalogFile(path)
-      store[provider] = snapshot
-      await writeCatalogFile(store, path)
+      return serialize(path, async () => {
+        const store = await readCatalogFile(path)
+        store[provider] = snapshot
+        await writeCatalogFile(store, path)
+      })
     },
     async clear() {
-      const store = await readCatalogFile(path)
-      if (store[provider] === undefined) return
-      delete store[provider]
-      await writeCatalogFile(store, path)
+      return serialize(path, async () => {
+        const store = await readCatalogFile(path)
+        if (store[provider] === undefined) return
+        delete store[provider]
+        await writeCatalogFile(store, path)
+      })
     },
   }
 }
@@ -204,6 +230,7 @@ export function catalogStore(provider: ProviderId, path = modelsFilePath()): Cat
  * entry belongs to the default account; every other account keeps its own
  * snapshot under `accounts[provider][account]`, so a working secondary login
  * survives restarts and network failures even when the default login is dead.
+ * Saves and clears share {@link catalogStore}'s in-process write chain.
  * @param provider - the provider route.
  * @param account - the canonical account key.
  * @param path - store file path; defaults to {@link modelsFilePath}.
@@ -216,22 +243,26 @@ export function accountCatalogStore(provider: ProviderId, account: string, path 
       return section !== undefined && Object.hasOwn(section, account) ? sanitizeSnapshot(section[account]) : undefined
     },
     async save(snapshot) {
-      const store = await readCatalogFile(path)
-      const accounts = typeof store.accounts === 'object' && store.accounts !== null && !Array.isArray(store.accounts)
-        ? store.accounts as Record<string, unknown>
-        : {}
-      const section = { ...accountSection(store, provider) ?? {}, [account]: snapshot }
-      store.accounts = { ...accounts, [provider]: section }
-      await writeCatalogFile(store, path)
+      return serialize(path, async () => {
+        const store = await readCatalogFile(path)
+        const accounts = typeof store.accounts === 'object' && store.accounts !== null && !Array.isArray(store.accounts)
+          ? store.accounts as Record<string, unknown>
+          : {}
+        const section = { ...accountSection(store, provider) ?? {}, [account]: snapshot }
+        store.accounts = { ...accounts, [provider]: section }
+        await writeCatalogFile(store, path)
+      })
     },
     async clear() {
-      const store = await readCatalogFile(path)
-      const section = accountSection(store, provider)
-      if (section === undefined || !Object.hasOwn(section, account)) return
-      const rest = { ...section }
-      delete rest[account]
-      store.accounts = { ...store.accounts as Record<string, unknown>, [provider]: rest }
-      await writeCatalogFile(store, path)
+      return serialize(path, async () => {
+        const store = await readCatalogFile(path)
+        const section = accountSection(store, provider)
+        if (section === undefined || !Object.hasOwn(section, account)) return
+        const rest = { ...section }
+        delete rest[account]
+        store.accounts = { ...store.accounts as Record<string, unknown>, [provider]: rest }
+        await writeCatalogFile(store, path)
+      })
     },
   }
 }
