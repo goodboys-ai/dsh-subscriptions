@@ -99,11 +99,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * carries none.
  */
 /**
- * A provider-assigned request id, accepted only in the shape an opaque id has.
- * The value reaches a user-visible failure message, so echoing it unchecked
- * would let a provider put arbitrary text there — it is free text until proven
- * otherwise. An id outside this shape is refused rather than displayed: the
- * field exists for support correlation, not for the provider to speak through.
+ * A provider-assigned request id, accepted only in a bounded identifier shape.
+ * The value reaches a user-visible failure message, so an unchecked one would
+ * let a provider put arbitrary text there. The shape rules out prose, spaces
+ * and message excerpts; it does NOT prove the value is harmless, because a
+ * credential-shaped string such as `SHORT_SECRET` matches it. Treat this as a
+ * bounded, format-constrained provider value that is displayed for support
+ * correlation — not as the absence of provider-supplied content.
  */
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/
 

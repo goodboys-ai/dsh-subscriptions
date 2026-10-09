@@ -97,7 +97,11 @@ for (const site of parseSites) {
       assert.equal(targetCalls, 1, 'parse failure must not retry the endpoint')
     }
   })
-  test(`JSON parse success retains credential-looking fields: ${site.origin}`, async t => {
+  // Field fidelity is asserted directly on the helper; what this per-site case
+  // adds is that the site still parses when the body carries a credential-looking
+  // field. The name says that, rather than claiming retention this loop only
+  // checks for most sites.
+  test(`JSON parse success is unaffected by credential-looking fields: ${site.origin}`, async t => {
     resetGrokDiscoveryForTests()
     resetVsCodeVersionCacheForTests()
     const http: typeof fetch = async input => {

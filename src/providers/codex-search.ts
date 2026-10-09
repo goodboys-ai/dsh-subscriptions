@@ -104,8 +104,11 @@ export class CodexWebSearchProvider implements WebSearchProvider {
         throw new WebError(`Codex Web Search returned HTTP ${response.status}`, 'CODEX_SEARCH_UPSTREAM')
       }
       const text = await boundedText(response, signal)
-      try { return JSON.parse(text) as unknown } catch (cause) {
-        throw new WebError('Codex Web Search returned invalid JSON', 'CODEX_SEARCH_RESPONSE', { cause })
+      try { return JSON.parse(text) as unknown } catch {
+        // No cause: the host expands causes recursively, and Node's parse error
+        // quotes a bounded excerpt of the body, so attaching it would relocate
+        // the leak rather than remove it.
+        throw new WebError('Codex Web Search returned invalid JSON', 'CODEX_SEARCH_RESPONSE')
       }
     }
     throw new WebError('Codex Web Search exhausted its retry policy', 'CODEX_SEARCH_UPSTREAM')

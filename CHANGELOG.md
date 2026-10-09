@@ -4,8 +4,10 @@
 
 - Codex accounts can spend a banked usage-limit reset from the account card,
   and the card shows how many are left. The reset is confirmed before it is
-  sent, and an ambiguous response parks the account until you check it, so a
-  retry cannot spend a second credit.
+  sent, and an ambiguous response parks the account so an immediate blind retry
+  cannot spend a second credit. That block is process-local rather than a
+  durable limit: restarting the host clears it, and because a lost success may
+  already have spent a credit, check the account in Codex before retrying.
 - Claude accounts show their banked limit resets, with the remaining count and
   when each one lapses. This is display only: the shape comes from an
   independent implementation rather than a published contract, and spending a
