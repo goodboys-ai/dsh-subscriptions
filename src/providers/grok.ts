@@ -31,6 +31,7 @@ import {
   discoverOrRetryAuth,
   isDiscoveryAborted,
   isMissingOrInvalidCredential,
+  parseProviderJson,
   oauthEndpointError,
   OAuthEndpointError,
 } from './common.js'
@@ -110,7 +111,7 @@ export async function grokDiscovery(): Promise<GrokDiscovery> {
   if (discoveryCache !== undefined) return discoveryCache
   const response = await hostFetch(GROK_DISCOVERY_URL)
   if (!response.ok) throw await oauthEndpointError(response, 'grok OIDC discovery')
-  const document = await response.json() as {
+  const document = await parseProviderJson(response, 'grok OIDC discovery') as {
     authorization_endpoint?: string
     token_endpoint?: string
   }
@@ -270,7 +271,7 @@ export async function exchangeGrokCode(
     )
   }
   if (!response.ok) throw await oauthEndpointError(response, 'grok')
-  return grokSession(await response.json() as GrokTokenResponse, discovery.tokenEndpoint)
+  return grokSession(await parseProviderJson(response, 'grok token exchange') as GrokTokenResponse, discovery.tokenEndpoint)
 }
 
 /**
@@ -289,7 +290,7 @@ export async function refreshGrok(session: GrokSession): Promise<GrokSession> {
     }).toString(),
   })
   if (!response.ok) throw await oauthEndpointError(response, 'grok')
-  const next = grokSession(await response.json() as GrokTokenResponse, session.tokenEndpoint, session.refreshToken)
+  const next = grokSession(await parseProviderJson(response, 'grok token refresh') as GrokTokenResponse, session.tokenEndpoint, session.refreshToken)
   return {
     ...next,
     ...session.account === undefined ? {} : { account: session.account },
@@ -360,7 +361,7 @@ export async function fetchGrokUsage(
     ...signal === undefined ? {} : { signal },
   })
   if (!response.ok) throw await oauthEndpointError(response, 'grok billing')
-  const payload = await response.json() as { config?: GrokBillingConfig | null; subscriptionTier?: string }
+  const payload = await parseProviderJson(response, 'grok billing') as { config?: GrokBillingConfig | null; subscriptionTier?: string }
   const config = typeof payload.config === 'object' && payload.config !== null ? payload.config : {}
   const windows: UsageWindow[] = []
   if (config.currentPeriod || (typeof config.creditUsagePercent === 'number' && Number.isFinite(config.creditUsagePercent))) {
@@ -475,7 +476,7 @@ export async function fetchGrokCliCatalog(
     ...signal === undefined ? {} : { signal },
   })
   if (!response.ok) throw await oauthEndpointError(response, 'grok CLI catalog')
-  const payload = await response.json() as { data?: GrokCliWireModel[] }
+  const payload = await parseProviderJson(response, 'grok CLI catalog') as { data?: GrokCliWireModel[] }
   if (!Array.isArray(payload.data)) throw new Error('grok CLI catalog returned no data array')
   const catalog = new Map<string, GrokCliModelMeta>()
   for (const entry of payload.data) {
@@ -564,7 +565,7 @@ export async function fetchGrokModels(
     }),
   ])
   if (!response.ok) throw await oauthEndpointError(response, 'grok models')
-  const payload = await response.json() as { data?: { id?: string }[] }
+  const payload = await parseProviderJson(response, 'grok models') as { data?: { id?: string }[] }
   if (!Array.isArray(payload.data)) throw new Error('grok models endpoint returned no data array')
   const seen = new Set<string>()
   const discovered: DiscoveredModel[] = []

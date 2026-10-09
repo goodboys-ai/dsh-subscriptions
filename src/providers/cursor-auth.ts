@@ -2,6 +2,7 @@
 
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
+import { parseProviderJson } from './common.js'
 
 export const CURSOR_CREDENTIAL_REF = credentialRef('CURSOR_SUBSCRIPTION_OAUTH')
 const API_ORIGIN = 'https://api2.cursor.sh'
@@ -27,9 +28,9 @@ export interface CursorCredentialService {
   unset(ref: typeof CURSOR_CREDENTIAL_REF): Promise<void>
 }
 
-function parseCredential(value: string | undefined): CursorCredential | undefined {
+async function parseCredential(value: string | undefined): Promise<CursorCredential | undefined> {
   if (value === undefined || value.length === 0) return undefined
-  const parsed: unknown = JSON.parse(value)
+  const parsed = await parseProviderJson(value, 'Cursor stored credential')
   if (parsed === null || typeof parsed !== 'object') throw new Error('Cursor credential is malformed')
   const item = parsed as Record<string, unknown>
   if (item.type !== 'oauth' || typeof item.access !== 'string' || item.access.length === 0
@@ -106,7 +107,7 @@ export class CursorAuth {
       ...(signal === undefined ? {} : { signal }),
     })
     if (!response.ok) throw new Error(`Cursor token refresh failed (HTTP ${response.status})`)
-    const body = await response.json() as Record<string, unknown>
+    const body = await parseProviderJson(response, 'Cursor token refresh') as Record<string, unknown>
     if (typeof body.accessToken !== 'string' || body.accessToken.length === 0) {
       throw new Error('Cursor token refresh returned no access token')
     }
@@ -147,7 +148,7 @@ export class CursorAuth {
       const response = await this.http(url, { headers: { accept: 'application/json' }, redirect: 'error', signal })
       if (response.status === 404) { delay = Math.min(Math.ceil(delay * 1.2), 10_000); continue }
       if (!response.ok) throw new Error(`Cursor login failed (HTTP ${response.status})`)
-      const body = await response.json() as Record<string, unknown>
+      const body = await parseProviderJson(response, 'Cursor login poll') as Record<string, unknown>
       signal.throwIfAborted()
       if (typeof body.accessToken !== 'string' || body.accessToken.length === 0) {
         throw new Error('Cursor login returned no access token')

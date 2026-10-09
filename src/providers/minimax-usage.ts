@@ -1,3 +1,4 @@
+import { parseProviderJson } from './common.js'
 import type { ProviderUsage, UsageWindow } from './common.js'
 
 /**
@@ -43,7 +44,7 @@ export async function fetchMiniMaxUsage(
     ...(signal === undefined ? {} : { signal }),
   })
   if (!response.ok) throw new Error(`MiniMax usage endpoint returned HTTP ${response.status}`)
-  const body = await response.json() as { base_resp?: { status_code?: number }; model_remains?: unknown[] }
+  const body = await parseProviderJson(response, 'MiniMax usage') as { base_resp?: { status_code?: number }; model_remains?: unknown[] }
   if ((body?.base_resp?.status_code !== undefined && body.base_resp.status_code !== 0) || !Array.isArray(body?.model_remains)) {
     throw new Error('MiniMax usage response failed or has no quota records')
   }

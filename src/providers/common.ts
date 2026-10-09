@@ -91,6 +91,27 @@ function providerDiagnostic(summary: string, hasBody: boolean): string {
   return hasBody ? `${summary}: [provider response body omitted]` : summary
 }
 
+/**
+ * Parse a provider response or stored JSON string without exposing input excerpts.
+ * Success returns the same JSON value; only SyntaxError is replaced, preserving
+ * parse-failure type checks and leaving body-read/abort failures unchanged.
+ * Node's Unexpected token errors include a bounded input excerpt. Do not retain
+ * the original error as cause: the host displays causes recursively.
+ * @param input - response to consume once, or JSON text to parse.
+ * @param origin - local endpoint/operation label; never response.url, a discovered
+ *   URL, a credential, or any other provider-controlled text.
+ * @returns the parsed value, without validation or credential filtering.
+ * @throws SyntaxError with the local origin and a fixed omission marker.
+ */
+export async function parseProviderJson<T = unknown>(input: Response | string, origin: string): Promise<T> {
+  try {
+    return (typeof input === 'string' ? JSON.parse(input) : await input.json()) as T
+  } catch (error: unknown) {
+    if (!(error instanceof SyntaxError)) throw error
+    throw new SyntaxError(providerDiagnostic(`${origin}: invalid JSON`, true))
+  }
+}
+
 /** Optional per-call hooks {@link httpLlmError} uses to read a rate-limit window. */
 export interface HttpLlmErrorOptions {
   /**

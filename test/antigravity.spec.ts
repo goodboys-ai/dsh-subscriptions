@@ -12,7 +12,6 @@ import {
   ANTIGRAVITY_TOKEN_URL,
   ANTIGRAVITY_USERINFO_URL,
   antigravityFlow,
-  antigravityGenerateURL,
   exchangeAntigravityCode,
   fetchAntigravityModels,
   fetchAntigravityUsage,
@@ -270,14 +269,6 @@ function byteStream(text: string): ReadableStream<Uint8Array> {
 }
 
 test('streamGenerateContent SSE and generateContent URL/forwarding are both supported', async () => {
-  assert.equal(
-    antigravityGenerateURL(runtime.baseURL, true),
-    `${runtime.baseURL}/v1internal:streamGenerateContent?alt=sse`,
-  )
-  assert.equal(
-    antigravityGenerateURL(runtime.baseURL, false),
-    `${runtime.baseURL}/v1internal:generateContent`,
-  )
   const streamed: StreamChunk[] = []
   const frame = { response: { candidates: [{ content: { parts: [{ text: 'ok' }] }, finishReason: 'STOP' }] } }
   for await (const chunk of streamAntigravity(byteStream(`data: ${JSON.stringify(frame)}\n\n`))) streamed.push(chunk)
@@ -290,8 +281,17 @@ test('streamGenerateContent SSE and generateContent URL/forwarding are both supp
   await requestAntigravityContent(session, payload, false, runtime, routed({
     [`${runtime.baseURL}/v1internal:generateContent`]: { response: {} },
   }, calls))
-  assert.equal(calls[0].init?.method, 'POST')
-  assert.equal(new Headers(calls[0].init?.headers).get('authorization'), 'Bearer access-token')
+  await requestAntigravityContent(session, payload, true, runtime, routed({
+    [`${runtime.baseURL}/v1internal:streamGenerateContent?alt=sse`]: new Response('data: {}\n\n'),
+  }, calls))
+  assert.deepEqual(calls.map(call => call.url), [
+    `${runtime.baseURL}/v1internal:generateContent`,
+    `${runtime.baseURL}/v1internal:streamGenerateContent?alt=sse`,
+  ])
+  for (const call of calls) {
+    assert.equal(call.init?.method, 'POST')
+    assert.equal(new Headers(call.init?.headers).get('authorization'), 'Bearer access-token')
+  }
 })
 
 /** Isolated accounts: no disk, OAuth, or real subscription calls. */

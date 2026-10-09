@@ -31,6 +31,7 @@ import {
   ModelCatalogCache,
   discoverOrRetryAuth,
   isMissingOrInvalidCredential,
+  parseProviderJson,
   oauthEndpointError,
   OAuthEndpointError,
   discoverAcrossAccounts,
@@ -206,7 +207,7 @@ async function callInternal<T>(
     ...signal === undefined ? {} : { signal },
   }, runtime, fetchFn)
   if (!response.ok) throw await httpLlmError(response, `Antigravity ${method}`)
-  return response.json() as Promise<T>
+  return parseProviderJson<T>(response, `Antigravity ${method}`)
 }
 
 function projectIdOf(value: unknown): string | undefined {
@@ -319,7 +320,7 @@ export async function exchangeAntigravityCode(
     body: body.toString(),
   })
   if (!response.ok) throw await oauthEndpointError(response, 'Antigravity')
-  const tokens = await response.json() as GoogleTokenResponse
+  const tokens = await parseProviderJson(response, 'Antigravity token exchange') as GoogleTokenResponse
   if (typeof tokens.access_token !== 'string') throw new Error('Antigravity token endpoint returned no access token')
   const account = await discoverAntigravityAccount(tokens.access_token, runtime, fetchFn)
   return sessionFromTokens(tokens, account)
@@ -343,7 +344,7 @@ export async function refreshAntigravity(
     body: body.toString(),
   })
   if (!response.ok) throw await oauthEndpointError(response, 'Antigravity')
-  return sessionFromTokens(await response.json() as GoogleTokenResponse, {
+  return sessionFromTokens(await parseProviderJson(response, 'Antigravity token refresh') as GoogleTokenResponse, {
     projectId: session.projectId,
     ...session.account === undefined ? {} : { account: session.account },
     ...session.plan === undefined ? {} : { plan: session.plan },
@@ -455,11 +456,6 @@ export async function fetchAntigravityUsage(
     windows,
     ...displayPlan === undefined ? {} : { plan: displayPlan },
   }
-}
-
-/** URL for either v1internal generation transport. */
-export function antigravityGenerateURL(baseURL: string | undefined, stream: boolean): string {
-  return `${antigravityBaseURL(baseURL)}/v1internal:${stream ? 'streamGenerateContent?alt=sse' : 'generateContent'}`
 }
 
 /** Forward one already-built payload to generateContent or streamGenerateContent. */
@@ -701,6 +697,6 @@ export class AntigravityAdapter extends LlmAdapter {
       options.signal,
     )
     if (!response.ok) throw await httpLlmError(response, 'Antigravity API')
-    return parseAntigravityResponse(await response.json() as AntigravityResponseEvent)
+    return parseAntigravityResponse(await parseProviderJson(response, 'Antigravity generateContent') as AntigravityResponseEvent)
   }
 }

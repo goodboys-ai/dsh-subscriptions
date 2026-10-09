@@ -1,12 +1,170 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { httpLlmError, oauthEndpointError } from '../src/providers/common.js'
+import { httpLlmError, oauthEndpointError, OAuthEndpointError, TokenManager, parseProviderJson } from '../src/providers/common.js'
+import { exchangeGrokCode, refreshGrok, grokDiscovery, resetGrokDiscoveryForTests, fetchGrokUsage, fetchGrokCliCatalog, fetchGrokModels, GROK_DISCOVERY_URL, GROK_CLI_MODELS_URL } from '../src/providers/grok.js'
+import { exchangeCodexCode, refreshCodex, fetchCodexUsage, fetchCodexModels, fetchCodexResetCredits, consumeCodexResetCredit } from '../src/providers/codex.js'
+import { exchangeClaudeCode, refreshClaude, fetchClaudeUsage, fetchClaudeModels, CLAUDE_PROFILE_URL } from '../src/providers/claude.js'
+import { exchangeCopilotToken, fetchCopilotModels, resetVsCodeVersionCacheForTests, VSCODE_RELEASES_URL } from '../src/providers/copilot.js'
+import { AntigravityAdapter, discoverAntigravityAccount, exchangeAntigravityCode, refreshAntigravity, fetchAntigravityModels, fetchAntigravityUsage, ANTIGRAVITY_USERINFO_URL } from '../src/providers/antigravity.js'
+import { AccountTokenManager } from '../src/providers/accounts.js'
+import { CursorAuth } from '../src/providers/cursor-auth.js'
+import { fetchMiniMaxUsage } from '../src/providers/minimax-usage.js'
+import type { GrokSession, CodexSession, ClaudeSession, CopilotSession, AntigravitySession } from '../src/auth/store.js'
 
 // Synthetic secrets only. These fixtures must not reach any displayed text,
 // including arbitrary customer input that no credential-shape filter recognizes.
 const secret = 'SHORT_SECRET!'
 const body = '{"error":{"message":"customer-input SHORT_SECRET!"}}'
 const marker = '[provider response body omitted]'
+
+const timed = { accessToken: 'at', refreshToken: 'rt', expiresAt: 2_000_000_000_000 }
+const grok: GrokSession = { ...timed, tokenEndpoint: 'https://auth.x.ai/token' }
+const codex: CodexSession = { ...timed, accountId: 'acct' }
+const claude: ClaudeSession = { ...timed, scopes: 'scope' }
+const copilot: CopilotSession = { ...timed }
+const antigravity: AntigravitySession = { ...timed, projectId: 'project' }
+const oauth = { clientId: 'test-client' }
+const runtime = { baseURL: 'https://antigravity.example.invalid', onboard: false }
+const cliVersion = async () => '2.1.1'
+const tokenPayload = { access_token: 'sk-live-ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', refresh_token: 'rt', expires_in: 3600,
+  id_token: `header.${Buffer.from(JSON.stringify({ 'https://api.openai.com/auth': { chatgpt_account_id: 'acct' } })).toString('base64url')}.signature` }
+
+type ParseSite = { origin: string; payload: object; run: (http: typeof fetch) => Promise<unknown>; target?: (url: string) => boolean }
+const parseSites: ParseSite[] = [
+  { origin: 'grok OIDC discovery', payload: { authorization_endpoint: 'https://auth.x.ai/authorize', token_endpoint: grok.tokenEndpoint }, run: () => grokDiscovery() },
+  { origin: 'grok token exchange', payload: tokenPayload, run: () => exchangeGrokCode('code', 'verifier', 'redirect', 'challenge'), target: url => url !== GROK_DISCOVERY_URL },
+  { origin: 'grok token refresh', payload: tokenPayload, run: () => refreshGrok(grok) },
+  { origin: 'grok billing', payload: { config: { creditUsagePercent: 25 } }, run: http => fetchGrokUsage(grok, http) },
+  { origin: 'grok CLI catalog', payload: { data: [{ id: 'grok-4' }] }, run: http => fetchGrokCliCatalog(grok, http) },
+  { origin: 'grok models', payload: { data: [{ id: 'grok-4' }] }, run: http => fetchGrokModels(grok, http), target: url => url !== GROK_CLI_MODELS_URL },
+  { origin: 'codex token exchange', payload: tokenPayload, run: () => exchangeCodexCode('code', 'verifier', 'redirect') },
+  { origin: 'codex token refresh', payload: tokenPayload, run: () => refreshCodex(codex) },
+  { origin: 'codex reset credits', payload: { credits: [] }, run: http => fetchCodexResetCredits(codex, http) },
+  { origin: 'codex consume reset', payload: { code: 'reset' }, run: http => consumeCodexResetCredit(codex, 'credit', 'request', http) },
+  { origin: 'codex usage', payload: { rate_limit: {} }, run: http => fetchCodexUsage(codex, http) },
+  { origin: 'codex models', payload: { models: [{ slug: 'gpt-5' }] }, run: http => fetchCodexModels(codex, http) },
+  { origin: 'claude token exchange', payload: tokenPayload, run: () => exchangeClaudeCode('code', 'verifier', 'redirect', 'state') },
+  { origin: 'claude token refresh', payload: tokenPayload, run: () => refreshClaude(claude) },
+  { origin: 'claude usage', payload: {}, run: http => fetchClaudeUsage(claude, http, undefined, cliVersion) },
+  { origin: 'claude models API', payload: { data: [{ id: 'claude-test' }] }, run: http => fetchClaudeModels(claude, http, undefined, cliVersion) },
+  { origin: 'copilot token exchange', payload: { token: tokenPayload.access_token, expires_at: 2_000_000_000 }, run: http => exchangeCopilotToken('github-token', http) },
+  { origin: 'copilot models', payload: { data: [{ id: 'gpt-5', model_picker_enabled: true }] }, run: http => fetchCopilotModels(copilot, http) },
+  { origin: 'Antigravity token exchange', payload: tokenPayload, run: http => exchangeAntigravityCode('code', 'verifier', 'redirect', oauth, runtime, http) },
+  { origin: 'Antigravity token refresh', payload: tokenPayload, run: http => refreshAntigravity(antigravity, oauth, http) },
+  { origin: 'Antigravity loadCodeAssist', payload: { cloudaicompanionProject: 'project' }, run: http => discoverAntigravityAccount('at', runtime, http) },
+  { origin: 'Antigravity onboardUser', payload: { done: true, response: { cloudaicompanionProject: 'project' } }, run: http => discoverAntigravityAccount('at', { ...runtime, onboard: true }, http), target: url => url.endsWith(':onboardUser') },
+  { origin: 'Antigravity fetchAvailableModels', payload: { models: { 'gemini-test': {} } }, run: http => fetchAntigravityModels(antigravity, runtime, http) },
+  { origin: 'Antigravity generateContent', payload: { response: { candidates: [{ content: { role: 'model', parts: [{ text: 'ok' }] } }] } }, run: http => {
+    const tokens = new AccountTokenManager<AntigravitySession>({ provider: 'antigravity', displayName: 'Test', makeOptions: () => ({ preemptMs: 0, refresh: async s => s, isPermanent: () => false }), io: { list: async () => [{ key: 'acct', session: antigravity }], get: async () => antigravity, save: async () => {}, remove: async () => {} } })
+    return new AntigravityAdapter({ tokens, models: [], discovery: false, streamIdleTimeoutMs: 1000, runtime, fetchFn: http }).generate({ provider: 'antigravity', model: 'gemini-test', messages: [] })
+  } },
+  { origin: 'MiniMax usage', payload: { model_remains: [{ model_name: 'MiniMax', current_interval_remaining_percent: 50 }] }, run: http => fetchMiniMaxUsage('subscription-key', 'global', http) },
+  { origin: 'Cursor token refresh', payload: { accessToken: tokenPayload.access_token, refreshToken: 'rt' }, run: http => {
+    let value = JSON.stringify({ type: 'oauth', access: 'at', refresh: 'rt', expires: 0 })
+    return new CursorAuth({ resolve: async () => ({ value }), set: async (_ref, next) => { value = next }, unset: async () => {} }, http).accessToken()
+  } },
+]
+
+// Exercise real provider entry points; the only fake is the outbound transport.
+for (const site of parseSites) {
+  test(`JSON parse failure omits text and preserves SyntaxError: ${site.origin}`, async t => {
+    const rawBodies = ['sk-live-ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', body.slice(0, -1), body.slice(0, -4), '<html>token SHORT_SECRET!</html>']
+    for (const raw of rawBodies) {
+      resetGrokDiscoveryForTests()
+      resetVsCodeVersionCacheForTests()
+      let targetCalls = 0
+      const http: typeof fetch = async input => {
+        const url = String(input)
+        if (url === VSCODE_RELEASES_URL) return Response.json(['1.107.0'])
+        if (site.target !== undefined && !site.target(url)) {
+          if (url === GROK_DISCOVERY_URL) return Response.json({ authorization_endpoint: 'https://auth.x.ai/authorize', token_endpoint: grok.tokenEndpoint })
+          if (url.endsWith(':loadCodeAssist')) return Response.json({})
+          return Response.json({ data: [] })
+        }
+        targetCalls++
+        return new Response(raw)
+      }
+      t.mock.method(globalThis, 'fetch', http)
+      await assert.rejects(site.run(http), (error: unknown) => {
+        assert.ok(error instanceof SyntaxError)
+        assert.equal(error.name, 'SyntaxError')
+        assert.equal('code' in error, false)
+        assert.equal(error.cause, undefined)
+        assert.doesNotMatch(error.message, /SHORT_SECRET|customer-input|sk-live|\{"error|<html>/)
+        assert.equal(error.message, `${site.origin}: invalid JSON: ${marker}`)
+        return true
+      })
+      assert.equal(targetCalls, 1, 'parse failure must not retry the endpoint')
+    }
+  })
+  test(`JSON parse success retains credential-looking fields: ${site.origin}`, async t => {
+    resetGrokDiscoveryForTests()
+    resetVsCodeVersionCacheForTests()
+    const http: typeof fetch = async input => {
+      const url = String(input)
+      if (url === VSCODE_RELEASES_URL) return Response.json(['1.107.0'])
+      if (url === CLAUDE_PROFILE_URL || url === ANTIGRAVITY_USERINFO_URL) return Response.json({})
+      if (site.target !== undefined && !site.target(url)) {
+        if (url === GROK_DISCOVERY_URL) return Response.json({ authorization_endpoint: 'https://auth.x.ai/authorize', token_endpoint: grok.tokenEndpoint })
+        if (url.endsWith(':loadCodeAssist')) return Response.json({})
+        return Response.json({ data: [] })
+      }
+      if (url.endsWith(':loadCodeAssist') && site.origin === 'Antigravity token exchange') return Response.json({ cloudaicompanionProject: 'project' })
+      return Response.json({ ...site.payload, credential: tokenPayload.access_token })
+    }
+    t.mock.method(globalThis, 'fetch', http)
+    const result = await site.run(http)
+    if (site.origin.includes('token exchange') || site.origin.includes('token refresh')) {
+      assert.equal(typeof result === 'string' ? result : (result as { accessToken: string }).accessToken, tokenPayload.access_token)
+    } else if (site.origin === 'codex consume reset') assert.equal(result, undefined)
+    else assert.ok(result !== undefined)
+  })
+}
+
+test('JSON parse refresh failure remains transient, with the same TokenManager AUTH classification', async () => {
+  const original = globalThis.fetch
+  globalThis.fetch = async () => new Response('sk-live-ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789')
+  try {
+    let removed = false
+    const manager = new TokenManager({ displayName: 'codex', preemptMs: 0, load: async () => ({ ...codex, expiresAt: 0 }), save: async () => {}, remove: async () => { removed = true }, refresh: refreshCodex, isPermanent: error => error instanceof OAuthEndpointError })
+    await assert.rejects(manager.session(), (error: unknown) => {
+      assert.ok(error instanceof Error && 'code' in error)
+      assert.equal(error.code, 'AUTH')
+      assert.ok(error.cause instanceof SyntaxError)
+      assert.equal(error.cause.message, `codex token refresh: invalid JSON: ${marker}`)
+      return true
+    })
+    assert.equal(removed, false)
+  } finally { globalThis.fetch = original }
+})
+test('safe JSON helper preserves values and non-parse failures without retaining unsafe causes', async () => {
+  const payload = { credential: tokenPayload.access_token, nested: [null, true, 2, 'text'] }
+  for (const value of [payload, null, [payload], 42, 'sk-live-credential']) {
+    const text = JSON.stringify(value)
+    assert.deepEqual(await parseProviderJson(text, 'fixture JSON'), value)
+    assert.deepEqual(await parseProviderJson(new Response(text), 'fixture JSON'), value)
+  }
+  for (const raw of ['sk-live-ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', body.slice(0, -1), body.slice(0, -4), '<html>token SHORT_SECRET!</html>']) {
+    for (const input of [raw, new Response(raw)]) {
+      await assert.rejects(parseProviderJson(input, 'fixture JSON'), error => {
+        assert.ok(error instanceof SyntaxError)
+        assert.equal(error.message, `fixture JSON: invalid JSON: ${marker}`)
+        assert.equal(error.cause, undefined)
+        return true
+      })
+    }
+  }
+  const aborted = new DOMException('cancelled', 'AbortError')
+  const readFailed = new TypeError('body read failed')
+  for (const error of [aborted, readFailed]) {
+    const response = new Response(new ReadableStream({ start(controller) { controller.error(error) } }))
+    await assert.rejects(parseProviderJson(response, 'fixture JSON'), actual => actual === error)
+  }
+  const consumed = new Response('{}')
+  await consumed.json()
+  await assert.rejects(parseProviderJson(consumed, 'fixture JSON'), TypeError)
+})
+
 const bodies = [
   body,
   '{"nested":{"password":"short"}}',
