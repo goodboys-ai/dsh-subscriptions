@@ -8,7 +8,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import './keep-alive.js'
-import { LlmAdapter, LlmError, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
+import { LlmAdapter, LlmError, QUOTA_EXCEEDED_CODE, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type { GenerateOptions, LlmModelInfo, LlmResolvedModelInfo, StreamChunk } from '@deepseek-ai/dsh-llm'
 import { PoolAdapter } from '../src/providers/pool.js'
 import { unionAccountCatalogs } from '../src/providers/accounts.js'
@@ -16,7 +16,7 @@ import { buildAccountPools, poolKey } from '../src/providers/pool-family.js'
 import type { PoolDefinition, PoolMemberRef, ProviderPoolSource } from '../src/providers/pool-family.js'
 import { memberKey, PoolHealthRegistry } from '../src/providers/pool-health.js'
 import { PoolUsageTracker } from '../src/providers/pool-usage.js'
-import { OAuthEndpointError } from '../src/providers/common.js'
+import { httpLlmError, OAuthEndpointError } from '../src/providers/common.js'
 import type { ProviderUsage } from '../src/providers/common.js'
 import type { ProviderId } from '../src/auth/store.js'
 import type { AccountAwareAdapter } from '../src/providers/accounts.js'
@@ -636,19 +636,278 @@ test('stream: an empty first stream counts as a transient failure', async () => 
   assert.equal((chunks[0] as { text: string }).text, 'a2')
 })
 
-test('stream: an exhausted pool throws RATE_LIMIT with the earliest recovery hint', async () => {
-  const codex = new FakeAdapter((_options, account) =>
-    serveFail(new LlmError(account, 'RATE_LIMIT', {
-      providerRetryAfterMs: account === 'a1' ? 42_000 : 90_000,
-    })))
+test('stream: pool failure reporting preserves a single member failure', async () => {
+  for (const code of ['TRANSPORT', 'AUTH', 'INVALID_CREDENTIAL', 'MISSING_CREDENTIAL', 'SERVER', 'TIMEOUT', 'HTTP_402', 'HTTP_404']) {
+    const cause = new OAuthEndpointError('token refresh refused', 401, 'invalid_grant')
+    const failure = new LlmError(`member failed: ${code}`, code, { cause, status: 503 })
+    const codex = new FakeAdapter(() => serveFail(failure))
+    const families = new Map<string, PoolDefinition>([[poolKey('codex', 'm'), {
+      members: [{ provider: 'codex', account: 'a1', model: 'm' }],
+    }]])
+    const { pool, health } = makePool({ codex }, { families })
+    await assert.rejects(collect(pool.stream(OPTIONS)), (error: unknown) => {
+      assert.equal(error, failure)
+      assert.equal(failure.code, code)
+      assert.equal(failure.message, `member failed: ${code}`)
+      assert.equal(failure.cause, cause)
+      assert.equal(failure.failure.status, 503)
+      return true
+    })
+    assert.equal(health.isMemberAvailable('codex', 'a1', 'm'), code === 'TRANSPORT')
+    assert.deepEqual(codex.accounts, ['a1'])
+  }
+})
+
+test('stream: recovery hint revision uses scoped recovery before the member hint without replacing the error', async t => {
+  t.mock.method(Date, 'now', () => 1000)
+  for (const [code, ownHint, expected] of [
+    ['SERVER', undefined, 60_000],
+    ['SERVER', 10_000, 60_000],
+    ['SERVER', 60_000, 60_000],
+    ['SERVER', 90_000, 60_000],
+    ['TRANSPORT', 10_000, 10_000],
+    ['TRANSPORT', undefined, undefined],
+  ] as const) {
+    const cause = new Error('fixture connection failure')
+    const failure = new LlmError('member failed', code, {
+      status: 503, cause,
+      ...ownHint === undefined ? {} : { providerRetryAfterMs: ownHint },
+    })
+    const originalFacts = failure.failure
+    const families = new Map<string, PoolDefinition>([[poolKey('codex', 'm'), {
+      members: [{ provider: 'codex', account: 'a1', model: 'm' }],
+    }]])
+    const { pool, health } = makePool({ codex: new FakeAdapter(() => serveFail(failure)) }, { families })
+    // An unrelated pool's sooner recovery must not supply or replace this hint.
+    health.markUnavailable(memberKey('codex', 'unrelated', 'other'), 1000, 'SERVER')
+    await assert.rejects(collect(pool.stream(OPTIONS)), (error: unknown) => {
+      assert.equal(error, failure)
+      assert.equal(failure.code, code)
+      assert.equal(failure.message, 'member failed')
+      assert.equal(failure.failure.status, 503)
+      assert.equal(failure.cause, cause)
+      assert.equal(failure.failure.providerRetryAfterMs, expected)
+      assert.equal(Object.isFrozen(failure.failure), true)
+      assert.equal(originalFacts.providerRetryAfterMs, ownHint)
+      return true
+    })
+  }
+})
+
+test('stream: recovery hint revision uses the earliest member recovery despite a late AUTH cooldown', async t => {
+  t.mock.method(Date, 'now', () => 1000)
+  for (const earliest of [60_000, 30_000]) {
+    const cause = new Error('fixture outage')
+    const failure = new LlmError('provider temporarily unavailable', 'SERVER', {
+      status: 503, cause, providerRetryAfterMs: 120_000,
+    })
+    const codex = new FakeAdapter(() => serveFail(failure))
+    const families = freshAccounts()
+    if (earliest === 30_000) {
+      families.set(poolKey('codex', 'm'), { members: [
+        ...families.get(poolKey('codex', 'm'))!.members,
+        { provider: 'codex', account: 'a3', model: 'm' },
+      ] })
+    }
+    const { pool, health } = makePool({ codex }, { families })
+    health.markUnavailable(memberKey('codex', 'a1', 'm'), 24 * 60 * 60_000, 'AUTH')
+    if (earliest === 30_000) health.markUnavailable(memberKey('codex', 'a3', 'm'), 30_000, 'SERVER')
+    await assert.rejects(collect(pool.stream(OPTIONS)), (error: unknown) => {
+      assert.equal(error, failure)
+      assert.equal(failure.failure.providerRetryAfterMs, earliest)
+      assert.equal(failure.cause, cause)
+      return true
+    })
+    assert.deepEqual(codex.accounts, ['a2'])
+  }
+})
+
+test('stream: a single member keeps the shared safe message and gains the pool recovery hint', async t => {
+  t.mock.method(Date, 'now', () => 1000)
+  // Real shared error conversion, fake Response only: no network and no pool-local
+  // sanitizer. The shared converter owns the message text, the pool owns the hint.
+  const secret = 'customer-input SHORT_SECRET!'
+  const token = 'sk-fixture-only-not-a-real-token'
+  const body = JSON.stringify({ message: secret, access_token: token })
+  let failure: LlmError | undefined
+  const codex = new FakeAdapter(async function* () {
+    failure = await httpLlmError(new Response(body, { status: 503 }), 'codex API')
+    throw failure
+  })
+  const families = new Map<string, PoolDefinition>([[poolKey('codex', 'm'), {
+    members: [{ provider: 'codex', account: 'a1', model: 'm' }],
+  }]])
+  const { pool } = makePool({ codex }, { families })
+  await assert.rejects(collect(pool.stream(OPTIONS)), (error: unknown) => {
+    assert.ok(error instanceof LlmError)
+    assert.equal(error, failure)
+    assert.equal(error.code, 'SERVER')
+    assert.equal(error.message, 'codex API error (HTTP 503, SERVER): [provider response body omitted]')
+    assert.equal(error.failure.message, error.message)
+    // The shared converter must not leak the body, and neither must the pass-through.
+    // The marker is the contract, so a return to excerpting fails here rather than
+    // passing because the fixture happens to use a recognisable token shape.
+    for (const text of [error.message, error.failure.message]) {
+      assert.equal(text.includes(secret), false)
+      assert.equal(text.includes(token), false)
+      assert.match(text, /provider response body omitted/)
+    }
+    assert.equal(error.failure.status, 503)
+    assert.equal(error.cause, undefined)
+    assert.equal(error.failure.providerRetryAfterMs, 60_000)
+    return true
+  })
+  assert.deepEqual(codex.accounts, ['a1'])
+})
+
+test('stream: pool failure reporting distinguishes no resolved account from a rate limit', async () => {
+  const codex = new FakeAdapter(() => serveOk())
+  const pool = new PoolAdapter({
+    adapters: { codex }, health: new PoolHealthRegistry(),
+    usage: new PoolUsageTracker(() => undefined), strategy: 'priority', switchMargin: 2,
+    defaultAccount: async () => undefined,
+    families: async () => new Map([[poolKey('codex', 'm'), {
+      members: [{ provider: 'codex', model: 'm' }],
+    }]]), tiers: {}, onWarn: () => {},
+  })
+  await assert.rejects(collect(pool.stream(OPTIONS)), (error: unknown) => {
+    assert.ok(error instanceof LlmError)
+    assert.equal(error.code, 'NO_ADAPTER')
+    assert.equal(error.message, 'pool "m" has no usable member: no account could be resolved')
+    assert.equal(error.failure.providerRetryAfterMs, undefined)
+    assert.equal(error.cause, undefined)
+    return true
+  })
+  assert.equal(codex.calls, 0)
+})
+
+test('stream: pool failure reporting pins quota exhaustion on the first and cooling requests', async t => {
+  t.mock.method(Date, 'now', () => 1000)
+  for (const code of [QUOTA_EXCEEDED_CODE, 'RATE_LIMIT']) {
+    const failure = new LlmError('usage window exhausted', code, { providerRetryAfterMs: 42_000 })
+    const codex = new FakeAdapter(() => serveFail(failure))
+    const families = new Map<string, PoolDefinition>([[poolKey('codex', 'm'), {
+      members: [{ provider: 'codex', account: 'a1', model: 'm' }],
+    }]])
+    const { pool, health } = makePool({ codex }, { families })
+    for (let request = 0; request < 2; request += 1) {
+      await assert.rejects(collect(pool.stream(OPTIONS)), (error: unknown) => {
+        assert.ok(error instanceof LlmError)
+        assert.equal(error.code, 'RATE_LIMIT')
+        assert.equal(error.message, 'pool "m" exhausted: every member is unavailable or failed')
+        const retryAfter = error.failure.providerRetryAfterMs
+        assert.equal(retryAfter, 42_000)
+        assert.equal(error.cause, request === 0 ? failure : undefined)
+        return true
+      })
+    }
+    assert.equal(health.isMemberAvailable('codex', 'a1', 'm'), false)
+    assert.equal(health.isMemberAvailable('codex', 'a1', 'other-model'), false)
+    assert.deepEqual(codex.accounts, ['a1'])
+  }
+})
+
+test('stream: pool failure reporting uses non-quota cooldown reasons without retrying members', async () => {
+  for (const code of ['AUTH', 'SERVER']) {
+    const codex = new FakeAdapter(() => serveOk())
+    const { pool, health } = makePool({ codex })
+    for (const account of ['a1', 'a2']) health.markUnavailable(memberKey('codex', account, 'm'), 60_000, code)
+    await assert.rejects(collect(pool.stream(OPTIONS)), (error: unknown) => {
+      assert.ok(error instanceof LlmError)
+      assert.equal(error.code, code)
+      assert.match(error.message, /2 members are cooling down/)
+      assert.ok(error.message.includes(code))
+      assert.ok(error.failure.providerRetryAfterMs !== undefined)
+      return true
+    })
+    assert.equal(codex.calls, 0)
+    assert.equal(health.isMemberAvailable('codex', 'a1', 'm'), false)
+  }
+})
+
+test('stream: pool failure reporting summarizes distinct failures and retains every cause', async () => {
+  for (const codes of [['AUTH', 'SERVER', 'RATE_LIMIT'], ['RATE_LIMIT', 'SERVER', 'AUTH']]) {
+    const failures = codes.map(code => new LlmError(`provider failure: ${code}`, code))
+    const codex = new FakeAdapter((_options, account) => serveFail(failures[Number(account)]))
+    const families = new Map<string, PoolDefinition>([[poolKey('codex', 'm'), {
+      members: failures.map((_error, index) => ({ provider: 'codex', account: String(index), model: 'm' })),
+    }]])
+    const { pool } = makePool({ codex }, { families })
+    await assert.rejects(collect(pool.stream(OPTIONS)), (error: unknown) => {
+      assert.ok(error instanceof LlmError)
+      assert.equal(error.code, codes.filter(code => code !== 'RATE_LIMIT').at(-1))
+      assert.match(error.message, /3 members failed/)
+      assert.match(error.message, /AUTH: authentication failed/)
+      assert.match(error.message, /SERVER: provider server failed/)
+      assert.match(error.message, /RATE_LIMIT: provider rate limit reached/)
+      assert.ok(error.cause instanceof AggregateError)
+      assert.deepEqual(error.cause.errors, failures)
+      return true
+    })
+    assert.deepEqual(codex.accounts, ['0', '1', '2'])
+  }
+})
+
+test('stream: pool failure reporting bounds summaries without copying payloads or nested credentials', async () => {
+  const secret = 'fixture-secret-not-for-display'
+  const failures = Array.from({ length: 20 }, (_value, index) => new LlmError(
+    `provider payload ${secret} ${'x'.repeat(10_000)}`, index % 2 === 0 ? 'AUTH' : 'SERVER',
+    { cause: new OAuthEndpointError(`access_token=${secret}`, 401) },
+  ))
+  const codex = new FakeAdapter((_options, account) => serveFail(failures[Number(account)]))
+  const families = new Map<string, PoolDefinition>([[poolKey('codex', 'm'), {
+    members: failures.map((_error, index) => ({ provider: 'codex', account: String(index), model: 'm' })),
+  }]])
+  const { pool } = makePool({ codex }, { families })
+  await assert.rejects(collect(pool.stream(OPTIONS)), (error: unknown) => {
+    assert.ok(error instanceof LlmError)
+    assert.match(error.message, /20 members failed/)
+    assert.match(error.message, /15 more/)
+    assert.ok(error.message.length < 500)
+    assert.equal(error.message.includes(secret), false)
+    assert.equal(error.message.includes('provider payload'), false)
+    assert.ok(error.cause instanceof AggregateError)
+    assert.deepEqual(error.cause.errors, failures)
+    return true
+  })
+})
+
+test('stream: mixed cooldowns do not turn a fresh quota failure into pure rate-limit exhaustion', async () => {
+  const failure = new LlmError('window full', 'RATE_LIMIT', { providerRetryAfterMs: 42_000 })
+  const codex = new FakeAdapter(() => serveFail(failure))
+  const { pool, health } = makePool({ codex })
+  health.markUnavailable(memberKey('codex', 'a1', 'm'), 60_000, 'AUTH')
+  await assert.rejects(collect(pool.stream(OPTIONS)), (error: unknown) => {
+    assert.ok(error instanceof LlmError)
+    assert.equal(error.code, 'AUTH')
+    assert.match(error.message, /1 member failed/)
+    assert.match(error.message, /AUTH: authentication failed/)
+    assert.match(error.message, /RATE_LIMIT: provider rate limit reached/)
+    assert.equal(error.cause, failure)
+    return true
+  })
+  assert.deepEqual(codex.accounts, ['a2'])
+})
+
+test('stream: an exhausted pool throws RATE_LIMIT with the earliest recovery hint', async t => {
+  t.mock.method(Date, 'now', () => 1000)
+  const failures = [
+    new LlmError('first window full', 'RATE_LIMIT', { providerRetryAfterMs: 42_000 }),
+    new LlmError('second window full', 'RATE_LIMIT', { providerRetryAfterMs: 90_000 }),
+  ]
+  const codex = new FakeAdapter((_options, account) => serveFail(failures[account === 'a1' ? 0 : 1]))
   const { pool } = makePool({ codex })
   await assert.rejects(
     collect(pool.stream(OPTIONS)),
     (error: unknown) => {
       assert.ok(error instanceof LlmError)
       assert.equal(error.code, 'RATE_LIMIT')
+      assert.equal(error.message, 'pool "m" exhausted: every member is unavailable or failed')
+      assert.ok(error.cause instanceof AggregateError)
+      assert.deepEqual(error.cause.errors, failures)
+      assert.match(error.cause.message, /2 pool members failed/)
       const retryAfter = error.failure.providerRetryAfterMs
-      assert.ok(retryAfter !== undefined && retryAfter > 0 && retryAfter <= 42_000)
+      assert.equal(retryAfter, 42_000)
       return true
     },
   )

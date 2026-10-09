@@ -241,13 +241,19 @@ export class PoolAdapter extends LlmAdapter {
     }
   }
 
+  /**
+   * Fail over before output. A single non-quota failure keeps its identity
+   * and shared provider message, with scoped pool recovery or its own hint as fallback.
+   * Multiple failures carry a bounded summary and all attempts in an AggregateError cause.
+   * Pure quota/rate exhaustion retains RATE_LIMIT and this pool's earliest recovery hint.
+   */
   async *stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
     const definition = (await this.pools()).get(poolKey(options.provider, options.model))
     if (definition === undefined) throw new LlmError(`unknown pool model "${options.model}"`, 'NO_ADAPTER')
     const members = await this.concrete(definition.members)
     const candidates = await this.select(options.model, members, options.sessionId)
     if (candidates.length === 0) throw this.exhausted(options.model, members)
-    let lastError: unknown
+    const failures: LlmError[] = []
     for (const member of candidates) {
       const adapter = this.options.adapters[member.provider]
       if (adapter === undefined) continue
@@ -263,7 +269,7 @@ export class PoolAdapter extends LlmAdapter {
         }
       } catch (error: unknown) {
         const classification = classifyPoolFailure(error, member.provider)
-        if (classification.action === 'throw') throw error
+        if (classification.action === 'throw' || !(error instanceof LlmError)) throw error
         if ('cooldownMs' in classification) {
           this.options.health.markUnavailable(
             classification.scope === 'account'
@@ -283,7 +289,7 @@ export class PoolAdapter extends LlmAdapter {
           `pool "${options.model}": ${memberLabel(member)} failed before any output`
           + ` (${error instanceof Error ? error.message : String(error)}); trying the next member`,
         )
-        lastError = error
+        failures.push(error)
         continue
       }
       this.remember(options.model, options.sessionId, member)
@@ -307,7 +313,7 @@ export class PoolAdapter extends LlmAdapter {
       }
       return
     }
-    throw this.exhausted(options.model, members, lastError)
+    throw this.exhausted(options.model, members, failures)
   }
 
   /**
@@ -367,12 +373,11 @@ export class PoolAdapter extends LlmAdapter {
     this.sticky.set(key, memberKey(member.provider, member.account, member.model))
   }
 
-  /**
-   * The error for an exhausted pool, carrying the earliest recovery hint of
-   * THIS pool's members (the health registry is shared across pools, so the
-   * hint is scoped to the keys this pool can actually recover through).
-   */
-  private exhausted(model: string, pool: ConcretePoolMember[], cause?: unknown): LlmError {
+  /** Report attempt failures or this pool's active cooldowns, never unrelated health records. */
+  private exhausted(model: string, pool: ConcretePoolMember[], failures: readonly LlmError[] = []): LlmError {
+    if (pool.length === 0) {
+      return new LlmError(`pool "${model}" has no usable member: no account could be resolved`, 'NO_ADAPTER')
+    }
     const keys = new Set<string>()
     for (const member of pool) {
       keys.add(memberKey(member.provider, member.account, member.model))
@@ -380,15 +385,82 @@ export class PoolAdapter extends LlmAdapter {
     }
     const recovery = this.options.health.earliestRecovery(keys)
     const retryAfterMs = recovery === undefined ? undefined : Math.max(recovery - Date.now(), 1)
-    return new LlmError(
-      `pool "${model}" exhausted: every member is unavailable or failed`,
-      'RATE_LIMIT',
-      {
-        ...retryAfterMs === undefined ? {} : { providerRetryAfterMs: retryAfterMs },
-        ...cause === undefined ? {} : { cause },
-      },
-    )
+    const coolingReasons = this.options.health.unavailableReasons(keys)
+    const codes = [...failures.map(error => error.code), ...coolingReasons]
+    if (codes.length === 0) return new LlmError(`pool "${model}" has no usable member`, 'NO_ADAPTER')
+    const quotaOnly = codes.every(isQuotaFailure)
+    if (failures.length === 1 && !isQuotaFailure(failures[0]!.code)) {
+      const failure = failures[0]!
+      // Keep the same error, code, status and cause. The message arrives already
+      // free of provider text: the shared converter in common.ts owns that, and
+      // non-pooled callers receive the same text, so the pool adds no sanitizer
+      // of its own and cannot make the two paths disagree.
+      // The pool's earliest scoped recovery wins even if the member's hint is
+      // later: another member may recover sooner. Without scoped recovery,
+      // keep the member hint; with neither, leave it absent.
+      // Keep the error object itself. LlmError freezes its facts snapshot, so
+      // replace that snapshot to correct only providerRetryAfterMs for pool
+      // routing; this is not permission to rewrite other frozen failure facts.
+      if (retryAfterMs !== undefined && retryAfterMs !== failure.failure.providerRetryAfterMs) {
+        Object.defineProperty(failure, 'failure', {
+          value: Object.freeze({ ...failure.failure, providerRetryAfterMs: retryAfterMs }),
+        })
+      }
+      return failure
+    }
+    const attemptedCodes = failures.map(error => error.code)
+    const details = [...attemptedCodes, ...coolingReasons.filter(code => !attemptedCodes.includes(code))]
+    const summary = failureSummary(details)
+    const cause = failures.length === 0
+      ? undefined
+      : failures.length === 1
+        ? failures[0]
+        : new AggregateError(failures, `${failures.length} pool members failed: ${summary}`)
+    // Subscription quotas reopen: preserve the existing retry classification and text.
+    const message = quotaOnly
+      ? `pool "${model}" exhausted: every member is unavailable or failed`
+      : failures.length > 0
+        ? `pool "${model}" exhausted: ${failures.length} ${failures.length === 1 ? 'member' : 'members'} failed (${summary})`
+        : `pool "${model}" unavailable: ${pool.length} members are cooling down (${summary})`
+    // For mixed failures, a real non-quota failure must not become a rate limit
+    // merely because the last member hit its quota. No new aggregate error code.
+    const code = quotaOnly
+      ? 'RATE_LIMIT'
+      : attemptedCodes.filter(code => !isQuotaFailure(code)).at(-1)
+        ?? coolingReasons.filter(code => !isQuotaFailure(code)).at(-1)!
+    return new LlmError(message, code, {
+      ...retryAfterMs === undefined ? {} : { providerRetryAfterMs: retryAfterMs },
+      ...cause === undefined ? {} : { cause },
+    })
   }
+}
+
+function isQuotaFailure(code: string): boolean {
+  return code === QUOTA_EXCEEDED_CODE || code === 'RATE_LIMIT'
+}
+
+/** Summaries use stable codes only: adapter messages and nested causes can contain raw payloads. */
+function failureSummary(codes: readonly string[]): string {
+  const descriptions: Record<string, string> = {
+    AUTH: 'authentication failed',
+    INVALID_CREDENTIAL: 'credential is invalid',
+    MISSING_CREDENTIAL: 'credential is missing',
+    SERVER: 'provider server failed',
+    TIMEOUT: 'provider request timed out',
+    EMPTY_RESPONSE: 'provider returned no output',
+    TRANSPORT: 'provider connection failed',
+    HTTP_402: 'provider plan unavailable',
+    HTTP_404: 'provider model unavailable',
+    QUOTA: 'provider quota exhausted',
+    RATE_LIMIT: 'provider rate limit reached',
+  }
+  const limit = 5
+  const shown = codes.slice(0, limit).map(code => {
+    const description = descriptions[code]
+    return description === undefined ? 'member unavailable' : `${code}: ${description}`
+  })
+  if (codes.length > limit) shown.push(`${codes.length - limit} more`)
+  return shown.join('; ')
 }
 
 function stickyKey(poolId: string, sessionId: NonNullable<GenerateOptions['sessionId']>): string {
