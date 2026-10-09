@@ -247,13 +247,56 @@ function check() {
   }
 
   // 6. The prose Sync point may not drift from the ledger.
+  //
+  // Mentioning a sha is not agreement: a commit listed under "Open decisions"
+  // while the ledger says "ported" passed the earlier version of this check,
+  // because the sha was present somewhere in the file. The prose labels its
+  // bullets, so compare the label a commit appears under with its ledger
+  // status. A label with no known status, or a status with no label, is a
+  // setup failure rather than a pass.
   if (existsSync(PROSE)) {
     const prose = readFileSync(PROSE, 'utf8')
-    const proseShas = new Set((prose.match(/\b[0-9a-f]{7,40}\b/g) ?? []).map(sha => sha.slice(0, 8)))
+    const labels = [
+      { label: 'Ported since', status: 'ported' },
+      { label: 'Already covered before this ledger existed', status: 'already-covered' },
+      { label: 'Deliberately not taken', status: 'not-applicable' },
+      { label: 'Open decisions', status: 'pending' },
+    ]
+    const sections = new Map()
+    for (const { label, status } of labels) {
+      const start = prose.indexOf(`**${label}:**`)
+      if (start === -1) throw new SetupFailure(`docs/upstream-sync.md has no "${label}" bullet`)
+      // A bullet runs until the next labelled bullet or the next heading.
+      const rest = prose.slice(start)
+      const nextBullet = rest.slice(1).search(/\n- \*\*/)
+      const nextHeading = rest.slice(1).search(/\n## /)
+      const ends = [nextBullet, nextHeading].filter(index => index !== -1).map(index => index + 1)
+      const body = rest.slice(0, ends.length === 0 ? undefined : Math.min(...ends))
+      sections.set(status, new Set((body.match(/\b[0-9a-f]{7,40}\b/g) ?? []).map(sha => sha.slice(0, 8))))
+    }
     for (const entry of ledger.entries) {
-      if (entry.status === 'ported' && !proseShas.has(short(entry.upstream))) {
-        findings.push(`docs/upstream-sync.md does not mention ported commit ${short(entry.upstream)}; the ledger and the prose have drifted`)
+      const where = sections.get(entry.status)
+      if (where === undefined) {
+        throw new SetupFailure(`the ledger status ${JSON.stringify(entry.status)} has no prose bullet in docs/upstream-sync.md`)
       }
+      if (!where.has(short(entry.upstream))) {
+        findings.push(`docs/upstream-sync.md does not list ${short(entry.upstream)} under the bullet for its ledger status ${JSON.stringify(entry.status)}; the ledger and the prose have drifted`)
+      }
+    }
+    for (const [status, shas] of sections) {
+      for (const sha of shas) {
+        const entry = ledger.entries.find(candidate => short(candidate.upstream) === sha)
+        if (entry !== undefined && entry.status !== status) {
+          findings.push(`docs/upstream-sync.md lists ${sha} under ${JSON.stringify(status)} but the ledger says ${JSON.stringify(entry.status)}`)
+        }
+      }
+    }
+    // The two anchors are prose statements of ledger fields.
+    if (!prose.includes(short(ledger.baseline.sha))) {
+      findings.push(`docs/upstream-sync.md does not name the baseline ${short(ledger.baseline.sha)}`)
+    }
+    if (ledger.upstreamRef !== undefined && !prose.includes(short(ledger.upstreamRef.sha))) {
+      findings.push(`docs/upstream-sync.md does not name the reviewed-up-to commit ${short(ledger.upstreamRef.sha)}`)
     }
   } else {
     throw new SetupFailure('docs/upstream-sync.md is missing')
