@@ -36,12 +36,32 @@ export class CursorCompatAdapter extends CursorAdapter {
     return visible === undefined ? models : models.filter(model => visible.includes(model.id))
   }
 
-  override stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
-    return super.stream({
+  override async *stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
+    for await (const chunk of super.stream({
       ...options,
       // Existing DSH sessions may still hold this retired selection.
       model: options.model === 'composer-2' ? 'composer-2.5' : options.model,
       messages: projectCursorMessages(options.messages) as GenerateOptions['messages'],
-    })
+    })) {
+      if (chunk.type === 'finish' && chunk.reason.kind === 'error') {
+        // The vendor uses raw headers, trailers and end-stream errors for protocol
+        // checks and classification before this boundary. Keep its code and retry
+        // decisions; do not reclassify the replacement text. "Safe" here means no
+        // provider-controlled free text is displayed in failures, not that no
+        // secret can exist anywhere internally.
+        yield {
+          ...chunk,
+          reason: {
+            ...chunk.reason,
+            failure: {
+              ...chunk.reason.failure,
+              message: `${chunk.reason.failure.code} [provider response text omitted]`,
+            },
+          },
+        }
+      } else {
+        yield chunk
+      }
+    }
   }
 }
