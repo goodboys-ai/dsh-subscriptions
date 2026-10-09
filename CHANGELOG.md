@@ -1,5 +1,48 @@
 # Changelog
 
+## v0.1.4 — 2026-10-08
+
+- Codex accounts can spend a banked usage-limit reset from the account card,
+  and the card shows how many are left. The reset is confirmed before it is
+  sent, and an ambiguous response parks the account until you check it, so a
+  retry cannot spend a second credit.
+- Claude accounts show their banked limit resets, with the remaining count and
+  when each one lapses. This is display only: the shape comes from an
+  independent implementation rather than a published contract, and spending a
+  credit is irreversible, so no control is offered.
+- A Claude request whose images exceed the provider limit now hands them to the
+  host's compaction image offload instead of failing the turn. This fixes
+  oversized-image requests that previously failed with an HTTP error.
+- The model catalog no longer loses one account's models when two accounts
+  save at the same time. Each save now merges onto the latest on-disk state.
+- A failed account-pool member reports its own failure instead of a synthetic
+  rate limit, so a revoked credential or a provider outage no longer reads as
+  quota exhaustion. Genuine quota exhaustion keeps its existing message,
+  recovery hint and retry behavior.
+- Antigravity tool results keep their error flag on every path. A failed tool
+  call whose output was JSON previously reached the model looking successful.
+- Provider response text is no longer placed in user-visible error messages.
+  Errors keep their local classification, HTTP status and recovery hint, and
+  say that the provider's response body was omitted. This is deliberate: a
+  provider can echo back a credential, and matching known token shapes cannot
+  be relied on to catch every form.
+- A mid-session account switch no longer reuses the previous account's signed
+  replay, and an abandoned SSE stream now cancels its body instead of leaving
+  it unread.
+- Settings and the usage dialog follow the host's native controls and theme,
+  including dark mode. Prompt-cache TTL is configurable, and the status-bar
+  quota display can pin one provider or rotate through them.
+- The repository now carries a checked ledger of what was taken from upstream,
+  what was declined and why. CI fails if the ledger drifts from the tree, and a
+  decline that rests on a host capability is re-verified against the published
+  package, which is the specific mistake that produced this ledger.
+- Live-provider gaps, not verified by this release: no live account was used to
+  exercise the Codex reset endpoint or Claude's banked-reset block, so what
+  those endpoints actually return remains unconfirmed. Native confirmation
+  dialog focus, Escape and cancel handling, and the always-show rotation timer
+  were not checked in a running browser. The Settings panel and the Claude
+  reset row were checked by eye in the light and dark themes.
+
 ## v0.1.3 — 2026-10-08
 
 - Usage bars keep their elapsed-time cursor whenever the provider's timing
