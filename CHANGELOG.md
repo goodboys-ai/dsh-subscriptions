@@ -48,6 +48,12 @@
   capability is re-verified against the published package, which is the specific
   mistake that produced this ledger. Upstream enumeration needs an upstream ref
   and is not part of per-PR CI in this release.
+- Two defects shipped in this release and are fixed after it: an OAuth callback
+  carrying `error` was handled before `state` was validated, so an uncorrelated
+  request could cancel a login in progress; and provider response text still
+  reached user-visible errors on the video-generation tool, the device-code and
+  OAuth logins, the Cursor stream, JSON response parsing and the Grok OIDC
+  discovery URL. The Grok URL is still outstanding.
 - Live-provider gaps, not verified by this release: no live account was used to
   exercise the Codex reset endpoint or Claude's banked-reset block, so what
   those endpoints actually return remains unconfirmed. Native confirmation

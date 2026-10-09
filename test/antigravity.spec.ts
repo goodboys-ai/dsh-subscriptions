@@ -268,7 +268,7 @@ function byteStream(text: string): ReadableStream<Uint8Array> {
   })
 }
 
-test('streamGenerateContent SSE and generateContent URL/forwarding are both supported', async () => {
+test('streamGenerateContent SSE and generateContent URL, method, headers and body are all forwarded', async () => {
   const streamed: StreamChunk[] = []
   const frame = { response: { candidates: [{ content: { parts: [{ text: 'ok' }] }, finishReason: 'STOP' }] } }
   for await (const chunk of streamAntigravity(byteStream(`data: ${JSON.stringify(frame)}\n\n`))) streamed.push(chunk)
@@ -291,6 +291,9 @@ test('streamGenerateContent SSE and generateContent URL/forwarding are both supp
   for (const call of calls) {
     assert.equal(call.init?.method, 'POST')
     assert.equal(new Headers(call.init?.headers).get('authorization'), 'Bearer access-token')
+    // The name claims forwarding, so the body has to be checked too: dropping or
+    // mangling the payload would otherwise pass on URL, method and headers alone.
+    assert.deepEqual(JSON.parse(String(call.init?.body)), payload)
   }
 })
 
