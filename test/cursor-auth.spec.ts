@@ -109,3 +109,17 @@ test('an in-flight refresh cannot return a token after sign-out', async () => {
   await assert.rejects(pending, /signed out during token refresh/)
   assert.equal(store.value, undefined)
 })
+
+test('a malformed stored credential is not classified as a rate limit', async () => {
+  // The vendor derives a stream failure's code from the error message, and the
+  // raw JSON.parse message used to quote the body. A corrupt credential whose
+  // body contained "quota" therefore came out as RATE_LIMIT. Sanitising the
+  // message removes that accident deliberately: the failure is now the local
+  // parse error, not a word the provider happened to write.
+  const auth = new CursorAuth(memoryStore('not json: {"error":"quota exceeded"}'), async () => assert.fail('corrupt credentials must not start refresh'))
+  const caught = await auth.status().then(() => undefined, (error: unknown) => error as Error)
+  assert.ok(caught !== undefined, 'a malformed credential must be refused')
+  assert.equal(/quota/i.test(caught.message), false)
+  assert.match(caught.message, /Cursor stored credential: invalid JSON/)
+  assert.match(caught.message, /\[provider response body omitted\]/)
+})
