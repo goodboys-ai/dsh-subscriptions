@@ -166,7 +166,7 @@ boots `dsh web --no-open --port 0`, and asserts:
 - the web UI completes its trust handshake: the printed `?token=` URL is
   single-use (first GET → 303 + session cookie), then the app page answers
   HTTP 200 with the cookie;
-- the served app page references `subscription-hub/client.js`, and its
+- the served app page references `dsh-subscriptions/client.js`, and its
   versioned URL returns non-empty JavaScript;
 - with that session cookie, POST `/api/subscriptions-auth.status`,
   `externalStatus`, and `cursorStatus` in the browser's `client-request`
@@ -333,7 +333,9 @@ script:
      the Subscriptions entry, and the section body shows the intro copy,
      one card per fixture-signed-in provider, the Cursor and built-in
      provider usage cards, and the status-bar quota display control with
-     its two options. Flipping that control to Hidden persists to
+     its three options: current / most recent provider with usage, always
+     show one provider (rotating through the rest), and Hidden. Flipping
+     that control to Hidden persists to
      localStorage, and after a page reload the control still reads Hidden;
    - no slot rendered its crash face (`data-slot-error`), the console shows
      no `slot entry crashed in` or `HOST_CONTRACT_MISS` line, the page threw
@@ -499,7 +501,9 @@ in Chrome. The integration tests and the host E2E use fake JWTs and fake
 tokens by construction.
 
 Two gaps remain. The guards stop connections, not name lookups, so a
-refused hostname may still reach DNS. The boot smoke runs without a guard:
+bare DNS lookup can still leak a hostname, though the unit guard refuses
+non-loopback TCP connections before their DNS lookup. The boot smoke runs
+without a guard:
 its profile is logged out, so the plugin has no provider to call, but a
 regression that made an outbound request anyway would not fail it (see
 [Boot smoke test](#boot-smoke-test)).
@@ -536,9 +540,15 @@ each limit honest.
   the host page. The browser fixtures under `test/` (for example
   `test/account-manager-browser.mjs`) are opt-in manual scripts driven
   through Playwright, not part of `pnpm test`, so a client change that only
-  misbehaves against a real DOM is caught by the host E2E or not at all.
-- **The nightly job is an early warning, not a gate.** The mutation,
-  shuffled-repeat, and next-host steps run with `continue-on-error`, and
-  the mutation thresholds only color the report — the job does not fail on
-  a low score. A red nightly step signals investigation; it does not block
-  a release the way the CI gate does.
+  misbehaves against a real DOM is caught by a browser check or not at all.
+  `test/model-defaults-view.spec.ts` runs the actual model editor and account
+  manager with a hook dispatcher and fixture RPCs: it exercises effects,
+  event handlers and the collect/save path, but does not mount a browser DOM
+  or verify layout, focus or theming.
+- **The nightly workflow is an early warning, not a release gate.** Mutation
+  and shuffled-repeat do not use `continue-on-error`: a failed mutation run
+  or shuffled suite fails its job. Mutation thresholds only color the report;
+  a low score alone does not fail the mutation job. Next-host's four check
+  steps use `continue-on-error` to collect every result, but its final verdict
+  fails the job when a check failed or could not run. A red nightly job signals
+  investigation; it does not block a release the way the CI gate does.
