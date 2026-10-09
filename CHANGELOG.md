@@ -31,11 +31,12 @@
   the device-code login failure, the OAuth callback page and the Cursor stream
   still carry provider text and are being fixed next.
 - An abandoned SSE stream now cancels its body instead of leaving it unread.
-  Newly captured replay is bound to the originating provider, account and
-  model. Replay captured before this change carries no account identity, so as
-  upstream does, it is still passed through when its provider and model match
-  the route: an account switch within the same provider and model can reuse it.
-  See [the port report](docs/replay-sse-port-verification.md) for that limit.
+  Replay captured by v0.1.4 is wrapped with concrete provider, account and model
+  identity. Legacy unwrapped replay — including histories captured before
+  upgrading — carries no originating-account identity, so as upstream does, it
+  is still passed through when its provider and model match the concrete route:
+  a same-provider, same-model account switch can reuse it. See
+  [the port report](docs/replay-sse-port-verification.md) for that limit.
 - Settings and the usage dialog follow the host's native controls and theme,
   including dark mode. Prompt-cache TTL is configurable, and the status-bar
   quota display can pin one provider or rotate through them.
