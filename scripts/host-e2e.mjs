@@ -389,6 +389,23 @@ async function captureNamedScreenshot(cdp, name) {
   writeFileSync(join(artifactDir, `${name}.png`), Buffer.from(shot.data, 'base64'))
 }
 
+/**
+ * Capture one element by clipping to its box. Scrolling first is not enough:
+ * the panel re-renders when usage data lands and resets the scroll position, so
+ * a clipped capture is the only way to be sure the element is in the image.
+ */
+async function captureElementScreenshot(cdp, name, expression) {
+  const box = await cdp.evaluate(`(() => {
+    const node = ${expression}
+    if (node === null || node === undefined) return null
+    const rect = node.getBoundingClientRect()
+    return { x: Math.max(0, Math.floor(rect.x)), y: Math.max(0, Math.floor(rect.y)), width: Math.ceil(rect.width), height: Math.ceil(rect.height) }
+  })()`)
+  if (box === null || box.width < 8 || box.height < 8) throw new ProductFailure(`nothing to capture for ${name}`)
+  const shot = await cdp.send('Page.captureScreenshot', { format: 'png', clip: { ...box, scale: 1 } })
+  writeFileSync(join(artifactDir, `${name}.png`), Buffer.from(shot.data, 'base64'))
+}
+
 async function saveEvidence(cdp, page, dir) {
   mkdirSync(dir, { recursive: true })
   writeFileSync(join(dir, 'console.json'), `${JSON.stringify(page, null, 2)}\n`)
@@ -662,6 +679,48 @@ async function checkSettingsSection(cdp) {
   await setSelectValue(cdp, select, 'recent')
   await pressKey(cdp, 'Escape', 27)
   await delay(400)
+  await captureSettingsDark(cdp, outlet)
+}
+
+/**
+ * Capture the restyled Settings panel and the Claude disclosure under the dark
+ * theme, then put the theme back. The restyle reads host tokens, and its
+ * contrast and native-control colours are the part no assertion here can judge,
+ * so the run leaves a still for a person to look at. The theme is switched
+ * through the host's own Appearance controls, not by setting the body attribute.
+ */
+async function captureSettingsDark(cdp, outlet) {
+  await applyTheme(cdp, 'dark')
+  try {
+    if (!await clickLabel(cdp, ['Settings', '设置'])) throw new HarnessFailure('the settings trigger did not open the panel for the dark capture')
+    if (!await clickLabel(cdp, [SECTION_EN.nav, '订阅'])) throw new HarnessFailure('the settings nav lost its Subscriptions entry for the dark capture')
+    // Best effort: this still exists for a person to look at, so a disclosure
+    // that refuses to expand must not fail the run. Re-query first, because
+    // reopening the panel remounts the card.
+    const opened = await cdp.evaluate(`(() => {
+      const name = [...document.querySelectorAll(${JSON.stringify(`${outlet} span`)})].find(span => span.textContent === 'Claude')
+      const details = name?.parentElement?.parentElement?.querySelector('details')
+      if (!details) return false
+      if (!details.open) details.querySelector('summary')?.click()
+      details.scrollIntoView({ block: 'center' })
+      return details.open
+    })()`)
+    await delay(400)
+    await cdp.evaluate(`(() => {
+      const name = [...document.querySelectorAll(${JSON.stringify(`${outlet} span`)})].find(span => span.textContent === 'Claude')
+      const details = name?.parentElement?.parentElement?.querySelector('details')
+      if (details && !details.open) details.querySelector('summary')?.click()
+      ;(details ?? name?.parentElement?.parentElement)?.scrollIntoView({ block: 'center' })
+      return true
+    })()`)
+    await delay(200)
+    await captureNamedScreenshot(cdp, 'settings-claude-resets-dark')
+    if (!opened) console.log('note: the Claude disclosure stayed closed for the dark capture')
+    console.log('ok: dark-theme settings and Claude disclosure captured for review')
+  } finally {
+    await pressKey(cdp, 'Escape', 27)
+    await applyTheme(cdp, 'system')
+  }
 }
 
 /** Set a select's value through the native setter so React's onChange fires. */
