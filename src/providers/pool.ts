@@ -242,8 +242,9 @@ export class PoolAdapter extends LlmAdapter {
   }
 
   /**
-   * Fail over before output. Non-quota attempt failures retain their code;
-   * multiple failures carry a bounded summary and all attempts in an AggregateError cause.
+   * Fail over before output. A single non-quota failure keeps its identity
+   * and shared provider message, with scoped pool recovery or its own hint as fallback.
+   * Multiple failures carry a bounded summary and all attempts in an AggregateError cause.
    * Pure quota/rate exhaustion retains RATE_LIMIT and this pool's earliest recovery hint.
    */
   async *stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
@@ -388,8 +389,25 @@ export class PoolAdapter extends LlmAdapter {
     const codes = [...failures.map(error => error.code), ...coolingReasons]
     if (codes.length === 0) return new LlmError(`pool "${model}" has no usable member`, 'NO_ADAPTER')
     const quotaOnly = codes.every(isQuotaFailure)
-    // A non-quota member failure keeps its identity, message, facts and nested cause.
-    if (failures.length === 1 && !isQuotaFailure(failures[0]!.code)) return failures[0]!
+    if (failures.length === 1 && !isQuotaFailure(failures[0]!.code)) {
+      const failure = failures[0]!
+      // Keep the same error, code, status and cause. The shared httpLlmError
+      // message includes a provider-body excerpt; deliberately do not sanitize
+      // it here, since non-pooled callers receive the same text. Redaction is
+      // being fixed separately in common.ts, not by a pool-only sanitizer.
+      // The pool's earliest scoped recovery wins even if the member's hint is
+      // later: another member may recover sooner. Without scoped recovery,
+      // keep the member hint; with neither, leave it absent.
+      // Keep the error object itself. LlmError freezes its facts snapshot, so
+      // replace that snapshot to correct only providerRetryAfterMs for pool
+      // routing; this is not permission to rewrite other frozen failure facts.
+      if (retryAfterMs !== undefined && retryAfterMs !== failure.failure.providerRetryAfterMs) {
+        Object.defineProperty(failure, 'failure', {
+          value: Object.freeze({ ...failure.failure, providerRetryAfterMs: retryAfterMs }),
+        })
+      }
+      return failure
+    }
     const attemptedCodes = failures.map(error => error.code)
     const details = [...attemptedCodes, ...coolingReasons.filter(code => !attemptedCodes.includes(code))]
     const summary = failureSummary(details)
