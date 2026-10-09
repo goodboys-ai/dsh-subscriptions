@@ -163,6 +163,15 @@ export class PoolHealthRegistry {
     return earliest
   }
 
+  /** Active failure codes for the given keys; reading them does not change cooldowns. */
+  unavailableReasons(keys: ReadonlySet<string>, now = Date.now()): string[] {
+    const reasons: string[] = []
+    for (const [key, record] of this.records) {
+      if (keys.has(key) && record.unavailableUntil > now) reasons.push(record.reason)
+    }
+    return reasons
+  }
+
   /** Drop records of one provider, or of a single account when given (auth changes). */
   clear(provider: ProviderId, account?: string): void {
     const prefix = account === undefined ? `${provider}/` : `${provider}/${account}/`
