@@ -391,10 +391,10 @@ export class PoolAdapter extends LlmAdapter {
     const quotaOnly = codes.every(isQuotaFailure)
     if (failures.length === 1 && !isQuotaFailure(failures[0]!.code)) {
       const failure = failures[0]!
-      // Keep the same error, code, status and cause. The shared httpLlmError
-      // message includes a provider-body excerpt; deliberately do not sanitize
-      // it here, since non-pooled callers receive the same text. Redaction is
-      // being fixed separately in common.ts, not by a pool-only sanitizer.
+      // Keep the same error, code, status and cause. The message arrives already
+      // free of provider text: the shared converter in common.ts owns that, and
+      // non-pooled callers receive the same text, so the pool adds no sanitizer
+      // of its own and cannot make the two paths disagree.
       // The pool's earliest scoped recovery wins even if the member's hint is
       // later: another member may recover sooner. Without scoped recovery,
       // keep the member hint; with neither, leave it absent.

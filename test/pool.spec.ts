@@ -722,10 +722,13 @@ test('stream: recovery hint revision uses the earliest member recovery despite a
   }
 })
 
-test('stream: recovery hint revision documents the shared HTTP body excerpt on a single member', async t => {
+test('stream: a single member keeps the shared safe message and gains the pool recovery hint', async t => {
   t.mock.method(Date, 'now', () => 1000)
-  // Real shared error conversion, fake Response only: no network or pool-local redaction.
-  const body = JSON.stringify({ message: 'customer-input SHORT_SECRET!', access_token: 'sk-fixture-only-not-a-real-token' })
+  // Real shared error conversion, fake Response only: no network and no pool-local
+  // sanitizer. The shared converter owns the message text, the pool owns the hint.
+  const secret = 'customer-input SHORT_SECRET!'
+  const token = 'sk-fixture-only-not-a-real-token'
+  const body = JSON.stringify({ message: secret, access_token: token })
   let failure: LlmError | undefined
   const codex = new FakeAdapter(async function* () {
     failure = await httpLlmError(new Response(body, { status: 503 }), 'codex API')
@@ -739,8 +742,16 @@ test('stream: recovery hint revision documents the shared HTTP body excerpt on a
     assert.ok(error instanceof LlmError)
     assert.equal(error, failure)
     assert.equal(error.code, 'SERVER')
-    assert.equal(error.message, `codex API error (HTTP 503): ${body}`)
+    assert.equal(error.message, 'codex API error (HTTP 503, SERVER): [provider response body omitted]')
     assert.equal(error.failure.message, error.message)
+    // The shared converter must not leak the body, and neither must the pass-through.
+    // The marker is the contract, so a return to excerpting fails here rather than
+    // passing because the fixture happens to use a recognisable token shape.
+    for (const text of [error.message, error.failure.message]) {
+      assert.equal(text.includes(secret), false)
+      assert.equal(text.includes(token), false)
+      assert.match(text, /provider response body omitted/)
+    }
     assert.equal(error.failure.status, 503)
     assert.equal(error.cause, undefined)
     assert.equal(error.failure.providerRetryAfterMs, 60_000)
