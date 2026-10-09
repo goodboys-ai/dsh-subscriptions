@@ -24,14 +24,22 @@
  *   6. docs/upstream-sync.md disagrees with the ledger.
  *
  * Usage:
- *   node scripts/check-upstream-ports.mjs            # check the ledger
- *   node scripts/check-upstream-ports.mjs --upstream <ref>
+ *   node scripts/check-upstream-ports.mjs            # local checks; sync if available
+ *   node scripts/check-upstream-ports.mjs --local-only # no remote enumeration
+ *   node scripts/check-upstream-ports.mjs --require-upstream [--upstream <ref>]
  *
- * Exit 0 when every check passes, 1 on a finding (each printed), and 2 when a
- * check could not run — a missing file, an unresolvable ref, a host package
- * that is not in the contract cache — so a broken setup reads as "this did not
- * run" instead of a silent pass. Node 24 built-ins only: this runs before
- * `pnpm install` in CI, like check-compat-docs.mjs.
+ * Per-PR CI runs --local-only with full fork history and never fetches upstream.
+ * upstream-audit.yml runs on a schedule or by hand: it fetches upstream/main,
+ * verifies full history and the baseline, then runs --require-upstream.
+ *
+ * Exit 0 means no findings in the checks that ran, 1 means findings (printed),
+ * and 2 means setup prevented a required check from answering. Missing upstream,
+ * baseline, or shallow history is reported as "cannot answer"; --require-upstream
+ * makes any of those exit 2, after the available local checks run. Optional sync
+ * checks may be skipped without failing, but the output names the skipped half.
+ * --local-only and --require-upstream are mutually exclusive. Setup failures
+ * take precedence over findings; findings collected before them are still printed.
+ * Node 24 built-ins only: this runs before `pnpm install` in CI.
  */
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -173,32 +181,28 @@ function check() {
   const upstreamRef = process.argv.includes('--upstream')
     ? process.argv[process.argv.indexOf('--upstream') + 1]
     : 'refs/remotes/upstream/main'
-  const haveUpstream = gitOk(['cat-file', '-e', `${upstreamRef}^{commit}`])
-  // CI checks out this repository alone, so the upstream ref is absent there by
-  // design. The sync checks are the ones that need it, and a nightly lane
-  // passes --require-upstream so they cannot silently stop running.
+  const localOnly = process.argv.includes('--local-only')
   const requireUpstream = process.argv.includes('--require-upstream')
-  if (!haveUpstream) {
-    if (requireUpstream) throw new SetupFailure(`upstream ref ${upstreamRef} is not available; fetch it first`)
-    console.error('check-upstream-ports: no upstream ref here, skipping the sync checks (use --require-upstream to make that fatal)')
-  }
-
-  // CI checks out a single commit, so the baseline is usually absent there for
-  // the same reason the upstream ref is. Anything that needs history is a sync
-  // check, and they all report themselves rather than failing the gate.
+  if (localOnly && requireUpstream) throw new SetupFailure('--local-only and --require-upstream are mutually exclusive')
+  const haveUpstream = !localOnly && gitOk(['cat-file', '-e', `${upstreamRef}^{commit}`])
   const haveBaseline = gitOk(['cat-file', '-e', `${baseline}^{commit}`])
-  if (!haveBaseline && requireUpstream) {
-    throw new SetupFailure(`baseline ${short(baseline)} is not in this repository; fetch full history`)
-  }
-  // A shallow clone has the tip and nothing else, so every ancestry question is
-  // unanswerable rather than false. Say which checks were skipped instead of
-  // reporting each old commit as fabricated.
   const shallow = git(['rev-parse', '--is-shallow-repository'])[0] === 'true'
-  if (!haveBaseline || shallow) {
-    console.error(`check-upstream-ports: ${shallow ? 'shallow' : 'incomplete'} history, skipping the ancestry and enumeration checks`)
+  const unavailable = []
+  if (!haveBaseline) unavailable.push(`baseline ${short(baseline)} is not in this repository; fetch full history`)
+  if (shallow) unavailable.push('checkout is shallow; fetch full history')
+  if (!localOnly && !haveUpstream) unavailable.push(`upstream ref ${upstreamRef} is not available; fetch it first`)
+  const canCheckAncestry = !shallow && haveBaseline
+  const canEnumerate = !localOnly && haveUpstream && canCheckAncestry
+  if (!canCheckAncestry) {
+    console.error('check-upstream-ports: local ancestry cannot answer; skipping ancestry checks')
+  }
+  if (localOnly) {
+    console.error('check-upstream-ports: remote enumeration not requested (--local-only)')
+  } else if (!canEnumerate) {
+    console.error(`check-upstream-ports: remote enumeration cannot answer; ${unavailable.join('; ')}`)
   }
 
-  if (haveUpstream && haveBaseline) {
+  if (canEnumerate) {
     // 5. The baseline must be a common ancestor of us and the recorded upstream.
     if (!gitOk(['merge-base', '--is-ancestor', baseline, 'HEAD'])) {
       findings.push(`baseline ${short(baseline)} is not an ancestor of HEAD: the ledger describes history this branch is not on`)
@@ -215,7 +219,6 @@ function check() {
     }
   }
 
-  const canCheckAncestry = !shallow && haveBaseline
   for (const entry of ledger.entries) {
     const id = short(entry.upstream)
     // 2. A port must point at commits that are really in our history.
@@ -256,14 +259,19 @@ function check() {
   // setup failure rather than a pass.
   if (existsSync(PROSE)) {
     const prose = readFileSync(PROSE, 'utf8')
+    // A label stands for one or more ledger statuses: the ledger allows both
+    // `declined` and `not-applicable`, and the prose has a single bullet for
+    // them. Comparing per label rather than per status is what keeps both
+    // directions strict without treating the two statuses as each other's
+    // mismatch.
     const labels = [
-      { label: 'Ported since', status: 'ported' },
-      { label: 'Already covered before this ledger existed', status: 'already-covered' },
-      { label: 'Deliberately not taken', status: 'not-applicable' },
-      { label: 'Open decisions', status: 'pending' },
+      { label: 'Ported since', statuses: ['ported'] },
+      { label: 'Already covered before this ledger existed', statuses: ['already-covered'] },
+      { label: 'Deliberately not taken', statuses: ['declined', 'not-applicable'] },
+      { label: 'Open decisions', statuses: ['pending'] },
     ]
-    const sections = new Map()
-    for (const { label, status } of labels) {
+    const bullets = []
+    for (const { label, statuses } of labels) {
       const start = prose.indexOf(`**${label}:**`)
       if (start === -1) throw new SetupFailure(`docs/upstream-sync.md has no "${label}" bullet`)
       // A bullet runs until the next labelled bullet or the next heading.
@@ -272,22 +280,24 @@ function check() {
       const nextHeading = rest.slice(1).search(/\n## /)
       const ends = [nextBullet, nextHeading].filter(index => index !== -1).map(index => index + 1)
       const body = rest.slice(0, ends.length === 0 ? undefined : Math.min(...ends))
-      sections.set(status, new Set((body.match(/\b[0-9a-f]{7,40}\b/g) ?? []).map(sha => sha.slice(0, 8))))
+      bullets.push({ label, statuses, shas: new Set((body.match(/\b[0-9a-f]{7,40}\b/g) ?? []).map(sha => sha.slice(0, 8))) })
     }
+    const covers = new Set(labels.flatMap(entry => entry.statuses))
     for (const entry of ledger.entries) {
-      const where = sections.get(entry.status)
-      if (where === undefined) {
+      if (!covers.has(entry.status)) {
         throw new SetupFailure(`the ledger status ${JSON.stringify(entry.status)} has no prose bullet in docs/upstream-sync.md`)
       }
-      if (!where.has(short(entry.upstream))) {
-        findings.push(`docs/upstream-sync.md does not list ${short(entry.upstream)} under the bullet for its ledger status ${JSON.stringify(entry.status)}; the ledger and the prose have drifted`)
+      const id = short(entry.upstream)
+      const home = bullets.find(candidate => candidate.statuses.includes(entry.status))
+      if (home !== undefined && !home.shas.has(id)) {
+        findings.push(`docs/upstream-sync.md does not list ${id} under "${home.label}" for its ledger status ${JSON.stringify(entry.status)}; the ledger and the prose have drifted`)
       }
     }
-    for (const [status, shas] of sections) {
+    for (const { label, statuses, shas } of bullets) {
       for (const sha of shas) {
         const entry = ledger.entries.find(candidate => short(candidate.upstream) === sha)
-        if (entry !== undefined && entry.status !== status) {
-          findings.push(`docs/upstream-sync.md lists ${sha} under ${JSON.stringify(status)} but the ledger says ${JSON.stringify(entry.status)}`)
+        if (entry !== undefined && !statuses.includes(entry.status)) {
+          findings.push(`docs/upstream-sync.md lists ${sha} under "${label}" but the ledger says ${JSON.stringify(entry.status)}`)
         }
       }
     }
@@ -302,19 +312,21 @@ function check() {
     throw new SetupFailure('docs/upstream-sync.md is missing')
   }
 
-  return findings
+  console.log(`check-upstream-ports: local ledger checks ran (ancestry ${canCheckAncestry ? 'ran' : 'cannot answer'}); remote enumeration ${canEnumerate ? 'ran' : localOnly ? 'not requested' : 'cannot answer'}`)
+  return { findings, setup: requireUpstream && !canEnumerate ? unavailable.join('; ') : null }
 }
 
 try {
-  const findings = check()
+  const { findings, setup } = check()
   if (findings.length > 0) {
     console.error('check-upstream-ports: findings\n')
     for (const finding of findings) console.error(`  - ${finding}`)
-    process.exit(1)
   }
+  if (setup !== null) throw new SetupFailure(`cannot answer required upstream checks: ${setup}`)
+  if (findings.length > 0) process.exit(1)
   const ledger = loadLedger()
   const counts = ledger.entries.reduce((acc, entry) => ({ ...acc, [entry.status]: (acc[entry.status] ?? 0) + 1 }), {})
-  console.log(`check-upstream-ports: ok — ${ledger.entries.length} commits classified (${Object.entries(counts).map(([k, v]) => `${k} ${v}`).join(', ')})`)
+  console.log(`check-upstream-ports: no findings in checks that ran — ${ledger.entries.length} ledger entries (${Object.entries(counts).map(([k, v]) => `${k} ${v}`).join(', ')})`)
 } catch (error) {
   console.error(`check-upstream-ports SETUP FAILURE: ${error.message}`)
   process.exit(2)

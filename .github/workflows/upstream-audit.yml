@@ -1,0 +1,130 @@
+name: Upstream ledger audit
+
+on:
+  schedule:
+    # Daily at 03:17 UTC; independent of PR CI and nightly test lanes.
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  upstream-ledger:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      # Run before fetching so an upstream outage cannot suppress local checks.
+      - name: Check the local ledger
+        id: local
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          node scripts/check-upstream-ports.mjs --local-only 2>&1 | tee "$RUNNER_TEMP/upstream-local.log"
+          code=${PIPESTATUS[0]}
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          exit "$code"
+      - name: Fetch upstream and verify enumeration prerequisites
+        id: fetch
+        timeout-minutes: 5
+        shell: bash
+        env:
+          GIT_TERMINAL_PROMPT: '0'
+        run: |
+          set -euo pipefail
+          fetched=false
+          for attempt in 1 2 3; do
+            echo "Upstream fetch attempt $attempt of 3"
+            set +e
+            timeout --kill-after=10s 60s git fetch --no-tags \
+              https://github.com/V1ki/dsh-plugin-subscriptions.git \
+              +refs/heads/main:refs/remotes/upstream/main
+            fetch_code=$?
+            set -e
+            echo "Last fetch exit code: $fetch_code"
+            echo "fetch_code=$fetch_code" >> "$GITHUB_OUTPUT"
+            if [[ "$fetch_code" == 0 ]]; then
+              fetched=true
+              break
+            fi
+            if [[ "$attempt" != 3 ]]; then sleep 5; fi
+          done
+          if [[ "$fetched" != true ]]; then
+            echo 'SETUP FAILURE: upstream fetch failed or timed out; remote enumeration did not run.' >&2
+            exit 2
+          fi
+          baseline="$(node -e "console.log(JSON.parse(require('fs').readFileSync('docs/upstream-ports.json', 'utf8')).baseline.sha)")"
+          if [[ "$(git rev-parse --is-shallow-repository)" != false ]]; then
+            echo 'SETUP FAILURE: checkout is shallow; remote enumeration did not run.' >&2
+            exit 2
+          fi
+          if ! git cat-file -e "${baseline}^{commit}"; then
+            echo "SETUP FAILURE: baseline $baseline is absent; remote enumeration did not run." >&2
+            exit 2
+          fi
+          if ! git cat-file -e refs/remotes/upstream/main^{commit}; then
+            echo 'SETUP FAILURE: upstream/main is absent after fetch; remote enumeration did not run.' >&2
+            exit 2
+          fi
+      - name: Check the ledger against upstream
+        id: remote
+        if: ${{ !cancelled() && steps.fetch.outcome == 'success' }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          node scripts/check-upstream-ports.mjs --require-upstream 2>&1 | tee "$RUNNER_TEMP/upstream-remote.log"
+          code=${PIPESTATUS[0]}
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          exit "$code"
+      # No issue automation: exact findings (including offending SHAs) stay in
+      # logs and this summary. A fetch failure is never a drift report.
+      - name: Summarize both halves and enforce the result
+        if: always()
+        shell: bash
+        env:
+          LOCAL_CODE: ${{ steps.local.outputs.code }}
+          FETCH_OUTCOME: ${{ steps.fetch.outcome }}
+          FETCH_CODE: ${{ steps.fetch.outputs.fetch_code }}
+          REMOTE_CODE: ${{ steps.remote.outputs.code }}
+        run: |
+          set -euo pipefail
+          result=0
+          {
+            echo '## Upstream ledger audit'
+            echo
+            case "$LOCAL_CODE" in
+              0) echo 'Local ledger: ran, no findings (exit 0).' ;;
+              1) echo 'Local ledger: ran, findings (exit 1).'; result=1 ;;
+              *) echo "Local ledger: cannot answer completely (exit ${LOCAL_CODE:-unavailable}); setup failure."; result=2 ;;
+            esac
+            if [[ "$FETCH_OUTCOME" != success ]]; then
+              echo "Remote enumeration: did not run; SETUP FAILURE during fetch/prerequisites (last fetch exit ${FETCH_CODE:-unavailable})."
+              result=2
+            else
+              case "$REMOTE_CODE" in
+                0) echo 'Remote-required ledger check: ran, no findings (exit 0).' ;;
+                1) echo 'Remote-required ledger check: ran, real ledger findings (exit 1), not a fetch failure.'; if [[ "$result" == 0 ]]; then result=1; fi ;;
+                *) echo "Remote-required ledger check: cannot answer completely (exit ${REMOTE_CODE:-unavailable}); setup failure, not a drift verdict."; result=2 ;;
+              esac
+            fi
+            for half in local remote; do
+              log="$RUNNER_TEMP/upstream-$half.log"
+              if [[ -f "$log" ]]; then
+                echo
+                echo "### $half checker output"
+                echo '````text'
+                cat "$log"
+                echo '````'
+              fi
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$result"

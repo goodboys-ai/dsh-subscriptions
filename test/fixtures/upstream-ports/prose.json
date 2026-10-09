@@ -1,0 +1,39 @@
+{
+  "sameStatus": [
+    {
+      "status": "ported",
+      "prose": "- **Ported since:** fixture (`deadbeef`).\n- **Already covered before this ledger existed:** nothing this round.\n- **Deliberately not taken:** nothing this round.\n- **Open decisions:** nothing this round.\n"
+    },
+    {
+      "status": "already-covered",
+      "prose": "- **Ported since:** nothing this round.\n- **Already covered before this ledger existed:** fixture (`deadbeef`).\n- **Deliberately not taken:** nothing this round.\n- **Open decisions:** nothing this round.\n"
+    },
+    {
+      "status": "declined",
+      "prose": "- **Ported since:** nothing this round.\n- **Already covered before this ledger existed:** nothing this round.\n- **Deliberately not taken:** fixture (`deadbeef`).\n- **Open decisions:** nothing this round.\n"
+    },
+    {
+      "status": "not-applicable",
+      "prose": "- **Ported since:** nothing this round.\n- **Already covered before this ledger existed:** nothing this round.\n- **Deliberately not taken:** fixture (`deadbeef`).\n- **Open decisions:** nothing this round.\n"
+    },
+    {
+      "status": "pending",
+      "prose": "- **Ported since:** nothing this round.\n- **Already covered before this ledger existed:** nothing this round.\n- **Deliberately not taken:** nothing this round.\n- **Open decisions:** fixture (`deadbeef`).\n"
+    }
+  ],
+  "mismatchedStatus": [
+    {
+      "status": "ported",
+      "prose": "- **Ported since:** another commit (`cafebabe`).\n- **Already covered before this ledger existed:** nothing this round.\n- **Deliberately not taken:** nothing this round.\n- **Open decisions:** fixture (`deadbeef`).\n"
+    },
+    {
+      "status": "pending",
+      "prose": "- **Ported since:** fixture (`deadbeef`).\n- **Already covered before this ledger existed:** nothing this round.\n- **Deliberately not taken:** nothing this round.\n- **Open decisions:** nothing this round.\n"
+    },
+    {
+      "status": "already-covered",
+      "prose": "- **Ported since:** fixture (`deadbeef`).\n- **Already covered before this ledger existed:** nothing this round.\n- **Deliberately not taken:** nothing this round.\n- **Open decisions:** nothing this round.\n"
+    }
+  ],
+  "outsideStatusBullet": "The port deadbeef is mentioned in prose that is not a status bullet.\n- **Ported since:** nothing this round.\n- **Already covered before this ledger existed:** nothing this round.\n- **Deliberately not taken:** nothing this round.\n- **Open decisions:** another commit (`cafebabe`).\n"
+}
