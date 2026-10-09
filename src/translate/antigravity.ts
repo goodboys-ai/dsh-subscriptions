@@ -63,9 +63,11 @@ export interface AntigravityRequest {
  * `FunctionResponse.response` field requires. That field maps to a singular
  * protobuf `Struct`, so a bare array, string, number or boolean is rejected
  * by the endpoint with "Proto field is not repeating, cannot start list".
- * Only a non-array JSON object survives verbatim; every other JSON value is
+ * Non-array JSON objects use their own fields; every other JSON value is
  * wrapped in the same "output" envelope the non-JSON path already uses --
  * the shape other Cloud Code Assist clients send for every tool result.
+ * Failed results carry top-level `isError: true`, overriding a payload field;
+ * successful results retain their existing serialized shape.
  */
 function toolResultValue(block: ResolvedToolResultBlock): Record<string, unknown> {
   const text = block.content.map(part => part.type === 'text' ? part.text : '').join('')
@@ -75,8 +77,11 @@ function toolResultValue(block: ResolvedToolResultBlock): Record<string, unknown
   } catch {
     return { output: text, ...block.isError === true ? { isError: true } : {} }
   }
-  if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed as Record<string, unknown>
-  return { output: parsed }
+  if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
+    const value = parsed as Record<string, unknown>
+    return block.isError === true ? { ...value, isError: true } : value
+  }
+  return { output: parsed, ...block.isError === true ? { isError: true } : {} }
 }
 
 /** Safely read per-block replay metadata emitted by this adapter. */
@@ -137,7 +142,10 @@ export function toAntigravityContents(messages: readonly TranslatableMessage[], 
       const part: AntigravityPart = { functionResponse: {
         id,
         name: callNames.get(id) ?? '',
-        response: toolResultValue({ type: 'tool-result', toolCallId: ToolCallId(id), content: message.content }),
+        response: toolResultValue({
+          type: 'tool-result', toolCallId: ToolCallId(id), content: message.content,
+          ...message.isError === undefined ? {} : { isError: message.isError },
+        }),
       } }
       const previous = out.at(-1)
       if (previous?.role === 'user') previous.parts.push(part)
