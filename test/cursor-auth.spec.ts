@@ -3,6 +3,52 @@ import assert from 'node:assert/strict'
 import { CURSOR_CREDENTIAL_REF, CursorAuth } from '../src/providers/cursor-auth.js'
 import type { CursorCredentialService } from '../src/providers/cursor-auth.js'
 
+const omission = '[provider response body omitted]'
+const invalidBodies = ['{"error":{"message":"customer-input SHORT_SECRET!"}', 'sk-live-ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789']
+
+test('Cursor corrupt stored credentials retain SyntaxError without exposing credential prefixes', async () => {
+  for (const raw of invalidBodies) {
+    const auth = new CursorAuth(memoryStore(raw), async () => assert.fail('corrupt credentials must not start refresh'))
+    for (const call of [() => auth.status(), () => auth.accessToken()]) {
+      await assert.rejects(call(), (error: unknown) => {
+        assert.ok(error instanceof SyntaxError)
+        assert.equal(error.cause, undefined)
+        assert.doesNotMatch(error.message, /SHORT_SECRET|customer-input|sk-live|\{"error/)
+        assert.equal(error.message, `Cursor stored credential: invalid JSON: ${omission}`)
+        return true
+      })
+    }
+  }
+})
+
+test('Cursor login poll stores only the safe parse message in Settings and stops polling', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  for (const raw of invalidBodies) {
+    let calls = 0
+    const store = memoryStore()
+    const auth = new CursorAuth(store, async () => { calls++; return new Response(raw) })
+    await auth.login()
+    t.mock.timers.tick(1000)
+    // Drain body parsing and the login catch/finally without real-time polling.
+    for (let turn = 0; turn < 20; turn++) await Promise.resolve()
+    assert.deepEqual(await auth.status(), { authenticated: false, busy: false, error: `Cursor login poll: invalid JSON: ${omission}` })
+    assert.equal(calls, 1)
+    assert.equal(store.value, undefined)
+  }
+})
+
+test('Cursor login poll accepts credential-looking valid JSON without changing storage', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const access = 'sk-live-ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+  const store = memoryStore()
+  const auth = new CursorAuth(store, async () => Response.json({ accessToken: access, refreshToken: 'refresh' }), () => 1000)
+  await auth.login()
+  t.mock.timers.tick(1000)
+  for (let turn = 0; turn < 20; turn++) await Promise.resolve()
+  assert.deepEqual(JSON.parse(store.value!), { type: 'oauth', access, refresh: 'refresh', expires: 1000 + 24 * 60 * 60_000 })
+  assert.deepEqual(await auth.status(), { authenticated: true, busy: false, expiresAt: 1000 + 24 * 60 * 60_000 })
+})
+
 function jwt(exp: number): string {
   return `header.${Buffer.from(JSON.stringify({ sub: 'user_123', exp })).toString('base64url')}.signature`
 }

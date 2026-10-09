@@ -38,6 +38,7 @@ import {
   discoverOrRetryAuth,
   isDiscoveryAborted,
   isMissingOrInvalidCredential,
+  parseProviderJson,
   oauthEndpointError,
   OAuthEndpointError,
 } from './common.js'
@@ -284,7 +285,7 @@ export async function exchangeClaudeCode(
     }),
   })
   if (!response.ok) throw await oauthEndpointError(response, 'claude')
-  return claudeSession(await response.json() as ClaudeTokenResponse, undefined, true)
+  return claudeSession(await parseProviderJson(response, 'claude token exchange') as ClaudeTokenResponse, undefined, true)
 }
 
 /**
@@ -304,7 +305,7 @@ export async function refreshClaude(session: ClaudeSession): Promise<ClaudeSessi
     }),
   })
   if (!response.ok) throw await oauthEndpointError(response, 'claude')
-  const next = await claudeSession(await response.json() as ClaudeTokenResponse, session.refreshToken, false)
+  const next = await claudeSession(await parseProviderJson(response, 'claude token refresh') as ClaudeTokenResponse, session.refreshToken, false)
   return {
     ...next,
     ...session.emailAddress === undefined ? {} : { emailAddress: session.emailAddress },
@@ -477,7 +478,7 @@ export async function fetchClaudeUsage(
     response = await fetchFn(CLAUDE_USAGE_URL, init)
   }
   if (!response.ok) throw await oauthEndpointError(response, 'claude usage')
-  const payload = await response.json() as Record<string, unknown>
+  const payload = await parseProviderJson(response, 'claude usage') as Record<string, unknown>
   const resetCredits = resetCreditsError === undefined ? claudeResetCredits(payload.cedar_ember, Date.now()) : undefined
   const resets = {
     ...resetCredits === undefined ? {} : { resetCredits },
@@ -573,7 +574,7 @@ export async function fetchClaudeModels(
     ...signal === undefined ? {} : { signal },
   })
   if (!response.ok) throw await httpLlmError(response, 'claude models API')
-  const payload = await response.json() as { data?: ClaudeWireModel[] }
+  const payload = await parseProviderJson(response, 'claude models API') as { data?: ClaudeWireModel[] }
   if (!Array.isArray(payload.data)) {
     throw new Error('claude models API returned an invalid catalog')
   }
@@ -926,7 +927,7 @@ export class ClaudeAdapter extends LlmAdapter {
     if (hostSupportsImageOffload()) {
       const offloadImages = requiredImageOffloadCount(messages, CLAUDE_REQUEST_IMAGE_BUDGET)
       if (offloadImages > 0) {
-        // Older dsh-llm option types lack `offloadImages`; 0.2+ hosts read it.
+        // The supported 0.1.7-rc.2 floor reads `offloadImages`; older option types lack it.
         throw new LlmError(
           `claude request images exceed the ${CLAUDE_REQUEST_IMAGE_BUDGET}-byte base64 budget; `
           + `${offloadImages} more oldest image(s) must be offloaded`,

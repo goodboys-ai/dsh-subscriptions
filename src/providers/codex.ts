@@ -35,6 +35,7 @@ import {
   isDiscoveryAborted,
   isDiscoveryAuthFailure,
   isMissingOrInvalidCredential,
+  parseProviderJson,
   oauthEndpointError,
   OAuthEndpointError,
 } from './common.js'
@@ -253,7 +254,7 @@ export async function exchangeCodexCode(code: string, verifier: string, redirect
     }).toString(),
   })
   if (!response.ok) throw await oauthEndpointError(response, 'codex')
-  return codexSession(await response.json() as CodexTokenResponse)
+  return codexSession(await parseProviderJson(response, 'codex token exchange') as CodexTokenResponse)
 }
 
 /**
@@ -272,7 +273,7 @@ export async function refreshCodex(session: CodexSession): Promise<CodexSession>
     }),
   })
   if (!response.ok) throw await oauthEndpointError(response, 'codex')
-  return codexSession(await response.json() as CodexTokenResponse, session)
+  return codexSession(await parseProviderJson(response, 'codex token refresh') as CodexTokenResponse, session)
 }
 
 /**
@@ -322,7 +323,7 @@ export async function fetchCodexResetCredits(
     ...signal === undefined ? {} : { signal },
   })
   if (!response.ok) throw await oauthEndpointError(response, 'codex reset credits')
-  const payload = await response.json() as { credits?: unknown }
+  const payload = await parseProviderJson(response, 'codex reset credits') as { credits?: unknown }
   if (!Array.isArray(payload?.credits)) throw new Error('codex reset credits: unexpected response (missing credits array)')
   return payload.credits.flatMap((value): NonNullable<ProviderUsage['resetCredits']> => {
     if (typeof value !== 'object' || value === null) return []
@@ -352,7 +353,7 @@ export async function consumeCodexResetCredit(
     ...signal === undefined ? {} : { signal },
   })
   if (!response.ok) throw await oauthEndpointError(response, 'codex consume reset')
-  const payload = await response.json() as { code?: unknown }
+  const payload = await parseProviderJson(response, 'codex consume reset') as { code?: unknown }
   if (payload?.code !== 'reset') throw new Error('Reset was not confirmed. Verify the account in Codex before retrying.')
 }
 
@@ -442,7 +443,7 @@ export async function fetchCodexUsage(
     ...signal === undefined ? {} : { signal },
   })
   if (!response.ok) throw await oauthEndpointError(response, 'codex usage')
-  const payload = await response.json() as {
+  const payload = await parseProviderJson(response, 'codex usage') as {
     plan_type?: string
     rate_limit?: { primary_window?: unknown; secondary_window?: unknown }
   }
@@ -530,7 +531,7 @@ export async function fetchCodexModels(
     ...signal === undefined ? {} : { signal },
   })
   if (!response.ok) throw await oauthEndpointError(response, 'codex models')
-  const payload = await response.json() as { models?: CodexWireModel[] }
+  const payload = await parseProviderJson(response, 'codex models') as { models?: CodexWireModel[] }
   if (!Array.isArray(payload.models)) throw new Error('codex models endpoint returned no models array')
   const discovered: DiscoveredModel[] = []
   for (const entry of payload.models) {

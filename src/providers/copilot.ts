@@ -45,6 +45,7 @@ import {
   discoverOrRetryAuth,
   isDiscoveryAborted,
   isMissingOrInvalidCredential,
+  parseProviderJson,
   oauthEndpointError,
   OAuthEndpointError,
 } from './common.js'
@@ -205,7 +206,7 @@ export async function exchangeCopilotToken(
     },
   })
   if (!response.ok) throw await oauthEndpointError(response, 'copilot')
-  const wire = await response.json() as CopilotTokenWire
+  const wire = await parseProviderJson(response, 'copilot token exchange') as CopilotTokenWire
   if (typeof wire.token !== 'string' || wire.token.length === 0) {
     throw new Error('copilot token endpoint returned no token')
   }
@@ -355,7 +356,7 @@ export async function fetchCopilotModels(
     ...signal === undefined ? {} : { signal },
   })
   if (!response.ok) throw await oauthEndpointError(response, 'copilot models')
-  const payload = await response.json() as { data?: CopilotWireModel[] }
+  const payload = await parseProviderJson(response, 'copilot models') as { data?: CopilotWireModel[] }
   if (!Array.isArray(payload.data)) throw new Error('copilot models endpoint returned no data array')
   const seen = new Set<string>()
   const discovered: DiscoveredModel[] = []
