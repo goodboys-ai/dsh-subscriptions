@@ -110,7 +110,7 @@ export function parseVideoStartResponse(payload: unknown): string {
 export type VideoStatus =
   | { status: 'pending' }
   | { status: 'done'; url: string; duration?: number }
-  | { status: 'failed' | 'expired'; detail?: string }
+  | { status: 'failed' | 'expired' }
 
 /**
  * Decode one poll response. A `done` payload without a video URL and an
@@ -134,15 +134,13 @@ export function parseVideoStatusResponse(payload: unknown): VideoStatus {
       }
     }
     case 'failed':
-    case 'expired': {
-      const error = isRecord(body.error) ? body.error : {}
-      const detail = typeof error.message === 'string' && error.message.length > 0
-        ? error.message
-        : typeof body.error === 'string' && body.error.length > 0 ? body.error : undefined
-      return { status: body.status, ...detail === undefined ? {} : { detail } }
-    }
+    case 'expired':
+      // Safe means this failure path carries no provider-controlled free text,
+      // not that no secret can exist elsewhere in the system.
+      return { status: body.status }
     default:
-      throw new Error(`video_generate: unexpected status ${JSON.stringify(body.status)}`)
+      // Safe here also excludes provider-controlled free text, not all system secrets.
+      throw new Error('video_generate: unexpected status: [provider response body omitted]')
   }
 }
 
@@ -282,8 +280,10 @@ export function createVideoGenerateTool(options: VideoGenerateToolOptions): Tool
           break
         }
         if (status.status === 'failed' || status.status === 'expired') {
+          // No provider response text on this path. The provider-assigned opaque
+          // request id stays for support correlation; it does not permit message excerpts.
           throw new Error(`video_generate: generation ${status.status} (request ${requestId})`
-            + (status.detail === undefined ? '' : `: ${status.detail}`))
+            + ': [provider response body omitted]')
         }
         if (Date.now() >= deadline) {
           throw new Error(`video_generate: timed out after ${String(maxWaitMs)}ms waiting for request ${requestId}`)

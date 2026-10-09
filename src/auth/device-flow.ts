@@ -204,8 +204,10 @@ export class DeviceFlowManager {
             settle(new Error('the device code expired before authorization completed'))
             return
           default:
+            // Safe means this failure path carries no provider-controlled free text,
+            // not that no secret can exist elsewhere in the system.
             settle(new Error(
-              `${provider} device-flow polling failed: ${result.error_description ?? result.error ?? `HTTP ${String(pollResponse.status)}`}`,
+              `${provider} device-flow polling failed (HTTP ${String(pollResponse.status)}): [provider response body omitted]`,
             ))
             return
         }

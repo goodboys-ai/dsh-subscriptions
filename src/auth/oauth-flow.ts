@@ -74,6 +74,25 @@ const SUCCESS_PAGE = '<!doctype html><html><head><meta charset="utf-8"><title>Lo
   + '<body style="font-family:sans-serif"><h1>Login successful</h1>'
   + '<p>You can close this tab and return to DeepSeek Harness.</p></body></html>'
 
+function authorizationFailure(error: string | null): string {
+  // Safe means this failure path carries no provider-controlled free text,
+  // not that no secret can exist elsewhere in the system.
+  // RFC 6749 §4.1.2.1 categories select local literals, never provider prose.
+  let category: string | undefined
+  switch (error) {
+    case 'invalid_request': category = 'invalid_request'; break
+    case 'unauthorized_client': category = 'unauthorized_client'; break
+    case 'access_denied': category = 'access_denied'; break
+    case 'unsupported_response_type': category = 'unsupported_response_type'; break
+    case 'invalid_scope': category = 'invalid_scope'; break
+    case 'server_error': category = 'server_error'; break
+    case 'temporarily_unavailable': category = 'temporarily_unavailable'; break
+  }
+  return 'authorization failed'
+    + (category === undefined ? '' : ` (${category})`)
+    + ': [provider message omitted]'
+}
+
 function failurePage(detail: string): string {
   return '<!doctype html><html><head><meta charset="utf-8"><title>Login failed</title></head>'
     + `<body style="font-family:sans-serif"><h1>Login failed</h1><p>${detail.replace(/[<>&]/g, '')}</p></body></html>`
@@ -210,17 +229,18 @@ export class OAuthFlowManager {
         response.end('not found')
         return
       }
-      const errorDescription = url.searchParams.get('error_description') ?? url.searchParams.get('error')
-      if (errorDescription !== null) {
-        response.writeHead(200, { 'content-type': 'text/html' })
-        response.end(failurePage(errorDescription))
-        settle(new Error(`authorization failed: ${errorDescription}`))
-        return
-      }
       if (url.searchParams.get('state') !== input.state) {
-        // A stray or replayed redirect must not kill the real attempt.
+        // A stray or replayed redirect must not kill the real attempt, even on error.
+        // RFC 6749 §4.1.2.1 requires errors to echo the state sent in the request.
         response.writeHead(400, { 'content-type': 'text/plain' })
         response.end('state mismatch')
+        return
+      }
+      if (url.searchParams.has('error_description') || url.searchParams.has('error')) {
+        const detail = authorizationFailure(url.searchParams.get('error'))
+        response.writeHead(200, { 'content-type': 'text/html' })
+        response.end(failurePage(detail))
+        settle(new Error(detail))
         return
       }
       const code = url.searchParams.get('code')

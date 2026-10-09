@@ -33,6 +33,116 @@ import {
 import { accountKeyOf, authFilePath, listAccounts } from '../src/auth/store.js'
 import type { ClaudeSession, StoredSession } from '../src/auth/store.js'
 
+// These callbacks use the real loopback handler, not a mocked provider or controller.
+const CALLBACK_SPEC = {
+  callbackPath: '/callback',
+  listen: { host: '127.0.0.1', ports: [0] },
+  buildAuthorizeUrl: ({ state }: { state: string }) => `https://provider.invalid/authorize?state=${state}`,
+}
+
+for (const category of [
+  'invalid_request', 'unauthorized_client', 'access_denied', 'unsupported_response_type',
+  'invalid_scope', 'server_error', 'temporarily_unavailable',
+]) {
+  test(`OAuth callback: ${category} omits provider text from the Error and page`, async () => {
+    const flows = new OAuthFlowManager()
+    const attempt = await flows.start('test-provider', CALLBACK_SPEC)
+    const outcome = attempt.waitCode().catch((error: unknown) => error)
+    try {
+      const url = new URL(attempt.redirectUri)
+      url.searchParams.set('state', attempt.state)
+      url.searchParams.set('error', category)
+      url.searchParams.set('error_description', 'customer-input SHORT_SECRET!')
+      url.searchParams.set('code', 'must-not-succeed')
+      const response = await fetch(url)
+      const page = await response.text()
+      const error = await outcome
+      assert.equal(response.status, 200)
+      assert.ok(error instanceof Error)
+      assert.equal(error.constructor, Error)
+      assert.doesNotMatch(`${error.message}\n${page}`, /customer-input SHORT_SECRET!/)
+      const detail = `authorization failed (${category}): [provider message omitted]`
+      assert.equal(error.message, detail)
+      assert.ok(page.includes(`<p>${detail}</p>`))
+      assert.equal(flows.isBusy('test-provider'), false)
+    } finally {
+      attempt.cancel()
+      await outcome
+    }
+  })
+}
+
+for (const params of [
+  { error: 'customer-input SHORT_SECRET!' },
+  { error_description: 'customer-input SHORT_SECRET!' },
+  { error: '' },
+  { error_description: '', code: 'must-not-succeed' },
+  { error: 'access_denied customer-input SHORT_SECRET!' },
+  { error: 'toString' },
+]) {
+  test(`OAuth callback: non-allowlisted failure omits provider text (${JSON.stringify(params)})`, async () => {
+    const flows = new OAuthFlowManager()
+    const attempt = await flows.start('test-provider', CALLBACK_SPEC)
+    const outcome = attempt.waitCode().catch((error: unknown) => error)
+    try {
+      const url = new URL(attempt.redirectUri)
+      url.searchParams.set('state', attempt.state)
+      for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value)
+      const response = await fetch(url)
+      const page = await response.text()
+      const error = await outcome
+      assert.equal(response.status, 200)
+      assert.ok(error instanceof Error)
+      assert.equal(error.constructor, Error)
+      assert.doesNotMatch(`${error.message}\n${page}`, /customer-input SHORT_SECRET!/)
+      assert.equal(error.message, 'authorization failed: [provider message omitted]')
+      assert.ok(page.includes(`<p>${error.message}</p>`))
+      assert.equal(flows.isBusy('test-provider'), false)
+    } finally {
+      attempt.cancel()
+      await outcome
+    }
+  })
+}
+
+for (const state of [undefined, 'wrong-state']) {
+  test(`OAuth callback: error with ${state ?? 'missing state'} does not settle the real attempt`, async () => {
+    const flows = new OAuthFlowManager()
+    const attempt = await flows.start('test-provider', CALLBACK_SPEC)
+    let settled = false
+    const outcome = attempt.waitCode().then(
+      code => { settled = true; return code },
+      (error: unknown) => { settled = true; return error },
+    )
+    try {
+      const url = new URL(attempt.redirectUri)
+      url.searchParams.set('error', 'access_denied')
+      url.searchParams.set('error_description', 'customer-input SHORT_SECRET!')
+      if (state !== undefined) url.searchParams.set('state', state)
+      const response = await fetch(url)
+      const page = await response.text()
+      assert.equal(settled, false, 'an uncorrelated error callback must leave waitCode pending')
+      assert.equal(response.status, 400)
+      assert.equal(page, 'state mismatch')
+      assert.doesNotMatch(page, /customer-input SHORT_SECRET!/)
+      assert.equal(flows.pending('test-provider'), attempt)
+      assert.equal(flows.isBusy('test-provider'), true)
+      url.searchParams.delete('error')
+      url.searchParams.delete('error_description')
+      url.searchParams.set('code', 'real-code')
+      url.searchParams.set('state', attempt.state)
+      const accepted = await fetch(url)
+      assert.equal(accepted.status, 200)
+      assert.match(await accepted.text(), /Login successful/)
+      assert.equal(await outcome, 'real-code')
+      assert.equal(flows.isBusy('test-provider'), false)
+    } finally {
+      attempt.cancel()
+      await outcome
+    }
+  })
+}
+
 const TEMP_DIRS: string[] = []
 
 /** A temp directory removed when the file finishes, fake tokens and all. */

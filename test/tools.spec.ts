@@ -569,7 +569,7 @@ test('parseVideoStartResponse / parseVideoStatusResponse', () => {
   assert.throws(() => parseVideoStatusResponse({ status: 'done', video: {} }), /no video URL/)
   assert.deepEqual(
     parseVideoStatusResponse({ status: 'failed', error: { message: 'moderated' } }),
-    { status: 'failed', detail: 'moderated' },
+    { status: 'failed' },
   )
   assert.deepEqual(parseVideoStatusResponse({ status: 'expired' }), { status: 'expired' })
   assert.throws(() => parseVideoStatusResponse({ status: 'weird' }), /unexpected status/)
@@ -630,7 +630,7 @@ test('video_generate execute: failed status, poll timeout, error status, logged-
     videosDir: dir,
     pollIntervalMs: 0,
   })
-  await assert.rejects(() => failed.execute({ prompt: 'x' }, fakeExec()), /failed \(request req-2\): moderated/)
+  await assert.rejects(() => failed.execute({ prompt: 'x' }, fakeExec()), /failed \(request req-2\): \[provider response body omitted\]/)
 
   const timedOut = createVideoGenerateTool({
     tokens: memoryTokens(grokSession),
@@ -664,6 +664,43 @@ test('video_generate execute: failed status, poll timeout, error status, logged-
     (error: unknown) => error instanceof LlmError && error.code === 'MISSING_CREDENTIAL',
   )
 })
+
+test('video_generate execute: unexpected status omits the provider value', async () => {
+  const { fetchFn, requests } = sequenceFetch([
+    Response.json({ request_id: 'req-private' }),
+    Response.json({ status: 'customer-input SHORT_SECRET!' }),
+  ])
+  const tool = createVideoGenerateTool({ tokens: memoryTokens(grokSession), fetchFn, pollIntervalMs: 0 })
+  await assert.rejects(() => tool.execute({ prompt: 'x' }, fakeExec()), (caught: unknown) => {
+    assert.ok(caught instanceof Error)
+    assert.equal(caught.constructor, Error)
+    assert.doesNotMatch(caught.message, /customer-input SHORT_SECRET!/)
+    assert.equal(caught.message, 'video_generate: unexpected status: [provider response body omitted]')
+    return true
+  })
+  assert.equal(requests.length, 2, 'an unexpected status still throws without retrying or downloading')
+})
+
+for (const status of ['failed', 'expired'] as const) {
+  for (const error of [{ message: 'customer-input SHORT_SECRET!' }, 'customer-input SHORT_SECRET!', undefined]) {
+    test(`video_generate execute: ${status} omits provider text (${typeof error})`, async () => {
+      const { fetchFn, requests } = sequenceFetch([
+        Response.json({ request_id: 'req-private' }),
+        Response.json({ status, error }),
+      ])
+      const tool = createVideoGenerateTool({ tokens: memoryTokens(grokSession), fetchFn, pollIntervalMs: 0 })
+      await assert.rejects(() => tool.execute({ prompt: 'x' }, fakeExec()), (caught: unknown) => {
+        assert.ok(caught instanceof Error)
+        assert.equal(caught.constructor, Error)
+        assert.doesNotMatch(caught.message, /customer-input SHORT_SECRET!/)
+        assert.equal(caught.message,
+          `video_generate: generation ${status} (request req-private): [provider response body omitted]`)
+        return true
+      })
+      assert.equal(requests.length, 2, 'a terminal status neither retries nor downloads')
+    })
+  }
+}
 
 test('video_generate presentCall and render', () => {
   const tool = createVideoGenerateTool({ tokens: memoryTokens(grokSession), fetchFn: jsonFetch({}).fetchFn })
