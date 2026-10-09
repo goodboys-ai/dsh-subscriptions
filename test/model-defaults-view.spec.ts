@@ -2,9 +2,18 @@
  * Executes the real ProviderModelEditor and ProviderAccountManager with a small
  * React hook dispatcher and fixture RPCs. Effects, JSX event handlers and the
  * imperative collect handle exercise production load/collect/save logic; no
- * old view/fetch helper is substituted. The JSX tree is inspected, not mounted
- * in a browser: these tests prove nothing about layout, focus, native dialog
- * behavior, contrast or theming. The DOM stub only lets dialog effects run.
+ * old view/fetch helper is substituted.
+ *
+ * What this cannot show, and must not be read as showing: the fixtures link the
+ * child's ref and dirty callback by hand from the first render only, and the
+ * editor is constructed with a fixed provider, so parent-to-child props are
+ * never re-synchronised. Real React reconciliation and effect scheduling, an
+ * editor frozen while a save is in flight, and DOM `disabled` events are
+ * therefore outside what these tests can observe. The JSX tree is inspected,
+ * not mounted in a browser: nothing here proves layout, focus, native dialog
+ * behavior, contrast or theming, and the DOM stub exists only so dialog effects
+ * can run. In short, this is isolated component logic with a manually linked
+ * ref and dirty callback.
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -26,7 +35,7 @@ const internals = (React as unknown as {
   __SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED: { ReactCurrentDispatcher: { current: unknown } }
 }).__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED
 
-/** Only hook scheduling is faked; component logic and RPC unwrapping are real. */
+/** Hook scheduling, ref wiring and prop propagation are faked; the component logic and RPC unwrapping are real. See the file header for what that excludes. */
 class Component {
   private slots: Slot[] = []
   private cursor = 0

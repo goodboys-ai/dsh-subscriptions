@@ -15,7 +15,7 @@ import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import type { GrokSession } from '../auth/store.js'
-import { httpLlmError } from '../providers/common.js'
+import { httpLlmError, parseProviderJson } from '../providers/common.js'
 import { AccountTokenManager } from '../providers/accounts.js'
 import type { FetchFn } from '../providers/common.js'
 import { hostFetch } from '../http.js'
@@ -98,10 +98,21 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * Extract the request id from the submit response. Throws when the payload
  * carries none.
  */
+/**
+ * A provider-assigned request id, accepted only in a bounded identifier shape.
+ * The value reaches a user-visible failure message, so an unchecked one would
+ * let a provider put arbitrary text there. The shape rules out prose, spaces
+ * and message excerpts; it does NOT prove the value is harmless, because a
+ * credential-shaped string such as `SHORT_SECRET` matches it. Treat this as a
+ * bounded, format-constrained provider value that is displayed for support
+ * correlation — not as the absence of provider-supplied content.
+ */
+const REQUEST_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/
+
 export function parseVideoStartResponse(payload: unknown): string {
   const body = isRecord(payload) ? payload : {}
-  if (typeof body.request_id !== 'string' || body.request_id.length === 0) {
-    throw new Error('video_generate: the response carried no request_id')
+  if (typeof body.request_id !== 'string' || !REQUEST_ID_PATTERN.test(body.request_id)) {
+    throw new Error('video_generate: the response carried no usable request_id')
   }
   return body.request_id
 }
@@ -262,7 +273,7 @@ export function createVideoGenerateTool(options: VideoGenerateToolOptions): Tool
         signal: exec.signal,
       })
       if (!submit.ok) throw await httpLlmError(submit, 'video_generate')
-      const requestId = parseVideoStartResponse(await submit.json())
+      const requestId = parseVideoStartResponse(await parseProviderJson(submit, 'video generate start'))
 
       const deadline = Date.now() + maxWaitMs
       let done: { url: string; duration?: number }
@@ -274,14 +285,15 @@ export function createVideoGenerateTool(options: VideoGenerateToolOptions): Tool
           signal: exec.signal,
         })
         if (!poll.ok) throw await httpLlmError(poll, 'video_generate')
-        const status = parseVideoStatusResponse(await poll.json())
+        const status = parseVideoStatusResponse(await parseProviderJson(poll, 'video generate status poll'))
         if (status.status === 'done') {
           done = status
           break
         }
         if (status.status === 'failed' || status.status === 'expired') {
-          // No provider response text on this path. The provider-assigned opaque
-          // request id stays for support correlation; it does not permit message excerpts.
+          // No provider response text on this path. The request id is shaped like an
+          // opaque id before it is stored (see REQUEST_ID_PATTERN), so it is an
+          // identifier rather than provider prose; anything else was refused at parse.
           throw new Error(`video_generate: generation ${status.status} (request ${requestId})`
             + ': [provider response body omitted]')
         }

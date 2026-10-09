@@ -30,6 +30,12 @@ export interface CursorCredentialService {
 
 async function parseCredential(value: string | undefined): Promise<CursorCredential | undefined> {
   if (value === undefined || value.length === 0) return undefined
+  // A parse failure here is a local shape error, not a provider signal. That is a
+  // deliberate change: the vendor classifies a stream failure from the message
+  // text, and the raw JSON.parse message used to carry a body excerpt, so a
+  // corrupt credential whose body happened to contain a word like `quota` was
+  // classified as a rate limit. Sanitising the message removes that accident, so
+  // a malformed credential now fails as a general provider error instead.
   const parsed = await parseProviderJson(value, 'Cursor stored credential')
   if (parsed === null || typeof parsed !== 'object') throw new Error('Cursor credential is malformed')
   const item = parsed as Record<string, unknown>

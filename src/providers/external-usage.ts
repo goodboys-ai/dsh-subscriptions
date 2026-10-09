@@ -1,6 +1,7 @@
 /** Usage readers for subscriptions whose model adapters are built into DSH. */
 
 import type { ProviderUsage, UsageWindow } from './common.js'
+import { parseProviderJson } from './common.js'
 
 type HttpFetch = typeof fetch
 
@@ -45,7 +46,7 @@ async function getUsage(url: string, apiKey: string, http: HttpFetch, signal?: A
     ...(signal === undefined ? {} : { signal }),
   })
   if (!response.ok) throw new Error(`Usage endpoint returned HTTP ${response.status}`)
-  return response.json()
+  return parseProviderJson(response, 'external usage')
 }
 
 /** Read the three account-wide OpenCode Go windows from its Go gateway. */

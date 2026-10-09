@@ -4,8 +4,10 @@
 
 - Codex accounts can spend a banked usage-limit reset from the account card,
   and the card shows how many are left. The reset is confirmed before it is
-  sent, and an ambiguous response parks the account until you check it, so a
-  retry cannot spend a second credit.
+  sent, and an ambiguous response parks the account so an immediate blind retry
+  cannot spend a second credit. That block is process-local rather than a
+  durable limit: restarting the host clears it, and because a lost success may
+  already have spent a credit, check the account in Codex before retrying.
 - Claude accounts show their banked limit resets, with the remaining count and
   when each one lapses. This is display only: the shape comes from an
   independent implementation rather than a published contract, and spending a
@@ -41,11 +43,11 @@
   including dark mode. Prompt-cache TTL is configurable, and the status-bar
   quota display can pin one provider or rotate through them.
 - The repository now carries a checked ledger of what was taken from upstream,
-  what was declined and why. Per-PR CI checks local ledger consistency; the separate
-  scheduled/manual upstream audit checks remote commits after a successful
-  fetch and reports fetch/setup failures separately from ledger findings, and
-  a decline that rests on a host capability is re-verified against the published
-  package, which is the specific mistake that produced this ledger.
+  what was declined and why. CI checks the ledger's local half: fork ancestry,
+  evidence paths, the prose summary, and a decline that rests on a host
+  capability is re-verified against the published package, which is the specific
+  mistake that produced this ledger. Upstream enumeration needs an upstream ref
+  and is not part of per-PR CI in this release.
 - Live-provider gaps, not verified by this release: no live account was used to
   exercise the Codex reset endpoint or Claude's banked-reset block, so what
   those endpoints actually return remains unconfirmed. Native confirmation

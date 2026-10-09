@@ -27,6 +27,7 @@ import { ImageAccountPool } from '../providers/image-pool.js'
 import { codexRateLimitReset } from '../providers/codex.js'
 import { grokRateLimitReset } from '../providers/grok.js'
 import type { FetchFn } from '../providers/common.js'
+import { parseProviderJson } from '../providers/common.js'
 import { hostFetch } from '../http.js'
 
 /** Endpoint the codex generation request is posted to. */
@@ -478,7 +479,7 @@ export function createImageGenerateTool(options: ImageGenerateToolOptions): Tool
         await manager.session() // logged out: throws the provider's log-in hint
         throw new Error('image_generate: no image provider is logged in')
       }
-      const images = parseImageGenerateResponse(await response.json())
+      const images = parseImageGenerateResponse(await parseProviderJson(response, 'image generate'))
       const directory = options.imagesDir ?? imagesDirectory()
       await mkdir(directory, { recursive: true })
       const paths: string[] = []

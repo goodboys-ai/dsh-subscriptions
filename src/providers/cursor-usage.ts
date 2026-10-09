@@ -1,6 +1,7 @@
 /** Cursor individual-account quota projection from its dashboard endpoints. */
 
 import type { ProviderUsage, UsageWindow } from './common.js'
+import { parseProviderJson } from './common.js'
 
 const ORIGIN = 'https://cursor.com'
 
@@ -45,7 +46,7 @@ async function dashboardJson(url: string, cookie: string, http: typeof fetch, si
     ...(signal === undefined ? {} : { signal }),
   })
   if (!response.ok) throw new Error(`Cursor usage endpoint returned HTTP ${response.status}`)
-  return response.json()
+  return parseProviderJson(response, 'Cursor usage')
 }
 
 function legacyRequestWindow(body: unknown, resetsAt?: number): UsageWindow | undefined {
