@@ -1,13 +1,139 @@
 # Changelog
 
+## v0.1.5 — unreleased
+
+The release date is set when the tag is cut.
+
+### What is fixed
+
+- OAuth callbacks validate `state` before they act on an `error` parameter. An
+  uncorrelated request to the loopback port can no longer cancel a login in
+  progress. This defect is not new in v0.1.4: the callback handler had this
+  ordering in v0.1.0 (`src/auth/oauth-flow.ts`, commit `0103c53`), and every
+  release since carried it.
+- Provider response text no longer reaches these failure paths: the OAuth
+  callback page and error, the device-code and token-poll failures, the
+  video-generation tool's failure and unexpected-status errors, every JSON
+  parse failure on a provider response, the Cursor stream's vendor-produced
+  failures, and the `Codex Web Search` invalid-JSON error. A provider can echo
+  a credential, and matching known token shapes cannot be relied on to catch
+  every form, so the text is dropped rather than filtered.
+- JSON parse failures on provider responses go through one reader,
+  `parseProviderJson`. Node's `Unexpected token` message quotes about ten
+  characters of the input, so a body that began with a credential leaked those
+  characters. The reader throws a `SyntaxError` that names the local endpoint
+  and says the body was omitted, with no `cause`. `Codex Web Search` parses
+  its own bounded text and no longer attaches the original error as `cause`,
+  because the host prints causes recursively and that only moved the excerpt.
+- Cursor local failures keep their own text and code. Only failures that
+  originate from the vendor stream are replaced; see the Cursor entry below.
+- The release is checked against the version it names: `package.json` is now
+  `0.1.5`, and `scripts/check-compat-docs.mjs` fails when
+  `docs/compatibility.md` states another plugin version.
+
+### What is not fixed
+
+- Provider-controlled text is still displayed on the successful paths. The
+  image tool shows the provider's `revised_prompt` in its result text and
+  value. The video tool shows the temporary provider URL (`Temporary provider
+  URL`). Both are content the user asked for, and neither is filtered.
+- The Grok OIDC discovery check rejects a non-`x.ai` endpoint with a message
+  that includes the discovered URL (`grok OIDC discovery returned a non-x.ai
+  ...: <url>`). That URL comes from the provider's discovery document and is
+  still displayed.
+- The video request id is displayed in failure messages. It must match
+  `[A-Za-z0-9_-]{1,128}`, which rules out prose and message excerpts, but a
+  credential-shaped string matches it. It is a bounded provider value shown
+  for support correlation, not an absence of provider text.
+- "No provider text" means no provider-controlled free text in the failure
+  paths audited here. It does not mean no secret exists anywhere in the
+  process, and model output, tool output and stream content are out of scope.
+- Parse sites that still call `.json()` or `JSON.parse` directly and are not
+  covered by these tests: the best-effort Antigravity, Copilot and Claude
+  profile lookups, the VS Code release feed, the npm version lookup (all
+  swallow the failure and show nothing), and the local files the plugin reads
+  (auth, catalog, settings and model-defaults stores). The local-file sites
+  were not part of this audit.
+
+### What you may notice
+
+- Video failures no longer show the provider's reason. A failed or expired
+  generation reports `generation failed (request <id>): [provider response
+  body omitted]`.
+- Login failures no longer show the provider's description. An OAuth error
+  callback shows `authorization failed (<category>): [provider message
+  omitted]`, where the category is one of the RFC 6749 error codes. A device
+  login failure shows its HTTP status and the same omission marker.
+- An OAuth error callback that carries no `state`, or the wrong one, no longer
+  fails the login at once. It is answered with `state mismatch` and the login
+  waits for its timeout (180 seconds by default). RFC 6749 requires a provider
+  to echo `state` on an error redirect; whether every provider here does was
+  not checked against a live account.
+- A video submit response whose `request_id` is outside the shape above now
+  fails with `no usable request_id`. The submission has already been sent
+  by then, so the generation may continue on the provider without being tracked.
+- A malformed provider response is reported as `<endpoint>: invalid JSON:
+  [provider response body omitted]` in Settings and in errors, instead of
+  Node's message.
+- Cursor: a failure from the vendor stream is shown as `<code> [provider
+  response text omitted]`, for example `RATE_LIMIT [provider response text
+  omitted]`. The code and retry behavior are unchanged. Failures that are
+  wholly local keep their text: not signed in, sign-in needs to be renewed,
+  token-refresh status, an unsupported option or content, and the tool-round
+  limit. The boundary cannot tell some other local failures from provider
+  ones, such as the idle and progress timeouts, a closed bridge, and the
+  HTTP-status failure (`Cursor agent returned HTTP 429`); the vendor raises
+  those as plain errors, so they are replaced, and the replacement says
+  provider text was omitted when there was none. Telling them apart would need
+  the vendor to tag them where it throws them.
+- Cursor classification: the vendor derives a stream failure's code from the
+  message text. A corrupt stored credential used to be classified from the
+  body excerpt in Node's parse message, so one beginning with `quota` came out
+  as `RATE_LIMIT`. It now fails with the local parse message and the code
+  `CURSOR_ERROR`.
+
+### Test coverage
+
+- Guarded: every one of the 34 `parseProviderJson` call sites, plus the
+  `Codex Web Search` `cause`. Each call was reverted to the bare `.json()` (the
+  stored Cursor credential, which parses a string, to `JSON.parse`) one at a
+  time, and the suite failed on every one of the 34. The sites with no guard
+  before this release were the device-code request, the device token poll,
+  Cursor usage, external (OpenCode Go and Kimi Code) usage, image generation,
+  video submit and `x_search`.
+- Two guards are narrower than they look. Cursor usage reads two dashboard
+  endpoints and swallows one failing alone, so the test fails both. The
+  `Codex Web Search` test asserts the absence of `cause`, not the host's
+  rendering of it.
+- Not covered: the sites listed under "What is not fixed"; the Cursor
+  vendor's plain-error paths beyond the cases above; and the `TOOL_LIMIT`
+  pass-through, which is in the code but has no test.
+- No live provider was used. The Cursor stream, the OAuth callback and the
+  device login were exercised only against injected fakes.
+
+### Maintenance
+
+- Removed uncalled code: `deriveModelDefaultsView`, `shouldFetchModelDefaults`,
+  `modelDefaultsSignature` and the filter threshold from
+  `src/client/SubscriptionsSection.tsx`, and `antigravityGenerateURL` from
+  `src/providers/antigravity.ts`. None was reachable through the package's
+  exports. The model-defaults tests now drive the editor that runs.
+- The per-PR CI step runs `check-upstream-ports.mjs --local-only`. A new
+  scheduled and manually dispatched workflow, `upstream-audit.yml`, fetches
+  upstream and enumerates its commits with `--require-upstream`.
+- That workflow has never run, and its first run is expected to fail. As of
+  2026-10-09 upstream `main` is five commits past the ledger's reviewed point
+  (`85e6c6c9`), including its v0.9.9 release, and none of them is classified in
+  `docs/upstream-ports.json`. Each will be reported as an unclassified
+  upstream commit until it is ported or declined. A failure to fetch upstream
+  is reported separately as a setup failure.
+
 ## v0.1.4 — 2026-10-08
 
 - Codex accounts can spend a banked usage-limit reset from the account card,
   and the card shows how many are left. The reset is confirmed before it is
-  sent, and an ambiguous response parks the account so an immediate blind retry
-  cannot spend a second credit. That block is process-local rather than a
-  durable limit: restarting the host clears it, and because a lost success may
-  already have spent a credit, check the account in Codex before retrying.
+  sent, and an ambiguous response parks the account until you check it, so a
+  retry cannot spend a second credit.
 - Claude accounts show their banked limit resets, with the remaining count and
   when each one lapses. This is display only: the shape comes from an
   independent implementation rather than a published contract, and spending a
@@ -23,43 +149,58 @@
   recovery hint and retry behavior.
 - Antigravity tool results keep their error flag on every path. A failed tool
   call whose output was JSON previously reached the model looking successful.
-- Provider response text was removed from the error paths audited for this
-  release: the shared HTTP and OAuth converters, the rate-limit warning, the
-  two translate failure helpers and the four malformed-SSE handlers. Errors
-  keep their local classification, HTTP status and recovery hint, and say that
-  the provider's response body was omitted. This is deliberate: a provider can
-  echo back a credential, and matching known token shapes cannot be relied on
-  to catch every form. This is not yet every path — the video-generation tool,
-  the device-code login failure, the OAuth callback page and the Cursor stream
-  still carry provider text and are being fixed next.
-- An abandoned SSE stream now cancels its body instead of leaving it unread.
-  Replay captured by v0.1.4 is wrapped with concrete provider, account and model
-  identity. Legacy unwrapped replay — including histories captured before
-  upgrading — carries no originating-account identity, so as upstream does, it
-  is still passed through when its provider and model match the concrete route:
-  a same-provider, same-model account switch can reuse it. See
-  [the port report](docs/replay-sse-port-verification.md) for that limit.
+- Provider response text is no longer placed in user-visible error messages.
+  Errors keep their local classification, HTTP status and recovery hint, and
+  say that the provider's response body was omitted. This is deliberate: a
+  provider can echo back a credential, and matching known token shapes cannot
+  be relied on to catch every form.
+- A mid-session account switch no longer reuses the previous account's signed
+  replay, and an abandoned SSE stream now cancels its body instead of leaving
+  it unread.
 - Settings and the usage dialog follow the host's native controls and theme,
   including dark mode. Prompt-cache TTL is configurable, and the status-bar
   quota display can pin one provider or rotate through them.
 - The repository now carries a checked ledger of what was taken from upstream,
-  what was declined and why. CI checks the ledger's local half: fork ancestry,
-  evidence paths, the prose summary, and a decline that rests on a host
-  capability is re-verified against the published package, which is the specific
-  mistake that produced this ledger. Upstream enumeration needs an upstream ref
-  and is not part of per-PR CI in this release.
-- Two defects shipped in this release and are fixed after it: an OAuth callback
-  carrying `error` was handled before `state` was validated, so an uncorrelated
-  request could cancel a login in progress; and provider response text still
-  reached user-visible errors on the video-generation tool, the device-code and
-  OAuth logins, the Cursor stream, JSON response parsing and the Grok OIDC
-  discovery URL. The Grok URL is still outstanding.
+  what was declined and why. CI fails if the ledger drifts from the tree, and a
+  decline that rests on a host capability is re-verified against the published
+  package, which is the specific mistake that produced this ledger.
 - Live-provider gaps, not verified by this release: no live account was used to
   exercise the Codex reset endpoint or Claude's banked-reset block, so what
   those endpoints actually return remains unconfirmed. Native confirmation
   dialog focus, Escape and cancel handling, and the always-show rotation timer
   were not checked in a running browser. The Settings panel and the Claude
   reset row were checked by eye in the light and dark themes.
+
+### Corrections to this entry, added after the release
+
+These are corrections to what the entry above claimed, not changes to what the
+tag contains. The fixes themselves are in v0.1.5.
+
+- Retracted: "Provider response text is no longer placed in user-visible error
+  messages." It was wider than the code. The tag removed provider text from the
+  shared HTTP and OAuth converters, the rate-limit warning, the two translate
+  failure helpers and the four malformed-SSE handlers. It still showed provider
+  text from the video-generation tool, the device-code login failure, the OAuth
+  callback page, the Cursor stream, every `Response.json()` parse failure, and
+  the Grok OIDC discovery URL.
+- Retracted: "A mid-session account switch no longer reuses the previous
+  account's signed replay." Replay captured by v0.1.4 is wrapped with concrete
+  provider, account and model identity. Legacy unwrapped replay, including
+  histories captured before upgrading, carries no account identity, so as
+  upstream does it is still passed through when its provider and model match
+  the concrete route: a same-provider, same-model account switch can reuse it.
+  See [the port report](docs/replay-sse-port-verification.md).
+- Clarified: the ambiguous-response block on a Codex reset is process-local,
+  not a durable limit. Restarting the host clears it, and a lost success may
+  already have spent a credit, so check the account in Codex before retrying.
+  The entry said the account stays parked "until you check it".
+- Clarified: CI at the tag checked only the upstream ledger's local half (fork
+  ancestry, evidence paths, the prose summary, host-capability claims). It did
+  not enumerate upstream commits, and "CI fails if the ledger drifts from the
+  tree" overstated that.
+- Two defects shipped in v0.1.4: the OAuth callback handled `error` before
+  validating `state`, and the provider-text paths named in the first
+  retraction. The OAuth defect is older than v0.1.4; see v0.1.5.
 
 ## v0.1.3 — 2026-10-08
 

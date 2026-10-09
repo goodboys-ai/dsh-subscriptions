@@ -138,3 +138,18 @@ test('a disabled Codex provider releases the seam instead of holding it', async 
     (error: unknown) => (error as { code?: string }).code === 'WEB_PROVIDER_AMBIGUOUS')
   await ctx.fiber.dispose()
 })
+
+test('Codex Web Search reports an unparseable body without the parse error as its cause', async () => {
+  // The host expands error causes recursively and Node's SyntaxError quotes a
+  // bounded excerpt of the body, so retaining it as `cause` would show the
+  // excerpt even though the message is clean.
+  const search = provider(async () => new Response('sk-live-ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'))
+  await assert.rejects(search.search({ query: 'q' }), (error: unknown) => {
+    const web = error as { code?: string; message: string; cause?: unknown }
+    assert.equal(web.code, 'CODEX_SEARCH_RESPONSE')
+    assert.equal(web.message, 'Codex Web Search returned invalid JSON')
+    assert.equal(web.cause, undefined)
+    assert.ok(!JSON.stringify(error, Object.getOwnPropertyNames(error)).includes('sk-live'))
+    return true
+  })
+})

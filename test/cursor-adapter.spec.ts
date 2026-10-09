@@ -494,3 +494,109 @@ test('Cursor failure boundary preserves caller aborts', async () => {
   }])
   assert.deepEqual(safe, raw)
 })
+
+// ---------------------------------------------------------------------------
+// Local failures keep their own text.
+//
+// Every case above makes the *vendor stream* fail, so none of them would notice
+// the boundary rewriting a failure that never touched provider text. These drive
+// the real CursorAuth and the real vendor validation through
+// CursorCompatAdapter.stream and compare against the unwrapped CursorAdapter.
+// What stays untested: a vendor-raised plain Error (idle timeout, closed
+// bridge) is replaced by design, because it cannot be told from a
+// provider-derived one at this boundary.
+// ---------------------------------------------------------------------------
+
+function authWith(value: string | undefined) {
+  return new CursorAuth({
+    async resolve() { return value === undefined ? undefined : { value } },
+    async set() { throw new Error('unexpected credential write') },
+    async unset() { throw new Error('unexpected credential removal') },
+  })
+}
+
+const credential = (overrides: Record<string, unknown>) => JSON.stringify({
+  type: 'oauth', access: 'fake-token', refresh: 'refresh-token', expires: Date.now() + 3_600_000, ...overrides,
+})
+
+const localFailureCases = [
+  {
+    name: 'not signed in', message: 'Cursor is not signed in',
+    makeAuth: () => authWith(undefined), extra: {},
+  },
+  {
+    name: 'sign-in expired', message: 'Cursor sign-in needs to be renewed',
+    makeAuth: () => authWith(credential({ expires: 0, refresh: '' })), extra: {},
+  },
+  {
+    name: 'a malformed stored credential', message: 'Cursor stored credential: invalid JSON: [provider response body omitted]',
+    makeAuth: () => authWith('not json'), extra: {},
+  },
+  {
+    name: 'an unsupported option', message: 'cursor-subscription does not support GenerateOptions.stop',
+    makeAuth: () => fakeCursorAuth(), extra: { stop: ['x'] },
+  },
+]
+
+for (const scenario of localFailureCases) {
+  test(`Cursor local failure keeps its own message and code: ${scenario.name}`, async () => {
+    async function exercise(Adapter: typeof CursorAdapter) {
+      const { run, state } = cannedRun([])
+      const adapter = new Adapter({ auth: scenario.makeAuth(), createAgentRun: () => run })
+      const chunks: StreamChunk[] = []
+      for await (const chunk of adapter.stream({
+        provider: 'cursor-subscription', model: 'composer-2.5',
+        messages: [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }],
+        ...scenario.extra,
+      })) chunks.push(chunk)
+      return { chunks, state }
+    }
+    const raw = await exercise(CursorAdapter)
+    const wrapped = await exercise(CursorCompatAdapter)
+    const failure = errorFailure(wrapped.chunks)
+    assert.equal(failure.message, scenario.message)
+    assert.ok(!failure.message.includes(omissionMarker), 'no provider text was omitted, so none may be claimed')
+    assert.deepEqual(wrapped, raw, 'a local failure passes through the boundary byte for byte')
+  })
+}
+
+test('Cursor token-refresh failure keeps its status text', async () => {
+  const auth = new CursorAuth({
+    async resolve() { return { value: credential({ expires: Date.now() + 1_000 }) } },
+    async set() { throw new Error('unexpected credential write') },
+    async unset() { throw new Error('unexpected credential removal') },
+  }, async () => new Response(providerText, { status: 503 }))
+  const adapter = new CursorCompatAdapter({ auth, createAgentRun: () => cannedRun([]).run })
+  const failure = errorFailure(await collectCursorChunks(adapter))
+  assert.equal(failure.message, 'Cursor token refresh failed (HTTP 503)')
+})
+
+test('Cursor local-failure carve-out does not leak to a later vendor failure on the same adapter', async () => {
+  // The carve-out remembers local messages per adapter. A vendor-stream failure
+  // that follows a local one must still be replaced, or the memory would become
+  // a bypass.
+  let signedIn = false
+  const auth = { async accessToken() {
+    if (!signedIn) { signedIn = true; throw new Error('Cursor is not signed in') }
+    return 'fake-token'
+  } }
+  const adapter = new CursorCompatAdapter({
+    auth, createAgentRun: () => cannedRun([endErrorFrame({ code: 'resource_exhausted', message: providerText })]).run,
+  })
+  assert.equal(errorFailure(await collectCursorChunks(adapter)).message, 'Cursor is not signed in')
+  const vendor = errorFailure(await collectCursorChunks(adapter))
+  assert.equal(vendor.message, `${vendor.code} ${omissionMarker}`)
+  assert.ok(!vendor.message.includes(providerText))
+})
+
+test('Cursor unsupported image input keeps its own message and code', async () => {
+  const adapter = new CursorCompatAdapter({ auth: fakeCursorAuth(), createAgentRun: () => cannedRun([]).run })
+  const chunks: StreamChunk[] = []
+  for await (const chunk of adapter.stream({
+    provider: 'cursor-subscription', model: 'composer-2.5',
+    messages: [{ role: 'user', content: [{ type: 'image', attachment: { attachmentId: 'a1' } }] }],
+  } as never)) chunks.push(chunk)
+  const failure = errorFailure(chunks)
+  assert.equal(failure.code, 'UNSUPPORTED_CONTENT')
+  assert.equal(failure.message, 'Cursor image input requires the durable attachment service')
+})

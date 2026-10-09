@@ -55,3 +55,15 @@ test('Cursor user-id decoding rejects malformed and unsafe JWT subjects', () => 
   assert.equal(cursorUserId('not-a-jwt'), undefined)
   assert.equal(cursorUserId(token('user;bad')), undefined)
 })
+
+test('Cursor usage rejects a malformed dashboard body without quoting it', async () => {
+  // Both endpoints fail, so the reader rethrows the first parse error; with one
+  // healthy endpoint the failure is swallowed by design and nothing is displayed.
+  const http = (async () => new Response('sk-live-ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789')) as typeof fetch
+  await assert.rejects(() => fetchCursorUsage(token('user_123'), http), (error: unknown) => {
+    assert.ok(error instanceof SyntaxError)
+    assert.equal(error.cause, undefined)
+    assert.equal(error.message, 'Cursor usage: invalid JSON: [provider response body omitted]')
+    return true
+  })
+})
