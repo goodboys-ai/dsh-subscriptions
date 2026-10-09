@@ -183,11 +183,22 @@ function check() {
     console.error('check-upstream-ports: no upstream ref here, skipping the sync checks (use --require-upstream to make that fatal)')
   }
 
-  if (!gitOk(['cat-file', '-e', `${baseline}^{commit}`])) {
-    throw new SetupFailure(`baseline ${short(baseline)} is not in this repository`)
+  // CI checks out a single commit, so the baseline is usually absent there for
+  // the same reason the upstream ref is. Anything that needs history is a sync
+  // check, and they all report themselves rather than failing the gate.
+  const haveBaseline = gitOk(['cat-file', '-e', `${baseline}^{commit}`])
+  if (!haveBaseline && requireUpstream) {
+    throw new SetupFailure(`baseline ${short(baseline)} is not in this repository; fetch full history`)
+  }
+  // A shallow clone has the tip and nothing else, so every ancestry question is
+  // unanswerable rather than false. Say which checks were skipped instead of
+  // reporting each old commit as fabricated.
+  const shallow = git(['rev-parse', '--is-shallow-repository'])[0] === 'true'
+  if (!haveBaseline || shallow) {
+    console.error(`check-upstream-ports: ${shallow ? 'shallow' : 'incomplete'} history, skipping the ancestry and enumeration checks`)
   }
 
-  if (haveUpstream) {
+  if (haveUpstream && haveBaseline) {
     // 5. The baseline must be a common ancestor of us and the recorded upstream.
     if (!gitOk(['merge-base', '--is-ancestor', baseline, 'HEAD'])) {
       findings.push(`baseline ${short(baseline)} is not an ancestor of HEAD: the ledger describes history this branch is not on`)
@@ -204,14 +215,17 @@ function check() {
     }
   }
 
+  const canCheckAncestry = !shallow && haveBaseline
   for (const entry of ledger.entries) {
     const id = short(entry.upstream)
     // 2. A port must point at commits that are really in our history.
-    for (const forkCommit of entry.forkCommits ?? []) {
-      if (!gitOk(['cat-file', '-e', `${forkCommit}^{commit}`])) {
-        findings.push(`${id}: fork commit ${short(forkCommit)} is not in this repository`)
-      } else if (!gitOk(['merge-base', '--is-ancestor', forkCommit, 'HEAD'])) {
-        findings.push(`${id}: fork commit ${short(forkCommit)} is not an ancestor of HEAD`)
+    if (canCheckAncestry) {
+      for (const forkCommit of entry.forkCommits ?? []) {
+        if (!gitOk(['cat-file', '-e', `${forkCommit}^{commit}`])) {
+          findings.push(`${id}: fork commit ${short(forkCommit)} is not in this repository`)
+        } else if (!gitOk(['merge-base', '--is-ancestor', forkCommit, 'HEAD'])) {
+          findings.push(`${id}: fork commit ${short(forkCommit)} is not an ancestor of HEAD`)
+        }
       }
     }
     if (entry.status === 'ported' && (entry.forkCommits ?? []).length === 0) {

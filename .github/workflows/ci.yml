@@ -31,7 +31,12 @@ jobs:
     #    clone and CI fetch from oversized committed media.
     runs-on: ubuntu-latest
     steps:
+      # Full history: the upstream-port ledger checks that every ported
+      # entry names a commit that is really an ancestor of this branch, and a
+      # default shallow checkout cannot answer that.
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v7
         with:
           node-version: 24
@@ -45,9 +50,12 @@ jobs:
       - run: node scripts/check-compat-docs.mjs
       - run: node scripts/check-image-budget.mjs
       # The upstream-port ledger. CI checks out this repository alone, so the
-      # sync half skips itself here and a scheduled run with --require-upstream
-      # makes that fatal; the ledger's own consistency, the prose drift, and the
-      # host-capability re-checks always run.
+      # half that enumerates upstream commits skips itself here; a scheduled run
+      # that fetches the upstream remote passes --require-upstream to make that
+      # fatal. What always runs: every ported entry must name a commit that is an
+      # ancestor of this branch, every decline must exist as evidence, the prose
+      # must not drift from the ledger, and a host-capability claim is
+      # re-checked against the published package.
       - name: Check the upstream-port ledger
         run: node scripts/check-upstream-ports.mjs
 
