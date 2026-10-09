@@ -8,6 +8,7 @@
  * engines uniformly.
  */
 import { hostFetch } from '../http.js'
+import { parseProviderJson } from '../providers/common.js'
 
 /** Default poll interval when the device-code response omits one. */
 const DEFAULT_INTERVAL_SEC = 5
@@ -129,7 +130,7 @@ export class DeviceFlowManager {
     if (!response.ok) {
       throw new Error(`${provider} device-code request failed (HTTP ${String(response.status)})`)
     }
-    const wire = await response.json() as DeviceCodeWire
+    const wire = await parseProviderJson(response, 'device code request') as DeviceCodeWire
     if (typeof wire.device_code !== 'string' || wire.device_code.length === 0
       || typeof wire.user_code !== 'string' || wire.user_code.length === 0
       || typeof wire.verification_uri !== 'string' || wire.verification_uri.length === 0) {
@@ -185,7 +186,7 @@ export class DeviceFlowManager {
           }).toString(),
           signal: controller.signal,
         })
-        const result = await pollResponse.json() as DeviceTokenWire
+        const result = await parseProviderJson(pollResponse, 'device token poll') as DeviceTokenWire
         if (typeof result.access_token === 'string' && result.access_token.length > 0) {
           settle(undefined, result.access_token)
           return

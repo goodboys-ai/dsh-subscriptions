@@ -559,7 +559,7 @@ test('buildVideoGenerateBody: validation and pass-through', () => {
 
 test('parseVideoStartResponse / parseVideoStatusResponse', () => {
   assert.equal(parseVideoStartResponse({ request_id: 'req-1' }), 'req-1')
-  assert.throws(() => parseVideoStartResponse({}), /no request_id/)
+  assert.throws(() => parseVideoStartResponse({}), /no usable request_id/)
 
   assert.deepEqual(parseVideoStatusResponse({ status: 'pending' }), { status: 'pending' })
   assert.deepEqual(
@@ -821,4 +821,40 @@ test('image editing: provider policy fallback remains editing; upstream errors d
   await assert.rejects(() => tool.execute({ prompt: 'edit', provider: 'gpt', referenceImages: [ref] }, fakeExec()), /400/)
   assert.equal(wire.requests.length, 1)
   assert.equal(wire.requests[0].url, GROK_IMAGE_EDIT_URL)
+})
+
+test('video_generate execute: a malformed provider body does not expose its prefix', async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'subscriptions-videos-'))
+  t.after(() => { rmSync(dir, { recursive: true, force: true }) })
+  // Node's Unexpected-token error quotes roughly ten characters of the input, so a
+  // body that starts with a credential would leak its leading characters through
+  // the raw parse error. The shared reader must replace it before it is thrown.
+  const malformed = 'sk-live-ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+  const tool = createVideoGenerateTool({
+    tokens: memoryTokens(grokSession),
+    fetchFn: sequenceFetch([
+      new Response(JSON.stringify({ request_id: 'req-leak' }), { status: 200 }),
+      new Response(malformed, { status: 200 }),
+    ]).fetchFn,
+    videosDir: dir,
+    pollIntervalMs: 0,
+  })
+  const caught = await tool.execute({ prompt: 'x' }, fakeExec()).then(() => undefined, (error: unknown) => error as Error)
+  assert.ok(caught !== undefined, 'the malformed body must fail the call')
+  assert.equal(caught.message.includes('sk-live'), false)
+  assert.equal(caught.message.includes(malformed.slice(0, 10)), false)
+  assert.match(caught.message, /video generate status poll: invalid JSON/)
+  assert.match(caught.message, /\[provider response body omitted\]/)
+})
+
+test('video_generate: a request id that is provider prose is refused, not displayed', async () => {
+  // The id reaches a user-visible failure message, so an unchecked value would
+  // let the provider speak through it. It must be shaped like an opaque id.
+  assert.throws(
+    () => parseVideoStartResponse({ request_id: 'SHORT_SECRET provider-controlled text' }),
+    /no usable request_id/,
+  )
+  assert.throws(() => parseVideoStartResponse({ request_id: 'has spaces' }), /no usable request_id/)
+  assert.throws(() => parseVideoStartResponse({ request_id: 'x'.repeat(129) }), /no usable request_id/)
+  assert.equal(parseVideoStartResponse({ request_id: 'req-1_abc-XYZ' }), 'req-1_abc-XYZ')
 })

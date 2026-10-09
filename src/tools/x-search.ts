@@ -8,7 +8,7 @@
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import type { GrokSession } from '../auth/store.js'
-import { httpLlmError } from '../providers/common.js'
+import { httpLlmError, parseProviderJson } from '../providers/common.js'
 import { AccountTokenManager } from '../providers/accounts.js'
 import type { FetchFn } from '../providers/common.js'
 import { hostFetch } from '../http.js'
@@ -213,7 +213,7 @@ export function createXSearchTool(options: XSearchToolOptions): ToolDefinition {
         signal: exec.signal,
       })
       if (!response.ok) throw await httpLlmError(response, 'x_search')
-      return parseXSearchResponse(await response.json())
+      return parseXSearchResponse(await parseProviderJson(response, 'x search'))
     },
   })
 }
