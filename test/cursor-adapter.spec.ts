@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { MessageId, ToolCallId } from '@deepseek-ai/dsh-llm'
+import { LlmError, MessageId, ToolCallId, type StreamChunk } from '@deepseek-ai/dsh-llm'
+import { CursorAdapter } from 'dsh-subscriptions/cursor-transport'
 import { CursorCompatAdapter, projectCursorMessages } from '../src/providers/cursor-adapter.js'
 import { CURSOR_CREDENTIAL_REF, CursorAuth } from '../src/providers/cursor-auth.js'
 
@@ -213,22 +214,30 @@ interface CannedRunState {
 }
 
 /** A fake AgentRun: the real adapter drives it, but no socket ever exists. */
-function cannedRun(frames: CannedFrame[]): { run: unknown; state: CannedRunState } {
+function cannedRun(frames: CannedFrame[], options: {
+  status?: number
+  contentType?: string
+  trailers?: Record<string, string>
+  frameError?: unknown
+} = {}) {
   const state: CannedRunState = { started: false, written: [], closed: false, aborts: [] }
   const queue = [...frames]
   const run = {
-    responseContentType: 'application/connect+proto',
-    trailers: undefined as Record<string, string> | undefined,
+    responseContentType: options.contentType ?? 'application/connect+proto',
+    trailers: options.trailers,
     finished: false,
     frames: {
-      next: async (): Promise<CannedFrame | undefined> => queue.shift(),
+      next: async (): Promise<CannedFrame | undefined> => {
+        if (queue.length === 0 && options.frameError !== undefined) throw options.frameError
+        return queue.shift()
+      },
       pause() {},
       finish() {},
       resume() {},
     },
     async start() { state.started = true },
     writeMessage(bytes: Uint8Array) { state.written.push(bytes); return true },
-    async waitForResponse() { return 200 },
+    async waitForResponse() { return options.status ?? 200 },
     startHeartbeat() {},
     close() { state.closed = true },
     abort(error: unknown) { state.aborts.push(error) },
@@ -314,4 +323,174 @@ test('Cursor generation sends the projected tool messages, not the raw DSH ones'
   const wire = Buffer.from(state.written[0]).toString('utf8')
   assert.ok(wire.includes('[TOOL RESULT]'), 'the projected tool-result label reached the request')
   assert.deepEqual(chunks.at(-1), { type: 'finish', reason: { kind: 'stop' } })
+})
+
+function comparableRunState(state: CannedRunState) {
+  // Each cold start generates fresh UUIDs; normalize only those ASCII bytes
+  // so all other request bytes and lifecycle effects remain comparable.
+  return { ...state, written: state.written.map(bytes => Buffer.from(bytes).toString('latin1')
+    .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, '<uuid>')) }
+}
+
+const providerText = 'customer-input SHORT_SECRET!'
+const providerContentType = 'text/customer-content-type-SECRET!'
+const providerTrailer = `connection customer-trailer TRAILER_SECRET! ${providerText}`
+const omissionMarker = '[provider response text omitted]'
+const endErrorFrame = (error: unknown): CannedFrame => ({
+  flags: 0b00000010, payload: pbText(JSON.stringify({ error })),
+})
+
+async function collectCursorChunks(adapter: CursorAdapter): Promise<StreamChunk[]> {
+  const chunks: StreamChunk[] = []
+  for await (const chunk of adapter.stream({
+    provider: 'cursor-subscription', model: 'composer-2.5',
+    messages: [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }],
+  })) chunks.push(chunk)
+  return chunks
+}
+
+function errorFailure(chunks: StreamChunk[]) {
+  const finish = chunks.at(-1)
+  assert.ok(finish?.type === 'finish' && finish.reason.kind === 'error')
+  return finish.reason.failure
+}
+
+const failureCases = [
+  {
+    name: 'terminal debug title and detail', code: 'AUTH', sequence: ['text-delta', 'finish'],
+    // AUTH comes from raw debug.error, not the displayed title/detail. The
+    // content-type parameter and trailer remain raw inside the fake run.
+    makeRun: () => cannedRun([
+      dataFrame(interactionTextDelta('partial answer')),
+      endErrorFrame({ code: 'resource_exhausted', message: providerText, details: [{ debug: {
+        error: 'invalid token', details: { title: providerText, detail: 'customer-detail DETAIL_SECRET!' },
+      } }] }),
+    ], { contentType: `application/connect+proto; ${providerContentType}`, trailers: {
+      'grpc-status': '13', 'grpc-message': providerTrailer,
+    } }),
+    rawMessage: `${providerText} customer-detail DETAIL_SECRET!`,
+  },
+  {
+    name: 'terminal error.message fallback', code: 'RATE_LIMIT', sequence: ['finish'],
+    makeRun: () => cannedRun([endErrorFrame({ code: 'resource_exhausted', message: providerText })]),
+    rawMessage: `Cursor agent error resource_exhausted: ${providerText}`,
+  },
+  {
+    name: 'terminal debug.error fallback', code: 'TIMEOUT', sequence: ['finish'],
+    makeRun: () => cannedRun([endErrorFrame({ code: 'unknown', details: [{ debug: { error: `timeout ${providerText}` } }] })]),
+    rawMessage: `Cursor: timeout ${providerText}`,
+  },
+  {
+    name: 'terminal error.code fallback', code: 'SERVER', sequence: ['finish'],
+    makeRun: () => cannedRun([endErrorFrame({ code: `internal ${providerText}` })]),
+    rawMessage: `Cursor agent error internal ${providerText}`,
+  },
+  {
+    name: 'HTTP 200 with unexpected content type', code: 'CURSOR_PROTOCOL', sequence: ['finish'],
+    makeRun: () => cannedRun([], { contentType: providerContentType }),
+    rawMessage: `Cursor agent returned an unexpected content type: ${providerContentType}`,
+  },
+  {
+    name: 'non-200 HTTP with unexpected content type', code: 'RATE_LIMIT', sequence: ['finish'],
+    makeRun: () => cannedRun([], { status: 429, contentType: providerContentType, trailers: {
+      'grpc-status': '13', 'grpc-message': providerTrailer,
+    } }),
+    rawMessage: 'Cursor agent returned HTTP 429',
+  },
+  {
+    name: 'gRPC message trailer', code: 'TRANSPORT', sequence: ['usage', 'finish'],
+    makeRun: () => cannedRun([], { trailers: { 'grpc-status': '13', 'grpc-message': providerTrailer } }),
+    rawMessage: providerTrailer,
+  },
+  {
+    name: 'frame reader Error.message', code: 'INVALID_REQUEST', sequence: ['text-delta', 'finish'],
+    makeRun: () => cannedRun([dataFrame(interactionTextDelta('partial answer'))], {
+      frameError: new Error(`invalid request ${providerText}`),
+    }),
+    rawMessage: `invalid request ${providerText}`,
+  },
+  {
+    name: 'caught LlmError.message', code: 'CURSOR_PROTOCOL', sequence: ['finish'],
+    makeRun: () => cannedRun([], { frameError: new LlmError(providerText, 'CURSOR_PROTOCOL') }),
+    rawMessage: providerText,
+  },
+  {
+    name: 'caught non-Error text', code: 'CURSOR_ERROR', sequence: ['finish'],
+    makeRun: () => cannedRun([], { frameError: providerText }),
+    rawMessage: providerText,
+  },
+]
+
+for (const scenario of failureCases) {
+  test(`Cursor failure boundary omits ${scenario.name} without changing classification or events`, async () => {
+    const rawRun = scenario.makeRun()
+    const safeRun = scenario.makeRun()
+    const rawChunks = await collectCursorChunks(new CursorAdapter({
+      auth: fakeCursorAuth(), createAgentRun: () => rawRun.run,
+    }))
+    const safeChunks = await collectCursorChunks(new CursorCompatAdapter({
+      auth: fakeCursorAuth(), createAgentRun: () => safeRun.run,
+    }))
+    const rawFailure = errorFailure(rawChunks)
+    const safeFailure = errorFailure(safeChunks)
+    assert.equal(rawFailure.message, scenario.rawMessage, 'the fixture exercises the actual vendored error path')
+    assert.equal(rawFailure.code, scenario.code)
+    assert.equal(safeFailure.code, rawFailure.code, 'classification must still use the raw provider values')
+    assert.deepEqual(safeChunks.map(chunk => chunk.type), scenario.sequence)
+    assert.deepEqual(comparableRunState(safeRun.state), comparableRunState(rawRun.state), 'run lifecycle and request framing stay unchanged')
+    for (const text of [providerText, providerContentType, providerTrailer, 'DETAIL_SECRET!']) {
+      assert.ok(!safeFailure.message.includes(text), `caller received provider text: ${safeFailure.message}`)
+    }
+    assert.equal(safeFailure.message, `${scenario.code} ${omissionMarker}`)
+    // Compare every event and field, permitting only failure.message to differ.
+    assert.deepEqual(safeChunks, rawChunks.map(chunk => chunk.type === 'finish' && chunk.reason.kind === 'error'
+      ? { ...chunk, reason: { ...chunk.reason, failure: { ...chunk.reason.failure, message: safeFailure.message } } }
+      : chunk))
+  })
+}
+
+test('Cursor failure boundary preserves HTTP retries and successful completion', async () => {
+  async function exercise(Adapter: typeof CursorAdapter) {
+    const runs = [
+      cannedRun([], { status: 503, contentType: providerContentType }),
+      cannedRun([dataFrame(interactionTextDelta('recovered')), dataFrame(interactionTurnEnded())]),
+    ]
+    let attempts = 0
+    const sleeps: number[] = []
+    const adapter = new Adapter({ auth: fakeCursorAuth(), createAgentRun: () => runs[attempts++].run })
+    // Runtime injection already supported by the bundle; its .d.ts omits settings.
+    Object.assign(adapter, {
+      settings: () => ({ retryCount: 1, retryIntervalMs: 7, retryHttpStatusCodes: [503] }),
+      sleep: async (ms: number) => { sleeps.push(ms) },
+    })
+    return { chunks: await collectCursorChunks(adapter), attempts, sleeps, states: runs.map(run => comparableRunState(run.state)) }
+  }
+  const raw = await exercise(CursorAdapter)
+  const safe = await exercise(CursorCompatAdapter)
+  assert.equal(safe.attempts, 2)
+  assert.deepEqual(safe.sleeps, [7])
+  assert.deepEqual(safe.chunks.map(chunk => chunk.type), ['text-delta', 'usage', 'finish'])
+  assert.deepEqual(safe.chunks.at(-1), { type: 'finish', reason: { kind: 'stop' } })
+  assert.deepEqual(safe, raw)
+})
+
+test('Cursor failure boundary preserves caller aborts', async () => {
+  async function exercise(Adapter: typeof CursorAdapter) {
+    const { run, state } = cannedRun([])
+    const controller = new AbortController()
+    controller.abort(new Error(providerText))
+    const chunks: StreamChunk[] = []
+    const adapter = new Adapter({ auth: fakeCursorAuth(), createAgentRun: () => run })
+    for await (const chunk of adapter.stream({
+      provider: 'cursor-subscription', model: 'composer-2.5', messages: [],
+      signal: controller.signal, stop: ['unsupported'],
+    })) chunks.push(chunk)
+    return { chunks, state }
+  }
+  const raw = await exercise(CursorAdapter)
+  const safe = await exercise(CursorCompatAdapter)
+  assert.deepEqual(safe.chunks, [{
+    type: 'finish', reason: { kind: 'aborted', failure: { message: 'Cursor request aborted by caller', code: 'ABORTED' } },
+  }])
+  assert.deepEqual(safe, raw)
 })
