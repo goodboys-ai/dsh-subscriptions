@@ -27,17 +27,17 @@ section is the human summary; the JSON is the source of truth.
 - **Ported since:** Codex reasoning-effort `ultra` handling (`0c65c7d0`,
   `527f4d90`); Codex reset credits, end to end (`62453f2f`, `9c0ae036`,
   `d7a7f752`, `53577040`, `b0c6220a`); the Claude prompt-cache TTL setting
-  (`f2622e49`, `8a80d4e4`); the Claude image-request budget (`eb429662`); and
-  the native-UI restyle (`080450d0`).
+  (`f2622e49`, `8a80d4e4`); the Claude image-request budget (`eb429662`); the
+  native-UI restyle (`080450d0`); and the account-scoped replay and SSE stream
+  cancellation split out of `c5cc37fe`, whose release mechanics still do not
+  apply here.
 - **Deliberately not taken:** upstream's release and CI work (`564be625`,
   `800a08f5`, `69ac9c37`, `74f44a29`, `d8ab13e9`) and its peer-range move
   (`867136be`) — this repo versions and releases on its own policy, and its
   bounded range already admits the DSH versions upstream is adding.
 - **Open decisions:** `998cea06` and `a85fb93a` (display names) collide with
   this fork's own localized naming; `f359301e` (hourly catalog refresh)
-  changes list freshness; `c5cc37fe` is being split, since its release
-  mechanics do not apply but its account-scoped replay and SSE stream cleanup
-  are real gaps here.
+  changes list freshness.
 
 ## How the baseline was determined
 

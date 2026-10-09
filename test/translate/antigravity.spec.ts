@@ -101,7 +101,13 @@ test('failed JSON arrays and scalars carry the error flag in a Struct compatible
   }
 })
 
-test('successful JSON results preserve their serialized bytes with absent or false error flags', () => {
+// The provider contract requires a Struct here, so a non-object JSON value is
+// wrapped as { output: … } rather than passed through; only a non-array object
+// keeps its own fields. The name says "existing shape" rather than "unchanged
+// bytes" because those two rows are a transformation, not a copy: an earlier
+// version of this name claimed byte preservation while the fixture asserted the
+// wrapping, which is the kind of description that outlives the behaviour.
+test('successful JSON results keep their existing serialized shape with absent or false error flags', () => {
   for (const [text, expected] of [
     ['{ "z":1,"a":{"b":[2,3]} }', '{"z":1,"a":{"b":[2,3]}}'],
     ['{"output":"value","isError":false}', '{"output":"value","isError":false}'],

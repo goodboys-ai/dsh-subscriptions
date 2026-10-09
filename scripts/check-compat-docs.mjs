@@ -11,6 +11,12 @@
  * an issue. This script derives the expected values from the single source of
  * truth and fails on any disagreement.
  *
+ * It also holds the two places docs/compatibility.md names the plugin's own
+ * version to package.json. A release that bumps package.json but not the prose
+ * leaves the repository claiming a version it is not, and nothing else catches
+ * it: the published tarball carries README.md only, so a drift here is invisible
+ * to a user and survives until someone reads the file.
+ *
  * The derivation is version-independent: it reads the window, not a host. CI
  * therefore runs it exactly once rather than in the per-version matrix.
  *
@@ -173,6 +179,50 @@ function checkCompatibilityDoc(window, expectedRange) {
   if (range !== expectedRange) fail('docs/compatibility.md peers sentence', expectedRange, range)
 }
 
+// --- the plugin's own version, stated twice in docs/compatibility.md -------
+
+/**
+ * The two sentences that name the plugin version rather than the DSH window.
+ * Both are matched by their shape so a reworded sentence reports "the check did
+ * not run" instead of passing.
+ * @returns {{ label: string, version: string }[]}
+ */
+function readStatedPluginVersions() {
+  const text = read('docs/compatibility.md')
+  const statements = [
+    { label: 'docs/compatibility.md source target', pattern: /The source targets `([^`]+)`/ },
+    { label: 'docs/compatibility.md current source version', pattern: /current source version `([^`]+)` supports/ },
+  ]
+  return statements.map(({ label, pattern }) => {
+    const match = pattern.exec(text)
+    if (match === null) throw new SetupFailure(`${label} is missing from docs/compatibility.md`)
+    return { label, version: match[1] }
+  })
+}
+
+/** The plugin version this repository's package.json declares. */
+function readPluginVersion() {
+  let manifest
+  try {
+    manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
+  } catch {
+    throw new SetupFailure('package.json is not valid JSON')
+  }
+  if (typeof manifest.version !== 'string' || manifest.version.length === 0) {
+    throw new SetupFailure('package.json declares no version')
+  }
+  return manifest.version
+}
+
+/**
+ * @param {string} expected the version package.json declares
+ */
+function checkStatedPluginVersions(expected) {
+  for (const { label, version } of readStatedPluginVersions()) {
+    if (version !== expected) fail(label, expected, version)
+  }
+}
+
 // --- run --------------------------------------------------------------------
 
 let window
@@ -183,6 +233,7 @@ try {
   checkPackagePeers(window, expectedRange)
   checkReadme(window, expectedRange)
   checkCompatibilityDoc(window, expectedRange)
+  checkStatedPluginVersions(readPluginVersion())
 } catch (error) {
   if (error instanceof SetupFailure) {
     console.error(`check-compat-docs: ${error.message}; the check did not run`)
@@ -202,4 +253,4 @@ if (failures.length > 0) {
   process.exit(1)
 }
 
-console.log(`check-compat-docs: ok — window ${window.join(', ')}, peers ${expectedRange}, consistent across dsh-versions.txt, package.json, README.md, and docs/compatibility.md.`)
+console.log(`check-compat-docs: ok — window ${window.join(', ')}, peers ${expectedRange}, consistent across dsh-versions.txt, package.json, README.md, and docs/compatibility.md, and docs/compatibility.md names the plugin version package.json declares.`)

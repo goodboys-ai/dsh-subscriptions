@@ -21,14 +21,22 @@
   recovery hint and retry behavior.
 - Antigravity tool results keep their error flag on every path. A failed tool
   call whose output was JSON previously reached the model looking successful.
-- Provider response text is no longer placed in user-visible error messages.
-  Errors keep their local classification, HTTP status and recovery hint, and
-  say that the provider's response body was omitted. This is deliberate: a
-  provider can echo back a credential, and matching known token shapes cannot
-  be relied on to catch every form.
-- A mid-session account switch no longer reuses the previous account's signed
-  replay, and an abandoned SSE stream now cancels its body instead of leaving
-  it unread.
+- Provider response text was removed from the error paths audited for this
+  release: the shared HTTP and OAuth converters, the rate-limit warning, the
+  two translate failure helpers and the four malformed-SSE handlers. Errors
+  keep their local classification, HTTP status and recovery hint, and say that
+  the provider's response body was omitted. This is deliberate: a provider can
+  echo back a credential, and matching known token shapes cannot be relied on
+  to catch every form. This is not yet every path — the video-generation tool,
+  the device-code login failure, the OAuth callback page and the Cursor stream
+  still carry provider text and are being fixed next.
+- An abandoned SSE stream now cancels its body instead of leaving it unread.
+  Replay captured by v0.1.4 is wrapped with concrete provider, account and model
+  identity. Legacy unwrapped replay — including histories captured before
+  upgrading — carries no originating-account identity, so as upstream does, it
+  is still passed through when its provider and model match the concrete route:
+  a same-provider, same-model account switch can reuse it. See
+  [the port report](docs/replay-sse-port-verification.md) for that limit.
 - Settings and the usage dialog follow the host's native controls and theme,
   including dark mode. Prompt-cache TTL is configurable, and the status-bar
   quota display can pin one provider or rotate through them.
