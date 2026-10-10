@@ -13,6 +13,15 @@ reported quota in **Settings → Subscriptions**.
 - **Six subscription model sources:** Connect ChatGPT/Codex, Claude, Grok,
   GitHub Copilot, Google Antigravity, or Cursor and choose their models in
   DSH's picker. These routes use account sign-in, without provider API keys.
+- **Ollama Cloud key route:** Add the `ollama-cloud` route with an
+  `OLLAMA_API_KEY` credential: three Cloud models
+  (deepseek-v4.1-flash, glm-5.3, glm-5.3-flash) with live discovery,
+  quota, and web search/fetch. No OAuth sign-in. A hand-written
+  `llm-pi-ai` route with the same id collides with this one: delete
+  the manual block when enabling the plugin route. Stop sequences
+  are unsupported on this route, consistent with the other adapters.
+  See the
+  [key-route note](.agents/notes/implemented/provider/2026-10-10-ollama-cloud-key-route.md).
 - **Account and model control:** Refresh catalogs and choose visible models.
   For Codex, Claude, Grok, Copilot, and Antigravity, manage multiple accounts
   and same-provider pools. Pools can use available quota to select an account
@@ -20,8 +29,9 @@ reported quota in **Settings → Subscriptions**.
 - **Quota while you work:** See reported usage windows and reset times on
   provider cards and in an optional session-footer pill. The same view reads
   OpenCode Go and Kimi Code usage through keys already configured in
-  **Settings → Models**. Their model routes remain built into DSH. GitHub
-  Copilot has no usage endpoint.
+  **Settings → Models** (their model routes remain built into DSH), and
+  Ollama Cloud usage through its `OLLAMA_API_KEY` credential (its route
+  ships in this plugin). GitHub Copilot has no usage endpoint.
 - **Provider tools:** Use Codex web search, Grok X search, ChatGPT or Grok
   image generation and editing, and Grok video generation when the matching
   provider is enabled.
@@ -175,8 +185,8 @@ allowBuilds:
 Restart `dsh web` after installation. Open **Settings → Subscriptions** to
 connect providers, manage accounts and model lists, and inspect available
 quota. The session footer quota pill can be shown or hidden there for the
-current browser. OpenCode Go and Kimi Code cards show usage when their API
-keys are configured in **Settings → Models**.
+current browser. OpenCode Go, Kimi Code, and Ollama Cloud cards show
+usage when their API keys are configured.
 
 To update an installation, run the same `dsh plugin --profile web add` command again and restart `dsh web`.
 
@@ -209,6 +219,10 @@ that a provider still accepts live sign-in or model requests. See
 - **OpenCode Go and Kimi Code:** Live usage responses were verified. Their API
   keys stay on the DSH host; the browser receives configured status and quota
   windows, not the keys.
+- **Ollama Cloud:** Unit and fixture coverage only (chat wire, discovery
+  mapping, usage parsing, web providers, host E2E fixtures). Live chat,
+  discovery, usage, and web calls against `ollama.com` remain to be
+  verified with a real key.
 
 Cursor uses one connected account and a live model catalog. Its model
 visibility selection persists under the DSH home directory, and automatic

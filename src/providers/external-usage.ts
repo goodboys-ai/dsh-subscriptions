@@ -1,5 +1,6 @@
 /** Usage readers for subscriptions whose model adapters are built into DSH. */
 
+import { attributionHeaders } from '@deepseek-ai/dsh-llm'
 import type { ProviderUsage, UsageWindow } from './common.js'
 import { parseProviderJson } from './common.js'
 
@@ -148,4 +149,81 @@ export async function fetchKimiCodeUsage(
     })
   }
   return { supported: true, windows, plan: 'Kimi Code' }
+}
+
+/** A usage ratio in any spelling the Cloud endpoint has used. */
+function usageRatio(window: Record<string, unknown>): number | undefined {
+  for (const key of ['usage', 'used_ratio', 'usedRatio', 'consumed', 'consumed_ratio']) {
+    const value = numeric(window[key])
+    if (value !== undefined && value >= 0) return value
+  }
+  return undefined
+}
+
+/** A reset instant in any spelling the Cloud endpoint has used. */
+function usageReset(window: Record<string, unknown>): number | undefined {
+  for (const key of ['resets_at', 'reset_at', 'reset', 'resetsAt']) {
+    const value = window[key]
+    if (typeof value === 'string') {
+      const parsed = Date.parse(value)
+      if (Number.isFinite(parsed)) return parsed
+    } else if (typeof value === 'number' && Number.isFinite(value)) {
+      return value < 1e12 ? value * 1000 : value
+    }
+  }
+  return undefined
+}
+
+/**
+ * Read Ollama Cloud quota windows from `GET {base}/usage`. A 404 means a
+ * self-hosted endpoint without the usage surface: not an error, the card
+ * renders an unsupported note instead.
+ */
+export async function fetchOllamaUsage(
+  apiKey: string,
+  baseURL: string,
+  http: HttpFetch = fetch,
+  signal?: AbortSignal,
+): Promise<ProviderUsage> {
+  const combined = signal === undefined
+    ? AbortSignal.timeout(15_000)
+    : AbortSignal.any([AbortSignal.timeout(15_000), signal])
+  const response = await http(`${baseURL.replace(/\/+$/, '')}/usage`, {
+    headers: {
+      accept: 'application/json',
+      authorization: `Bearer ${apiKey}`,
+      ...attributionHeaders(),
+    },
+    redirect: 'error',
+    signal: combined,
+  })
+  if (signal?.aborted) throw signal.reason
+  if (response.status === 404) return { supported: false }
+  if (!response.ok) throw new Error(`Usage endpoint returned HTTP ${response.status}`)
+  const body = record(await parseProviderJson(response, 'external usage'))
+  const limits = record(body?.limits)
+  if (limits === undefined) throw new Error('Ollama usage response has no limits object')
+  const windows: UsageWindow[] = []
+  for (const [field, kind, scope] of [
+    ['session', 'session', undefined],
+    ['weekly', 'weekly', undefined],
+    ['monthly', 'other', 'Monthly'],
+  ] as const) {
+    const window = record(limits[field])
+    if (window === undefined) continue
+    const ratio = usageRatio(window)
+    // The endpoint reports a consumed share, normally within 0..1; an
+    // over-quota share stays visible instead of dropping the window.
+    if (ratio === undefined || !Number.isFinite(ratio * 100)) continue
+    const resetsAt = usageReset(window)
+    windows.push({
+      kind,
+      ...(scope === undefined ? {} : { scope }),
+      usedPercent: ratio * 100,
+      ...(kind === 'weekly' ? { fixedWindow: true, windowDurationMs: 604_800_000 } : {}),
+      ...(resetsAt === undefined ? {} : { resetsAt }),
+    })
+  }
+  if (windows.length === 0) throw new Error('Ollama usage response has no valid windows')
+  return { supported: true, windows, plan: 'Ollama Cloud' }
 }

@@ -7,7 +7,7 @@ import { USAGE_BADGE_REFRESH_EVENT } from './usage-badge-preferences.js'
 import { UsageMeter } from './UsageMeter.js'
 import { displayUsedPercent } from './usage-pace.js'
 
-type Source = 'opencode-go' | 'kimi-code' | 'minimax' | 'minimax-cn'
+type Source = 'opencode-go' | 'kimi-code' | 'minimax' | 'minimax-cn' | 'ollama-cloud'
 type Translate = SubscriptionsSectionInjected['t']
 
 const SOURCES: readonly { id: Source; name: string; ref: string }[] = [
@@ -15,6 +15,7 @@ const SOURCES: readonly { id: Source; name: string; ref: string }[] = [
   { id: 'kimi-code', name: 'Kimi Code', ref: 'KIMI_CODING_API_KEY' },
   { id: 'minimax', name: 'MiniMax', ref: 'MINIMAX_API_KEY' },
   { id: 'minimax-cn', name: 'MiniMax CN', ref: 'MINIMAX_CN_API_KEY' },
+  { id: 'ollama-cloud', name: 'Ollama Cloud', ref: 'OLLAMA_API_KEY' },
 ]
 
 type Status = Record<Source, { configured: boolean }>
@@ -110,6 +111,7 @@ export function ExternalUsageCards({ rpc, t }: { rpc: ConnectionHandle['rpc']; t
             </div>
             {loading[id] === true && snapshot === undefined && <p style={styles.status}>{t('usageLoading')}</p>}
             {errors[id] !== undefined && <p style={styles.error}>{t('usageError', { message: errors[id] })}</p>}
+            {snapshot !== undefined && snapshot.supported === false && <p style={styles.status}>{t('usageUnsupported')}</p>}
             {snapshot?.windows?.length === 0 && <p style={styles.status}>{t('usageEmpty')}</p>}
             {snapshot?.windows?.map((window, index) => {
               const percent = displayUsedPercent(window.usedPercent)

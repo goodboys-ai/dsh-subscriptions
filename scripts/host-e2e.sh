@@ -42,7 +42,7 @@ trap 'echo "HOST E2E HARNESS FAILURE: setup command failed at line $LINENO: $BAS
 
 # Inherited process environment wins over $DSH_HOME/.credentials.yaml.
 # Drop these names so a developer shell cannot supply a real key.
-unset OPENCODE_GO_API_KEY KIMI_CODING_API_KEY CURSOR_SUBSCRIPTION_OAUTH MINIMAX_API_KEY MINIMAX_CN_API_KEY || true
+unset OPENCODE_GO_API_KEY KIMI_CODING_API_KEY CURSOR_SUBSCRIPTION_OAUTH MINIMAX_API_KEY MINIMAX_CN_API_KEY OLLAMA_API_KEY || true
 # Share millisecond bounds between the preload and driver, even across processes.
 export HOST_E2E_FIXTURE_NOW="${HOST_E2E_FIXTURE_NOW:-$(node -e 'process.stdout.write(String(Date.now()))')}"
 

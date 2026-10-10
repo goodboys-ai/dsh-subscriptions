@@ -13,6 +13,7 @@ test('usage-only status reports configured refs without returning their values',
     'kimi-code': { configured: false },
     minimax: { configured: false },
     'minimax-cn': { configured: false },
+    'ollama-cloud': { configured: false },
   })
   assert.ok(!JSON.stringify(await controller.status()).includes('go-secret'))
   await assert.rejects(() => controller.usage('kimi-code'), /not configured/)

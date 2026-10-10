@@ -33,6 +33,8 @@ import { ExternalUsageController } from './providers/external-usage-controller.j
 import { CursorAuth } from './providers/cursor-auth.js'
 import { fetchCursorUsage } from './providers/cursor-usage.js'
 import { CursorCompatAdapter } from './providers/cursor-adapter.js'
+import { OllamaAdapter, DEFAULT_OLLAMA_API_KEY_REF, DEFAULT_OLLAMA_BASE_URL, OLLAMA_CLOUD_ROUTE } from './providers/ollama.js'
+import { OllamaWebFetchProvider, OllamaWebSearchProvider } from './providers/ollama-web.js'
 import { CursorModelSettingsStore, validateCursorModelSettings } from './providers/cursor-model-settings.js'
 import type {
   AuthController,
@@ -194,6 +196,19 @@ export interface Config {
     /** Google OAuth client secret, when required by the client registration. */
     clientSecret?: string
   }
+  /**
+   * Ollama Cloud key-based route (no OAuth session). Omitted entirely when
+   * the host never selects the route; a missing key only hides the picker
+   * entry, so every field is optional.
+   */
+  ollama?: {
+    /** Credential reference naming the Cloud API key (default OLLAMA_API_KEY). */
+    apiKeyRef?: string
+    /** Native base URL (default https://ollama.com/api); chat maps it to /v1. */
+    baseURL?: string
+    /** Advisory catalog override; non-empty replaces the built-in rows. */
+    models?: ModelEntry[]
+  }
   /** Same-subscription account pools (and optional extra tier models). */
   pool?: {
     /** Enable account pooling (default true; needs ≥2 accounts of one provider). */
@@ -251,6 +266,11 @@ export const Config: z<Config> = z.object({
     baseURL: z.string(),
     userAgent: z.string(),
     onboard: z.boolean().default(true),
+  }),
+  ollama: z.object({
+    apiKeyRef: z.string().default(DEFAULT_OLLAMA_API_KEY_REF),
+    baseURL: z.string().default(DEFAULT_OLLAMA_BASE_URL),
+    models: z.array(modelEntrySchema),
   }),
   pool: z.object({
     enabled: z.boolean().default(true),
@@ -1224,6 +1244,9 @@ export function apply(ctx: Context, config: Config): void {
   let cursorHandle: AdapterRegistrationHandle | undefined
   let cursorAuthenticated: boolean | undefined
   let cursorAttachments: AttachmentStore | undefined
+  // Retained so a future key-status watcher can re-announce the route; the
+  // key itself resolves per request, so no watcher exists yet.
+  let ollamaHandle: AdapterRegistrationHandle | undefined
   ctx.inject(['attachments'], attachmentsCtx => { cursorAttachments = attachmentsCtx.attachments })
   ctx.inject(['credentials'], credentialsCtx => {
     resolveExternalCredential = name => credentialsCtx.credentials.resolve(credentialRef(name))
@@ -1234,10 +1257,22 @@ export function apply(ctx: Context, config: Config): void {
       visibleModels: () => cursorModelSettings.visibleModels(),
     })
     cursorHandle = credentialsCtx.llm.registerAdapter(['cursor-subscription'], cursorAdapter)
+    // Ollama Cloud rides beside cursor: a key-based route with no OAuth
+    // session, resolved per request so a key change needs no re-announce.
+    const ollamaAdapter = new OllamaAdapter({
+      apiKey: async () => (await resolveExternalCredential?.(config.ollama?.apiKeyRef ?? DEFAULT_OLLAMA_API_KEY_REF))?.value,
+      baseURL: config.ollama?.baseURL ?? DEFAULT_OLLAMA_BASE_URL,
+      ...config.ollama?.models !== undefined && config.ollama.models.length > 0 ? { models: config.ollama.models } : {},
+      resolveAttachments: () => cursorAttachments,
+      streamIdleTimeoutMs,
+    })
+    ollamaHandle = credentialsCtx.llm.registerAdapter([OLLAMA_CLOUD_ROUTE], ollamaAdapter)
   })
   const externalUsage = new ExternalUsageController(
     async name => resolveExternalCredential?.(name),
     hostFetch,
+    {},
+    config.ollama?.baseURL ?? DEFAULT_OLLAMA_BASE_URL,
   )
   const resetRedemption = new ResetRedemption(
     async (account, signal) => {
@@ -1419,6 +1454,19 @@ export function apply(ctx: Context, config: Config): void {
         enabled: () => preferences.toolEnabled('codex', 'web_search'),
         fetchFn: hostFetch,
       }))
+    })
+  }
+
+  // Ollama web capabilities ride the Cloud endpoints independently of the
+  // chat route. Registration alone changes no deployment policy: a profile
+  // pins `searchProvider`/`fetchProvider` to `ollama-cloud` to select them.
+  {
+    const ollamaBaseURL = config.ollama?.baseURL ?? DEFAULT_OLLAMA_BASE_URL
+    const ollamaApiKey = async (): Promise<string | undefined> =>
+      (await resolveExternalCredential?.(config.ollama?.apiKeyRef ?? DEFAULT_OLLAMA_API_KEY_REF))?.value
+    ctx.inject(['web'], webCtx => {
+      webCtx.web.registerSearchProvider(new OllamaWebSearchProvider({ apiKey: ollamaApiKey, baseURL: ollamaBaseURL }))
+      webCtx.web.registerFetchProvider(new OllamaWebFetchProvider({ apiKey: ollamaApiKey, baseURL: ollamaBaseURL }))
     })
   }
 

@@ -80,7 +80,8 @@ if (expect === 'status') {
     }
   }
 } else if (expect === 'external-status') {
-  if (value?.['opencode-go']?.configured !== false || value?.['kimi-code']?.configured !== false) {
+  if (value?.['opencode-go']?.configured !== false || value?.['kimi-code']?.configured !== false
+    || value?.['ollama-cloud']?.configured !== false) {
     fail(`externalStatus was ${JSON.stringify(value)}`)
   }
 } else if (expect === 'cursor-status') {
