@@ -176,6 +176,7 @@ test('every signed-in usage account shows up in the bar', async (t) => {
     'kimi-coding',
     'minimax',
     'minimax-cn',
+    'ollama-cloud',
     'opencode-go',
   ])
   assert.deepEqual(roster.map((entry) => entry.provider), [

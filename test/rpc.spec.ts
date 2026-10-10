@@ -59,6 +59,7 @@ test('usage-only RPC reports key presence and rejects unknown sources without ex
     'kimi-code': { configured: false },
     minimax: { configured: false },
     'minimax-cn': { configured: false },
+    'ollama-cloud': { configured: false },
   } })
   assert.ok(!JSON.stringify(status).includes('go-secret'))
   const unknown = await handler('externalUsage', { source: 'not-a-source' }, signal)

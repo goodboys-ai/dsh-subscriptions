@@ -23,6 +23,7 @@ export const USAGE_PERCENT = {
   'cursor-subscription': { name: 'Cursor', percent: 55 },
   'opencode-go': { name: 'OpenCode Go', percent: 66 },
   'kimi-coding': { name: 'Kimi Code', percent: 77 },
+  'ollama-cloud': { name: 'Ollama Cloud', percent: 88 },
 }
 
 /** The collapsed pill for the selected Codex model: the default account's 5-hour window. */
@@ -141,6 +142,11 @@ export const FIXTURE_REQUESTS = {
     body: { usages: { limit_5h: { used_ratio: USAGE_PERCENT['kimi-coding'].percent / 100 } } },
     required: true,
   },
+  'GET https://ollama.com/api/usage': {
+    credential: ['authorization', 'Bearer fake-ollama-key'],
+    body: { limits: { session: { usage: USAGE_PERCENT['ollama-cloud'].percent / 100 } } },
+    required: true,
+  },
   'GET https://www.minimax.io/v1/token_plan/remains': {
     credential: ['authorization', 'Bearer fake-minimax-key'],
     body: { base_resp: { status_code: 0 }, model_remains: [
@@ -185,5 +191,10 @@ export const EXPECTED_REFUSALS = [
   'https://update.code.visualstudio.com/api/releases/stable',
   'https://api.x.ai/v1/models',
   'https://cli-chat-proxy.grok.com/v1/models',
+  // Ollama discovery endpoints stay offline as permitted refusals. The
+  // static-catalog fallback is covered by unit tests; the driver makes
+  // no picker assertions for this route.
+  'https://ollama.com/api/tags',
+  'https://ollama.com/api/show',
   'api2.cursor.sh:443',
 ]

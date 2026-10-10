@@ -171,9 +171,9 @@ boots `dsh web --no-open --port 0`, and asserts:
 - with that session cookie, POST `/api/subscriptions-auth.status`,
   `externalStatus`, and `cursorStatus` in the browser's `client-request`
   envelope. A fresh profile reports the five OAuth providers with empty
-  account lists, OpenCode Go and Kimi Code unconfigured, and Cursor
-  unauthenticated. `externalUsage` for each of those two sources returns the
-  unconfigured-key error without calling the usage host;
+  account lists, OpenCode Go, Kimi Code, and Ollama Cloud unconfigured,
+  and Cursor unauthenticated. `externalUsage` for each of those sources
+  returns the unconfigured-key error without calling the usage host;
 - the log contains no cordis patch skips (`name mismatch` style silent skips)
   and no module-load failures.
 
@@ -287,9 +287,10 @@ script:
 
 1. installs the plugin into an isolated web profile and copies in
    `test/fixtures/host-e2e-profile/`: fake OAuth sessions for all five OAuth
-   providers, and fake credential refs for Cursor, OpenCode Go, and Kimi
-   Code. None of them is a real provider login. Real credential variables in
-   the parent environment are unset before launch;
+   providers, and fake credential refs for Cursor, OpenCode Go, Kimi
+   Code, and Ollama Cloud. None of them is a real provider login. Real
+   credential variables in the parent environment are unset before
+   launch;
 2. points the host's first-use workspace (`workspace-controller`
    `documentsDirectory`, set through a `--patch` overlay) at the temp home,
    so a fresh profile opens a workspace by itself;

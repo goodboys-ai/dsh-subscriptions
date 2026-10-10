@@ -200,7 +200,7 @@ async function waitForFixture(cookies) {
       const providers = status?.value?.providers ?? {}
       const accounts = Object.fromEntries(oauth.map(id => [id, providers[id]?.accounts?.find(a => a.isDefault)?.key]))
       const signedIn = oauth.every(id => accounts[id] !== undefined)
-      const keys = ['opencode-go', 'kimi-code', 'minimax'].every(source => external?.value?.[source]?.configured === true)
+      const keys = ['opencode-go', 'kimi-code', 'minimax', 'ollama-cloud'].every(source => external?.value?.[source]?.configured === true)
         && external?.value?.['minimax-cn']?.configured === false
       const cursorIn = cursor?.value?.authenticated === true
       if (signedIn && keys && cursorIn) return accounts
@@ -228,6 +228,7 @@ async function checkUsageRpcs(cookies, accounts) {
     { source: 'cursor-subscription', endpoint: 'cursorUsage', payload: {} },
     { source: 'opencode-go', endpoint: 'externalUsage', payload: { source: 'opencode-go' } },
     { source: 'kimi-coding', endpoint: 'externalUsage', payload: { source: 'kimi-code' } },
+    { source: 'ollama-cloud', endpoint: 'externalUsage', payload: { source: 'ollama-cloud' } },
   ]
   const wrong = []
   for (const { source, endpoint, payload } of calls) {

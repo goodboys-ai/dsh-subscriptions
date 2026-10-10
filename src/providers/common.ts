@@ -112,6 +112,48 @@ export async function parseProviderJson<T = unknown>(input: Response | string, o
   }
 }
 
+/**
+ * Read a bounded JSON body; oversized or malformed payloads fail loudly.
+ * Bytes accumulate per chunk and the stream is cancelled past the cap, so
+ * the bound limits memory even when the body has no end; a declared
+ * over-cap `content-length` fails before the first read.
+ */
+export async function readBoundedJson(response: Response, label: string, maxBytes: number): Promise<unknown> {
+  const declared = Number(response.headers.get('content-length'))
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    // Stop the socket too: the headers arrived, but the body must never flow.
+    await response.body?.cancel().catch(() => undefined)
+    throw new Error(`${label} response exceeds ${String(maxBytes)} bytes`)
+  }
+  if (response.body === null) throw new Error(`${label} response has no body`)
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let bytes = 0
+  let text = ''
+  try {
+    for (;;) {
+      const chunk = await reader.read()
+      if (chunk.done) break
+      bytes += chunk.value.byteLength
+      if (bytes > maxBytes) {
+        // Cancel before throwing so the live stream does not linger behind
+        // a rejection the caller already stopped listening to.
+        await reader.cancel().catch(() => undefined)
+        throw new Error(`${label} response exceeds ${String(maxBytes)} bytes`)
+      }
+      text += decoder.decode(chunk.value, { stream: true })
+    }
+    text += decoder.decode()
+  } finally {
+    try { reader.releaseLock() } catch { /* best effort */ }
+  }
+  try {
+    return JSON.parse(text) as unknown
+  } catch {
+    throw new Error(`${label} response is not JSON`)
+  }
+}
+
 /** Optional per-call hooks {@link httpLlmError} uses to read a rate-limit window. */
 export interface HttpLlmErrorOptions {
   /**
