@@ -121,6 +121,8 @@ export async function parseProviderJson<T = unknown>(input: Response | string, o
 export async function readBoundedJson(response: Response, label: string, maxBytes: number): Promise<unknown> {
   const declared = Number(response.headers.get('content-length'))
   if (Number.isFinite(declared) && declared > maxBytes) {
+    // Stop the socket too: the headers arrived, but the body must never flow.
+    await response.body?.cancel().catch(() => undefined)
     throw new Error(`${label} response exceeds ${String(maxBytes)} bytes`)
   }
   if (response.body === null) throw new Error(`${label} response has no body`)
@@ -134,6 +136,9 @@ export async function readBoundedJson(response: Response, label: string, maxByte
       if (chunk.done) break
       bytes += chunk.value.byteLength
       if (bytes > maxBytes) {
+        // Cancel before throwing so the live stream does not linger behind
+        // a rejection the caller already stopped listening to.
+        await reader.cancel().catch(() => undefined)
         throw new Error(`${label} response exceeds ${String(maxBytes)} bytes`)
       }
       text += decoder.decode(chunk.value, { stream: true })

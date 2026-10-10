@@ -6,7 +6,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { LlmError, MessageId, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
+import { errorChain, LlmError, MessageId, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type { GenerateOptions } from '@deepseek-ai/dsh-llm'
 import type { AttachmentStore } from '@deepseek-ai/dsh-attachment'
 import {
@@ -445,7 +445,10 @@ test('a malformed reply carries no provider bytes in its chain', async () => {
   )
   assert.ok(error instanceof Error)
   assert.equal((error as { code?: string }).code, 'OLLAMA_WEB_BAD_REPLY')
+  // The chained diagnostic must not quote the offending bytes either.
   assert.ok(!String(error).includes('REDACTED'))
+  assert.ok(!errorChain(error).includes('REDACTED'))
+  assert.equal((error as { cause?: unknown }).cause, undefined)
 })
 
 test('an oversized reply fails without buffering it whole', async () => {
@@ -465,4 +468,28 @@ test('an oversized reply fails without buffering it whole', async () => {
   await assert.rejects(() => huge.search({ query: 'q' }),
     (error: unknown) => error instanceof Error && (error as { code?: string }).code === 'OLLAMA_WEB_BAD_REPLY')
   assert.equal(calls, 1)
+})
+
+test('an undeclared oversized stream stops early and cancels', async () => {
+  let cancelled = false
+  let pulls = 0
+  const chunk = new TextEncoder().encode('x'.repeat(256 * 1024))
+  const streaming = new OllamaWebSearchProvider({
+    apiKey: async () => 'k' as string | undefined,
+    baseURL: DEFAULT_OLLAMA_BASE_URL,
+    fetchFn: (async () => new Response(new ReadableStream({
+      // Endless 256 KiB chunks with no content-length: the 2 MiB cap
+      // must trip after a bounded prefix, and the live stream must be
+      // cancelled instead of left hanging behind the rejection.
+      pull(controller) {
+        pulls += 1
+        controller.enqueue(chunk)
+      },
+      cancel() { cancelled = true },
+    }), { status: 200 })) as FetchFn,
+  })
+  await assert.rejects(() => streaming.search({ query: 'q' }),
+    (error: unknown) => error instanceof Error && (error as { code?: string }).code === 'OLLAMA_WEB_BAD_REPLY')
+  assert.equal(cancelled, true)
+  assert.ok(pulls <= 12, `read ${String(pulls)} chunks past the cap`)
 })
