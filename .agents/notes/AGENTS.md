@@ -76,8 +76,10 @@ Move durable decision history out of standing docs and link to its note.
 
 Wrap prose at 80 columns. Run `npx --yes markdownlint-cli2@0.22.0` from the
 repository root; CI runs the same pinned Markdown linter. The root
-`.markdownlint-cli2.jsonc` enables only MD013 for Agent Notes and these
-rules, not other repository Markdown. Code blocks, tables, and lines with
+`.markdownlint-cli2.jsonc` enables only MD013, and checks Agent Notes and
+`CHANGELOG.md`; it does not check the other repository Markdown. The
+changelog is covered because it carries each release's user-facing claims
+and nothing else was checking it. Code blocks, tables, and lines with
 no whitespace past column 80 (such as an indivisible link) are exempt.
 Archived notes remain frozen and are excluded from the wrapping check.
 
