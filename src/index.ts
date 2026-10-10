@@ -1276,7 +1276,9 @@ export function apply(ctx: Context, config: Config): void {
   const externalUsage = new ExternalUsageController(
     async name => resolveExternalCredential?.(name),
     hostFetch,
-    {},
+    // A custom ollama ref must reach usage status too, or chat and the
+    // quota card would read different credentials.
+    config.ollama?.apiKeyRef === undefined ? {} : { 'ollama-cloud': config.ollama.apiKeyRef },
     config.ollama?.baseURL ?? DEFAULT_OLLAMA_BASE_URL,
   )
   const resetRedemption = new ResetRedemption(

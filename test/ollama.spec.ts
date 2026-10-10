@@ -285,17 +285,46 @@ test('listModels hides the route when the key is rejected', async () => {
   assert.deepEqual(await adapter.listModels(OLLAMA_CLOUD_ROUTE), [])
 })
 
+test('a 403 falls back to the static catalog instead of hiding the route', async () => {
+  const forbidden: FetchFn = (async () => new Response('', { status: 403 })) as FetchFn
+  const adapter = new OllamaAdapter({ apiKey: async () => 'k', fetchFn: forbidden })
+  const models = await adapter.listModels(OLLAMA_CLOUD_ROUTE)
+  assert.deepEqual(models.map(model => model.id), [
+    'deepseek-v4.1-flash:cloud',
+    'glm-5.3:cloud',
+    'glm-5.3-flash:cloud',
+  ])
+})
+
+test('discovery enriches capabilities but keeps the static display name', async () => {
+  const adapter = new OllamaAdapter({
+    apiKey: async () => 'k',
+    fetchFn: fakeDiscovery(
+      { models: [{ model: 'glm-5.3' }] },
+      { 'glm-5.3': { capabilities: ['tools', 'thinking', 'cloud'], parameters: 'num_ctx 262144' } },
+    ),
+  })
+  const models = await adapter.listModels(OLLAMA_CLOUD_ROUTE)
+  const glm = models.find(model => model.id === 'glm-5.3:cloud')
+  assert.equal(glm?.name, 'GLM-5.3 (cloud)')
+  const resolved = await adapter.resolveModel(OLLAMA_CLOUD_ROUTE, 'glm-5.3:cloud')
+  assert.equal(resolved.name, 'GLM-5.3 (cloud)')
+  assert.equal(resolved.context?.contextWindow, 262144)
+})
+
 test('web search posts the query and drops url-less rows', async () => {
   const seen: { url: string; body: Record<string, unknown> }[] = []
   const fetchFn = (async (input: RequestInfo | URL, init?: RequestInit) => {
     seen.push({ url: String(input), body: JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown> })
     if (String(input).endsWith('/web_search')) {
+      // Official shape: {title, url, content}.
       return Response.json({ results: [
-        { url: 'https://example.com/a', title: 'A', snippet: 's' },
+        { url: 'https://example.com/a', title: 'A', content: 's' },
         { title: 'no url' },
       ] })
     }
-    return Response.json({ url: 'https://example.com/a', status_code: 200, body: { content: '# hi' } })
+    // Official shape: {title, content, links}.
+    return Response.json({ title: 'A', content: '# hi', links: ['https://example.com/a'] })
   }) as FetchFn
   const options = { apiKey: async () => 'k' as string | undefined, baseURL: DEFAULT_OLLAMA_BASE_URL, fetchFn }
   const search = new OllamaWebSearchProvider(options)

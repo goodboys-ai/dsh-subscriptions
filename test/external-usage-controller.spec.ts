@@ -111,3 +111,19 @@ test('MiniMax returns the standard model beside video for both regions', async (
     assert.ok(!JSON.stringify(usage).includes('secret'))
   }
 })
+
+test('Ollama Cloud honors a custom credential ref override', async () => {
+  const seen: string[] = []
+  const controller = new ExternalUsageController(async name => {
+    seen.push(name)
+    return name === 'CUSTOM_OLLAMA_REF' ? { value: 'k' } : undefined
+  }, fetch, { 'ollama-cloud': 'CUSTOM_OLLAMA_REF' })
+  assert.deepEqual(await controller.status(), {
+    'opencode-go': { configured: false },
+    'kimi-code': { configured: false },
+    minimax: { configured: false },
+    'minimax-cn': { configured: false },
+    'ollama-cloud': { configured: true },
+  })
+  assert.ok(seen.includes('CUSTOM_OLLAMA_REF'))
+})

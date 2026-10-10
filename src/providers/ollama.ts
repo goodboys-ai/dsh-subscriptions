@@ -140,9 +140,12 @@ function builtinRow(id: string): OllamaBuiltinModel | undefined {
   return OLLAMA_BUILTIN_MODELS.find(entry => entry.id === id)
 }
 
-/** Whether the failure is a rejected key (httpLlmError reports 401/403 as AUTH). */
-function isAuthFailure(error: unknown): boolean {
+/** Whether the failure is a rejected key. Only a 401 hides the route: a
+ * 403 may be a transient scope denial, so it falls back to the static
+ * catalog like any other discovery miss. */
+function isUnauthorized(error: unknown): boolean {
   return error instanceof LlmError && error.code === 'AUTH'
+    && error.failure?.status === 401
 }
 
 /**
@@ -407,20 +410,21 @@ export class OllamaAdapter extends LlmAdapter {
             inputModalities: entry.vision ? ['text', 'image'] : ['text'],
           }
         }
+        // The picker keeps the static friendly name: discovered rows carry
+        // bare listing ids (`glm-5.3`) that would read as a rename every
+        // refresh. Discovery enriches capabilities only.
         return {
           provider,
           id: entry.id,
-          name: match.name,
-          ...match.description === undefined ? {} : { description: match.description },
+          name: entry.name,
           inputModalities: match.inputModalities ?? (entry.vision ? ['text', 'image'] : ['text']),
         }
       })
     } catch (error: unknown) {
       if (isDiscoveryAborted(error)) throw error
       // Keys are stateless, so any other failure falls back to the static
-      // catalog; a rejected key (401/403) instead hides the route like a
-      // logout. httpLlmError reports those as AUTH, not INVALID_CREDENTIAL.
-      if (isMissingOrInvalidCredential(error) || isAuthFailure(error)) return []
+      // catalog; a 401 instead hides the route like a logout.
+      if (isMissingOrInvalidCredential(error) || isUnauthorized(error)) return []
       this.options.onWarn?.(`ollama-cloud model discovery failed; using the built-in catalog (${errorChain(error)})`)
       return this.staticList(provider)
     }
@@ -466,7 +470,7 @@ export class OllamaAdapter extends LlmAdapter {
     return {
       provider,
       id: model,
-      name: discovered?.name ?? entry.name,
+      name: entry.name,
       inputModalities: [...modalities],
       context: { contextWindow: discovered?.contextWindow ?? entry.contextWindow },
       defaultMaxTokens: entry.maxTokens,

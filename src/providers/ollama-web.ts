@@ -166,6 +166,8 @@ export class OllamaWebSearchProvider implements WebSearchProvider {
     }, this.options, signal)
     const results = recordOf(payload)?.['results']
     if (!Array.isArray(results)) throw new WebError('ollama web search returned no results array', 'OLLAMA_WEB_BAD_REPLY')
+    // Official shape per docs: {title, url, content}. The snippet rides
+    // `content`, not `snippet`.
     const sources = results.flatMap(entry => {
       const record = recordOf(entry)
       const url = record?.['url']
@@ -173,7 +175,7 @@ export class OllamaWebSearchProvider implements WebSearchProvider {
       return [{
         url,
         ...(typeof record?.['title'] === 'string' ? { title: record?.['title'] as string } : {}),
-        ...(typeof record?.['snippet'] === 'string' ? { snippet: record?.['snippet'] as string } : {}),
+        ...(typeof record?.['content'] === 'string' ? { snippet: record?.['content'] as string } : {}),
       }]
     })
     return { sources, truncated: false }
@@ -199,13 +201,14 @@ export class OllamaWebFetchProvider implements WebFetchProvider {
     const apiKey = await resolveWebKey(this.options, signal)
     const base = this.options.baseURL.replace(/\/+$/, '')
     const payload = await postJson(`${base}/web_fetch`, apiKey, { url: request.url }, this.options, signal)
+    // Official shape per docs: {title, content, links}. The endpoint
+    // answers the retrieval itself, so the request URL is the result URL
+    // and a decoded body means success.
     const record = recordOf(payload)
-    const url = record?.['url']
-    const statusCode = record?.['status_code'] ?? record?.['statusCode'] ?? record?.['status']
-    const content = recordOf(record?.['body'])?.['content'] ?? record?.['content']
-    if (typeof url !== 'string' || typeof statusCode !== 'number' || typeof content !== 'string') {
+    const content = record?.['content']
+    if (typeof content !== 'string') {
       throw new WebError('ollama web fetch returned a malformed reply', 'OLLAMA_WEB_BAD_REPLY')
     }
-    return { url, statusCode, body: { kind: 'text', content }, truncated: false }
+    return { url: request.url, statusCode: 200, body: { kind: 'text', content }, truncated: false }
   }
 }

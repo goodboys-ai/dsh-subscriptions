@@ -191,9 +191,9 @@ export const EXPECTED_REFUSALS = [
   'https://update.code.visualstudio.com/api/releases/stable',
   'https://api.x.ai/v1/models',
   'https://cli-chat-proxy.grok.com/v1/models',
-  // Ollama discovery stays offline as a permitted refusal: the adapter must
-  // fall back to its static catalog (covered by unit tests; the driver
-  // asserts no ollama picker state).
+  // Ollama discovery endpoints stay offline as permitted refusals. The
+  // static-catalog fallback is covered by unit tests; the driver makes
+  // no picker assertions for this route.
   'https://ollama.com/api/tags',
   'https://ollama.com/api/show',
   'api2.cursor.sh:443',
