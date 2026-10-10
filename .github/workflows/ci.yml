@@ -41,7 +41,7 @@ jobs:
         with:
           node-version: 24
       - run: node scripts/verify-agent-notes.mjs
-      - name: Check Agent Note prose wrapping
+      - name: Check Agent Note and CHANGELOG prose wrapping
         run: npx --yes markdownlint-cli2@0.22.0
       # Version-independent, so it runs here once instead of in every
       # build-and-test matrix leg: it reads dsh-versions.txt and the repo,

@@ -1,5 +1,9 @@
 {
-  "globs": [".agents/notes/**/*.md", "!.agents/notes/archived/**"],
+  "globs": [
+    "CHANGELOG.md",
+    ".agents/notes/**/*.md",
+    "!.agents/notes/archived/**"
+  ],
   "config": {
     "default": false,
     "MD013": {
