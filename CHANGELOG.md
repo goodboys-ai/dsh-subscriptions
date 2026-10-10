@@ -14,10 +14,16 @@ The release date is set when the tag is cut.
 - Provider response text no longer reaches these failure paths: the OAuth
   callback page and error, the device-code and token-poll failures, the
   video-generation tool's failure and unexpected-status errors, every JSON
-  parse failure on a provider response, the Cursor stream's vendor-produced
-  failures, and the `Codex Web Search` invalid-JSON error. A provider can echo
-  a credential, and matching known token shapes cannot be relied on to catch
-  every form, so the text is dropped rather than filtered.
+  parse failure on a provider response, the Grok OIDC discovery rejection, the
+  Cursor stream's provider-derived failures (with the exceptions listed under
+  "What is not fixed"), and the `Codex Web Search` invalid-JSON error. A
+  provider can echo a credential, and matching known token shapes cannot be
+  relied on to catch every form, so the text is dropped rather than filtered.
+- The Grok OIDC discovery check rejects a non-`x.ai` endpoint with
+  `grok OIDC discovery returned a non-x.ai <field>`, naming the field
+  (`authorization_endpoint` or `token_endpoint`) and not the discovered URL.
+  The URL came from the provider's discovery document. This was one of the
+  paths the v0.1.4 notes said the next patch would address.
 - JSON parse failures on provider responses go through one reader,
   `parseProviderJson`. Node's `Unexpected token` message quotes about ten
   characters of the input, so a body that began with a credential leaked those
@@ -37,10 +43,36 @@ The release date is set when the tag is cut.
   image tool shows the provider's `revised_prompt` in its result text and
   value. The video tool shows the temporary provider URL (`Temporary provider
   URL`). Both are content the user asked for, and neither is filtered.
-- The Grok OIDC discovery check rejects a non-`x.ai` endpoint with a message
-  that includes the discovered URL (`grok OIDC discovery returned a non-x.ai
-  ...: <url>`). That URL comes from the provider's discovery document and is
-  still displayed.
+- **The v0.1.4 promise on the Cursor stream is only partly kept.** The v0.1.4
+  release notes ended: "The next patch is planned to address the OAuth
+  state-ordering defect above and the remaining provider-text paths listed in
+  this section." That list named the video tool, the device-code and OAuth
+  login failures, the Cursor stream, JSON parse failures and the Grok OIDC
+  discovery URL. This release delivers the OAuth ordering fix and all of those
+  paths except the Cursor stream, which it delivers in part: Cursor failures
+  whose message can quote provider text are replaced, and the rest of the
+  Cursor path is not fixed as described in the next item. This release does
+  not meet the promise for Cursor, and nothing here should be read as saying
+  it does.
+- Cursor: some failures that are probably local are still shown as `<code>
+  [provider response text omitted]`, although no provider text was involved.
+  - A transport failure that carries no operating-system network code. TLS and
+    certificate failures (measured: a self-signed certificate on the endpoint
+    gives `CURSOR_ERROR [provider response text omitted]`) and HTTP/2
+    protocol errors are in this class. The vendor derives its `TRANSPORT` code
+    from words in the message text (`network`, `connection`, `socket`,
+    `fetch`, `ECONN`, `http2`), and a provider's end-stream message or
+    `grpc-message` can contain any of them, so the code alone cannot say the
+    failure is local, and this release does not trust it alone. It keeps a
+    transport failure only when the thrown error, or its `cause`, carries a
+    socket-layer code: `ECONNREFUSED`, `ECONNRESET`, `ECONNABORTED`,
+    `ENOTFOUND`, `EAI_AGAIN`, `ETIMEDOUT`, `ENETUNREACH`, `ENETDOWN`,
+    `EHOSTUNREACH`, `EHOSTDOWN` or `EPIPE`. Extending that check to TLS and
+    HTTP/2 error codes is possible and was not done or verified.
+  - Any other plain error the vendor raises whose message is not one of the
+    literals listed under "What you may notice". A new vendor message would
+    be replaced until it is added to the list.
+  - A network error whose code is not in the list above.
 - The video request id is displayed in failure messages. It must match
   `[A-Za-z0-9_-]{1,128}`, which rules out prose and message excerpts, but a
   credential-shaped string matches it. It is a bounded provider value shown
@@ -75,17 +107,35 @@ The release date is set when the tag is cut.
 - A malformed provider response is reported as `<endpoint>: invalid JSON:
   [provider response body omitted]` in Settings and in errors, instead of
   Node's message.
-- Cursor: a failure from the vendor stream is shown as `<code> [provider
-  response text omitted]`, for example `RATE_LIMIT [provider response text
-  omitted]`. The code and retry behavior are unchanged. Failures that are
-  wholly local keep their text: not signed in, sign-in needs to be renewed,
-  token-refresh status, an unsupported option or content, and the tool-round
-  limit. The boundary cannot tell some other local failures from provider
-  ones, such as the idle and progress timeouts, a closed bridge, and the
-  HTTP-status failure (`Cursor agent returned HTTP 429`); the vendor raises
-  those as plain errors, so they are replaced, and the replacement says
-  provider text was omitted when there was none. Telling them apart would need
-  the vendor to tag them where it throws them.
+- Cursor: a failure that can quote provider text is shown as `<code>
+  [provider response text omitted]`, for example `RATE_LIMIT [provider
+  response text omitted]`: a response with an unexpected content type, a
+  `grpc-message` trailer, an end-stream error, a frame-reader error not listed
+  below, and a transport-coded failure without a socket-layer code. The code
+  and retry behavior are unchanged. These failures keep their own text and
+  code, because the message is a local literal or an operating-system error:
+  - the auth service: not signed in, sign-in needs to be renewed, token-refresh
+    status;
+  - the vendor's request validation: an unsupported option or content, and the
+    tool-round limit (`TOOL_LIMIT`);
+  - the vendor's fixed messages, matched exactly: `Cursor agent returned HTTP
+    <status>` (so `HTTP 429` and `HTTP 401` read as such),
+    `Cursor HTTP response timeout`, `Cursor HTTP stream closed before
+    response`, `Cursor agent bridge closed before accepting the request`,
+    `Cursor tool continuation bridge closed before accepting the result`,
+    `Cursor sent an unreadable compressed frame`, `Cursor stream idle timeout`,
+    `Cursor stream progress timeout: no content for <n>ms`, and an invalid
+    Cursor setting (`cursor-subscription: retryCount must be ...`). A provider
+    that echoed one of these sentences would only make you read a local
+    literal;
+  - a failure to read an image from the host attachment store;
+  - a network error from the operating system, such as `connect ECONNREFUSED`
+    when there is no network or `getaddrinfo ENOTFOUND` when DNS fails. These
+    are local, and reading them as if Cursor had replied was the most
+    misleading case. The match is on the thrown error's own code, which a
+    provider cannot set; the vendor's `TRANSPORT` code is not used for it.
+  A message that only contains one of these sentences, or extends it, is not
+  matched and stays replaced.
 - Cursor classification: the vendor derives a stream failure's code from the
   message text. A corrupt stored credential used to be classified from the
   body excerpt in Node's parse message, so one beginning with `quota` came out
@@ -105,10 +155,19 @@ The release date is set when the tag is cut.
   endpoints and swallows one failing alone, so the test fails both. The
   `Codex Web Search` test asserts the absence of `cause`, not the host's
   rendering of it.
-- Not covered: the sites listed under "What is not fixed"; the Cursor
-  vendor's plain-error paths beyond the cases above; and the `TOOL_LIMIT`
-  pass-through, which is in the code but has no test.
-- No live provider was used. The Cursor stream, the OAuth callback and the
+- Cursor failure classes were measured against the real vendored `AgentRun`
+  on a loopback HTTP/2 server or a closed loopback port, not only against
+  fakes: HTTP 429 and 401, the response timeout, a stream closed before a
+  response, the idle and progress timeouts, and a refused connection. The
+  closed-bridge, compressed-frame, settings and attachment-read failures, and
+  the `TOOL_LIMIT` pass-through, use fakes because no loopback server produces
+  them. A DNS failure (`ENOTFOUND`) and a TLS failure were measured by hand
+  against the real vendor and are not in the suite; the suite covers the
+  `ENOTFOUND` code with a synthetic error.
+- Not covered: the sites listed under "What is not fixed"; and any vendor
+  plain-error message not listed under "What you may notice".
+- No live provider was used. The Cursor stream was exercised against fakes and
+  loopback servers, never the real Cursor service; the OAuth callback and the
   device login were exercised only against injected fakes.
 
 ### Maintenance
