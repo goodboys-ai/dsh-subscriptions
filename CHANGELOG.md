@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.1.5 — unreleased
+## v0.1.5 — 2026-10-09
 
 The release date is set when the tag is cut.
 
@@ -31,8 +31,10 @@ The release date is set when the tag is cut.
   and says the body was omitted, with no `cause`. `Codex Web Search` parses
   its own bounded text and no longer attaches the original error as `cause`,
   because the host prints causes recursively and that only moved the excerpt.
-- Cursor local failures keep their own text and code. Only failures that
-  originate from the vendor stream are replaced; see the Cursor entry below.
+- Cursor receives no provider text on any failure. Most local failures now
+  keep their own text and code, and the ones that are still relabelled as
+  omitted provider text are listed under "What is not fixed" — that labelling
+  is wrong, but it drops text rather than leaking it.
 - The release is checked against the version it names: `package.json` is now
   `0.1.5`, and `scripts/check-compat-docs.mjs` fails when
   `docs/compatibility.md` states another plugin version.
@@ -132,7 +134,8 @@ The release date is set when the tag is cut.
   - a network error from the operating system, such as `connect ECONNREFUSED`
     when there is no network or `getaddrinfo ENOTFOUND` when DNS fails. These
     are local, and reading them as if Cursor had replied was the most
-    misleading case. The match is on the thrown error's own code, which a
+    misleading case. The match is on the thrown error's own code or its cause's,
+    which a
     provider cannot set; the vendor's `TRANSPORT` code is not used for it.
   A message that only contains one of these sentences, or extends it, is not
   matched and stays replaced.
