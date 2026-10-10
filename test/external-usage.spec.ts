@@ -83,3 +83,18 @@ test('Kimi Code HTTP errors do not disclose the key', async () => {
     return true
   })
 })
+
+for (const [name, read] of [
+  ['OpenCode Go', fetchOpenCodeGoUsage],
+  ['Kimi Code', fetchKimiCodeUsage],
+] as const) {
+  test(`${name} usage rejects a malformed body without quoting it`, async () => {
+    const http = (async () => new Response('sk-live-ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789')) as typeof fetch
+    await assert.rejects(() => read('secret', http), (error: unknown) => {
+      assert.ok(error instanceof SyntaxError)
+      assert.equal(error.cause, undefined)
+      assert.equal(error.message, 'external usage: invalid JSON: [provider response body omitted]')
+      return true
+    })
+  })
+}

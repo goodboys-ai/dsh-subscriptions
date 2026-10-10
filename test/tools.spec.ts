@@ -858,3 +858,44 @@ test('video_generate: a request id that is provider prose is refused, not displa
   assert.throws(() => parseVideoStartResponse({ request_id: 'x'.repeat(129) }), /no usable request_id/)
   assert.equal(parseVideoStartResponse({ request_id: 'req-1_abc-XYZ' }), 'req-1_abc-XYZ')
 })
+
+// A body that starts with a credential: Node's SyntaxError would quote its first
+// characters. Each submit/single-response site must route through the shared
+// reader, so the thrown error is the local SyntaxError with the omission marker.
+const MALFORMED_CREDENTIAL_BODY = 'sk-live-ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+
+function assertSanitisedParseFailure(origin: string) {
+  return (caught: unknown): boolean => {
+    assert.ok(caught instanceof SyntaxError)
+    assert.equal(caught.cause, undefined)
+    assert.equal(caught.message, `${origin}: invalid JSON: [provider response body omitted]`)
+    return true
+  }
+}
+
+test('image_generate: a malformed provider body does not expose its prefix', async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'subscriptions-images-'))
+  t.after(() => { rmSync(dir, { recursive: true, force: true }) })
+  const tool = createImageGenerateTool({
+    codexTokens: memoryTokens(codexSession),
+    fetchFn: sequenceFetch([new Response(MALFORMED_CREDENTIAL_BODY)]).fetchFn,
+    imagesDir: dir,
+  })
+  await assert.rejects(() => tool.execute({ prompt: 'x' }, fakeExec()), assertSanitisedParseFailure('image generate'))
+  assert.equal(readdirSync(dir).length, 0, 'nothing is written for an unparseable response')
+})
+
+test('x_search: a malformed provider body does not expose its prefix', async () => {
+  const tool = createXSearchTool({
+    tokens: memoryTokens(grokSession),
+    fetchFn: sequenceFetch([new Response(MALFORMED_CREDENTIAL_BODY)]).fetchFn,
+  })
+  await assert.rejects(() => tool.execute({ query: 'x' }, fakeExec()), assertSanitisedParseFailure('x search'))
+})
+
+test('video_generate: a malformed submit body does not expose its prefix', async () => {
+  const { fetchFn, requests } = sequenceFetch([new Response(MALFORMED_CREDENTIAL_BODY)])
+  const tool = createVideoGenerateTool({ tokens: memoryTokens(grokSession), fetchFn, pollIntervalMs: 0 })
+  await assert.rejects(() => tool.execute({ prompt: 'x' }, fakeExec()), assertSanitisedParseFailure('video generate start'))
+  assert.equal(requests.length, 1, 'a failed submit never polls')
+})

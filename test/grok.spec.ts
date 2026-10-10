@@ -10,7 +10,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { MessageId } from '@deepseek-ai/dsh-llm'
 import type { GenerateOptions } from '@deepseek-ai/dsh-llm'
-import { GrokAdapter, GROK_API_URL } from '../src/providers/grok.js'
+import { GrokAdapter, GROK_API_URL, grokDiscovery, resetGrokDiscoveryForTests } from '../src/providers/grok.js'
 import { AccountTokenManager } from '../src/providers/accounts.js'
 import type { GrokSession } from '../src/auth/store.js'
 
@@ -127,3 +127,29 @@ test('the request omits prompt_cache_key entirely when no sessionId is set', asy
     restore()
   }
 })
+
+// A discovery document is provider-controlled. When it names an endpoint off
+// x.ai, the rejection must say which field was refused and must not repeat the
+// URL: the URL is exactly the text a hostile document chooses to display.
+for (const field of ['authorization_endpoint', 'token_endpoint'] as const) {
+  for (const hostile of [
+    'https://evil.example/SHORT_SECRET!',
+    'http://auth.x.ai/SHORT_SECRET!',
+    'https://auth.x.ai.evil.example/SHORT_SECRET!',
+  ]) {
+    test(`Grok discovery rejects a non-x.ai ${field} without displaying it: ${new URL(hostile).origin}`, async t => {
+      const document = { authorization_endpoint: 'https://auth.x.ai/authorize', token_endpoint: 'https://auth.x.ai/token', [field]: hostile }
+      t.mock.method(globalThis, 'fetch', async () => Response.json(document))
+      resetGrokDiscoveryForTests()
+      await assert.rejects(grokDiscovery(), (error: unknown) => {
+        assert.ok(error instanceof Error)
+        assert.equal(error.message, `grok OIDC discovery returned a non-x.ai ${field}`)
+        assert.ok(!error.message.includes('SHORT_SECRET'))
+        assert.ok(!error.message.includes('evil.example'))
+        assert.ok(!error.message.includes(hostile))
+        return true
+      })
+      resetGrokDiscoveryForTests()
+    })
+  }
+}

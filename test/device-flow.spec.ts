@@ -196,3 +196,36 @@ test('device flow: a malformed device-code response fails the start', async () =
   await assert.rejects(manager.start('copilot', spec(fetchFn)), /missing/)
   assert.equal(manager.isBusy('copilot'), false)
 })
+
+test('device flow: a malformed device-code response fails the start without quoting the body', async () => {
+  // Node's parse error quotes a bounded excerpt of the input, so a body that
+  // begins with a credential would otherwise reach the Settings error line.
+  const { fetchFn } = fakeFetch({
+    [DEVICE_CODE_URL]: [new Response('sk-live-ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789')],
+  })
+  const manager = new DeviceFlowManager()
+  await assert.rejects(manager.start('copilot', spec(fetchFn)), (caught: unknown) => {
+    assert.ok(caught instanceof SyntaxError)
+    assert.equal(caught.cause, undefined)
+    assert.equal(caught.message, 'device code request: invalid JSON: [provider response body omitted]')
+    return true
+  })
+  assert.equal(manager.isBusy('copilot'), false)
+})
+
+test('device flow: a malformed token-poll response fails the login without quoting the body', async () => {
+  const { fetchFn, bodies } = fakeFetch({
+    [DEVICE_CODE_URL]: [DEVICE_CODE],
+    [TOKEN_URL]: [new Response('sk-live-ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789')],
+  })
+  const manager = new DeviceFlowManager()
+  const attempt = await manager.start('copilot', spec(fetchFn))
+  await assert.rejects(attempt.waitToken(), (caught: unknown) => {
+    assert.ok(caught instanceof SyntaxError)
+    assert.equal(caught.cause, undefined)
+    assert.equal(caught.message, 'device token poll: invalid JSON: [provider response body omitted]')
+    return true
+  })
+  assert.equal(bodies(TOKEN_URL).length, 1, 'a parse failure settles the login without polling again')
+  assert.equal(manager.isBusy('copilot'), false)
+})

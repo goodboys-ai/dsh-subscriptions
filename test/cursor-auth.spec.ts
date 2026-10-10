@@ -1,5 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import type { StreamChunk } from '@deepseek-ai/dsh-llm'
+import { CursorAdapter } from 'dsh-subscriptions/cursor-transport'
 import { CURSOR_CREDENTIAL_REF, CursorAuth } from '../src/providers/cursor-auth.js'
 import type { CursorCredentialService } from '../src/providers/cursor-auth.js'
 
@@ -110,16 +112,20 @@ test('an in-flight refresh cannot return a token after sign-out', async () => {
   assert.equal(store.value, undefined)
 })
 
-test('a malformed stored credential is not classified as a rate limit', async () => {
-  // The vendor derives a stream failure's code from the error message, and the
-  // raw JSON.parse message used to quote the body. A corrupt credential whose
-  // body contained "quota" therefore came out as RATE_LIMIT. Sanitising the
-  // message removes that accident deliberately: the failure is now the local
-  // parse error, not a word the provider happened to write.
-  const auth = new CursorAuth(memoryStore('not json: {"error":"quota exceeded"}'), async () => assert.fail('corrupt credentials must not start refresh'))
-  const caught = await auth.status().then(() => undefined, (error: unknown) => error as Error)
-  assert.ok(caught !== undefined, 'a malformed credential must be refused')
-  assert.equal(/quota/i.test(caught.message), false)
-  assert.match(caught.message, /Cursor stored credential: invalid JSON/)
-  assert.match(caught.message, /\[provider response body omitted\]/)
+test('a stored credential that starts with "quota" is not classified as a rate limit', async () => {
+  // V8's parse error quotes the first ten characters of the input, so the raw
+  // JSON.parse message for this body is `Unexpected token 'q', "quota exce"...`.
+  // The vendor derives a stream failure's code from that message text and
+  // matched `quota` as RATE_LIMIT. This drives the real vendor stream and
+  // asserts the code, which is the only place the old mechanism was observable.
+  const auth = new CursorAuth(memoryStore('quota exceeded: not json'), async () => assert.fail('corrupt credentials must not start refresh'))
+  const chunks: StreamChunk[] = []
+  for await (const chunk of new CursorAdapter({ auth, createAgentRun: () => assert.fail('no run may start') }).stream({
+    provider: 'cursor-subscription', model: 'composer-2.5',
+    messages: [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }],
+  })) chunks.push(chunk)
+  const finish = chunks.at(-1)
+  assert.ok(finish?.type === 'finish' && finish.reason.kind === 'error')
+  assert.equal(finish.reason.failure.code, 'CURSOR_ERROR')
+  assert.equal(finish.reason.failure.message, `Cursor stored credential: invalid JSON: ${omission}`)
 })

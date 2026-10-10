@@ -86,7 +86,12 @@ export interface GrokDiscovery {
   tokenEndpoint: string
 }
 
-/** A discovered URL must be https on x.ai or a subdomain; anything else is a hostile document. */
+/**
+ * A discovered URL must be https on x.ai or a subdomain; anything else is a
+ * hostile document. The rejection names the field and never the URL: the URL
+ * comes from the provider's discovery document, which is exactly the text a
+ * hostile document would choose.
+ */
 function assertXaiEndpoint(url: string, field: string): string {
   let parsed: URL
   try {
@@ -96,7 +101,7 @@ function assertXaiEndpoint(url: string, field: string): string {
   }
   if (parsed.protocol !== 'https:'
     || (parsed.hostname !== 'x.ai' && !parsed.hostname.endsWith('.x.ai'))) {
-    throw new Error(`grok OIDC discovery returned a non-x.ai ${field}: ${url}`)
+    throw new Error(`grok OIDC discovery returned a non-x.ai ${field}`)
   }
   return url
 }
