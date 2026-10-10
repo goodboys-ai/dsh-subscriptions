@@ -409,3 +409,60 @@ test('web timeouts and transport failures retry once, then carry codes', async (
     (error: unknown) => error instanceof Error && (error as { code?: string }).code === 'OLLAMA_WEB_TRANSPORT')
   assert.equal(transportCalls, 2)
 })
+
+test('a body-read timeout reports TIMEOUT and retries like a connect timeout', async () => {
+  let calls = 0
+  const stalled = new OllamaWebSearchProvider({
+    apiKey: async () => 'k' as string | undefined,
+    baseURL: DEFAULT_OLLAMA_BASE_URL,
+    // Headers arrive, the body never does: the stream errors when the
+    // attempt timer aborts it, like a real transport would.
+    fetchFn: ((_input: RequestInfo | URL, init?: RequestInit) => {
+      calls += 1
+      const stream = new ReadableStream({
+        start(controller) {
+          init?.signal?.addEventListener('abort', () => controller.error(new DOMException('aborted', 'AbortError')))
+        },
+      })
+      return Promise.resolve(new Response(stream, { status: 200 }))
+    }) as FetchFn,
+    requestTimeoutMs: 20,
+  })
+  await assert.rejects(() => stalled.search({ query: 'q' }),
+    (error: unknown) => error instanceof Error && (error as { code?: string }).code === 'OLLAMA_WEB_TIMEOUT')
+  assert.equal(calls, 2)
+})
+
+test('a malformed reply carries no provider bytes in its chain', async () => {
+  const garbled = new OllamaWebSearchProvider({
+    apiKey: async () => 'k' as string | undefined,
+    baseURL: DEFAULT_OLLAMA_BASE_URL,
+    fetchFn: (async () => new Response('REDACTED malformed provider response', { status: 200 })) as FetchFn,
+  })
+  const error = await garbled.search({ query: 'q' }).then(
+    () => { throw new Error('must not succeed') },
+    (failure: unknown) => failure,
+  )
+  assert.ok(error instanceof Error)
+  assert.equal((error as { code?: string }).code, 'OLLAMA_WEB_BAD_REPLY')
+  assert.ok(!String(error).includes('REDACTED'))
+})
+
+test('an oversized reply fails without buffering it whole', async () => {
+  let calls = 0
+  const huge = new OllamaWebSearchProvider({
+    apiKey: async () => 'k' as string | undefined,
+    baseURL: DEFAULT_OLLAMA_BASE_URL,
+    fetchFn: (async () => {
+      calls += 1
+      // Declared over the cap: rejected before the first body read.
+      return new Response('{}', {
+        status: 200,
+        headers: { 'content-length': String(4 * 1024 * 1024) },
+      })
+    }) as FetchFn,
+  })
+  await assert.rejects(() => huge.search({ query: 'q' }),
+    (error: unknown) => error instanceof Error && (error as { code?: string }).code === 'OLLAMA_WEB_BAD_REPLY')
+  assert.equal(calls, 1)
+})

@@ -16,6 +16,7 @@ import type {
   WebSearchResult,
 } from '@deepseek-ai/dsh-web'
 import type { FetchFn } from './common.js'
+import { readBoundedJson } from './common.js'
 import { hostFetch } from '../http.js'
 
 /** Shared provider id for both web capabilities. */
@@ -26,6 +27,9 @@ export const OLLAMA_WEB_TIMEOUT_MS = 15_000
 
 /** Search result cap applied at the request layer. */
 export const OLLAMA_WEB_MAX_RESULTS = 10
+
+/** Response body bound for web payloads. */
+export const OLLAMA_WEB_MAX_BYTES = 2 * 1024 * 1024
 
 export interface OllamaWebOptions {
   /** Resolve the API key per call; `undefined` means unconfigured. */
@@ -61,7 +65,6 @@ async function postJson(
 ): Promise<unknown> {
   const fetchFn = options.fetchFn ?? hostFetch
   const timeoutMs = options.requestTimeoutMs ?? OLLAMA_WEB_TIMEOUT_MS
-  let lastError: unknown
   // Exactly two attempts; only a timeout or a pre-response transport
   // failure retries. HTTP errors, malformed replies, missing credentials,
   // redirects, and caller cancellation never retry.
@@ -98,9 +101,20 @@ async function postJson(
         )
       }
       try {
-        return await response.json() as unknown
+        return await readBoundedJson(response, 'ollama web request', OLLAMA_WEB_MAX_BYTES) as unknown
       } catch (error: unknown) {
-        throw new WebError('ollama web request returned a malformed reply', 'OLLAMA_WEB_BAD_REPLY', { cause: error })
+        if (signal?.aborted) throw error
+        // A timeout can also land mid-body: same retry treatment as a
+        // connect timeout, under the same code.
+        if (timedOut) {
+          if (attempt >= 2) throw new WebError('ollama web request timed out', 'OLLAMA_WEB_TIMEOUT')
+          continue
+        }
+        // The SyntaxError cause is dropped on purpose: V8 quotes the
+        // offending body bytes, which would carry provider text into
+        // logs through the chained message. An oversized body lands
+        // here too: loud and unretried.
+        throw new WebError('ollama web request returned a malformed reply', 'OLLAMA_WEB_BAD_REPLY')
       }
     } catch (error: unknown) {
       if (signal?.aborted) throw error

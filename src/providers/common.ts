@@ -113,18 +113,34 @@ export async function parseProviderJson<T = unknown>(input: Response | string, o
 }
 
 /**
- * Read a bounded JSON body; oversized or malformed payloads fail loudly
- * before the full text can grow the heap. Bounds count bytes, not
- * characters: multibyte bodies must not slip a character-counted cap.
+ * Read a bounded JSON body; oversized or malformed payloads fail loudly.
+ * Bytes accumulate per chunk and the stream is cancelled past the cap, so
+ * the bound limits memory even when the body has no end; a declared
+ * over-cap `content-length` fails before the first read.
  */
 export async function readBoundedJson(response: Response, label: string, maxBytes: number): Promise<unknown> {
-  const declared = response.headers.get('content-length')
-  if (declared !== null && Number(declared) > maxBytes) {
+  const declared = Number(response.headers.get('content-length'))
+  if (Number.isFinite(declared) && declared > maxBytes) {
     throw new Error(`${label} response exceeds ${String(maxBytes)} bytes`)
   }
-  const text = await response.text()
-  if (Buffer.byteLength(text, 'utf8') > maxBytes) {
-    throw new Error(`${label} response exceeds ${String(maxBytes)} bytes`)
+  if (response.body === null) throw new Error(`${label} response has no body`)
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let bytes = 0
+  let text = ''
+  try {
+    for (;;) {
+      const chunk = await reader.read()
+      if (chunk.done) break
+      bytes += chunk.value.byteLength
+      if (bytes > maxBytes) {
+        throw new Error(`${label} response exceeds ${String(maxBytes)} bytes`)
+      }
+      text += decoder.decode(chunk.value, { stream: true })
+    }
+    text += decoder.decode()
+  } finally {
+    try { reader.releaseLock() } catch { /* best effort */ }
   }
   try {
     return JSON.parse(text) as unknown
