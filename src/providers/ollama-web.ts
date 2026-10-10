@@ -43,8 +43,13 @@ function throwIfAborted(signal?: AbortSignal): void {
 }
 
 function isRedirectFailure(error: unknown): boolean {
-  return error instanceof TypeError
-    && /redirect/i.test(error instanceof Error ? error.message : '')
+  // Real fetch failures nest: undici reports `fetch failed` on top with the
+  // redirect rejection in `cause`. Walk the chain instead of reading only
+  // the outer message.
+  for (let current = error; current instanceof Error; current = current.cause as Error | undefined) {
+    if (/redirect/i.test(current.message)) return true
+  }
+  return false
 }
 
 async function postJson(

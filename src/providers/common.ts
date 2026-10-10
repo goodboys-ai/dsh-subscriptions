@@ -112,6 +112,27 @@ export async function parseProviderJson<T = unknown>(input: Response | string, o
   }
 }
 
+/**
+ * Read a bounded JSON body; oversized or malformed payloads fail loudly
+ * before the full text can grow the heap. Bounds count bytes, not
+ * characters: multibyte bodies must not slip a character-counted cap.
+ */
+export async function readBoundedJson(response: Response, label: string, maxBytes: number): Promise<unknown> {
+  const declared = response.headers.get('content-length')
+  if (declared !== null && Number(declared) > maxBytes) {
+    throw new Error(`${label} response exceeds ${String(maxBytes)} bytes`)
+  }
+  const text = await response.text()
+  if (Buffer.byteLength(text, 'utf8') > maxBytes) {
+    throw new Error(`${label} response exceeds ${String(maxBytes)} bytes`)
+  }
+  try {
+    return JSON.parse(text) as unknown
+  } catch {
+    throw new Error(`${label} response is not JSON`)
+  }
+}
+
 /** Optional per-call hooks {@link httpLlmError} uses to read a rate-limit window. */
 export interface HttpLlmErrorOptions {
   /**

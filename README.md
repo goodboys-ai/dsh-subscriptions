@@ -20,7 +20,11 @@ reported quota in **Settings → Subscriptions**.
   `llm-pi-ai` route with the same id collides with this one: delete
   the manual block when enabling the plugin route. Stop sequences
   are unsupported on this route, consistent with the other adapters.
-  See the
+  Web search/fetch stay off until `ollama.web` is enabled and the
+  profile pins them to `ollama-cloud`, so untouched installs keep
+  their existing web provider. Not ported from the standalone
+  plugin: its transient-error reclassification, per-image request
+  quotas, and per-model usage counts. See the
   [key-route note](.agents/notes/implemented/provider/2026-10-10-ollama-cloud-key-route.md).
 - **Account and model control:** Refresh catalogs and choose visible models.
   For Codex, Claude, Grok, Copilot, and Antigravity, manage multiple accounts

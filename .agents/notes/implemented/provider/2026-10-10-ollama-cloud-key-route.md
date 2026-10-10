@@ -56,10 +56,11 @@ the catalog row's default.
 One provider now owns chat, discovery, usage, and web search/fetch
 behind a single route id and credential ref, at the cost of a new
 provider-specific adapter file plus its specs that future endpoint
-changes must update. The `deepseek-v4.1-flash` default effort
-(`high`) is a porting choice, not a vendor statement: the vendor
-publishes no default, and the upstream plugin leaves that family
-generic; a vendor default appearing later should replace it.
+changes must update. The `deepseek-v4.1-flash` effort set (`off`,
+`low`, `high`, `max`, default `high`) mirrors the vendor's
+`/api/show` thinking values; `off` rides the wire as `none`,
+matching the standalone plugin's level map. No `medium`: the vendor
+lists none.
 
 ## Evidence and what it does not show
 

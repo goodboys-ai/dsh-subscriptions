@@ -208,6 +208,13 @@ export interface Config {
     baseURL?: string
     /** Advisory catalog override; non-empty replaces the built-in rows. */
     models?: ModelEntry[]
+    /**
+     * Register the web search/fetch providers (default false). Registration
+     * alone can divert the host's web seam when several providers look
+     * available, so it stays off until a profile pins
+     * `searchProvider`/`fetchProvider` to `ollama-cloud` and opts in here.
+     */
+    web?: boolean
   }
   /** Same-subscription account pools (and optional extra tier models). */
   pool?: {
@@ -271,6 +278,7 @@ export const Config: z<Config> = z.object({
     apiKeyRef: z.string().default(DEFAULT_OLLAMA_API_KEY_REF),
     baseURL: z.string().default(DEFAULT_OLLAMA_BASE_URL),
     models: z.array(modelEntrySchema),
+    web: z.boolean().default(false),
   }),
   pool: z.object({
     enabled: z.boolean().default(true),
@@ -1244,9 +1252,6 @@ export function apply(ctx: Context, config: Config): void {
   let cursorHandle: AdapterRegistrationHandle | undefined
   let cursorAuthenticated: boolean | undefined
   let cursorAttachments: AttachmentStore | undefined
-  // Retained so a future key-status watcher can re-announce the route; the
-  // key itself resolves per request, so no watcher exists yet.
-  let ollamaHandle: AdapterRegistrationHandle | undefined
   ctx.inject(['attachments'], attachmentsCtx => { cursorAttachments = attachmentsCtx.attachments })
   ctx.inject(['credentials'], credentialsCtx => {
     resolveExternalCredential = name => credentialsCtx.credentials.resolve(credentialRef(name))
@@ -1266,7 +1271,7 @@ export function apply(ctx: Context, config: Config): void {
       resolveAttachments: () => cursorAttachments,
       streamIdleTimeoutMs,
     })
-    ollamaHandle = credentialsCtx.llm.registerAdapter([OLLAMA_CLOUD_ROUTE], ollamaAdapter)
+    credentialsCtx.llm.registerAdapter([OLLAMA_CLOUD_ROUTE], ollamaAdapter)
   })
   const externalUsage = new ExternalUsageController(
     async name => resolveExternalCredential?.(name),
@@ -1458,9 +1463,12 @@ export function apply(ctx: Context, config: Config): void {
   }
 
   // Ollama web capabilities ride the Cloud endpoints independently of the
-  // chat route. Registration alone changes no deployment policy: a profile
-  // pins `searchProvider`/`fetchProvider` to `ollama-cloud` to select them.
-  {
+  // chat route. Registration stays opt-in (`ollama.web`): an always-on
+  // registration would join the host's available-provider set and can
+  // divert the web seam (or make it ambiguous) on installs that never
+  // asked for Ollama search. A profile pins `searchProvider`/`fetchProvider`
+  // to `ollama-cloud` to select them.
+  if (config.ollama?.web === true) {
     const ollamaBaseURL = config.ollama?.baseURL ?? DEFAULT_OLLAMA_BASE_URL
     const ollamaApiKey = async (): Promise<string | undefined> =>
       (await resolveExternalCredential?.(config.ollama?.apiKeyRef ?? DEFAULT_OLLAMA_API_KEY_REF))?.value

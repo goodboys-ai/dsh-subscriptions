@@ -2,7 +2,7 @@
 
 import { attributionHeaders } from '@deepseek-ai/dsh-llm'
 import type { ProviderUsage, UsageWindow } from './common.js'
-import { parseProviderJson } from './common.js'
+import { parseProviderJson, readBoundedJson } from './common.js'
 
 type HttpFetch = typeof fetch
 
@@ -200,7 +200,7 @@ export async function fetchOllamaUsage(
   if (signal?.aborted) throw signal.reason
   if (response.status === 404) return { supported: false }
   if (!response.ok) throw new Error(`Usage endpoint returned HTTP ${response.status}`)
-  const body = record(await parseProviderJson(response, 'external usage'))
+  const body = record(await readBoundedJson(response, 'usage', 1 * 1024 * 1024))
   const limits = record(body?.limits)
   if (limits === undefined) throw new Error('Ollama usage response has no limits object')
   const windows: UsageWindow[] = []

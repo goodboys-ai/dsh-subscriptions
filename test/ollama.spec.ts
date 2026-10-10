@@ -6,7 +6,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { LlmError, MessageId } from '@deepseek-ai/dsh-llm'
+import { LlmError, MessageId, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type { GenerateOptions } from '@deepseek-ai/dsh-llm'
 import type { AttachmentStore } from '@deepseek-ai/dsh-attachment'
 import {
@@ -120,18 +120,46 @@ test('resolveModel carries context and the family default effort', async () => {
 })
 
 test('stream posts max_tokens and finishes on the chat wire', async () => {
-  const { fetchFn, bodies } = fakeFetch({ [CHAT_URL]: { payload: COMPLETED_SSE } })
+  const seen: { headers: Record<string, string>; body: Record<string, unknown> }[] = []
+  const fetchFn = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+    seen.push({
+      headers: (init?.headers ?? {}) as Record<string, string>,
+      body: JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>,
+    })
+    return new Response(COMPLETED_SSE)
+  }) as FetchFn
   const adapter = new OllamaAdapter({ apiKey: async () => 'k', fetchFn })
   const chunks: { type: string }[] = []
-  for await (const chunk of adapter.stream(options())) chunks.push(chunk as { type: string })
+  for await (const chunk of adapter.stream(options({
+    tools: [{ name: 'bash', description: 'run', parameters: { type: 'object' } }],
+    reasoningEffort: ReasoningEffortId('high'),
+  }))) chunks.push(chunk as { type: string })
   assert.equal(chunks.at(-1)?.type, 'finish')
-  assert.equal(bodies(CHAT_URL).length, 1)
-  const body = bodies(CHAT_URL)[0]!
+  assert.equal(seen.length, 1)
+  const [call] = seen
+  const body = call?.body ?? {}
   assert.equal(body['model'], 'glm-5.3-flash:cloud')
   // The adapter sets no request-level cap of its own; the catalog row's
   // default rides as max_tokens.
   assert.equal(body['max_tokens'], 32_768)
+  assert.equal(body['reasoning_effort'], 'high')
+  assert.deepEqual((body['tools'] as { function: { name: string } }[]).map(tool => tool.function.name), ['bash'])
   assert.equal((body['stream_options'] as Record<string, unknown>)['include_usage'], true)
+  assert.equal(call?.headers['authorization'], 'Bearer k')
+})
+
+test("stream maps a selected 'off' effort to the wire spelling 'none'", async () => {
+  const bodies: Record<string, unknown>[] = []
+  const fetchFn = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+    bodies.push(JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>)
+    return new Response(COMPLETED_SSE)
+  }) as FetchFn
+  const adapter = new OllamaAdapter({ apiKey: async () => 'k', fetchFn, discovery: false })
+  for await (const chunk of adapter.stream(options({
+    model: 'deepseek-v4.1-flash:cloud',
+    reasoningEffort: ReasoningEffortId('off'),
+  }))) void chunk
+  assert.equal(bodies[0]?.['reasoning_effort'], 'none')
 })
 
 test('stream without a key fails before provider I/O', async () => {
@@ -186,17 +214,18 @@ test('fetchOllamaModels maps capabilities and num_ctx', async () => {
     baseURL: DEFAULT_OLLAMA_BASE_URL,
     apiKey: 'k',
     fetchFn: fakeDiscovery(
-      { models: [{ model: 'glm-5.3:cloud' }, { name: 'deepseek-v4.1-flash:cloud' }] },
+      // The live endpoint lists bare names; the raw fetcher keeps them.
+      { models: [{ model: 'glm-5.3' }, { name: 'deepseek-v4.1-flash' }] },
       {
-        'glm-5.3:cloud': { capabilities: ['tools', 'thinking', 'cloud'], parameters: 'num_ctx 1048576' },
-        'deepseek-v4.1-flash:cloud': {
+        'glm-5.3': { capabilities: ['tools', 'thinking', 'cloud'], parameters: 'num_ctx 1048576' },
+        'deepseek-v4.1-flash': {
           capabilities: ['vision', 'tools', 'thinking', 'cloud'],
           model_info: { 'llama.context_length': 1000000 },
         },
       },
     ),
   })
-  assert.deepEqual(models.map(model => model.id), ['glm-5.3:cloud', 'deepseek-v4.1-flash:cloud'])
+  assert.deepEqual(models.map(model => model.id), ['glm-5.3', 'deepseek-v4.1-flash'])
   assert.equal(models[0]?.contextWindow, 1048576)
   assert.deepEqual(models[0]?.inputModalities, ['text'])
   assert.deepEqual(models[1]?.inputModalities, ['text', 'image'])
@@ -229,6 +258,31 @@ test('listModels falls back to the static catalog when discovery fails', async (
     'glm-5.3:cloud',
     'glm-5.3-flash:cloud',
   ])
+})
+
+test('listModels advertises the static allowlist even when discovery lists bare names', async () => {
+  // Regression test for picker entries no request could serve: the live
+  // endpoint lists bare names the chat wire rejects, so discovery may
+  // enrich the static rows but never extend the picker.
+  const adapter = new OllamaAdapter({
+    apiKey: async () => 'k',
+    fetchFn: fakeDiscovery(
+      { models: [{ model: 'glm-5.3' }, { model: 'kimi-k3' }] },
+      { 'glm-5.3': { capabilities: ['tools', 'thinking', 'cloud'], parameters: 'num_ctx 262144' } },
+    ),
+  })
+  const models = await adapter.listModels(OLLAMA_CLOUD_ROUTE)
+  assert.deepEqual(models.map(model => model.id), [
+    'deepseek-v4.1-flash:cloud',
+    'glm-5.3:cloud',
+    'glm-5.3-flash:cloud',
+  ])
+})
+
+test('listModels hides the route when the key is rejected', async () => {
+  const denied: FetchFn = (async () => new Response('', { status: 401 })) as FetchFn
+  const adapter = new OllamaAdapter({ apiKey: async () => 'bad', fetchFn: denied })
+  assert.deepEqual(await adapter.listModels(OLLAMA_CLOUD_ROUTE), [])
 })
 
 test('web search posts the query and drops url-less rows', async () => {
@@ -269,7 +323,8 @@ test('web providers fail loudly without a key and never follow redirects', async
     baseURL: DEFAULT_OLLAMA_BASE_URL,
     fetchFn: (async (_input: RequestInfo | URL, init?: RequestInit) => {
       assert.equal((init as { redirect?: string }).redirect, 'error')
-      throw new TypeError('redirect mode error: manual redirect')
+      // Realistic undici shape: the redirect rejection nests in `cause`.
+      throw new TypeError('fetch failed', { cause: new Error('redirect mode is set to error') })
     }) as FetchFn,
   })
   await assert.rejects(() => redirecting.search({ query: 'q' }),
