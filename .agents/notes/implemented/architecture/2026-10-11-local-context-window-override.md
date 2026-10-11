@@ -87,6 +87,16 @@ placeholder shows the advertised number, but only while discovery works.
 
 `test/context-override.spec.ts` covers the cap and precedence for the
 Ollama and Claude adapters, the store validators, per-provider lookup, and
-the draft helpers. All use injected fetches and fixtures. No check reads a
-live vendor window, the dialogs are not rendered in a browser here, and the
-pool route (smallest member window) is covered only by its existing tests.
+per-account Claude bounds through the real adapter with a token-keyed fake
+listing. `test/ollama-settings-manager.spec.ts` executes the real dialog
+through the hook dispatcher in `test/component-harness.ts`: untick and
+re-tick restore, Select none then Select all, the effort selector against a
+stale snapshot, the context input's validation and Save gating, and the
+bounds line preferring the latest fetch. Each guard was checked by removing
+it and seeing a test fail.
+
+All of it uses injected fetches and fixtures. No check reads a live vendor
+window. The dialog is inspected as a JSX tree, so React reconciliation,
+layout, focus, the native dialog and screen-reader behavior are untested,
+and the pool route (smallest member window) is covered only by its existing
+tests plus the per-account Claude test.

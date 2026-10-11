@@ -195,7 +195,9 @@ export function OllamaSettingsManager({ rpc, t, onClose, onSaved }: Props) {
   const present = new Set((draft.models ?? []).map(model => model.id))
   const asRow = (model: OllamaModelDraft, ticked: boolean): OllamaRow => {
     const fetched = fetchedById.get(model.id)
-    const contextWindow = model.contextWindow ?? fetched?.contextWindow
+    // The latest fetch outranks the stored snapshot, matching the runtime:
+    // discovery is the ceiling and the snapshot only stands in without it.
+    const contextWindow = fetched?.contextWindow ?? model.contextWindow
     return {
       id: model.id, name: model.name ?? fetched?.name ?? model.id, ticked,
       vision: model.vision === true || fetched?.vision === true,
