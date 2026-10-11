@@ -236,7 +236,8 @@ export const en = {
   ollamaExpandAll: 'Expand all',
   ollamaCollapseAll: 'Collapse all',
   ollamaDisplayName: 'Display name',
-  ollamaEffortsUnknown: 'This model reasons; its level set will come from live discovery.',
+  ollamaEffortsUnknown:
+    'This model reasons; its level set will come from live discovery.',
   ollamaMoveUp: 'Move up',
   ollamaMoveDown: 'Move down',
   ollamaRemove: 'Remove',

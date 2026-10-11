@@ -237,6 +237,10 @@ export interface OllamaModelView {
   /** The endpoint advertised the `thinking` capability. */
   thinking: boolean
   contextWindow?: number
+  /** Advertised reasoning levels, when the model reasons. */
+  efforts?: { id: string; name: string }[]
+  /** The level preselected for the model, when one is known. */
+  defaultEffort?: string
 }
 
 /** One candidate returned by the cloud listing; adopting it stores `id`. */

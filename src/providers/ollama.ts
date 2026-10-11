@@ -199,12 +199,12 @@ function reasoningFor(row: OllamaCatalogRow, configuredDefault: string | undefin
 }
 
 /**
- * Merge a discovered reasoning block into the stored row. The endpoint is the
- * truth about the live model: when it publishes a level set, nothing may
- * widen it (a level the gateway stopped offering would only fail the
- * request), and its default wins when it names one. Without a published set,
- * the stored row then the family table supply the levels. The stored default
- * applies only when the endpoint publishes none.
+ * Merge a discovered reasoning block into the stored row. The endpoint is
+ * the truth about the live model: a published level set is closed (a level
+ * the gateway stopped offering would only fail the request), and the
+ * default priority is the user's stored choice, then the endpoint's, then
+ * the family table — always within the offered set. Without a published
+ * set, the same priority chain runs against the stored row's levels.
  * @param row - the stored catalog row, with the family fallback already applied.
  * @param discovered - the endpoint's reasoning block.
  * @param configuredDefault - the per-model configured default, when set.
