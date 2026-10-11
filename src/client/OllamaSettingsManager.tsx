@@ -4,7 +4,7 @@ import type { ConnectionHandle } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SubscriptionsSectionInjected } from './SubscriptionsSection.js'
 import { callSubscriptionsAuth } from './subscriptions-rpc.js'
 import { adoptCandidates, contextLabel, moveModel, removeModel } from './ollama-draft.js'
-import type { OllamaCloudCandidate, OllamaSettingsDraft, OllamaSettingsView } from './ollama-draft.js'
+import type { OllamaCloudCandidate, OllamaModelDraft, OllamaSettingsDraft, OllamaSettingsView } from './ollama-draft.js'
 import { subscriptionCardStyles as styles } from './subscription-card-styles.js'
 import { providerSettingsCss } from './provider-settings-styles.js'
 
@@ -39,7 +39,10 @@ function capabilities(t: Translate, model: { vision?: boolean; thinking?: boolea
  * base URL and credential reference) that Save writes in a single
  * `ollamaSetSettings` call, so a failure keeps every edit. Fetching the cloud
  * catalog is a read-only side trip: adopting a candidate only edits the
- * draft, and a key typed for the fetch never leaves this component.
+ * draft, and a key typed for the fetch never leaves this component. The
+ * model list works like the shared model editor: a filter box, select
+ * all/none, an automatic toggle, and expandable rows with per-model
+ * defaults.
  */
 export function OllamaSettingsManager({ rpc, t, onClose, onSaved }: Props) {
   const dialog = useRef<HTMLDialogElement>(null)
@@ -58,6 +61,10 @@ export function OllamaSettingsManager({ rpc, t, onClose, onSaved }: Props) {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [fetching, setFetching] = useState(false)
   const [fetchError, setFetchError] = useState('')
+  const [query, setQuery] = useState('')
+  const [candidateQuery, setCandidateQuery] = useState('')
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [draftEffort, setDraftEffort] = useState<Record<string, string>>({})
   const alive = useRef(true)
   const saveLock = useRef(false)
   const fetchLock = useRef(false)
@@ -163,7 +170,25 @@ export function OllamaSettingsManager({ rpc, t, onClose, onSaved }: Props) {
     edit(next)
   }
 
-  const models = draft.models ?? []
+  const models = (draft.models ?? [])
+    .filter(model => `${model.name ?? model.id} ${model.id}`.toLowerCase().includes(query.trim().toLowerCase()))
+
+  /** Per-model default-effort edit, folded into the stored row on save. */
+  function editModel(id: string, patch: Partial<OllamaModelDraft> | { effort: string }) {
+    const list = [...draft.models ?? []]
+    const index = list.findIndex(entry => entry.id === id)
+    if (index < 0) return
+    if ('effort' in patch) {
+      const value = patch.effort
+      const current = { ...list[index]! }
+      if (value) current.defaultEffort = value
+      else delete current.defaultEffort
+      list[index] = current
+    } else {
+      list[index] = { ...list[index]!, ...patch }
+    }
+    edit({ ...draft, models: list })
+  }
   return <dialog className="dsh-subscription-manager" ref={dialog} aria-labelledby={title} aria-describedby={description}
     onCancel={event => { if (saveLock.current) event.preventDefault() }} onClose={onClose}
     style={{ width: 620, maxWidth: 'calc(100vw - 32px)', maxHeight: 'calc(100dvh - 32px)', overflow: 'auto' }}>
@@ -193,16 +218,27 @@ export function OllamaSettingsManager({ rpc, t, onClose, onSaved }: Props) {
           </div>
           {fetchError && <p role="alert">{fetchError}</p>}
           {candidates?.length === 0 && <p className="dsh-subscription-hint">{t('ollamaCandidatesEmpty')}</p>}
-          {candidates !== undefined && candidates.length > 0 && <div style={{ ...stack, gap: 8, maxHeight: 240, overflowY: 'auto' }}>
-            {candidates.map(candidate => <label key={candidate.id} style={{ overflowWrap: 'anywhere' }}>
-              <input type="checkbox" checked={selected.has(candidate.id)} onChange={event => {
-                const next = new Set(selected)
-                if (event.target.checked) next.add(candidate.id)
-                else next.delete(candidate.id)
-                setSelected(next)
-              }} /> {candidate.name} <span style={styles.status}>{capabilities(t, candidate)}</span>
-            </label>)}
-          </div>}
+          {candidates !== undefined && candidates.length > 0 && <>
+            <div style={actions}>
+              <input style={{ flex: '1 1 180px' }} value={candidateQuery}
+                onChange={event => setCandidateQuery(event.target.value)}
+                placeholder={t('modelDefaultsFilterPlaceholder')}
+                aria-label={t('modelDefaultsFilterPlaceholder')} />
+              <button type="button" onClick={() => setSelected(new Set(candidates.map(entry => entry.id)))}>{t('modelsSelectAll')}</button>
+              <button type="button" onClick={() => setSelected(new Set())}>{t('modelsSelectNone')}</button>
+            </div>
+            <div style={{ ...stack, gap: 8, maxHeight: 240, overflowY: 'auto' }}>
+              {candidates.filter(candidate => `${candidate.name} ${candidate.id}`.toLowerCase().includes(candidateQuery.trim().toLowerCase()))
+                .map(candidate => <label key={candidate.id} style={{ overflowWrap: 'anywhere' }}>
+                  <input type="checkbox" checked={selected.has(candidate.id)} onChange={event => {
+                    const next = new Set(selected)
+                    if (event.target.checked) next.add(candidate.id)
+                    else next.delete(candidate.id)
+                    setSelected(next)
+                  }} /> {candidate.name} <span style={styles.status}>{capabilities(t, candidate)}</span>
+                </label>)}
+            </div>
+          </>}
           <div style={actions}>
             <button type="button" disabled={selected.size === 0} onClick={() => {
               edit({ ...draft, models: adoptCandidates(draft.models, candidates ?? [], [...selected]) })
@@ -212,19 +248,67 @@ export function OllamaSettingsManager({ rpc, t, onClose, onSaved }: Props) {
         </fieldset>
         <fieldset style={{ ...stack, border, borderRadius: 'var(--dsw-radius-lg, 12px)', padding: 14, margin: 0 }}>
           <legend style={{ padding: '0 6px' }}>{t('ollamaModelsCatalog')}</legend>
-          {models.length === 0 && <p className="dsh-subscription-hint">{t('ollamaModelsEmpty')}</p>}
-          {models.map((model, index) => <div key={model.id} style={{ ...stack, gap: 6, borderBottom: border, paddingBottom: 8 }}>
-            <span style={{ overflowWrap: 'anywhere' }}>{model.name ?? model.id}</span>
-            <span style={styles.status}>{capabilities(t, model)}</span>
-            <div style={actions}>
-              <button type="button" disabled={index === 0}
-                onClick={() => edit({ ...draft, models: moveModel(models, model.id, -1) })}>{t('ollamaMoveUp')}</button>
-              <button type="button" disabled={index === models.length - 1}
-                onClick={() => edit({ ...draft, models: moveModel(models, model.id, 1) })}>{t('ollamaMoveDown')}</button>
-              <button type="button"
-                onClick={() => edit({ ...draft, models: removeModel(models, model.id) })}>{t('ollamaRemove')}</button>
-            </div>
-          </div>)}
+          <div style={actions}>
+            <input style={{ flex: '1 1 180px' }} value={query} onChange={event => setQuery(event.target.value)}
+              placeholder={t('modelDefaultsFilterPlaceholder')} aria-label={t('modelDefaultsFilterPlaceholder')} />
+            <button type="button" onClick={() => setExpanded(new Set(models.map(model => model.id)))}>
+              {t('ollamaExpandAll')}</button>
+            <button type="button" onClick={() => setExpanded(new Set())}>{t('ollamaCollapseAll')}</button>
+          </div>
+          {models.length === 0 && <p className="dsh-subscription-hint">
+            {query.trim() ? t('modelDefaultsFilterEmpty', { query }) : t('ollamaModelsEmpty')}</p>}
+          <div style={{ display: 'grid', gap: 8, maxHeight: 360, overflowY: 'auto' }}>
+            {models.map((model, index) => {
+              const open = expanded.has(model.id)
+              const thought = model.thinking === true
+              const catalogRow = view?.models.find(entry => entry.id === model.id)
+              const efforts = catalogRow?.efforts ?? []
+              return <div key={model.id} style={{ borderBottom: border, paddingBottom: 8, display: 'grid', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <button type="button" aria-expanded={open} aria-label={model.name}
+                    onClick={() => {
+                      const next = new Set(expanded)
+                      if (open) next.delete(model.id)
+                      else next.add(model.id)
+                      setExpanded(next)
+                    }}>{open ? '\u25BE' : '\u25B8'}</button>
+                  <span style={{ overflowWrap: 'anywhere' }}>{model.name ?? model.id}</span>
+                  <span style={styles.status}>{capabilities(t, model)}</span>
+                </div>
+                {open && <div style={{ ...stack, gap: 8, paddingLeft: 26 }}>
+                  <label style={actions}>
+                    <span className="dsh-subscription-label">{t('ollamaDisplayName')}</span>
+                    <input value={model.name ?? ''} placeholder={model.id}
+                      onChange={event => editModel(model.id, { name: event.target.value })} />
+                  </label>
+                  {thought && efforts.length > 0 && <label style={actions}>
+                    <span className="dsh-subscription-label">{t('modelDefaultsTitle')}</span>
+                    <select aria-label={`${model.name} ${t('modelDefaultsTitle')}`}
+                      value={draftEffort[model.id] ?? model.defaultEffort ?? ''} onChange={event => {
+                        setDraftEffort({ ...draftEffort, [model.id]: event.target.value })
+                        editModel(model.id, { effort: event.target.value })
+                      }}>
+                      <option value="">{t('modelDefaultsFollowProvider')}</option>
+                      {efforts.map(effort => <option key={effort.id}
+                        value={effort.id}>{effort.name}</option>)}
+                    </select>
+                  </label>}
+                  {thought && efforts.length === 0 && <p className="dsh-subscription-hint">
+                    {t('ollamaEffortsUnknown')}</p>}
+                  {model.contextWindow !== undefined && <p style={styles.status}>
+                    {t('ollamaContext', { tokens: contextLabel(model.contextWindow) })}</p>}
+                  <div style={actions}>
+                    <button type="button" disabled={index === 0}
+                      onClick={() => edit({ ...draft, models: moveModel(draft.models ?? [], model.id, -1) })}>{t('ollamaMoveUp')}</button>
+                    <button type="button" disabled={index === (draft.models ?? []).length - 1}
+                      onClick={() => edit({ ...draft, models: moveModel(draft.models ?? [], model.id, 1) })}>{t('ollamaMoveDown')}</button>
+                    <button type="button"
+                      onClick={() => edit({ ...draft, models: removeModel(draft.models ?? [], model.id) })}>{t('ollamaRemove')}</button>
+                  </div>
+                </div>}
+              </div>
+            })}
+          </div>
         </fieldset>
         <label style={{ ...stack, gap: 6 }}>
           <span className="dsh-subscription-label">{t('ollamaBaseURL')}</span>

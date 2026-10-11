@@ -83,7 +83,7 @@ import type {
   ProviderId,
   StoredSession,
 } from './auth/store.js'
-import { DISCOVERY_TIMEOUT_MS, validateModels, withTimeout } from './providers/common.js'
+import { DISCOVERY_TIMEOUT_MS, effortDisplayName, validateModels, withTimeout } from './providers/common.js'
 import type { ModelEntry, ProviderUsage } from './providers/common.js'
 import { AccountTokenManager } from './providers/accounts.js'
 import type { AccountAwareAdapter } from './providers/accounts.js'
@@ -1514,6 +1514,13 @@ export function apply(ctx: Context, config: Config): void {
         // row); either one means the model thinks.
         thinking: entry.thinking === true || (entry.efforts?.length ?? 0) > 0,
         ...entry.contextWindow === undefined ? {} : { contextWindow: entry.contextWindow },
+        // The effort set the resolver serves this row (vendor levels win
+        // over the stored list at resolve time, so the dialog pools the
+        // stored row and its enrichment here only).
+        ...(entry.efforts === undefined ? {} : {
+          efforts: entry.efforts.map(effort => ({ id: effort, name: effortDisplayName(effort) })),
+        }),
+        ...entry.defaultEffort === undefined ? {} : { defaultEffort: entry.defaultEffort },
       })),
       configOverridesModels: ollamaModelsOverridden(),
     }),

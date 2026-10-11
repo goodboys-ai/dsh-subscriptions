@@ -240,6 +240,11 @@ test('ollamaSettings reports stored overrides and effective defaults', async () 
     vision: false,
     thinking: true,
     contextWindow: 262_144,
+    // The dialog needs the stored level set to render the per-model effort
+    // selector, so the view carries it beside the flag; names come from
+    // the shared display-name helper.
+    efforts: [{ id: 'low', name: 'Low' }, { id: 'high', name: 'High' }],
+    defaultEffort: 'high',
   }])
 })
 

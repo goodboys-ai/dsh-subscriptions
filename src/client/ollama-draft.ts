@@ -47,7 +47,16 @@ export interface OllamaSettingsView {
     apiKeyRef?: string
   }
   effective: { baseURL: string; apiKeyRef: string; web: boolean }
-  models: { id: string; name: string; vision: boolean; thinking: boolean; contextWindow?: number }[]
+  models: {
+    id: string
+    name: string
+    vision: boolean
+    thinking: boolean
+    contextWindow?: number
+    /** Advertised reasoning levels and the endpoint default, when the model reasons. */
+    efforts?: { id: string; name: string }[]
+    defaultEffort?: string
+  }[]
   configOverridesModels: boolean
 }
 

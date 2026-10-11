@@ -233,6 +233,10 @@ export const en = {
   ollamaConfigureHint:
     'No API key found at {ref}. Add it to the credentials file '
     + '(~/.dsh/.credentials.yaml).',
+  ollamaExpandAll: 'Expand all',
+  ollamaCollapseAll: 'Collapse all',
+  ollamaDisplayName: 'Display name',
+  ollamaEffortsUnknown: 'This model reasons; its level set will come from live discovery.',
   ollamaMoveUp: 'Move up',
   ollamaMoveDown: 'Move down',
   ollamaRemove: 'Remove',
@@ -483,6 +487,10 @@ export const zh = {
   ollamaModelsSaveFailed: 'Ollama 设置保存失败：{message}',
   ollamaConfigureHint:
     '未在 {ref} 找到 API 密钥。请在凭据文件（~/.dsh/.credentials.yaml）中添加。',
+  ollamaExpandAll: '全部展开',
+  ollamaCollapseAll: '全部折叠',
+  ollamaDisplayName: '显示名',
+  ollamaEffortsUnknown: '该模型支持思考，推理档位将由 live 发现补充。',
   ollamaMoveUp: '上移',
   ollamaMoveDown: '下移',
   ollamaRemove: '移除',
