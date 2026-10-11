@@ -392,4 +392,3 @@ test('the web switch registers the providers once and gates them live', async ()
   assert.deepEqual([web.search.length, web.fetch.length], [1, 1])
   assert.equal(web.search[0]?.available(), true)
 })
-

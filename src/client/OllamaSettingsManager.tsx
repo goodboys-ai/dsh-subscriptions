@@ -80,8 +80,8 @@ export function OllamaSettingsManager({ rpc, t, onClose, onSaved }: Props) {
     void callSubscriptionsAuth<OllamaSettingsView>(rpc, 'ollamaSettings', {}).then(data => {
       if (!current) return
       setView(data)
-      // An unset store value inherits the deployed config (N2): the
-      // checkbox shows the effective state, so saving writes it down.
+      // An unset store value inherits the deployed config: the checkbox
+      // shows the effective state, and ticking it writes the override.
       setDraft({ ...data.settings })
       setDirty(false)
     }).catch(failure => {
