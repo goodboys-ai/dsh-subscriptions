@@ -273,7 +273,8 @@ export function OllamaSettingsManager({ rpc, t, onClose, onSaved }: Props) {
                   <label style={actions}>
                     <span className="dsh-subscription-label">{t('ollamaDisplayName')}</span>
                     <input value={model.name ?? ''} placeholder={model.id}
-                      onChange={event => rename(model.id, event.target.value)} />
+                      onChange={event => rename(model.id, event.target.value)}
+                      onBlur={event => rename(model.id, event.target.value.trim())} />
                   </label>
                   {thought && efforts.length > 0 && <label style={actions}>
                     <span className="dsh-subscription-label">{t('modelDefaultsTitle')}</span>

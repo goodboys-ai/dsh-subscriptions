@@ -30,7 +30,6 @@ import {
   isDiscoveryAborted,
   isMissingOrInvalidCredential,
   mapFetchFailure,
-  mergeReasoning,
   ModelCatalogCache,
   readBoundedJson,
   withTimeout,
