@@ -27,8 +27,9 @@ missing key hides the picker entry and fails requests with
 `MISSING_CREDENTIAL`. The static catalog carries the three Cloud
 models (deepseek-v4.1-flash, glm-5.3, glm-5.3-flash, all 1M
 context); live discovery enriches capabilities and falls back to
-it. Usage joins the external-usage controller (`GET {base}/usage`,
-404 means unsupported), and search/fetch register under the same
+it. Usage joins the external-usage controller (`GET {base}/balance`,
+reading the included allowance against its remaining balance; 404
+means unsupported), and search/fetch register under the same
 route id on the web seam. The vendor publishes no per-model output
 ceiling, so the adapter sets no request-level cap of its own beyond
 the catalog row's default.

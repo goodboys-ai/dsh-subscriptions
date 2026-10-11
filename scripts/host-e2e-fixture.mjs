@@ -142,9 +142,9 @@ export const FIXTURE_REQUESTS = {
     body: { usages: { limit_5h: { used_ratio: USAGE_PERCENT['kimi-coding'].percent / 100 } } },
     required: true,
   },
-  'GET https://ollama.com/api/usage': {
+  'GET https://ollama.com/api/balance': {
     credential: ['authorization', 'Bearer fake-ollama-key'],
-    body: { limits: { session: { usage: USAGE_PERCENT['ollama-cloud'].percent / 100 } } },
+    body: { included: { balance_usd: 100 - USAGE_PERCENT['ollama-cloud'].percent, allowance_usd: 100 } },
     required: true,
   },
   'GET https://www.minimax.io/v1/token_plan/remains': {

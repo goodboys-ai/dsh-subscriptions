@@ -99,23 +99,23 @@ for (const [name, read] of [
   })
 }
 
-test('Ollama Cloud usage maps session/weekly/monthly ratios and resets', async () => {
+test('Ollama Cloud usage maps the included allowance against its balance', async () => {
   const http = (async (url: string | URL | Request, init?: RequestInit) => {
-    assert.equal(url, 'https://ollama.com/api/usage')
+    assert.equal(url, 'https://ollama.com/api/balance')
     assert.equal((init?.headers as Record<string, string>).authorization, 'Bearer secret')
-    return Response.json({ limits: {
-      session: { usage: 0.5, resets_at: '2026-10-10T12:00:00Z' },
-      weekly: { usage: 0.25, resets_at: '2026-10-17T00:00:00Z' },
-      monthly: { usage: 0.1, resets_at: '2026-11-01T00:00:00Z' },
+    // Shape per the official balance endpoint.
+    return Response.json({ included: {
+      balance_usd: 12,
+      allowance_usd: 100,
+      period: { from: '2026-09-15T09:30:00Z', until: '2026-10-15T09:30:00Z' },
     } })
   }) as typeof fetch
   assert.deepEqual(await fetchOllamaUsage('secret', 'https://ollama.com/api', http), {
     supported: true,
     plan: 'Ollama Cloud',
     windows: [
-      { kind: 'session', usedPercent: 50, resetsAt: Date.parse('2026-10-10T12:00:00Z') },
-      { kind: 'weekly', usedPercent: 25, fixedWindow: true, windowDurationMs: 604_800_000, resetsAt: Date.parse('2026-10-17T00:00:00Z') },
-      { kind: 'other', scope: 'Monthly', usedPercent: 10, resetsAt: Date.parse('2026-11-01T00:00:00Z') },
+      { kind: 'other', scope: 'Credits', usedPercent: 88,
+        resetsAt: Date.parse('2026-10-15T09:30:00Z'), startsAt: Date.parse('2026-09-15T09:30:00Z') },
     ],
   })
 })
