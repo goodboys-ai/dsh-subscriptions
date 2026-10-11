@@ -38,7 +38,6 @@ export const en = {
   modelsWebSearch: "Web search",
   modelsSave: "Save changes",
   modelsUnavailable: "Currently unavailable",
-
   nav: 'Subscriptions',
   intro: 'Log a subscription provider in or out. Login opens the provider’s authorization page in a new tab; headless setups can paste the callback URL or code instead.',
   unavailable: 'Connection unavailable; subscription status cannot be loaded.',
@@ -202,7 +201,6 @@ export const en = {
   speedFastDescription: '1.5x speed, more usage',
   commandFast: 'Switch the Codex speed tier (Standard/Fast)',
   commandFastUnavailable: 'The current model has no fast tier; /fast only works on Codex models whose catalog advertises one',
-
   ollamaTitle: 'Ollama Cloud',
   ollamaStatus: '{count} model(s) in the picker',
   ollamaStatusNone: 'No models configured',
@@ -210,8 +208,8 @@ export const en = {
   ollamaWebOff: 'Web search/fetch off',
   ollamaManageTitle: 'Manage Ollama Cloud',
   ollamaManageHint:
-    'Pick the Cloud models this route serves, then Save. The picker shows '
-    + 'exactly this list in order; the API key itself stays in DSH credentials.',
+    'Fetch the Cloud list, tick the models this route serves, then Save. The picker '
+    + 'shows the ticked models in order; the API key itself stays in DSH credentials.',
   ollamaFetch: 'Fetch cloud models',
   ollamaFetching: 'Fetching…',
   ollamaKeyPlaceholder: 'One-time API key (optional)',
@@ -219,28 +217,21 @@ export const en = {
     'A key typed here is used for this fetch only and is never saved. Leave it '
     + 'blank to use the stored credential.',
   ollamaFetchFailed: 'Could not fetch cloud models: {message}',
-  ollamaCandidates: 'Cloud candidates',
   ollamaCandidatesCount: '{count} returned',
   ollamaCandidatesEmpty: 'No cloud models returned.',
-  ollamaAdopt: 'Adopt selected',
-  ollamaAdoptHint:
-    'Adopting only edits this draft; Save writes it to the store.',
   ollamaModelsEmpty:
-    'No models configured. Fetch the cloud list and adopt the ones to keep.',
-  ollamaModelsCatalog: 'Model catalog',
+    'No models configured. Fetch the cloud list and tick the ones to keep.',
   ollamaModelsLoadFailed: 'Could not load Ollama settings: {message}',
   ollamaModelsSaveFailed: 'Could not save Ollama settings: {message}',
   ollamaConfigureHint:
     'No API key found at {ref}. Add it to the credentials file '
     + '(~/.dsh/.credentials.yaml).',
-  ollamaExpandAll: 'Expand all',
-  ollamaCollapseAll: 'Collapse all',
   ollamaDisplayName: 'Display name',
+  ollamaRowDetails: 'Details',
   ollamaEffortsUnknown:
     'This model reasons; its level set will come from live discovery.',
   ollamaMoveUp: 'Move up',
   ollamaMoveDown: 'Move down',
-  ollamaRemove: 'Remove',
   ollamaBaseURL: 'Base URL',
   ollamaApiKeyRef: 'API key reference',
   ollamaConnectionHint:
@@ -300,7 +291,6 @@ export const zh = {
   modelsWebSearch: "网页搜索",
   modelsSave: "保存更改",
   modelsUnavailable: "当前不可用",
-
   nav: '订阅',
   intro: '在此登录或退出订阅服务商。点击登录会在新标签页打开服务商的授权页面；无浏览器环境可改为粘贴回调 URL 或授权码。',
   unavailable: '连接不可用，无法加载订阅状态。',
@@ -464,7 +454,6 @@ export const zh = {
   speedFastDescription: '约 1.5 倍速度，消耗更多用量',
   commandFast: '切换 Codex 速度档（标准/快速）',
   commandFastUnavailable: '当前模型不支持快速档；/fast 仅对目录声明了 fast tier 的 Codex 模型可用',
-
   ollamaTitle: 'Ollama Cloud',
   ollamaStatus: '选择器中 {count} 个模型',
   ollamaStatusNone: '尚未配置模型',
@@ -477,24 +466,18 @@ export const zh = {
   ollamaKeyPlaceholder: '一次性 API 密钥（可选）',
   ollamaKeyHint: '在此输入的密钥仅用于本次拉取，不会保存。留空则使用已存凭据。',
   ollamaFetchFailed: '拉取云端模型失败：{message}',
-  ollamaCandidates: '云端候选',
   ollamaCandidatesCount: '返回 {count} 个',
   ollamaCandidatesEmpty: '未返回任何云端模型。',
-  ollamaAdopt: '采用所选',
-  ollamaAdoptHint: '采用只修改当前草稿，保存后才会写入存储。',
-  ollamaModelsEmpty: '尚未配置模型。请拉取云端列表并采用需要保留的模型。',
-  ollamaModelsCatalog: '模型目录',
+  ollamaModelsEmpty: '尚未配置模型。请拉取云端列表并勾选需要保留的模型。',
   ollamaModelsLoadFailed: 'Ollama 设置加载失败：{message}',
   ollamaModelsSaveFailed: 'Ollama 设置保存失败：{message}',
   ollamaConfigureHint:
     '未在 {ref} 找到 API 密钥。请在凭据文件（~/.dsh/.credentials.yaml）中添加。',
-  ollamaExpandAll: '全部展开',
-  ollamaCollapseAll: '全部折叠',
   ollamaDisplayName: '显示名',
+  ollamaRowDetails: '详情',
   ollamaEffortsUnknown: '该模型支持思考，推理档位将由实时发现补充。',
   ollamaMoveUp: '上移',
   ollamaMoveDown: '下移',
-  ollamaRemove: '移除',
   ollamaBaseURL: '基础 URL',
   ollamaApiKeyRef: 'API 密钥引用',
   ollamaConnectionHint:
