@@ -83,7 +83,7 @@ export function OllamaSettingsManager({ rpc, t, onClose, onSaved }: Props) {
       setDraft({ ...data.settings })
       setDirty(false)
     }).catch(failure => {
-      if (current) setError(t('accountsLoadFailed', { message: message(failure) }))
+      if (current) setError(t('ollamaModelsLoadFailed', { message: message(failure) }))
     }).finally(() => { if (current) setLoading(false) })
     return () => { current = false }
   }, [rpc, attempt])
@@ -126,7 +126,7 @@ export function OllamaSettingsManager({ rpc, t, onClose, onSaved }: Props) {
         onClose()
       }
     } catch (failure) {
-      if (alive.current) setSaveError(t('accountsSaveFailed', { message: message(failure) }))
+      if (alive.current) setSaveError(t('ollamaModelsSaveFailed', { message: message(failure) }))
     } finally {
       saveLock.current = false
       if (alive.current) setSaving(false)
@@ -147,7 +147,7 @@ export function OllamaSettingsManager({ rpc, t, onClose, onSaved }: Props) {
         onSaved()
       }
     } catch (failure) {
-      if (alive.current) setSaveError(t('accountsSaveFailed', { message: message(failure) }))
+      if (alive.current) setSaveError(t('ollamaModelsSaveFailed', { message: message(failure) }))
     } finally {
       saveLock.current = false
       if (alive.current) setSaving(false)
@@ -172,8 +172,9 @@ export function OllamaSettingsManager({ rpc, t, onClose, onSaved }: Props) {
         <button type="button" autoFocus disabled={saving} onClick={onClose}>{t('imageClose')}</button>
       </header>
       <p id={description} className="dsh-subscription-hint">{t('ollamaManageHint')}</p>
+      {view?.configOverridesModels === true && <p className="dsh-subscription-hint">{t('ollamaCatalogOverride')}</p>}
       {error && <p role="alert">{error}</p>}
-      {loading && <p role="status" className="dsh-subscription-hint">{t('accountsLoading')}</p>}
+      {loading && <p role="status" className="dsh-subscription-hint">{t('modelDefaultsLoading')}</p>}
       {!loading && !view && <button type="button" onClick={() => setAttempt(value => value + 1)}>{t('modelDefaultsRetry')}</button>}
       {view && <fieldset disabled={saving} style={{ ...stack, border: 0, margin: 0, padding: 0, minWidth: 0 }}>
         <fieldset style={{ ...stack, border, borderRadius: 'var(--dsw-radius-lg, 12px)', padding: 14, margin: 0 }}>
@@ -208,7 +209,7 @@ export function OllamaSettingsManager({ rpc, t, onClose, onSaved }: Props) {
           </div>
         </fieldset>
         <fieldset style={{ ...stack, border, borderRadius: 'var(--dsw-radius-lg, 12px)', padding: 14, margin: 0 }}>
-          <legend style={{ padding: '0 6px' }}>{t('accountsModels')}</legend>
+          <legend style={{ padding: '0 6px' }}>{t('ollamaModelsCatalog')}</legend>
           {models.length === 0 && <p className="dsh-subscription-hint">{t('ollamaModelsEmpty')}</p>}
           {models.map((model, index) => <div key={model.id} style={{ ...stack, gap: 6, borderBottom: border, paddingBottom: 8 }}>
             <span style={{ overflowWrap: 'anywhere' }}>{model.name ?? model.id}</span>

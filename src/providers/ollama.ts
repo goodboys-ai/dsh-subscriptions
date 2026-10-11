@@ -71,17 +71,18 @@ const SHOW_CONCURRENCY = 6
 const MAX_DISCOVERY_BYTES = 4 * 1024 * 1024
 
 /**
- * Reasoning efforts for known Cloud model families. This is capability
- * knowledge, not a catalog: `/api/show` reports that a model thinks but not
- * which levels it accepts, and the vendor publishes no per-model list, so the
- * family prefix supplies the levels the standalone plugin recorded. A stored
- * row's own `efforts` always wins; a row with none outside these families
- * carries no reasoning block.
+ * Fallback reasoning levels for known Cloud model families. `/api/show`
+ * publishes each thinking model's accepted levels under `thinking.values`
+ * with a `thinking.default`, so the vendor is the primary source; this table
+ * only answers a model whose `thinking` capability is reported without a
+ * level list. It is capability knowledge, not a catalog: a stored row's own
+ * `efforts` always win, and a row outside these families with no stored
+ * levels carries no reasoning block.
  */
 const OLLAMA_REASONING_FAMILIES: readonly { prefix: string; efforts: readonly string[]; defaultEffort: string }[] = [
-  // The vendor's `/api/show` publishes thinking values [false, low, high,
-  // max] with default high; `false` rides as `off` and maps to the wire
-  // spelling `none`. No `medium`: the vendor lists none.
+  // Recorded before the endpoint's level list was read: the thinking values
+  // ride as `off`/`low`/`high`/`max` (`off` maps to the wire spelling
+  // `none`), and the vendor publishes no `medium` level.
   { prefix: 'deepseek-v4.1-flash', efforts: ['off', 'low', 'high', 'max'], defaultEffort: 'high' },
   { prefix: 'glm-5.3', efforts: ['low', 'high', 'max'], defaultEffort: 'max' },
 ]
@@ -181,6 +182,37 @@ function reasoningFor(row: OllamaCatalogRow, configuredDefault: string | undefin
   return mergeReasoning(configuredDefault, base, { extendable: true })
 }
 
+/**
+ * Merge a discovered reasoning block into the stored row. The endpoint is the
+ * truth about the live model, so its levels come first and its default wins;
+ * the stored default applies only when the endpoint publishes none. Stored
+ * levels the endpoint omits stay selectable (a stored row may pin a level the
+ * listing did not repeat), and the family fallback fills in only levels
+ * neither side reported.
+ * @param row - the stored catalog row, with the family fallback already applied.
+ * @param discovered - the endpoint's reasoning block.
+ * @param configuredDefault - the per-model configured default, when set.
+ * @returns the merged block, with a default that is always one of its levels.
+ */
+function mergeDiscoveredReasoning(
+  row: OllamaCatalogRow,
+  discovered: NonNullable<DiscoveredModel['reasoning']>,
+  configuredDefault: string | undefined,
+): DiscoveredModel['reasoning'] {
+  const efforts = discovered.efforts.map(entry => String(entry.id))
+  for (const effort of row.efforts) if (!efforts.includes(effort)) efforts.push(effort)
+  for (const effort of reasoningFamily(row.id)?.efforts ?? []) if (!efforts.includes(effort)) efforts.push(effort)
+  const vendorDefault = discovered.defaultEffort === undefined ? undefined : String(discovered.defaultEffort)
+  const candidate = vendorDefault ?? configuredDefault ?? row.defaultEffort
+  // The runtime rejects a default the model does not advertise, so an
+  // override the endpoint no longer lists falls back to the first level.
+  const defaultEffort = candidate !== undefined && efforts.includes(candidate) ? candidate : efforts[0]
+  return {
+    efforts: efforts.map(effort => ({ id: ReasoningEffortId(effort), name: effortDisplayName(effort) })),
+    ...defaultEffort === undefined ? {} : { defaultEffort: ReasoningEffortId(defaultEffort) },
+  }
+}
+
 /** Strip image blocks for models that cannot accept vision input. Runs before
  * image resolution so a text-only model never requires the attachment store. */
 function withoutImages(messages: readonly RequestMessage[]): RequestMessage[] {
@@ -241,6 +273,32 @@ function extractContextWindow(show: Record<string, unknown>): number | undefined
   return undefined
 }
 
+/**
+ * Read the endpoint's own reasoning levels. `/api/show` reports them as
+ * `thinking: { values: [...], default: '...' }`; a `false` value is the
+ * vendor's spelling of the `off` level, so it maps to the effort id `off`.
+ * @param show - the `/api/show` payload.
+ * @returns the level list and default, or `undefined` when the payload
+ *   carries no usable `thinking` object.
+ */
+function extractThinking(show: Record<string, unknown>): { values: string[]; default?: string } | undefined {
+  const thinking = recordOf(show['thinking'])
+  if (thinking === undefined) return undefined
+  const rawValues = thinking['values']
+  const values: string[] = []
+  if (Array.isArray(rawValues)) {
+    for (const entry of rawValues) {
+      const effort = entry === false ? 'off' : typeof entry === 'string' && entry.length > 0 ? entry : undefined
+      if (effort !== undefined && !values.includes(effort)) values.push(effort)
+    }
+  }
+  const rawDefault = thinking['default']
+  return {
+    values,
+    ...typeof rawDefault === 'string' && rawDefault.length > 0 ? { default: rawDefault } : {},
+  }
+}
+
 function discoveredFromShow(id: string, rawId: string, show: Record<string, unknown>): OllamaDiscoveredModel {
   const rawCapabilities = show['capabilities']
   const capabilities = new Set(Array.isArray(rawCapabilities)
@@ -248,7 +306,12 @@ function discoveredFromShow(id: string, rawId: string, show: Record<string, unkn
     : [])
   const vision = capabilities.has('vision')
   const thinking = capabilities.has('thinking')
-  const family = thinking ? reasoningFamily(id) : undefined
+  const vendor = thinking ? extractThinking(show) : undefined
+  // The vendor's level list is the truth about the live model; the family
+  // table only answers a model whose thinking capability came without one.
+  const family = thinking && (vendor === undefined || vendor.values.length === 0) ? reasoningFamily(id) : undefined
+  const efforts = vendor !== undefined && vendor.values.length > 0 ? vendor.values : family?.efforts ?? []
+  const defaultEffort = vendor?.default ?? family?.defaultEffort
   const contextWindow = extractContextWindow(show)
   return {
     id,
@@ -257,10 +320,10 @@ function discoveredFromShow(id: string, rawId: string, show: Record<string, unkn
     thinking,
     ...contextWindow === undefined ? {} : { contextWindow },
     inputModalities: vision ? ['text', 'image'] : ['text'],
-    ...family === undefined ? {} : {
+    ...efforts.length === 0 ? {} : {
       reasoning: {
-        efforts: family.efforts.map(effort => ({ id: ReasoningEffortId(effort), name: effortDisplayName(effort) })),
-        defaultEffort: ReasoningEffortId(family.defaultEffort),
+        efforts: efforts.map(effort => ({ id: ReasoningEffortId(effort), name: effortDisplayName(effort) })),
+        ...defaultEffort === undefined ? {} : { defaultEffort: ReasoningEffortId(defaultEffort) },
       },
     },
   }
@@ -487,7 +550,7 @@ export class OllamaAdapter extends LlmAdapter {
     const configuredDefault = this.options.defaultEffortOf?.(model) ?? entry.defaultEffort
     const reasoning = discovered?.reasoning === undefined
       ? reasoningFor(entry, configuredDefault)
-      : mergeReasoning(configuredDefault, discovered.reasoning, { extendable: true })
+      : mergeDiscoveredReasoning(entry, discovered.reasoning, configuredDefault)
     return {
       provider,
       id: model,

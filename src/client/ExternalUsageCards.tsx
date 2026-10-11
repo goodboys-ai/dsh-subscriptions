@@ -6,12 +6,11 @@ import { subscriptionCardStyles as styles } from './subscription-card-styles.js'
 import { USAGE_BADGE_REFRESH_EVENT } from './usage-badge-preferences.js'
 import { UsageMeter } from './UsageMeter.js'
 import { displayUsedPercent } from './usage-pace.js'
-import type { SubscriptionsKey } from './locales.js'
 
 type Source = 'opencode-go' | 'kimi-code' | 'minimax' | 'minimax-cn'
 type Translate = SubscriptionsSectionInjected['t']
 
-const SOURCES: readonly { id: Source; name: string; ref: string; hint?: SubscriptionsKey }[] = [
+const SOURCES: readonly { id: Source; name: string; ref: string }[] = [
   { id: 'opencode-go', name: 'OpenCode Go', ref: 'OPENCODE_GO_API_KEY' },
   { id: 'kimi-code', name: 'Kimi Code', ref: 'KIMI_CODING_API_KEY' },
   { id: 'minimax', name: 'MiniMax', ref: 'MINIMAX_API_KEY' },
@@ -81,7 +80,7 @@ export function ExternalUsageCards({ rpc, t }: { rpc: ConnectionHandle['rpc']; t
   }, [refreshStatus])
 
   return <>
-    {SOURCES.map(({ id, name, ref, hint }) => {
+    {SOURCES.map(({ id, name, ref }) => {
       const configured = status?.[id]?.configured === true
       const snapshot = usage[id]
       return <div key={id} style={styles.card}>
@@ -96,7 +95,7 @@ export function ExternalUsageCards({ rpc, t }: { rpc: ConnectionHandle['rpc']; t
         </p>}
         {statusError !== undefined && <p style={styles.error}>
           {t('externalUsageUnavailable', { message: statusError })}</p>}
-        {status !== undefined && !configured && <p style={styles.status}>{t(hint ?? 'externalUsageConfigure', { ref })}</p>}
+        {status !== undefined && !configured && <p style={styles.status}>{t('externalUsageConfigure', { ref })}</p>}
         {configured && <div style={styles.account}>
           <div style={styles.accountHeader}>
             <span style={styles.defaultStar} title={t('defaultBadge')}>★</span>

@@ -14,8 +14,9 @@ import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
-import type { CredentialProvider } from '@deepseek-ai/dsh-credentials'
+import type { CredentialProvider, CredentialRef } from '@deepseek-ai/dsh-credentials'
 import type { LlmAdapter } from '@deepseek-ai/dsh-llm'
+import type { WebFetchProvider, WebSearchProvider } from '@deepseek-ai/dsh-web'
 import type { RpcResult } from '../src/compat.js'
 import { createFakeConnection } from './fake-connection.js'
 import type { FakeConnectionHandler } from './fake-connection.js'
@@ -28,6 +29,16 @@ import {
 const HOME = mkdtempSync(join(tmpdir(), 'ollama-settings-rpc-test-'))
 // Suite-level hook: the mkdtemp is top-level, so there is no test context to hang t.after on.
 after(() => { rmSync(HOME, { recursive: true, force: true }) })
+
+/**
+ * Credential values keyed by reference name, so a test can prove which
+ * reference a consumer resolved: the default `OLLAMA_API_KEY` and a custom
+ * name must not read each other's value.
+ */
+const CREDENTIALS: Record<string, string> = {
+  OLLAMA_API_KEY: 'stored-key',
+  CUSTOM_OLLAMA_KEY: 'custom-key',
+}
 
 /** The store path the plugin resolves under the redirected DSH home. */
 function settingsPath(): string {
@@ -47,6 +58,12 @@ interface FakeLlm {
   registered: string[]
   replaced: string[]
   adapters: Map<string, LlmAdapter>
+}
+
+/** Providers the plugin registered on the fake web seam. */
+interface FakeWeb {
+  search: WebSearchProvider[]
+  fetch: WebFetchProvider[]
 }
 
 /** One settings view, as the card receives it. */
@@ -71,16 +88,17 @@ interface Candidate {
 }
 
 /**
- * Mount the plugin with a fake llm, credentials, and connection.
+ * Mount the plugin with a fake llm, credentials, web seam, and connection.
  * @param options - `ollamaModels` pins a non-empty config catalog, which
  *   must win over the store.
  */
 async function mount(
   options: { ollamaModels?: { id: string; name?: string }[] } = {},
-): Promise<{ handler: FakeConnectionHandler; fake: FakeLlm }> {
+): Promise<{ handler: FakeConnectionHandler; fake: FakeLlm; web: FakeWeb }> {
   process.env.DSH_HOME = HOME
   rmSync(settingsPath(), { force: true })
   const fake: FakeLlm = { registered: [], replaced: [], adapters: new Map() }
+  const web: FakeWeb = { search: [], fetch: [] }
   const ctx = new Context()
   const fakeLlm = {
     listProviders: async (): Promise<{ id: string; name: string }[]> =>
@@ -94,11 +112,20 @@ async function mount(
     },
   }
   ctx.provide('llm', fakeLlm)
+  // The name decides the value, so a consumer that resolves the wrong
+  // reference reads a different secret and the assertion catches it.
   ctx.provide('credentials', {
-    resolve: async () => ({ value: 'stored-key', source: 'env' }),
+    resolve: async (ref: CredentialRef) => {
+      const value = CREDENTIALS[String(ref)]
+      return value === undefined ? undefined : { value, source: 'env' }
+    },
     set: async () => undefined,
     unset: async () => undefined,
   } satisfies Pick<CredentialProvider, 'resolve' | 'set' | 'unset'> as unknown as CredentialProvider)
+  ctx.provide('web', {
+    registerSearchProvider: (provider: WebSearchProvider) => { web.search.push(provider); return () => {} },
+    registerFetchProvider: (provider: WebFetchProvider) => { web.fetch.push(provider); return () => {} },
+  })
   const connection = createFakeConnection()
   ctx.provide('connection', connection.connection)
   ctx.plugin(plugin, {
@@ -107,7 +134,12 @@ async function mount(
   })
   await new Promise(resolve => setTimeout(resolve, 50))
   assert.ok(connection.registered(), 'the subscriptions-auth routes were registered')
-  return { handler: connection.handler, fake }
+  return { handler: connection.handler, fake, web }
+}
+
+/** Let a deferred cordis inject callback run before the next assertion. */
+async function tick(): Promise<void> {
+  await new Promise(resolve => setTimeout(resolve, 10))
 }
 
 async function call(
@@ -297,7 +329,67 @@ test('ollamaModels falls back to the stored credential and surfaces a rejection'
     const emptyKey = await call(handler, 'ollamaModels', { apiKey: '' })
     assert.equal(emptyKey.ok, false)
     if (!emptyKey.ok) assert.equal(emptyKey.error.code, 'bad-request')
+    // The draft address passes the store's URL check, not just a type check.
+    const badURL = await call(handler, 'ollamaModels', { baseURL: 'ftp://ollama.com' })
+    assert.equal(badURL.ok, false)
+    if (!badURL.ok) assert.equal(badURL.error.code, 'bad-request')
   } finally {
     globalThis.fetch = offlineFetch
   }
 })
+
+test('saving the reference and base URL moves usage to the same target', async () => {
+  const { handler } = await mount()
+  const seen: { url: string; authorization: string | undefined }[] = []
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    seen.push({
+      url: String(input),
+      authorization: ((init?.headers ?? {}) as Record<string, string>)['authorization'],
+    })
+    return Response.json({ included: { allowance_usd: 10, balance_usd: 7.5 } })
+  }) as unknown as typeof fetch
+  try {
+    const initial = await call(handler, 'externalUsage', { source: 'ollama-cloud' })
+    assert.equal(initial.ok, true)
+    assert.deepEqual(seen.at(-1), {
+      url: `${DEFAULT_OLLAMA_BASE_URL}/balance`,
+      authorization: 'Bearer stored-key',
+    })
+    await call(handler, 'ollamaSetSettings', {
+      settings: { apiKeyRef: 'CUSTOM_OLLAMA_KEY', baseURL: 'http://localhost:11434' },
+    })
+    const moved = await call(handler, 'externalUsage', { source: 'ollama-cloud' })
+    assert.equal(moved.ok, true)
+    // The saved reference and address reach the usage reader too, and the
+    // custom name resolves to its own value, not the default reference's.
+    assert.deepEqual(seen.at(-1), {
+      url: 'http://localhost:11434/balance',
+      authorization: 'Bearer custom-key',
+    })
+  } finally {
+    globalThis.fetch = offlineFetch
+  }
+})
+
+test('the web switch registers the providers once and gates them live', async () => {
+  const { handler, web } = await mount()
+  // Off by default: nothing joins the web seam.
+  assert.deepEqual([web.search.length, web.fetch.length], [0, 0])
+  await call(handler, 'ollamaSetSettings', { settings: { web: true } })
+  await tick()
+  assert.deepEqual([web.search.length, web.fetch.length], [1, 1])
+  assert.equal(web.search[0]?.available(), true)
+  assert.equal(web.fetch[0]?.available(), true)
+  // Turning it off gates the existing registration instead of removing it.
+  await call(handler, 'ollamaSetSettings', { settings: { web: false } })
+  await tick()
+  assert.deepEqual([web.search.length, web.fetch.length], [1, 1])
+  assert.equal(web.search[0]?.available(), false)
+  assert.equal(web.fetch[0]?.available(), false)
+  // Back on: still one registration, available again.
+  await call(handler, 'ollamaSetSettings', { settings: { web: true } })
+  await tick()
+  assert.deepEqual([web.search.length, web.fetch.length], [1, 1])
+  assert.equal(web.search[0]?.available(), true)
+})
+

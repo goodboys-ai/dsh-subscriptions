@@ -175,29 +175,6 @@ export async function fetchKimiCodeUsage(
   return { supported: true, windows, plan: 'Kimi Code' }
 }
 
-/** A usage ratio in any spelling the Cloud endpoint has used. */
-function usageRatio(window: Record<string, unknown>): number | undefined {
-  for (const key of ['usage', 'used_ratio', 'usedRatio', 'consumed', 'consumed_ratio']) {
-    const value = numeric(window[key])
-    if (value !== undefined && value >= 0) return value
-  }
-  return undefined
-}
-
-/** A reset instant in any spelling the Cloud endpoint has used. */
-function usageReset(window: Record<string, unknown>): number | undefined {
-  for (const key of ['resets_at', 'reset_at', 'reset', 'resetsAt']) {
-    const value = window[key]
-    if (typeof value === 'string') {
-      const parsed = Date.parse(value)
-      if (Number.isFinite(parsed)) return parsed
-    } else if (typeof value === 'number' && Number.isFinite(value)) {
-      return value < 1e12 ? value * 1000 : value
-    }
-  }
-  return undefined
-}
-
 /**
  * Read Ollama Cloud quota from `GET {base}/balance`. The Cloud has no
  * `limits` object: quota is the included allowance against its remaining

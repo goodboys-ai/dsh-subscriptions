@@ -69,12 +69,15 @@ function readBoolean(value: unknown, field: string): boolean {
 
 /**
  * Accept only an absolute http(s) base URL with no credentials, query, or
- * fragment. The route appends `/tags`, `/show`, and `/v1/chat/completions` to
- * this value, so anything else would build a URL that cannot work — and a
- * non-official host receives the referenced credential, which the dialog
- * tells the user.
+ * fragment, and return its trimmed form. The route appends `/tags`, `/show`,
+ * and `/v1/chat/completions` to this value, so anything else would build a URL
+ * that cannot work — and a non-official host receives the referenced
+ * credential, which the dialog tells the user.
+ * @param value - the candidate URL.
+ * @returns the trimmed URL to store.
+ * @throws when the value is not a usable absolute http(s) URL.
  */
-function readBaseURL(value: unknown): string {
+export function validateOllamaBaseURL(value: unknown): string {
   const raw = readNonEmptyString(value, 'baseURL')
   let url: URL
   try {
@@ -85,7 +88,7 @@ function readBaseURL(value: unknown): string {
   if (url.protocol !== 'http:' && url.protocol !== 'https:') fail('baseURL must use http or https')
   if (url.username !== '' || url.password !== '') fail('baseURL must not carry credentials')
   if (url.search !== '' || url.hash !== '') fail('baseURL must not carry a query or fragment')
-  return raw
+  return raw.trim()
 }
 
 /** Credential references are looked up by name, so whitespace is always a typo. */
@@ -110,7 +113,9 @@ function readModel(entry: unknown, index: number): OllamaModelSetting {
     fail(`models[${index}] must be an object`)
   }
   const record = entry as Record<string, unknown>
-  const model: OllamaModelSetting = { id: readNonEmptyString(record.id, `models[${index}].id`) }
+  // The id is the wire id, so surrounding whitespace is always a paste
+  // artifact; trim it before the duplicate check sees it.
+  const model: OllamaModelSetting = { id: readNonEmptyString(record.id, `models[${index}].id`).trim() }
   if (record.name !== undefined) model.name = readNonEmptyString(record.name, `models[${index}].name`)
   if (record.contextWindow !== undefined) {
     model.contextWindow = readPositiveInteger(record.contextWindow, `models[${index}].contextWindow`)
@@ -158,7 +163,7 @@ export function validateOllamaSettings(input: unknown): OllamaSettings {
     settings.models = models
   }
   if (record.web !== undefined) settings.web = readBoolean(record.web, 'web')
-  if (record.baseURL !== undefined) settings.baseURL = readBaseURL(record.baseURL)
+  if (record.baseURL !== undefined) settings.baseURL = validateOllamaBaseURL(record.baseURL)
   if (record.apiKeyRef !== undefined) settings.apiKeyRef = readApiKeyRef(record.apiKeyRef)
   return settings
 }

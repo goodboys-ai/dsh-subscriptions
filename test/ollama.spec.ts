@@ -305,7 +305,15 @@ test('fetchOllamaModels normalizes listing ids and maps capabilities', async () 
     // wire ids the chat endpoint takes.
     { models: [{ model: 'glm-5.3' }, { name: 'deepseek-v4.1-flash' }] },
     {
-      'glm-5.3': { capabilities: ['tools', 'thinking', 'cloud'], parameters: 'num_ctx 1048576' },
+      // The endpoint publishes its own level list and default; they win over
+      // the family fallback.
+      'glm-5.3': {
+        capabilities: ['tools', 'thinking', 'cloud'],
+        thinking: { values: ['low', 'medium', 'high'], default: 'medium' },
+        parameters: 'num_ctx 1048576',
+      },
+      // A thinking model whose level list is missing falls back to the
+      // recorded family levels.
       'deepseek-v4.1-flash': {
         capabilities: ['vision', 'tools', 'thinking', 'cloud'],
         model_info: { 'llama.context_length': 1000000 },
@@ -325,8 +333,29 @@ test('fetchOllamaModels normalizes listing ids and maps capabilities', async () 
   assert.equal(models[0]?.contextWindow, 1048576)
   assert.equal(models[0]?.thinking, true)
   assert.deepEqual(models[0]?.inputModalities, ['text'])
+  assert.deepEqual(models[0]?.reasoning?.efforts.map(effort => effort.id), ['low', 'medium', 'high'])
+  assert.equal(models[0]?.reasoning?.defaultEffort, 'medium')
   assert.deepEqual(models[1]?.inputModalities, ['text', 'image'])
+  assert.deepEqual(models[1]?.reasoning?.efforts.map(effort => effort.id), ['off', 'low', 'high', 'max'])
   assert.equal(models[1]?.reasoning?.defaultEffort, 'high')
+})
+
+test('a false thinking value maps to the off level', async () => {
+  const models = await fetchOllamaModels({
+    baseURL: DEFAULT_OLLAMA_BASE_URL,
+    apiKey: 'k',
+    fetchFn: fakeDiscovery(
+      { models: [{ model: 'glm-5.3' }] },
+      {
+        'glm-5.3': {
+          capabilities: ['thinking'],
+          thinking: { values: [false, 'low', 'high', 'max'], default: 'high' },
+        },
+      },
+    ),
+  })
+  assert.deepEqual(models[0]?.reasoning?.efforts.map(effort => effort.id), ['off', 'low', 'high', 'max'])
+  assert.equal(models[0]?.reasoning?.defaultEffort, 'high')
 })
 
 test('normalizeOllamaModelId tags only the official Cloud host', () => {
@@ -414,6 +443,78 @@ test('discovery enriches capabilities but keeps the stored display name', async 
   const resolved = await adapter.resolveModel(OLLAMA_CLOUD_ROUTE, 'glm-5.3:cloud')
   assert.equal(resolved.name, 'GLM-5.3 (cloud)')
   assert.equal(resolved.context?.contextWindow, 262144)
+})
+
+test('a discovery hit takes the endpoint levels over the stored row', async () => {
+  const adapter = makeAdapter({
+    catalog: [{
+      id: 'glm-5.3:cloud',
+      name: 'GLM-5.3',
+      contextWindow: 262_144,
+      thinking: true,
+      efforts: ['low', 'high', 'max'],
+      defaultEffort: 'max',
+    }],
+    fetchFn: fakeDiscovery(
+      { models: [{ model: 'glm-5.3' }] },
+      {
+        'glm-5.3': {
+          capabilities: ['tools', 'thinking', 'cloud'],
+          thinking: { values: ['low', 'high'], default: 'high' },
+        },
+      },
+    ),
+  })
+  const resolved = await adapter.resolveModel(OLLAMA_CLOUD_ROUTE, 'glm-5.3:cloud')
+  // The endpoint's levels come first, the stored `max` stays selectable, and
+  // the family table adds nothing the two already list.
+  assert.deepEqual(resolved.reasoning?.efforts.map(effort => effort.id), ['low', 'high', 'max'])
+  // The endpoint's default wins over the stored `max`.
+  assert.equal(resolved.reasoning?.defaultEffort, 'high')
+})
+
+test('a stored default applies only when the endpoint publishes none', async () => {
+  const catalog: OllamaModelSetting[] = [{
+    id: 'kimi-k3:cloud',
+    thinking: true,
+    efforts: ['low', 'high'],
+    defaultEffort: 'low',
+  }]
+  const vendorDefault = makeAdapter({
+    catalog,
+    fetchFn: fakeDiscovery(
+      { models: [{ model: 'kimi-k3:cloud' }] },
+      { 'kimi-k3:cloud': { capabilities: ['thinking'], thinking: { values: ['low', 'high'], default: 'high' } } },
+    ),
+  })
+  assert.equal(
+    (await vendorDefault.resolveModel(OLLAMA_CLOUD_ROUTE, 'kimi-k3:cloud')).reasoning?.defaultEffort,
+    'high',
+  )
+  const noVendorDefault = makeAdapter({
+    catalog,
+    fetchFn: fakeDiscovery(
+      { models: [{ model: 'kimi-k3:cloud' }] },
+      { 'kimi-k3:cloud': { capabilities: ['thinking'], thinking: { values: ['low', 'high'] } } },
+    ),
+  })
+  assert.equal(
+    (await noVendorDefault.resolveModel(OLLAMA_CLOUD_ROUTE, 'kimi-k3:cloud')).reasoning?.defaultEffort,
+    'low',
+  )
+})
+
+test('the family table fills levels neither the endpoint nor the row reports', async () => {
+  const adapter = makeAdapter({
+    catalog: [{ id: 'glm-5.3-flash:cloud', name: 'GLM-5.3-Flash', thinking: true }],
+    fetchFn: fakeDiscovery(
+      { models: [{ model: 'glm-5.3-flash' }] },
+      { 'glm-5.3-flash': { capabilities: ['tools', 'thinking', 'cloud'] } },
+    ),
+  })
+  const resolved = await adapter.resolveModel(OLLAMA_CLOUD_ROUTE, 'glm-5.3-flash:cloud')
+  assert.deepEqual(resolved.reasoning?.efforts.map(effort => effort.id), ['low', 'high', 'max'])
+  assert.equal(resolved.reasoning?.defaultEffort, 'max')
 })
 
 test('web search posts the query and drops url-less rows', async () => {

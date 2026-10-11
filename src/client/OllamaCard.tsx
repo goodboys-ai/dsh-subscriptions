@@ -28,7 +28,11 @@ export function OllamaCard({ rpc, t }: { rpc: ConnectionHandle['rpc']; t: Transl
   const [observedAt, setObservedAt] = useState<number>()
   const [usageStale, setUsageStale] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string>()
+  // Two failure surfaces: the card's own load and the usage lookup. They
+  // render in different places so a stale usage reading cannot masquerade as
+  // a settings failure.
+  const [statusError, setStatusError] = useState<string>()
+  const [usageError, setUsageError] = useState<string>()
   const [manage, setManage] = useState(false)
 
   const refreshUsage = useCallback(async () => {
@@ -39,9 +43,9 @@ export function OllamaCard({ rpc, t }: { rpc: ConnectionHandle['rpc']; t: Transl
       // Prefer the server's observation time; a cached reading must not look fresh.
       setObservedAt(value.observedAt ?? Date.now())
       setUsageStale(value.stale === true)
-      setError(undefined)
+      setUsageError(undefined)
       window.dispatchEvent(new Event(USAGE_BADGE_REFRESH_EVENT))
-    } catch (failure) { setError(message(failure)); setUsageStale(true) }
+    } catch (failure) { setUsageError(message(failure)); setUsageStale(true) }
     finally { setLoading(false) }
   }, [rpc])
 
@@ -52,10 +56,11 @@ export function OllamaCard({ rpc, t }: { rpc: ConnectionHandle['rpc']; t: Transl
         callSubscriptionsAuth<Record<string, { configured: boolean }>>(rpc, 'externalStatus', {}),
       ])
       setView(settings)
+      setStatusError(undefined)
       const isConfigured = status['ollama-cloud']?.configured === true
       setConfigured(isConfigured)
       if (isConfigured) void refreshUsage()
-    } catch (failure) { setError(message(failure)) }
+    } catch (failure) { setStatusError(message(failure)) }
   }, [rpc, refreshUsage])
 
   useEffect(() => { void refreshStatus() }, [refreshStatus])
@@ -69,9 +74,9 @@ export function OllamaCard({ rpc, t }: { rpc: ConnectionHandle['rpc']; t: Transl
     <p style={styles.status}>{view === undefined ? t('checking')
       : view.models.length > 0 ? t('ollamaStatus', { count: view.models.length }) : t('ollamaStatusNone')}</p>
     {view !== undefined && <p style={styles.status}>{view.effective.web ? t('ollamaWebOn') : t('ollamaWebOff')}</p>}
-    {error !== undefined && configured !== true && <p style={styles.error}>{error}</p>}
+    {statusError !== undefined && <p style={styles.error}>{t('modelDefaultsLoadFailed', { message: statusError })}</p>}
     {view !== undefined && configured === false && <p style={styles.status}>
-      {t('externalUsageConfigureFile', { ref: view.effective.apiKeyRef })}</p>}
+      {t('ollamaConfigureHint', { ref: view.effective.apiKeyRef })}</p>}
     {configured === true && <div style={styles.account}>
       <div style={styles.accountHeader}>
         <span style={styles.defaultStar} title={t('defaultBadge')}>★</span>
@@ -85,7 +90,7 @@ export function OllamaCard({ rpc, t }: { rpc: ConnectionHandle['rpc']; t: Transl
             onClick={() => { void refreshUsage() }}>{t('usageRefresh')}</button>
         </div>
         {loading && usage === undefined && <p style={styles.status}>{t('usageLoading')}</p>}
-        {error !== undefined && <p style={styles.error}>{t('usageError', { message: error })}</p>}
+        {usageError !== undefined && <p style={styles.error}>{t('usageError', { message: usageError })}</p>}
         {usage !== undefined && usage.supported === false && <p style={styles.status}>{t('usageUnsupported')}</p>}
         {usage?.windows?.length === 0 && <p style={styles.status}>{t('usageEmpty')}</p>}
         {usage?.windows?.map((window, index) => {

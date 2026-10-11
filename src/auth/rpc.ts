@@ -17,6 +17,7 @@ import type { ProviderUsage } from '../providers/common.js'
 import type { CliVersion } from '../providers/npm-cli-version.js'
 import { EXTERNAL_USAGE_SOURCES } from '../providers/external-usage-controller.js'
 import type { ExternalUsageSource, ExternalUsageStatus } from '../providers/external-usage-controller.js'
+import { validateOllamaBaseURL } from '../providers/ollama-settings.js'
 import type { CursorAuthStatus } from '../providers/cursor-auth.js'
 
 /**
@@ -620,7 +621,17 @@ async function dispatch(
     case 'ollamaModels': {
       if (!ollama) throw new BadRequest('Ollama settings are unavailable')
       const apiKey = readOptionalString(payload, 'apiKey')
-      const baseURL = readOptionalString(payload, 'baseURL')
+      const rawBaseURL = readOptionalString(payload, 'baseURL')
+      let baseURL: string | undefined
+      if (rawBaseURL !== undefined) {
+        // The listing may run against a not-yet-saved draft address, so it
+        // passes the same URL check the store applies.
+        try {
+          baseURL = validateOllamaBaseURL(rawBaseURL)
+        } catch (error) {
+          throw new BadRequest(error instanceof Error ? error.message : String(error))
+        }
+      }
       return ok(await ollama.models({
         ...apiKey === undefined ? {} : { apiKey },
         ...baseURL === undefined ? {} : { baseURL },

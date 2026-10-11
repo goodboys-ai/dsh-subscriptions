@@ -141,7 +141,6 @@ export const en = {
   externalUsageNotConfigured: 'Not configured',
   externalUsageApiKey: 'API key',
   externalUsageConfigure: 'No API key found at {ref}. Add one in Settings → Models.',
-  externalUsageConfigureFile: 'No API key found at {ref}. Add it to the credentials file (~/.dsh/.credentials.yaml).',
   externalUsageUnavailable: 'Usage status unavailable: {message}',
   cursorTitle: 'Cursor',
   cursorOpenLogin: 'Open Cursor sign-in',
@@ -210,28 +209,49 @@ export const en = {
   ollamaWebOn: 'Web search/fetch enabled',
   ollamaWebOff: 'Web search/fetch off',
   ollamaManageTitle: 'Manage Ollama Cloud',
-  ollamaManageHint: 'Pick the Cloud models this route serves, then Save. The picker shows exactly this list in order; the API key itself stays in DSH credentials.',
+  ollamaManageHint:
+    'Pick the Cloud models this route serves, then Save. The picker shows '
+    + 'exactly this list in order; the API key itself stays in DSH credentials.',
   ollamaFetch: 'Fetch cloud models',
   ollamaFetching: 'Fetching…',
   ollamaKeyPlaceholder: 'One-time API key (optional)',
-  ollamaKeyHint: 'A key typed here is used for this fetch only and is never saved. Leave it blank to use the stored credential.',
+  ollamaKeyHint:
+    'A key typed here is used for this fetch only and is never saved. Leave it '
+    + 'blank to use the stored credential.',
   ollamaFetchFailed: 'Could not fetch cloud models: {message}',
   ollamaCandidates: 'Cloud candidates',
   ollamaCandidatesCount: '{count} returned',
   ollamaCandidatesEmpty: 'No cloud models returned.',
   ollamaAdopt: 'Adopt selected',
-  ollamaAdoptHint: 'Adopting only edits this draft; Save writes it to the store.',
-  ollamaModelsEmpty: 'No models configured. Fetch the cloud list and adopt the ones to keep.',
+  ollamaAdoptHint:
+    'Adopting only edits this draft; Save writes it to the store.',
+  ollamaModelsEmpty:
+    'No models configured. Fetch the cloud list and adopt the ones to keep.',
+  ollamaModelsCatalog: 'Model catalog',
+  ollamaModelsLoadFailed: 'Could not load Ollama settings: {message}',
+  ollamaModelsSaveFailed: 'Could not save Ollama settings: {message}',
+  ollamaConfigureHint:
+    'No API key found at {ref}. Add it to the credentials file '
+    + '(~/.dsh/.credentials.yaml).',
   ollamaMoveUp: 'Move up',
   ollamaMoveDown: 'Move down',
   ollamaRemove: 'Remove',
   ollamaBaseURL: 'Base URL',
   ollamaApiKeyRef: 'API key reference',
-  ollamaConnectionHint: "The base URL receives this route's requests and the credential lookup; the reference names the DSH credential, not the key itself.",
-  ollamaWebHint: 'Enables the Ollama Cloud web search and fetch providers. The host still has to select them before the web tools use them.',
-  ollamaCatalogOverride: "A profile pins this route's model list; the picker ignores store models until that override is removed.",
+  ollamaConnectionHint:
+    "The base URL receives this route's requests and the credential lookup; the "
+    + "reference names the DSH credential, not the key itself. Requests send "
+    + "the resolved key to that address, so point it only at a host you trust.",
+  ollamaWebHint:
+    'Enables the Ollama Cloud web search and fetch providers. The host still '
+    + 'has to select them before the web tools use them.',
+  ollamaCatalogOverride:
+    "A profile pins this route's model list; the picker ignores store models "
+    + "until that override is removed.",
   ollamaResetDefaults: 'Restore deployment defaults',
-  ollamaResetConfirm: 'Clear every saved Ollama override? The profile values and built-in defaults apply again.',
+  ollamaResetConfirm:
+    'Clear every saved Ollama override? The profile values and built-in '
+    + 'defaults apply again.',
   ollamaCapVision: 'vision',
   ollamaCapThinking: 'thinking',
   ollamaContext: 'context {tokens}',
@@ -378,7 +398,6 @@ export const zh = {
   externalUsageNotConfigured: '未配置',
   externalUsageApiKey: 'API 密钥',
   externalUsageConfigure: '未在 {ref} 找到 API 密钥。请在「设置 → 模型」中添加。',
-  externalUsageConfigureFile: '未在 {ref} 找到 API 密钥。请在凭据文件（~/.dsh/.credentials.yaml）中添加。',
   externalUsageUnavailable: '无法获取用量状态：{message}',
   cursorTitle: 'Cursor',
   cursorOpenLogin: '打开 Cursor 登录页面',
@@ -459,12 +478,19 @@ export const zh = {
   ollamaAdopt: '采用所选',
   ollamaAdoptHint: '采用只修改当前草稿，保存后才会写入存储。',
   ollamaModelsEmpty: '尚未配置模型。请拉取云端列表并采用需要保留的模型。',
+  ollamaModelsCatalog: '模型目录',
+  ollamaModelsLoadFailed: 'Ollama 设置加载失败：{message}',
+  ollamaModelsSaveFailed: 'Ollama 设置保存失败：{message}',
+  ollamaConfigureHint:
+    '未在 {ref} 找到 API 密钥。请在凭据文件（~/.dsh/.credentials.yaml）中添加。',
   ollamaMoveUp: '上移',
   ollamaMoveDown: '下移',
   ollamaRemove: '移除',
   ollamaBaseURL: '基础 URL',
   ollamaApiKeyRef: 'API 密钥引用',
-  ollamaConnectionHint: '基础 URL 用于此路由的请求与凭据查询；引用是 DSH 凭据的名称，不是密钥本身。',
+  ollamaConnectionHint:
+    '基础 URL 用于此路由的请求与凭据查询；引用是 DSH 凭据的名称，不是密钥本身。'
+    + '请求会把解析出的密钥发往该地址，请只填写可信主机。',
   ollamaWebHint: '启用 Ollama Cloud 的网页搜索与抓取能力。宿主仍需选择它们，网页工具才会使用。',
   ollamaCatalogOverride: '配置档案固定了此路由的模型列表；在移除该覆盖前，选择器会忽略存储中的模型。',
   ollamaResetDefaults: '恢复部署默认值',

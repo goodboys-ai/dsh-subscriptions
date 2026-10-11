@@ -80,6 +80,18 @@ test('a rejected write leaves the stored document unchanged', async (t) => {
   assert.equal((JSON.parse(readFileSync(path, 'utf8')) as { models: { id: string }[] }).models[0]?.id, 'glm-5.3:cloud')
 })
 
+test('baseURL and model ids are trimmed before they are stored', () => {
+  // Trimming happens before the duplicate check, so the padded copy of an id
+  // collapses onto the first row instead of becoming a second catalog entry.
+  assert.deepEqual(
+    validateOllamaSettings({
+      models: [{ id: ' glm-5.3:cloud ' }, { id: 'glm-5.3:cloud' }],
+      baseURL: ' https://ollama.com/api ',
+    }),
+    { models: [{ id: 'glm-5.3:cloud' }], baseURL: 'https://ollama.com/api' },
+  )
+})
+
 test('a corrupt store file fails loudly instead of silently dropping settings', (t) => {
   const path = join(tempDir(t), 'settings.json')
   writeFileSync(path, '{not json')
