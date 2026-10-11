@@ -92,8 +92,11 @@ listing. `test/ollama-settings-manager.spec.ts` executes the real dialog
 through the hook dispatcher in `test/component-harness.ts`: untick and
 re-tick restore, Select none then Select all, the effort selector against a
 stale snapshot, the context input's validation and Save gating, and the
-bounds line preferring the latest fetch. Each guard was checked by removing
-it and seeing a test fail.
+bounds line preferring the latest fetch. Removing the stash, the
+row-efforts-first selector, the latest-fetch preference for bounds, the Save
+gate, or the gate's restriction to ticked rows each makes a test fail.
+Writing invalid text into the draft is not caught: the gate blocks Save and
+any later edit overwrites the field, so that guard is defence in depth.
 
 All of it uses injected fetches and fixtures. No check reads a live vendor
 window. The dialog is inspected as a JSX tree, so React reconciliation,

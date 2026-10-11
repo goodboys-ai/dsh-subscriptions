@@ -161,7 +161,10 @@ test('Select none then Select all restores edited names and efforts, not candida
 test('the effort selector offers only the row efforts and a stale snapshot never reaches Save', async () => {
   const stored: OllamaModelDraft = { id: 'a:cloud', thinking: true, efforts: ['low', 'high'] }
   const f = fixture([stored], [candidate('a:cloud', ['low', 'max'])],
-    [{ id: 'a:cloud', name: 'a', vision: false, thinking: true, efforts: [{ id: 'low', name: 'low' }, { id: 'high', name: 'high' }] }])
+    // The opened-dialog snapshot carries a level ('medium') the row and the
+    // fresh fetch do not; a snapshot-first selector would offer it.
+    [{ id: 'a:cloud', name: 'a', vision: false, thinking: true,
+      efforts: [{ id: 'low', name: 'low' }, { id: 'medium', name: 'medium' }, { id: 'high', name: 'high' }] }])
   const view = await open(f)
   await fetchList(view)
   rowBox(view.component, 'a').props.onChange({ target: { checked: false } })
@@ -169,7 +172,7 @@ test('the effort selector offers only the row efforts and a stale snapshot never
   rowBox(view.component, 'a').props.onChange({ target: { checked: true } })
   await settle(view.component)
   const options = nodes(select(view.component, `a ${en.modelDefaultsTitle}`)).filter(node => node.type === 'option')
-  // The ticked row keeps its own stored levels; the stale snapshot adds nothing.
+  // The ticked row keeps its own stored levels; the snapshot only names them.
   assert.deepEqual(options.map(option => option.props.value), ['', 'low', 'high'])
   select(view.component, `a ${en.modelDefaultsTitle}`).props.onChange({ target: { value: 'high' } })
   await settle(view.component)
@@ -179,26 +182,46 @@ test('the effort selector offers only the row efforts and a stale snapshot never
   view.cleanup()
 })
 
-test('context input: valid numbers save, invalid text blocks Save, blank clears the override', async () => {
+test('context input: invalid text blocks Save once the draft is dirty; valid numbers save', async () => {
   const f = fixture([{ id: 'a:cloud', contextWindow: 262_144 }], [])
   const view = await open(f)
   const input = () => field(view.component, `a:cloud ${en.modelsContext}`)
-  input().props.onChange({ target: { value: '1e3' } })
+  // A valid edit makes the draft dirty first. Starting from invalid text would
+  // leave Save disabled for the unrelated reason that nothing changed, and the
+  // invalid-text gate itself would go untested.
+  input().props.onChange({ target: { value: '65536' } })
   await settle(view.component)
-  assert.equal(saveButton(view.component).props.disabled, true)
-  assert.equal(input().props['aria-invalid'], true)
-  assert.ok(nodes(view.component.tree).some(node => node.props.role === 'alert'))
-  for (const bad of ['0', '-5', 'abc', '99999999999999999999']) {
+  assert.equal(saveButton(view.component).props.disabled, false)
+  for (const bad of ['1e3', '0', '-5', 'abc', '99999999999999999999']) {
     input().props.onChange({ target: { value: bad } })
     await settle(view.component)
     assert.equal(saveButton(view.component).props.disabled, true, `rejects ${bad}`)
+    assert.equal(input().props['aria-invalid'], true, `flags ${bad}`)
+    assert.ok(nodes(view.component.tree).some(node => node.props.role === 'alert'), `alerts on ${bad}`)
   }
-  input().props.onChange({ target: { value: '65536' } })
+  input().props.onChange({ target: { value: '131072' } })
+  await settle(view.component)
+  assert.equal(saveButton(view.component).props.disabled, false)
+  assert.equal(input().props['aria-invalid'], false)
+  saveButton(view.component).props.onClick()
+  await settle(view.component)
+  assert.deepEqual(f.saved.at(-1), { models: [{ id: 'a:cloud', contextWindow: 262_144, contextOverride: 131_072 }] })
+  view.cleanup()
+})
+
+test('invalid context text on an unticked row does not block Save', async () => {
+  const f = fixture([{ id: 'a:cloud' }, { id: 'b:cloud' }], [])
+  const view = await open(f)
+  field(view.component, `a:cloud ${en.modelsContext}`).props.onChange({ target: { value: 'abc' } })
+  await settle(view.component)
+  assert.equal(saveButton(view.component).props.disabled, true)
+  // Removing the row removes the problem: only ticked rows are saved.
+  rowBox(view.component, 'a:cloud').props.onChange({ target: { checked: false } })
   await settle(view.component)
   assert.equal(saveButton(view.component).props.disabled, false)
   saveButton(view.component).props.onClick()
   await settle(view.component)
-  assert.deepEqual(f.saved.at(-1), { models: [{ id: 'a:cloud', contextWindow: 262_144, contextOverride: 65_536 }] })
+  assert.deepEqual(f.saved, [{ models: [{ id: 'b:cloud' }] }])
   view.cleanup()
 })
 
@@ -222,5 +245,28 @@ test('the context bounds follow the latest fetch over the stored snapshot', asyn
   await fetchList(view)
   assert.equal(text(view.component.tree).includes('Default 128000 · Maximum 128000'), true)
   assert.equal(field(view.component, `a ${en.modelsContext}`).props.placeholder, '128000')
+  view.cleanup()
+})
+
+test('invalid context text survives untick and re-tick and keeps Save blocked until it is fixed', async () => {
+  const f = fixture([{ id: 'a:cloud', contextOverride: 4096 }], [])
+  const view = await open(f)
+  field(view.component, `a:cloud ${en.modelsContext}`).props.onChange({ target: { value: '-5' } })
+  await settle(view.component)
+  // Unticking drops the row from the draft, so the problem leaves with it;
+  // ticking it back brings the typed text and the gate back together.
+  rowBox(view.component, 'a:cloud').props.onChange({ target: { checked: false } })
+  await settle(view.component)
+  rowBox(view.component, 'a:cloud').props.onChange({ target: { checked: true } })
+  await settle(view.component)
+  assert.equal(field(view.component, `a:cloud ${en.modelsContext}`).props.value, '-5')
+  // This does not prove the text stays out of the draft: Save is blocked and
+  // any later edit overwrites the field, so that guard is defence in depth.
+  assert.equal(saveButton(view.component).props.disabled, true)
+  field(view.component, `a:cloud ${en.modelsContext}`).props.onChange({ target: { value: '' } })
+  await settle(view.component)
+  saveButton(view.component).props.onClick()
+  await settle(view.component)
+  assert.deepEqual(f.saved, [{ models: [{ id: 'a:cloud' }] }])
   view.cleanup()
 })
