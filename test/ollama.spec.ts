@@ -493,3 +493,40 @@ test('an undeclared oversized stream stops early and cancels', async () => {
   assert.equal(cancelled, true)
   assert.ok(pulls <= 12, `read ${String(pulls)} chunks past the cap`)
 })
+
+test('mount registers the ollama-cloud route serving the static catalog', async () => {
+  const { Context } = await import('@deepseek-ai/cordis')
+  const { createFakeConnection } = await import('./fake-connection.js')
+  const plugin = await import('../src/index.js')
+  const routes = new Map<string, unknown>()
+  const ctx = new Context()
+  ctx.provide('llm', {
+    registerAdapter: (ids: string[], adapter: unknown) => {
+      for (const id of ids) routes.set(id, adapter)
+      return Object.assign(() => {}, { replace: () => {} })
+    },
+  })
+  ctx.provide('connection', createFakeConnection().connection)
+  ctx.provide('credentials', {
+    resolve: async (ref: string) => ref === 'OLLAMA_API_KEY' ? { value: 'k', source: 'env' } : undefined,
+  })
+  // Live discovery stays offline: the offline fetch proves listModels
+  // served the static catalog through real wiring.
+  ctx.plugin(plugin, {
+    providers: [],
+    codexClientVersion: '0.153.4',
+    ollama: { apiKeyRef: 'OLLAMA_API_KEY', baseURL: 'https://ollama.com/api', models: [], web: false },
+  })
+  // The adapter's fetchFn defaults to hostFetch; stub globalThis.fetch so
+  // an offline discovery fails fast and the static fallback serves.
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = (() => Promise.reject(new Error('offline'))) as typeof globalThis.fetch
+  await new Promise(resolve => setTimeout(resolve, 50))
+  const adapter = routes.get('ollama-cloud') as Pick<OllamaAdapter, 'listModels'>
+  assert.ok(adapter !== undefined, 'ollama-cloud route was registered')
+  assert.deepEqual((await adapter.listModels('ollama-cloud')).map(model => model.id), [
+    'deepseek-v4.1-flash:cloud',
+    'glm-5.3:cloud',
+    'glm-5.3-flash:cloud',
+  ])
+})

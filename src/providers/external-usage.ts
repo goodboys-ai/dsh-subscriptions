@@ -70,6 +70,12 @@ export async function fetchOpenCodeGoUsage(
     const usedPercent = percent(value?.percent)
     if (usedPercent === undefined) continue
     const resetsAt = resetTime(value?.resetsAt)
+    // Monthly has no interval fields, and a fixed 28-day reading of the
+    // calendar month is the display assumption the maintainer accepted:
+    // the marker starts at min(reset − 28d, now); pace never uses it.
+    const monthlyDisplay = field === 'monthly' && resetsAt !== undefined
+      ? { startsAt: Math.min(resetsAt - 28 * 86_400_000, Date.now()) }
+      : {}
     windows.push({
       kind,
       ...(scope === undefined ? {} : { scope }),
@@ -78,6 +84,7 @@ export async function fetchOpenCodeGoUsage(
       ...(field === 'rolling' ? { fixedWindow: true, windowDurationMs: 18_000_000 }
         : field === 'weekly' ? { fixedWindow: true, windowDurationMs: 604_800_000 } : {}),
       ...(resetsAt === undefined ? {} : { resetsAt }),
+      ...monthlyDisplay,
     })
   }
   if (windows.length === 0) throw new Error('OpenCode Go usage response has no valid windows')
@@ -114,16 +121,27 @@ export async function fetchKimiCodeUsage(
       : unit.includes('DAY') ? 86_400_000 : unit.includes('SECOND') ? 1000 : undefined
     const durationMs = duration === undefined || duration <= 0 || multiplier === undefined
       ? undefined : duration * multiplier
-    const kind = durationMs === 18_000_000 ? 'session' : durationMs === 604_800_000 ? 'weekly' : 'other'
+    const kind = durationMs === 18_000_000 ? 'session'
+      : durationMs === 604_800_000 ? 'weekly'
+        // No period fields at all: the official CLI labels this summary
+        // row the weekly limit, so assume that span rather than 'other'.
+        : durationMs === undefined && unit === '' ? 'weekly' : 'other'
     const resetsAt = kimiReset(detail)
     const scope = detail.name ?? detail.title ?? item.name ?? item.title
+    // A window kind other than 'other' carries a vendor-declared span. The
+    // marker starts around min(reset − span, now) so the cursor places;
+    // pace stays unverified: rolling semantics are not established.
+    const displayStart = resetsAt !== undefined && durationMs !== undefined
+      ? { startsAt: Math.min(resetsAt - durationMs, Date.now()) }
+      : {}
     modern.push({ kind, usedPercent,
       ...(typeof scope === 'string' ? { scope } : {}),
       ...(resetsAt === undefined ? {} : { resetsAt }),
       ...(durationMs === undefined ? {} : { windowDurationMs: durationMs }),
-      // Legacy weekly plans reset as whole seven-day buckets; five-hour semantics
-      // are documented as rolling, so no fixed-window assertion is made there.
-      ...(kind === 'weekly' ? { fixedWindow: true } : {}),
+      // A whole seven-day bucket reset, not a rolling span, only where the
+      // endpoint actually said 7 DAY; the assumed summary span is not proof.
+      ...(durationMs === 604_800_000 ? { fixedWindow: true } : {}),
+      ...displayStart,
     })
   }
   if (modern.length) return { supported: true, windows: modern, plan: 'Kimi Code' }
@@ -140,12 +158,18 @@ export async function fetchKimiCodeUsage(
     const ratio = value?.used_ratio ?? value?.usedRatio
     if (typeof ratio !== 'number' || !Number.isFinite(ratio) || ratio < 0 || ratio > 1) continue
     const resetsAt = resetTime(value?.reset_time ?? value?.resetAt)
+    // The monthly total resets on the subscription's cycle, not the
+    // calendar month; the display marker assumes ~30 days back.
+    const monthlyDisplay = field === 'limit_month_total' && resetsAt !== undefined
+      ? { startsAt: Math.min(resetsAt - 30 * 86_400_000, Date.now()) }
+      : {}
     windows.push({
       kind,
       ...(scope === undefined ? {} : { scope }),
       usedPercent: ratio * 100,
       ...(field === 'limit_7d' ? { fixedWindow: true, windowDurationMs: 604_800_000 } : {}),
       ...(resetsAt === undefined ? {} : { resetsAt }),
+      ...monthlyDisplay,
     })
   }
   return { supported: true, windows, plan: 'Kimi Code' }

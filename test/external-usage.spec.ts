@@ -18,7 +18,8 @@ test('OpenCode Go usage maps all three windows and sends the key only upstream',
     windows: [
       { kind: 'session', usedPercent: 25, fixedWindow: true, windowDurationMs: 18_000_000, resetsAt: Date.parse('2026-09-28T08:00:00Z') },
       { kind: 'weekly', usedPercent: 50, fixedWindow: true, windowDurationMs: 604_800_000, resetsAt: Date.parse('2026-10-01T00:00:00Z') },
-      { kind: 'other', scope: 'Monthly', usedPercent: 75, resetsAt: Date.parse('2026-10-28T00:00:00Z') },
+      { kind: 'other', scope: 'Monthly', usedPercent: 75, resetsAt: Date.parse('2026-10-28T00:00:00Z'),
+        startsAt: Math.min(Date.parse('2026-10-28T00:00:00Z') - 28 * 86_400_000, Date.now()) },
     ],
   })
 })
@@ -53,12 +54,13 @@ test('Kimi Code usage maps present ratio pools and tolerates absent windows', as
     plan: 'Kimi Code',
     windows: [
       { kind: 'session', usedPercent: 0, resetsAt: Date.parse('2026-09-28T08:00:00Z') },
-      { kind: 'other', scope: 'Monthly', usedPercent: 42, resetsAt: Date.parse('2026-10-17T00:00:00Z') },
+      { kind: 'other', scope: 'Monthly', usedPercent: 42, resetsAt: Date.parse('2026-10-17T00:00:00Z'),
+        startsAt: Math.min(Date.parse('2026-10-17T00:00:00Z') - 30 * 86_400_000, Date.now()) },
     ],
   })
 })
 
-test('Kimi official CLI shape preserves summary uncertainty and explicit weekly duration', async () => {
+test('Kimi official CLI shape: summary assumes weekly, explicit durations win', async () => {
   const http = (async () => Response.json({
     usage: { limit: '100', remaining: '60', reset_at: '2026-10-01T00:00:00Z' },
     limits: [
@@ -68,7 +70,8 @@ test('Kimi official CLI shape preserves summary uncertainty and explicit weekly 
   })) as typeof fetch
   const usage = await fetchKimiCodeUsage('key', http)
   assert.deepEqual(usage.windows, [
-    { kind: 'other', usedPercent: 40, resetsAt: Date.parse('2026-10-01T00:00:00Z') },
+    // No period fields: the official CLI labels this summary the weekly limit.
+    { kind: 'weekly', usedPercent: 40, resetsAt: Date.parse('2026-10-01T00:00:00Z') },
     { kind: 'session', usedPercent: 25, windowDurationMs: 18_000_000 },
     { kind: 'weekly', usedPercent: 50, windowDurationMs: 604_800_000, fixedWindow: true },
   ])

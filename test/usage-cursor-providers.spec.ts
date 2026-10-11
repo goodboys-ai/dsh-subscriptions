@@ -138,8 +138,10 @@ const cases: Case[] = [
     load: () => fetchOpenCodeGoUsage('k', answer({ usage: { rolling: { percent: 0 } } }) as typeof fetch),
   },
   {
-    name: 'OpenCode Go monthly: subscription-anchored, reset alone does not place it',
-    cursor: false,
+    // Display assumption accepted by the maintainer: monthly reads
+    // min(reset − 28d, now) as its start, so the marker places.
+    name: 'OpenCode Go monthly: display marker assumes min(reset - 28d, now)',
+    cursor: true,
     load: () => fetchOpenCodeGoUsage('k', answer({ usage: { monthly: { percent: 0, resetsAt: iso(now + 20 * DAY) } } }) as typeof fetch),
   },
   {
@@ -150,8 +152,11 @@ const cases: Case[] = [
     }) as typeof fetch),
   },
   {
-    name: 'Kimi five-hour limit: rolling semantics are not established, so no fixed start',
-    cursor: false,
+    // The five-hour span is endpoint-declared (300 MINUTE), so the marker
+    // derives from min(reset − 5h, now) like every shown window; pace
+    // stays unverified because rolling semantics are not established.
+    name: 'Kimi five-hour limit: declared duration places the marker',
+    cursor: true,
     load: () => fetchKimiCodeUsage('k', answer({
       limits: [{ window: { duration: 300, timeUnit: 'MINUTE' }, detail: { limit: 100, used: 0, reset_at: iso(now + 4 * HOUR) } }],
     }) as typeof fetch),
