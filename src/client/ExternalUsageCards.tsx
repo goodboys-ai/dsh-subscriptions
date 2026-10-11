@@ -6,16 +6,18 @@ import { subscriptionCardStyles as styles } from './subscription-card-styles.js'
 import { USAGE_BADGE_REFRESH_EVENT } from './usage-badge-preferences.js'
 import { UsageMeter } from './UsageMeter.js'
 import { displayUsedPercent } from './usage-pace.js'
+import type { SubscriptionsKey } from './locales.js'
 
 type Source = 'opencode-go' | 'kimi-code' | 'minimax' | 'minimax-cn' | 'ollama-cloud'
 type Translate = SubscriptionsSectionInjected['t']
 
-const SOURCES: readonly { id: Source; name: string; ref: string }[] = [
+const SOURCES: readonly { id: Source; name: string; ref: string; hint?: SubscriptionsKey }[] = [
   { id: 'opencode-go', name: 'OpenCode Go', ref: 'OPENCODE_GO_API_KEY' },
   { id: 'kimi-code', name: 'Kimi Code', ref: 'KIMI_CODING_API_KEY' },
   { id: 'minimax', name: 'MiniMax', ref: 'MINIMAX_API_KEY' },
   { id: 'minimax-cn', name: 'MiniMax CN', ref: 'MINIMAX_CN_API_KEY' },
-  { id: 'ollama-cloud', name: 'Ollama Cloud', ref: 'OLLAMA_API_KEY' },
+  // OLLAMA_API_KEY has no slot on the Models page: point at the file.
+  { id: 'ollama-cloud', name: 'Ollama Cloud', ref: 'OLLAMA_API_KEY', hint: 'externalUsageConfigureFile' },
 ]
 
 type Status = Record<Source, { configured: boolean }>
@@ -81,7 +83,7 @@ export function ExternalUsageCards({ rpc, t }: { rpc: ConnectionHandle['rpc']; t
   }, [refreshStatus])
 
   return <>
-    {SOURCES.map(({ id, name, ref }) => {
+    {SOURCES.map(({ id, name, ref, hint }) => {
       const configured = status?.[id]?.configured === true
       const snapshot = usage[id]
       return <div key={id} style={styles.card}>
@@ -96,7 +98,7 @@ export function ExternalUsageCards({ rpc, t }: { rpc: ConnectionHandle['rpc']; t
         </p>}
         {statusError !== undefined && <p style={styles.error}>
           {t('externalUsageUnavailable', { message: statusError })}</p>}
-        {status !== undefined && !configured && <p style={styles.status}>{t('externalUsageConfigure', { ref })}</p>}
+        {status !== undefined && !configured && <p style={styles.status}>{t(hint ?? 'externalUsageConfigure', { ref })}</p>}
         {configured && <div style={styles.account}>
           <div style={styles.accountHeader}>
             <span style={styles.defaultStar} title={t('defaultBadge')}>★</span>
