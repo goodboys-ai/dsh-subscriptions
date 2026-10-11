@@ -200,8 +200,14 @@ function mergeDiscoveredReasoning(
   configuredDefault: string | undefined,
 ): DiscoveredModel['reasoning'] {
   const efforts = discovered.efforts.map(entry => String(entry.id))
+  // The endpoint is the truth about the live model: when it publishes a
+  // level set, nothing else may widen it — a level the gateway stops
+  // offering would only fail the request. The family fallback fills in
+  // just the levels neither side reported.
   for (const effort of row.efforts) if (!efforts.includes(effort)) efforts.push(effort)
-  for (const effort of reasoningFamily(row.id)?.efforts ?? []) if (!efforts.includes(effort)) efforts.push(effort)
+  if (efforts.length === 0) {
+    for (const effort of reasoningFamily(row.id)?.efforts ?? []) efforts.push(effort)
+  }
   const vendorDefault = discovered.defaultEffort === undefined ? undefined : String(discovered.defaultEffort)
   const candidate = vendorDefault ?? configuredDefault ?? row.defaultEffort
   // The runtime rejects a default the model does not advertise, so an

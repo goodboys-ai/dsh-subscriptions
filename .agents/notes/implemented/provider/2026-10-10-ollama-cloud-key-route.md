@@ -24,11 +24,13 @@ with `max_tokens`, `reasoning_effort`, and
 native baseURL unchanged. Only catalogued models are served: an
 unlisted id fails with `UNKNOWN_MODEL` before provider I/O, and a
 missing key hides the picker entry and fails requests with
-`MISSING_CREDENTIAL`. [UPDATES-PENDING: settings card work in
-flight changes the catalog source from a built-in static roster to
-a user-stored selection (zero defaults) with pull-and-pick
-management; a second note or an in-place facts update will land
-with that PR.] Usage joins the external-usage controller
+`MISSING_CREDENTIAL`. The catalog is user-stored, not built in: the
+management dialog on the Ollama card pulls the cloud listing,
+picks, and adopts rows into an OllamaSettingsStore (draft-then-save
+RPC), and an empty store hides the picker entry until models are
+adopted — zero defaults. `Config.ollama.models` remains an
+override that outranks the store. Usage joins the external-usage
+controller
 (`GET {base}/balance`, reading the included allowance against its
 remaining balance; the stats endpoint `GET {base}/usage` serves
 buckets, not quota; 404 means unsupported), and search/fetch

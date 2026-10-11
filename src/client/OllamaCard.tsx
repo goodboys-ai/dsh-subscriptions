@@ -74,7 +74,7 @@ export function OllamaCard({ rpc, t }: { rpc: ConnectionHandle['rpc']; t: Transl
     <p style={styles.status}>{view === undefined ? t('checking')
       : view.models.length > 0 ? t('ollamaStatus', { count: view.models.length }) : t('ollamaStatusNone')}</p>
     {view !== undefined && <p style={styles.status}>{view.effective.web ? t('ollamaWebOn') : t('ollamaWebOff')}</p>}
-    {statusError !== undefined && <p style={styles.error}>{t('modelDefaultsLoadFailed', { message: statusError })}</p>}
+    {statusError !== undefined && <p style={styles.error}>{t('ollamaModelsLoadFailed', { message: statusError })}</p>}
     {view !== undefined && configured === false && <p style={styles.status}>
       {t('ollamaConfigureHint', { ref: view.effective.apiKeyRef })}</p>}
     {configured === true && <div style={styles.account}>

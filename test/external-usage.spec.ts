@@ -134,3 +134,11 @@ test('Ollama Cloud 404 means unsupported, other errors throw without the key', a
     return true
   })
 })
+
+test('a balance reply in the E2E fixture shape parses to its percent', async () => {
+  // Same shape the E2E fixture serves; if either side drifts, this fails.
+  // Fixture rule: served percent = allowance − balance; percent 88.
+  const http = (async () => Response.json({ included: { balance_usd: 12, allowance_usd: 100 } })) as typeof fetch
+  const usage = await fetchOllamaUsage('secret', 'https://ollama.com/api', http)
+  assert.equal(usage.windows?.[0]?.usedPercent, 88)
+})
