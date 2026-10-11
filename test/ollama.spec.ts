@@ -733,3 +733,36 @@ test('an undeclared oversized stream stops early and cancels', async () => {
   assert.equal(cancelled, true)
   assert.ok(pulls <= 12, `read ${String(pulls)} chunks past the cap`)
 })
+
+test('no stored default with discovery off falls back to the family default', async () => {
+  // Adoption stops copying the vendor default, so a fresh row has none;
+  // the family table must still serve as the last resort on the
+  // no-discovery path, matching what the discovered path resolves.
+  const adapter = makeAdapter({
+    catalog: [{ id: 'glm-5.3:cloud', name: 'GLM-5.3', thinking: true, efforts: ['low', 'high', 'max'] }],
+    discovery: false,
+  })
+  const resolved = await adapter.resolveModel(OLLAMA_CLOUD_ROUTE, 'glm-5.3:cloud')
+  assert.deepEqual(resolved.reasoning?.efforts.map(effort => effort.id), ['low', 'high', 'max'])
+  assert.equal(resolved.reasoning?.defaultEffort, 'max')
+})
+
+test('a user default outside a retracted vendor set falls back instead of riding the wire', async () => {
+  // The stored `max` no longer sits inside the vendor's offered levels;
+  // the resolver must not send it.
+  const adapter = makeAdapter({
+    catalog: [{
+      id: 'glm-5.3:cloud',
+      thinking: true,
+      efforts: ['max'],
+      defaultEffort: 'max',
+    }],
+    fetchFn: fakeDiscovery(
+      { models: [{ model: 'glm-5.3' }] },
+      { 'glm-5.3': { capabilities: ['thinking'], thinking: { values: ['low', 'high'], default: 'high' } } },
+    ),
+  })
+  const resolved = await adapter.resolveModel(OLLAMA_CLOUD_ROUTE, 'glm-5.3:cloud')
+  assert.deepEqual(resolved.reasoning?.efforts.map(effort => effort.id), ['low', 'high'])
+  assert.equal(resolved.reasoning?.defaultEffort, 'high')
+})

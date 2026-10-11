@@ -173,11 +173,16 @@ function discoveredFor(catalogId: string, discovered: readonly DiscoveredModel[]
 }
 
 function reasoningFor(row: OllamaCatalogRow, configuredDefault: string | undefined): DiscoveredModel['reasoning'] {
+  const familyDefault = row.efforts.includes(reasoningFamily(row.id)?.defaultEffort ?? '')
+    ? reasoningFamily(row.id)?.defaultEffort
+    : undefined
   const base = row.efforts.length === 0
     ? undefined
     : {
       efforts: row.efforts.map(effort => ({ id: ReasoningEffortId(effort), name: effortDisplayName(effort) })),
-      ...(row.defaultEffort === undefined ? {} : { defaultEffort: ReasoningEffortId(row.defaultEffort) }),
+      // The family default is the last resort, mirroring the discovery
+      // path's priority; the stored row no longer bakes it in.
+      ...((row.defaultEffort ?? familyDefault) === undefined ? {} : { defaultEffort: ReasoningEffortId((row.defaultEffort ?? familyDefault)!) }),
     }
   return mergeReasoning(configuredDefault, base, { extendable: true })
 }
