@@ -502,7 +502,7 @@ test('a stored user default outranks the vendor default within the offered set',
     catalog: catalog.map(({ defaultEffort: _ignored, ...row }) => row),
     fetchFn: fakeDiscovery(
       { models: [{ model: 'kimi-k3:cloud' }] },
-      // The vendor bloom retracts its default along with naming none.
+      // The vendor publishes no default, so none is resolved.
       { 'kimi-k3:cloud': { capabilities: ['thinking'], thinking: { values: ['low', 'high'] } } },
     ),
   })

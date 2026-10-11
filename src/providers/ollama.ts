@@ -210,7 +210,14 @@ function mergeDiscoveredReasoning(
   // The user's explicit choice wins only within the levels the model still
   // offers: a stored default outside a retracted vendor set must not ride
   // the wire, so it falls through to the vendor or stored fallback.
-  const priority = [configuredDefault, vendorDefault, row.defaultEffort]
+  const priority = [
+    configuredDefault,
+    vendorDefault,
+    // The family default is the last resort, not a user preference.
+    ...configuredDefault !== undefined || vendorDefault !== undefined
+      ? [undefined, reasoningFamily(row.id)?.defaultEffort]
+      : [row.defaultEffort, reasoningFamily(row.id)?.defaultEffort],
+  ]
   const defaultEffort = priority.find(entry => entry !== undefined && efforts.includes(entry))
   return {
     efforts: efforts.map(effort => ({ id: ReasoningEffortId(effort), name: effortDisplayName(effort) })),
@@ -453,7 +460,10 @@ export class OllamaAdapter extends LlmAdapter {
         efforts: entry.efforts !== undefined && entry.efforts.length > 0
           ? [...entry.efforts]
           : [...family?.efforts ?? []],
-        defaultEffort: entry.defaultEffort ?? family?.defaultEffort,
+        // The family default stays out of the stored row: the resolver's
+        // priority keeps it last, so a vendor change is not held back by
+        // the fallback baked in during construction.
+        defaultEffort: entry.defaultEffort,
       }
     })
   }

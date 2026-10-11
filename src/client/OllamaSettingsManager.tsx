@@ -65,7 +65,6 @@ export function OllamaSettingsManager({ rpc, t, onClose, onSaved }: Props) {
   const [query, setQuery] = useState('')
   const [candidateQuery, setCandidateQuery] = useState('')
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
-  const [draftEffort, setDraftEffort] = useState<Record<string, string>>({})
   const alive = useRef(true)
   const saveLock = useRef(false)
   const fetchLock = useRef(false)
@@ -179,7 +178,6 @@ export function OllamaSettingsManager({ rpc, t, onClose, onSaved }: Props) {
     edit({ ...draft, models: renameModel(draft.models ?? [], id, name) })
   }
   function setEffort(id: string, effort: string): void {
-    setDraftEffort({ ...draftEffort, [id]: effort })
     edit({ ...draft, models: setModelEffort(draft.models ?? [], id, effort) })
   }
   return <dialog className="dsh-subscription-manager" ref={dialog} aria-labelledby={title} aria-describedby={description}
@@ -277,8 +275,8 @@ export function OllamaSettingsManager({ rpc, t, onClose, onSaved }: Props) {
                   </label>
                   {thought && efforts.length > 0 && <label style={actions}>
                     <span className="dsh-subscription-label">{t('modelDefaultsTitle')}</span>
-                    <select aria-label={`${model.name} ${t('modelDefaultsTitle')}`}
-                      value={draftEffort[model.id] ?? model.defaultEffort ?? ''} onChange={event => {
+                    <select aria-label={`${model.name ?? model.id} ${t('modelDefaultsTitle')}`}
+                      value={model.defaultEffort ?? ''} onChange={event => {
                         setEffort(model.id, event.target.value)
                       }}>
                       <option value="">{t('modelDefaultsFollowProvider')}</option>
