@@ -116,3 +116,41 @@ test('provider settings accept context windows for claude and keep them per prov
     assert.equal(store.contextWindow('other', 'claude'), undefined)
   } finally { await rm(dir, { recursive: true, force: true }) }
 })
+
+test('claude resolves each account against its own advertised window', async () => {
+  // Two accounts list the same model with different windows, told apart by
+  // bearer token. A lookup that names an account must not borrow the other
+  // account's catalog, or the small account would plan against the big window.
+  const sessions: Record<string, ClaudeSession> = {
+    big: { accessToken: 'tok-big', refreshToken: 'r', expiresAt: Date.now() + 3_600_000 } as unknown as ClaudeSession,
+    small: { accessToken: 'tok-small', refreshToken: 'r', expiresAt: Date.now() + 3_600_000 } as unknown as ClaudeSession,
+  }
+  const windows: Record<string, number> = { 'tok-big': 1_000_000, 'tok-small': 200_000 }
+  const fetchFn = (async (_url: RequestInfo | URL, init?: RequestInit) => {
+    const token = String((init?.headers as Record<string, string>)['authorization']).replace('Bearer ', '')
+    return Response.json({ data: [{ id: 'claude-x', display_name: 'X', max_input_tokens: windows[token] }] })
+  }) as FetchFn
+  const adapter = new ClaudeAdapter({
+    models: [],
+    streamIdleTimeoutMs: 1000,
+    fetchFn,
+    discovery: true,
+    contextWindowOf: () => 400_000,
+    tokens: new AccountTokenManager<ClaudeSession>({
+      provider: 'claude',
+      displayName: 'Test',
+      makeOptions: () => ({ preemptMs: 0, refresh: s => Promise.resolve(s), isPermanent: () => false }),
+      io: {
+        list: () => Promise.resolve(Object.entries(sessions).map(([key, session]) => ({ key, session }))),
+        get: (key?: string) => Promise.resolve(sessions[key ?? 'big']),
+        save: () => Promise.resolve(),
+        remove: () => Promise.resolve(),
+      },
+    }),
+  })
+  assert.deepEqual(await adapter.contextLimits('claude-x', 'small'), { default: 200_000, max: 200_000 })
+  assert.deepEqual(await adapter.contextLimits('claude-x', 'big'), { default: 1_000_000, max: 1_000_000 })
+  // The same 400K override is capped per account: below the big window, at the small one.
+  assert.equal((await adapter.resolveOwnModel('claude', 'claude-x', 'big')).context?.contextWindow, 400_000)
+  assert.equal((await adapter.resolveOwnModel('claude', 'claude-x', 'small')).context?.contextWindow, 200_000)
+})
