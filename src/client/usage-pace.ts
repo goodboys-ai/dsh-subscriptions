@@ -61,35 +61,6 @@ export function elapsedPercent(window: UsageWindow, now = Date.now()): number | 
   if (start === undefined || !Number.isFinite(start) || start >= end || start > now) return undefined
   return Math.min(100, Math.max(0, (now - start) / (end - start) * 100))
 }
-
-/**
- * Assumed window lengths by kind, used only to place the display marker
- * when the provider discloses no timing. Both key providers' monthly
- * pools read 30 days back from the reset; a session five hours, a week
- * seven days. These are display estimates, never pace evidence.
- */
-const KIND_FALLBACK_MS = {
-  session: 5 * 3_600_000,
-  weekly: 7 * 86_400_000,
-  other: 30 * 86_400_000,
-} as const
-
-/**
- * Marker position for the time cursor. The verified reading wins; without
- * one, the start is assumed from the window kind, clamped to now, so the
- * marker shows almost always once a reset is known. Pace warnings must
- * keep using {@link elapsedPercent}: an assumed start must not color the
- * bar yellow.
- */
-export function elapsedDisplayPercent(window: UsageWindow, now = Date.now()): number | undefined {
-  const verified = elapsedPercent(window, now)
-  if (verified !== undefined) return verified
-  const end = window.resetsAt
-  if (end === undefined || !Number.isFinite(end) || end <= now) return undefined
-  const start = Math.min(end - KIND_FALLBACK_MS[window.kind], now)
-  if (!(start < end)) return undefined
-  return Math.min(100, Math.max(0, (now - start) / (end - start) * 100))
-}
 export function usageColorState(used: number, elapsed: number | undefined, preset: UsageColorPreset, fresh: boolean): UsageColorState {
   if (!validUsage(used)) return 'neutral'
   if (used >= 90) return 'red'

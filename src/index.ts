@@ -33,9 +33,19 @@ import { ExternalUsageController } from './providers/external-usage-controller.j
 import { CursorAuth } from './providers/cursor-auth.js'
 import { fetchCursorUsage } from './providers/cursor-usage.js'
 import { CursorCompatAdapter } from './providers/cursor-adapter.js'
-import { OllamaAdapter, DEFAULT_OLLAMA_API_KEY_REF, DEFAULT_OLLAMA_BASE_URL, OLLAMA_CLOUD_ROUTE } from './providers/ollama.js'
+import {
+  OllamaAdapter,
+  DEFAULT_OLLAMA_API_KEY_REF,
+  DEFAULT_OLLAMA_BASE_URL,
+  fetchOllamaModels,
+  OLLAMA_CLOUD_ROUTE,
+  OLLAMA_PULL_TIMEOUT_MS,
+} from './providers/ollama.js'
+import type { OllamaDiscoveredModel } from './providers/ollama.js'
 import { OllamaWebFetchProvider, OllamaWebSearchProvider } from './providers/ollama-web.js'
 import { CursorModelSettingsStore, validateCursorModelSettings } from './providers/cursor-model-settings.js'
+import { OllamaSettingsStore, validateOllamaSettings } from './providers/ollama-settings.js'
+import type { OllamaModelSetting } from './providers/ollama-settings.js'
 import type {
   AuthController,
   ImageBytesResult,
@@ -43,6 +53,8 @@ import type {
   ModelDefaultsCatalog,
   ModelDefaultsController,
   ModelDefaultView,
+  OllamaCloudCandidate,
+  OllamaModelView,
   ProviderStatus,
   SpeedController,
   SpeedTier,
@@ -197,22 +209,27 @@ export interface Config {
     clientSecret?: string
   }
   /**
-   * Ollama Cloud key-based route (no OAuth session). Omitted entirely when
-   * the host never selects the route; a missing key only hides the picker
-   * entry, so every field is optional.
+   * Ollama Cloud key-based route (no OAuth session). These values are the
+   * defaults for the Settings card's store (`ollama-settings.json`), which
+   * carries the user's overrides; the route itself ships no model catalog,
+   * so an unconfigured route advertises nothing.
    */
   ollama?: {
     /** Credential reference naming the Cloud API key (default OLLAMA_API_KEY). */
     apiKeyRef?: string
     /** Native base URL (default https://ollama.com/api); chat maps it to /v1. */
     baseURL?: string
-    /** Advisory catalog override; non-empty replaces the built-in rows. */
+    /**
+     * Whole-catalog override; a non-empty list replaces the store's models
+     * and keeps its old meaning for existing profiles.
+     */
     models?: ModelEntry[]
     /**
-     * Register the web search/fetch providers (default false). Registration
-     * alone can divert the host's web seam when several providers look
-     * available, so it stays off until a profile pins
-     * `searchProvider`/`fetchProvider` to `ollama-cloud` and opts in here.
+     * Default for the card's web search/fetch switch (default false).
+     * Registration alone can divert the host's web seam when several
+     * providers look available, so it stays off until a profile pins
+     * `searchProvider`/`fetchProvider` to `ollama-cloud` or the user turns
+     * the switch on.
      */
     web?: boolean
   }
@@ -745,6 +762,7 @@ export function apply(ctx: Context, config: Config): void {
   ctx.effect(() => () => { restoreConnectAttemptTimeout(previousAttemptTimeout) }, 'dsh-subscriptions: connect attempt timeout')
   const preferences = new ProviderSettingsStore()
   const cursorModelSettings = new CursorModelSettingsStore()
+  const ollamaSettings = new OllamaSettingsStore()
   const codexVersion = new CodexClientVersionCache()
   const claudeVersion = new ClaudeCliVersionCache()
   const providers = [...new Set(config.providers ?? [...PROVIDER_IDS])]
@@ -776,6 +794,35 @@ export function apply(ctx: Context, config: Config): void {
   // this plugin's apply, so a one-time capture would stay undefined forever.
   const resolveAttachments = (): AttachmentStore | undefined =>
     ctx.get('attachments') as AttachmentStore | undefined
+
+  // Ollama Cloud effective settings. The Settings card stores overrides; the
+  // plugin config supplies the defaults, and `config.ollama.models` keeps its
+  // old meaning as a whole-catalog override (non-empty wins over the store)
+  // so an existing profile keeps pinning the list. Every reader below is a
+  // function: a save on the card must reach chat, usage, discovery, and web
+  // without a restart.
+  const ollamaBaseURL = (): string =>
+    ollamaSettings.baseURL() ?? config.ollama?.baseURL ?? DEFAULT_OLLAMA_BASE_URL
+  const ollamaApiKeyRef = (): string =>
+    ollamaSettings.apiKeyRef() ?? config.ollama?.apiKeyRef ?? DEFAULT_OLLAMA_API_KEY_REF
+  const ollamaWebEnabled = (): boolean =>
+    ollamaSettings.web() ?? config.ollama?.web ?? false
+  const ollamaModelsOverridden = (): boolean => (config.ollama?.models?.length ?? 0) > 0
+  const ollamaCatalog = (): readonly OllamaModelSetting[] => {
+    const override = config.ollama?.models
+    if (override !== undefined && override.length > 0) {
+      return override.map(entry => ({
+        id: entry.id,
+        ...entry.name === undefined ? {} : { name: entry.name },
+        ...entry.contextWindow === undefined ? {} : { contextWindow: entry.contextWindow },
+        ...entry.maxTokens === undefined ? {} : { maxTokens: entry.maxTokens },
+        ...entry.inputModalities?.includes('image') === true ? { vision: true } : {},
+      }))
+    }
+    // No stored override and no config override means no catalog at all: the
+    // route ships no built-in rows, so the picker entry stays hidden.
+    return ollamaSettings.models() ?? []
+  }
 
   // Registration handles are kept so an auth-state change can re-announce the
   // route (`replace` fires `llm/adapters-updated`), which makes the web model
@@ -1252,6 +1299,8 @@ export function apply(ctx: Context, config: Config): void {
   let cursorHandle: AdapterRegistrationHandle | undefined
   let cursorAuthenticated: boolean | undefined
   let cursorAttachments: AttachmentStore | undefined
+  let ollamaAdapter: OllamaAdapter | undefined
+  let ollamaHandle: AdapterRegistrationHandle | undefined
   ctx.inject(['attachments'], attachmentsCtx => { cursorAttachments = attachmentsCtx.attachments })
   ctx.inject(['credentials'], credentialsCtx => {
     resolveExternalCredential = name => credentialsCtx.credentials.resolve(credentialRef(name))
@@ -1263,23 +1312,51 @@ export function apply(ctx: Context, config: Config): void {
     })
     cursorHandle = credentialsCtx.llm.registerAdapter(['cursor-subscription'], cursorAdapter)
     // Ollama Cloud rides beside cursor: a key-based route with no OAuth
-    // session, resolved per request so a key change needs no re-announce.
-    const ollamaAdapter = new OllamaAdapter({
-      apiKey: async () => (await resolveExternalCredential?.(config.ollama?.apiKeyRef ?? DEFAULT_OLLAMA_API_KEY_REF))?.value,
-      baseURL: config.ollama?.baseURL ?? DEFAULT_OLLAMA_BASE_URL,
-      ...config.ollama?.models !== undefined && config.ollama.models.length > 0 ? { models: config.ollama.models } : {},
+    // session. Every setting is read through the live getters above, so a
+    // Settings save reaches the next request without a restart; the stored
+    // catalog is the only source of models.
+    ollamaAdapter = new OllamaAdapter({
+      apiKey: async () => (await resolveExternalCredential?.(ollamaApiKeyRef()))?.value,
+      baseURL: ollamaBaseURL,
+      catalog: ollamaCatalog,
       resolveAttachments: () => cursorAttachments,
       streamIdleTimeoutMs,
+      onWarn,
     })
-    credentialsCtx.llm.registerAdapter([OLLAMA_CLOUD_ROUTE], ollamaAdapter)
+    ollamaHandle = credentialsCtx.llm.registerAdapter([OLLAMA_CLOUD_ROUTE], ollamaAdapter)
   })
+  // The web providers gate on the live effective switch, so a Settings save
+  // enables or disables them without re-registering: registration alone does
+  // not make a provider available, and an unavailable one stays out of the
+  // host's selection. The default stays off.
+  let ollamaWebRegistered = false
+  const syncOllamaWeb = (): void => {
+    if (ollamaWebRegistered || !ollamaWebEnabled()) return
+    ollamaWebRegistered = true
+    const ollamaApiKey = async (): Promise<string | undefined> =>
+      (await resolveExternalCredential?.(ollamaApiKeyRef()))?.value
+    ctx.inject(['web'], webCtx => {
+      webCtx.web.registerSearchProvider(new OllamaWebSearchProvider({
+        apiKey: ollamaApiKey,
+        baseURL: ollamaBaseURL,
+        enabled: ollamaWebEnabled,
+      }))
+      webCtx.web.registerFetchProvider(new OllamaWebFetchProvider({
+        apiKey: ollamaApiKey,
+        baseURL: ollamaBaseURL,
+        enabled: ollamaWebEnabled,
+      }))
+    })
+  }
+  syncOllamaWeb()
   const externalUsage = new ExternalUsageController(
     async name => resolveExternalCredential?.(name),
     hostFetch,
     // A custom ollama ref must reach usage status too, or chat and the
-    // quota card would read different credentials.
-    config.ollama?.apiKeyRef === undefined ? {} : { 'ollama-cloud': config.ollama.apiKeyRef },
-    config.ollama?.baseURL ?? DEFAULT_OLLAMA_BASE_URL,
+    // quota card would read different credentials. Both values are live so a
+    // Settings save moves chat and usage to the same target.
+    { 'ollama-cloud': ollamaApiKeyRef },
+    ollamaBaseURL,
   )
   const resetRedemption = new ResetRedemption(
     async (account, signal) => {
@@ -1422,6 +1499,64 @@ export function apply(ctx: Context, config: Config): void {
       await cursorModelSettings.set(validated)
       cursorHandle?.replace(['cursor-subscription'])
     },
+  }, {
+    settings: async () => ({
+      provider: 'ollama-cloud',
+      settings: ollamaSettings.get(),
+      effective: { baseURL: ollamaBaseURL(), apiKeyRef: ollamaApiKeyRef(), web: ollamaWebEnabled() },
+      // The picker's catalog, so the dialog can show what it is editing even
+      // while a config override keeps the store out of the effective list.
+      models: ollamaCatalog().map(entry => ({
+        id: entry.id,
+        name: entry.name ?? entry.id,
+        vision: entry.vision === true,
+        // A stored row may carry efforts without the flag (a hand-written
+        // row); either one means the model thinks.
+        thinking: entry.thinking === true || (entry.efforts?.length ?? 0) > 0,
+        ...entry.contextWindow === undefined ? {} : { contextWindow: entry.contextWindow },
+      })),
+      configOverridesModels: ollamaModelsOverridden(),
+    }),
+    setSettings: async input => {
+      let validated
+      try { validated = validateOllamaSettings(input) } catch (error) {
+        throw new BadRequest(error instanceof Error ? error.message : String(error))
+      }
+      await ollamaSettings.set(validated)
+      // The saved catalog and base URL replace what the adapter cached: drop
+      // the discovery snapshot, re-announce the route so the picker re-queries
+      // `listModels`, and let a web toggle take effect.
+      ollamaAdapter?.invalidateModels()
+      ollamaHandle?.replace([OLLAMA_CLOUD_ROUTE])
+      syncOllamaWeb()
+    },
+    models: async (input, signal) => {
+      const baseURL = input.baseURL ?? ollamaBaseURL()
+      // A typed key rides this listing only: it is never written to the store
+      // and never echoed back in the reply.
+      const apiKey = input.apiKey ?? (await resolveExternalCredential?.(ollamaApiKeyRef()))?.value
+      const timeout = AbortSignal.timeout(OLLAMA_PULL_TIMEOUT_MS)
+      const combined = AbortSignal.any([signal, timeout])
+      let discovered: OllamaDiscoveredModel[]
+      try {
+        discovered = await fetchOllamaModels({ baseURL, apiKey, signal: combined })
+      } catch (error) {
+        if (timeout.aborted) throw new Error(`Ollama model listing timed out after ${OLLAMA_PULL_TIMEOUT_MS}ms`)
+        throw error
+      }
+      return {
+        models: discovered.map(row => ({
+          id: row.id,
+          rawId: row.rawId,
+          name: row.rawId,
+          vision: row.inputModalities?.includes('image') === true,
+          thinking: row.thinking,
+          ...row.contextWindow === undefined ? {} : { contextWindow: row.contextWindow },
+          efforts: row.reasoning?.efforts.map(effort => String(effort.id)) ?? [],
+          ...row.reasoning?.defaultEffort === undefined ? {} : { defaultEffort: String(row.reasoning.defaultEffort) },
+        })),
+      }
+    },
   })
 
   // Proactively keep keychain-bound Claude accounts synced with Claude Code's
@@ -1461,22 +1596,6 @@ export function apply(ctx: Context, config: Config): void {
         enabled: () => preferences.toolEnabled('codex', 'web_search'),
         fetchFn: hostFetch,
       }))
-    })
-  }
-
-  // Ollama web capabilities ride the Cloud endpoints independently of the
-  // chat route. Registration stays opt-in (`ollama.web`): an always-on
-  // registration would join the host's available-provider set and can
-  // divert the web seam (or make it ambiguous) on installs that never
-  // asked for Ollama search. A profile pins `searchProvider`/`fetchProvider`
-  // to `ollama-cloud` to select them.
-  if (config.ollama?.web === true) {
-    const ollamaBaseURL = config.ollama?.baseURL ?? DEFAULT_OLLAMA_BASE_URL
-    const ollamaApiKey = async (): Promise<string | undefined> =>
-      (await resolveExternalCredential?.(config.ollama?.apiKeyRef ?? DEFAULT_OLLAMA_API_KEY_REF))?.value
-    ctx.inject(['web'], webCtx => {
-      webCtx.web.registerSearchProvider(new OllamaWebSearchProvider({ apiKey: ollamaApiKey, baseURL: ollamaBaseURL }))
-      webCtx.web.registerFetchProvider(new OllamaWebFetchProvider({ apiKey: ollamaApiKey, baseURL: ollamaBaseURL }))
     })
   }
 

@@ -14,6 +14,17 @@ export interface ExternalUsageStatus {
 
 type ResolveCredential = (name: string) => Promise<{ value: string } | undefined>
 
+/**
+ * A setting the controller reads per call. The function form keeps the Ollama
+ * reference and base URL live: the Settings card can change them after the
+ * controller was constructed.
+ */
+type LiveValue = string | (() => string)
+
+function valueOf(value: LiveValue): string {
+  return typeof value === 'function' ? value() : value
+}
+
 const DEFAULT_REFS: Record<ExternalUsageSource, string> = {
   'opencode-go': 'OPENCODE_GO_API_KEY',
   'kimi-code': 'KIMI_CODING_API_KEY',
@@ -23,14 +34,14 @@ const DEFAULT_REFS: Record<ExternalUsageSource, string> = {
 }
 
 export class ExternalUsageController {
-  private readonly refs: Record<ExternalUsageSource, string>
-  private readonly ollamaBaseURL: string
+  private readonly refs: Record<ExternalUsageSource, LiveValue>
+  private readonly ollamaBaseURL: LiveValue
 
   constructor(
     private readonly resolveCredential: ResolveCredential,
     private readonly http: typeof fetch = fetch,
-    refs: Partial<Record<ExternalUsageSource, string>> = {},
-    ollamaBaseURL: string = DEFAULT_OLLAMA_BASE_URL,
+    refs: Partial<Record<ExternalUsageSource, LiveValue>> = {},
+    ollamaBaseURL: LiveValue = DEFAULT_OLLAMA_BASE_URL,
   ) {
     this.refs = { ...DEFAULT_REFS, ...refs }
     this.ollamaBaseURL = ollamaBaseURL
@@ -38,19 +49,19 @@ export class ExternalUsageController {
 
   async status(): Promise<Record<ExternalUsageSource, ExternalUsageStatus>> {
     const values = await Promise.all(EXTERNAL_USAGE_SOURCES.map(async source => {
-      const value = await this.resolveCredential(this.refs[source])
+      const value = await this.resolveCredential(valueOf(this.refs[source]))
       return typeof value?.value === 'string' && value.value.length > 0
     }))
     return Object.fromEntries(EXTERNAL_USAGE_SOURCES.map((source, i) => [source, { configured: values[i] ?? false }])) as Record<ExternalUsageSource, ExternalUsageStatus>
   }
 
   async usage(source: ExternalUsageSource, signal?: AbortSignal): Promise<ProviderUsage> {
-    const credential = await this.resolveCredential(this.refs[source])
+    const credential = await this.resolveCredential(valueOf(this.refs[source]))
     if (credential?.value === undefined || credential.value.length === 0) {
       throw new Error(`${source} API key is not configured`)
     }
     if (source === 'minimax' || source === 'minimax-cn') return fetchMiniMaxUsage(credential.value, source === 'minimax-cn' ? 'cn' : 'global', this.http, signal)
-    if (source === 'ollama-cloud') return fetchOllamaUsage(credential.value, this.ollamaBaseURL, this.http, signal)
+    if (source === 'ollama-cloud') return fetchOllamaUsage(credential.value, valueOf(this.ollamaBaseURL), this.http, signal)
     return source === 'opencode-go'
       ? fetchOpenCodeGoUsage(credential.value, this.http, signal)
       : fetchKimiCodeUsage(credential.value, this.http, signal)

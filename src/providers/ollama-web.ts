@@ -34,12 +34,21 @@ export const OLLAMA_WEB_MAX_BYTES = 2 * 1024 * 1024
 export interface OllamaWebOptions {
   /** Resolve the API key per call; `undefined` means unconfigured. */
   apiKey: () => Promise<string | undefined>
-  /** Native base URL; web endpoints ride it unchanged (no `/v1` mapping). */
-  baseURL: string
+  /**
+   * Native base URL; web endpoints ride it unchanged (no `/v1` mapping). A
+   * function form is read per call so a Settings save applies without a
+   * restart.
+   */
+  baseURL: string | (() => string)
   /** Local gate; absent counts as enabled. Read on every call. */
   enabled?: () => boolean
   fetchFn?: FetchFn
   requestTimeoutMs?: number
+}
+
+/** The effective base URL; both forms are read fresh so saves apply live. */
+function baseURLOf(options: OllamaWebOptions): string {
+  return typeof options.baseURL === 'function' ? options.baseURL() : options.baseURL
 }
 
 function throwIfAborted(signal?: AbortSignal): void {
@@ -156,6 +165,17 @@ async function resolveWebKey(options: OllamaWebOptions, signal?: AbortSignal): P
   return apiKey
 }
 
+/**
+ * Refuse a call while the Settings switch is off. The host normally selects
+ * only available providers, but a pinned `searchProvider`/`fetchProvider`
+ * would otherwise keep routing through a provider the user turned off.
+ */
+function assertEnabled(options: OllamaWebOptions): void {
+  if (options.enabled?.() === false) {
+    throw new WebError('Ollama web search/fetch is disabled in Settings', 'OLLAMA_WEB_DISABLED')
+  }
+}
+
 /** Search provider behind DSH's stock web_search tool. */
 export class OllamaWebSearchProvider implements WebSearchProvider {
   readonly id = OLLAMA_WEB_PROVIDER_ID
@@ -164,7 +184,7 @@ export class OllamaWebSearchProvider implements WebSearchProvider {
 
   available(): boolean {
     try {
-      new URL(this.options.baseURL)
+      new URL(baseURLOf(this.options))
     } catch {
       return false
     }
@@ -172,8 +192,9 @@ export class OllamaWebSearchProvider implements WebSearchProvider {
   }
 
   async search(request: WebSearchRequest, signal?: AbortSignal): Promise<WebSearchResult> {
+    assertEnabled(this.options)
     const apiKey = await resolveWebKey(this.options, signal)
-    const base = this.options.baseURL.replace(/\/+$/, '')
+    const base = baseURLOf(this.options).replace(/\/+$/, '')
     const payload = await postJson(`${base}/web_search`, apiKey, {
       query: request.query,
       ...(request.maxResults === undefined ? {} : { max_results: Math.min(request.maxResults, OLLAMA_WEB_MAX_RESULTS) }),
@@ -204,7 +225,7 @@ export class OllamaWebFetchProvider implements WebFetchProvider {
 
   available(): boolean {
     try {
-      new URL(this.options.baseURL)
+      new URL(baseURLOf(this.options))
     } catch {
       return false
     }
@@ -212,8 +233,9 @@ export class OllamaWebFetchProvider implements WebFetchProvider {
   }
 
   async fetch(request: WebFetchRequest, signal?: AbortSignal): Promise<WebFetchResult> {
+    assertEnabled(this.options)
     const apiKey = await resolveWebKey(this.options, signal)
-    const base = this.options.baseURL.replace(/\/+$/, '')
+    const base = baseURLOf(this.options).replace(/\/+$/, '')
     const payload = await postJson(`${base}/web_fetch`, apiKey, { url: request.url }, this.options, signal)
     // Official shape per docs: {title, content, links}. The endpoint
     // answers the retrieval itself, so the request URL is the result URL

@@ -128,9 +128,9 @@ export async function fetchKimiCodeUsage(
         : durationMs === undefined && unit === '' ? 'weekly' : 'other'
     const resetsAt = kimiReset(detail)
     const scope = detail.name ?? detail.title ?? item.name ?? item.title
-    // A window kind other than 'other' carries a vendor-declared span. The
-    // marker starts around min(reset − span, now) so the cursor places;
-    // pace stays unverified: rolling semantics are not established.
+    // A vendor-declared span anchors the display marker at
+    // min(reset − span, now); pace stays unverified (rolling semantics
+    // are not established).
     const displayStart = resetsAt !== undefined && durationMs !== undefined
       ? { startsAt: Math.min(resetsAt - durationMs, Date.now()) }
       : {}
@@ -139,7 +139,7 @@ export async function fetchKimiCodeUsage(
       ...(resetsAt === undefined ? {} : { resetsAt }),
       ...(durationMs === undefined ? {} : { windowDurationMs: durationMs }),
       // A whole seven-day bucket reset, not a rolling span, only where the
-      // endpoint actually said 7 DAY; the assumed summary span is not proof.
+      // endpoint actually said 7 DAY.
       ...(durationMs === 604_800_000 ? { fixedWindow: true } : {}),
       ...displayStart,
     })
@@ -173,6 +173,29 @@ export async function fetchKimiCodeUsage(
     })
   }
   return { supported: true, windows, plan: 'Kimi Code' }
+}
+
+/** A usage ratio in any spelling the Cloud endpoint has used. */
+function usageRatio(window: Record<string, unknown>): number | undefined {
+  for (const key of ['usage', 'used_ratio', 'usedRatio', 'consumed', 'consumed_ratio']) {
+    const value = numeric(window[key])
+    if (value !== undefined && value >= 0) return value
+  }
+  return undefined
+}
+
+/** A reset instant in any spelling the Cloud endpoint has used. */
+function usageReset(window: Record<string, unknown>): number | undefined {
+  for (const key of ['resets_at', 'reset_at', 'reset', 'resetsAt']) {
+    const value = window[key]
+    if (typeof value === 'string') {
+      const parsed = Date.parse(value)
+      if (Number.isFinite(parsed)) return parsed
+    } else if (typeof value === 'number' && Number.isFinite(value)) {
+      return value < 1e12 ? value * 1000 : value
+    }
+  }
+  return undefined
 }
 
 /**

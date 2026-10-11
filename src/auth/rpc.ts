@@ -36,6 +36,7 @@ export const SUBSCRIPTIONS_AUTH_ENDPOINTS = [
   'externalStatus', 'externalUsage',
   'cursorStatus', 'cursorLogin', 'cursorCancel', 'cursorLogout', 'cursorUsage', 'cursorModels',
   'cursorSettings', 'cursorSetSettings',
+  'ollamaSettings', 'ollamaSetSettings', 'ollamaModels',
   'image', 'video', 'prepareReset', 'consumeReset',
   'speed', 'setSpeed',
   'modelDefaults', 'setModelDefault',
@@ -226,6 +227,61 @@ export interface CursorRpcController {
   setSettings(input: unknown): Promise<void>
 }
 
+/** One model in the Ollama Cloud picker catalog, with its capability flags. */
+export interface OllamaModelView {
+  id: string
+  name: string
+  /** The endpoint advertised the `vision` capability. */
+  vision: boolean
+  /** The endpoint advertised the `thinking` capability. */
+  thinking: boolean
+  contextWindow?: number
+}
+
+/** One candidate returned by the cloud listing; adopting it stores `id`. */
+export interface OllamaCloudCandidate {
+  /** Normalized wire id, e.g. `glm-5.3:cloud`. */
+  id: string
+  /** The id exactly as the listing published it, e.g. `glm-5.3`. */
+  rawId: string
+  /** Display basename for the checkbox row. */
+  name: string
+  vision: boolean
+  thinking: boolean
+  contextWindow?: number
+  efforts: string[]
+  defaultEffort?: string
+}
+
+/**
+ * What the Ollama card renders: the stored overrides, the effective values
+ * after config/default fallback, and the catalog the picker serves.
+ */
+export interface OllamaSettingsView {
+  provider: 'ollama-cloud'
+  /** The stored document; absent fields mean "no override". */
+  settings: unknown
+  effective: { baseURL: string; apiKeyRef: string; web: boolean }
+  /** The effective catalog, in picker order (empty hides the picker entry). */
+  models: OllamaModelView[]
+  /** A non-empty `config.ollama.models` wins over the store, so card edits are inert. */
+  configOverridesModels: boolean
+}
+
+/** Ollama Cloud catalog and connection settings; the API key stays in DSH credentials. */
+export interface OllamaRpcController {
+  settings(): Promise<OllamaSettingsView>
+  /** Validate and persist the store document, then re-announce the route. */
+  setSettings(input: unknown): Promise<void>
+  /**
+   * List the endpoint's Cloud models for the adoption checklist.
+   * @param input - an optional one-time API key and base URL override; the
+   *   key is used for this listing only and never persisted.
+   * @param signal - caller cancellation from the RPC transport.
+   */
+  models(input: { apiKey?: string; baseURL?: string }, signal: AbortSignal): Promise<{ models: OllamaCloudCandidate[] }>
+}
+
 /**
  * Structural face of `connection.fetch.register` shared by both dsh lines.
  * The 0.1.2-alpha typings list only `GET`/`HEAD` methods and no
@@ -342,6 +398,17 @@ function readString(payload: unknown, field: string): string {
   return value
 }
 
+/** Read a field that may be omitted, rejecting an empty or non-string value. */
+function readOptionalString(payload: unknown, field: string): string | undefined {
+  if (typeof payload !== 'object' || payload === null) throw new BadRequest('payload must be an object')
+  const value = (payload as Record<string, unknown>)[field]
+  if (value === undefined) return undefined
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new BadRequest(`payload.${field} must be a non-empty string when present`)
+  }
+  return value
+}
+
 /** Validate the `setModelDefault` endpoint's payload. */
 function readModelDefaultInput(payload: unknown): { provider: ProviderId; model: string; effort?: string } {
   const provider = readProvider(payload)
@@ -452,6 +519,7 @@ async function dispatch(
   providerSettings?: ProviderSettingsController,
   externalUsage?: ExternalUsageRpcController,
   cursor?: CursorRpcController,
+  ollama?: OllamaRpcController,
 ): Promise<RpcResult<unknown>> {
   switch (endpoint) {
     case 'providerSettings':
@@ -541,6 +609,23 @@ async function dispatch(
       if (payload === null || typeof payload !== 'object') throw new BadRequest('payload must be an object')
       await cursor.setSettings((payload as Record<string, unknown>).settings)
       return ok({ ok: true })
+    case 'ollamaSettings':
+      if (!ollama) throw new BadRequest('Ollama settings are unavailable')
+      return ok(await ollama.settings())
+    case 'ollamaSetSettings':
+      if (!ollama) throw new BadRequest('Ollama settings are unavailable')
+      if (payload === null || typeof payload !== 'object') throw new BadRequest('payload must be an object')
+      await ollama.setSettings((payload as Record<string, unknown>).settings)
+      return ok({ ok: true })
+    case 'ollamaModels': {
+      if (!ollama) throw new BadRequest('Ollama settings are unavailable')
+      const apiKey = readOptionalString(payload, 'apiKey')
+      const baseURL = readOptionalString(payload, 'baseURL')
+      return ok(await ollama.models({
+        ...apiKey === undefined ? {} : { apiKey },
+        ...baseURL === undefined ? {} : { baseURL },
+      }, signal))
+    }
     case 'prepareReset':
       if (!controller.prepareReset) throw new BadRequest('Reset redemption unavailable')
       return ok(await controller.prepareReset(readString(payload, 'account'), signal))
@@ -579,6 +664,10 @@ async function dispatch(
  * @param controller - the auth operations backing the endpoints.
  * @param speed - the per-session speed-tier state backing the Speed toggle.
  * @param modelDefaults - optional per-model default-effort state backing `modelDefaults`/`setModelDefault`.
+ * @param providerSettings - optional OAuth provider/account preferences.
+ * @param externalUsage - optional credential-backed quota readers.
+ * @param cursor - optional Cursor account and model-visibility actions.
+ * @param ollama - optional Ollama Cloud catalog and connection settings.
  */
 export function registerAuthRpc(
   ctx: Context,
@@ -588,6 +677,7 @@ export function registerAuthRpc(
   providerSettings: ProviderSettingsController | undefined = undefined,
   externalUsage: ExternalUsageRpcController | undefined = undefined,
   cursor: CursorRpcController | undefined = undefined,
+  ollama: OllamaRpcController | undefined = undefined,
 ): void {
   // `connection` is not in this plugin's inject list (headless compositions
   // lack it), so its startup order is unconstrained: defer registration until
@@ -605,7 +695,7 @@ export function registerAuthRpc(
     const connection = ctx.get('connection') as HostConnectionHandle
     const handler: ConnectionRpcHandler = async (endpoint, payload, signal) => {
       try {
-        return await dispatch(controller, speed, modelDefaults, endpoint, payload, signal, providerSettings, externalUsage, cursor)
+        return await dispatch(controller, speed, modelDefaults, endpoint, payload, signal, providerSettings, externalUsage, cursor, ollama)
       } catch (error) {
         return failure(error)
       }

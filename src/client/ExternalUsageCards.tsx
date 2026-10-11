@@ -8,7 +8,7 @@ import { UsageMeter } from './UsageMeter.js'
 import { displayUsedPercent } from './usage-pace.js'
 import type { SubscriptionsKey } from './locales.js'
 
-type Source = 'opencode-go' | 'kimi-code' | 'minimax' | 'minimax-cn' | 'ollama-cloud'
+type Source = 'opencode-go' | 'kimi-code' | 'minimax' | 'minimax-cn'
 type Translate = SubscriptionsSectionInjected['t']
 
 const SOURCES: readonly { id: Source; name: string; ref: string; hint?: SubscriptionsKey }[] = [
@@ -16,8 +16,6 @@ const SOURCES: readonly { id: Source; name: string; ref: string; hint?: Subscrip
   { id: 'kimi-code', name: 'Kimi Code', ref: 'KIMI_CODING_API_KEY' },
   { id: 'minimax', name: 'MiniMax', ref: 'MINIMAX_API_KEY' },
   { id: 'minimax-cn', name: 'MiniMax CN', ref: 'MINIMAX_CN_API_KEY' },
-  // OLLAMA_API_KEY has no slot on the Models page: point at the file.
-  { id: 'ollama-cloud', name: 'Ollama Cloud', ref: 'OLLAMA_API_KEY', hint: 'externalUsageConfigureFile' },
 ]
 
 type Status = Record<Source, { configured: boolean }>

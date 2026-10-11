@@ -1,7 +1,8 @@
 /**
- * Ollama Cloud adapter tests: static catalog, chat request shape, vision
- * gating, and credential/catalog failures. All fetches are injected; the
- * fake proves the wire contract, not the live endpoint.
+ * Ollama Cloud adapter tests: the stored catalog, chat request shape, vision
+ * gating, discovery normalization, and credential/catalog failures. All
+ * fetches are injected; the fake proves the wire contract, not the live
+ * endpoint.
  */
 
 import { test } from 'node:test'
@@ -12,10 +13,12 @@ import type { AttachmentStore } from '@deepseek-ai/dsh-attachment'
 import {
   DEFAULT_OLLAMA_BASE_URL,
   fetchOllamaModels,
+  normalizeOllamaModelId,
   OLLAMA_CLOUD_ROUTE,
   OllamaAdapter,
   ollamaChatBaseURL,
 } from '../src/providers/ollama.js'
+import type { OllamaModelSetting } from '../src/providers/ollama-settings.js'
 import type { FetchFn } from '../src/providers/common.js'
 import { OllamaWebFetchProvider, OllamaWebSearchProvider } from '../src/providers/ollama-web.js'
 
@@ -49,6 +52,60 @@ function fakeFetch(routes: Record<string, { payload: string; status?: number } |
 }
 
 const CHAT_URL = `${ollamaChatBaseURL(DEFAULT_OLLAMA_BASE_URL)}/chat/completions`
+
+/**
+ * The catalog the Settings card would store: the three Cloud models the
+ * route used to ship built in, with the capabilities `/api/show` reported.
+ */
+const CATALOG: readonly OllamaModelSetting[] = [
+  {
+    id: 'deepseek-v4.1-flash:cloud',
+    name: 'DeepSeek V4.1 Flash (cloud)',
+    contextWindow: 1_000_000,
+    vision: true,
+    thinking: true,
+    efforts: ['off', 'low', 'high', 'max'],
+    defaultEffort: 'high',
+  },
+  {
+    id: 'glm-5.3:cloud',
+    name: 'GLM-5.3 (cloud)',
+    contextWindow: 1_000_000,
+    thinking: true,
+    efforts: ['low', 'high', 'max'],
+    defaultEffort: 'max',
+  },
+  {
+    id: 'glm-5.3-flash:cloud',
+    name: 'GLM-5.3-Flash (cloud)',
+    contextWindow: 1_000_000,
+    vision: true,
+    thinking: true,
+    efforts: ['low', 'high', 'max'],
+    defaultEffort: 'max',
+  },
+]
+
+/**
+ * Build an adapter over a live catalog snapshot, defaulting to {@link CATALOG}.
+ * The route has no built-in models, so every test must state its catalog.
+ */
+function makeAdapter(options: {
+  apiKey?: () => Promise<string | undefined>
+  catalog?: readonly OllamaModelSetting[]
+  fetchFn?: FetchFn
+  discovery?: boolean
+  resolveAttachments?: () => AttachmentStore | undefined
+} = {}): OllamaAdapter {
+  return new OllamaAdapter({
+    apiKey: options.apiKey ?? (async () => 'k'),
+    baseURL: () => DEFAULT_OLLAMA_BASE_URL,
+    catalog: () => options.catalog ?? CATALOG,
+    ...options.fetchFn === undefined ? {} : { fetchFn: options.fetchFn },
+    ...options.discovery === undefined ? {} : { discovery: options.discovery },
+    ...options.resolveAttachments === undefined ? {} : { resolveAttachments: options.resolveAttachments },
+  })
+}
 
 function options(overrides?: Partial<GenerateOptions>): GenerateOptions {
   return {
@@ -84,9 +141,9 @@ test('ollamaChatBaseURL maps the native base to its /v1 sibling', () => {
   assert.equal(ollamaChatBaseURL('http://localhost:11434'), 'http://localhost:11434/v1')
 })
 
-test('listModels advertises the three catalogued models when a key exists', async () => {
-  // discovery:false keeps this unit on the static catalog without network.
-  const adapter = new OllamaAdapter({ apiKey: async () => 'k', discovery: false })
+test('listModels serves the stored catalog when a key exists', async () => {
+  // discovery:false keeps this unit on the stored catalog without network.
+  const adapter = makeAdapter({ discovery: false })
   const models = await adapter.listModels(OLLAMA_CLOUD_ROUTE)
   assert.deepEqual(models.map(model => model.id), [
     'deepseek-v4.1-flash:cloud',
@@ -95,17 +152,29 @@ test('listModels advertises the three catalogued models when a key exists', asyn
   ])
   // No key means logged out: the route hides instead of advertising
   // models every request would fail for.
-  const loggedOut = new OllamaAdapter({ apiKey: async () => undefined })
+  const loggedOut = makeAdapter({ apiKey: async () => undefined })
   assert.deepEqual(await loggedOut.listModels(OLLAMA_CLOUD_ROUTE), [])
 })
 
-test('resolveModel carries context and the family default effort', async () => {
+test('listModels returns nothing when no model is configured', async () => {
+  // The route ships no built-in rows: an empty store must hide the picker
+  // entry even though the key resolves, and chat must reject the model.
+  const adapter = makeAdapter({ catalog: [], discovery: false })
+  assert.deepEqual(await adapter.listModels(OLLAMA_CLOUD_ROUTE), [])
+  await assert.rejects(
+    adapter.resolveModel(OLLAMA_CLOUD_ROUTE, 'glm-5.3:cloud'),
+    (error: unknown) => error instanceof LlmError && error.code === 'UNKNOWN_MODEL',
+  )
+  await assert.rejects(
+    (async () => { for await (const chunk of adapter.stream(options())) void chunk })(),
+    (error: unknown) => error instanceof LlmError && error.code === 'UNKNOWN_MODEL',
+  )
+})
+
+test('resolveModel carries context and the stored default effort', async () => {
   // Discovery has no fake here, so it must never reach the network: a
-  // rejecting fetch proves resolveModel falls back to the static row.
-  const adapter = new OllamaAdapter({
-    apiKey: async () => 'k',
-    fetchFn: (() => Promise.reject(new Error('offline'))) as FetchFn,
-  })
+  // rejecting fetch proves resolveModel falls back to the stored row.
+  const adapter = makeAdapter({ fetchFn: (() => Promise.reject(new Error('offline'))) as FetchFn })
   const glm = await adapter.resolveModel(OLLAMA_CLOUD_ROUTE, 'glm-5.3:cloud')
   assert.equal(glm.context?.contextWindow, 1_000_000)
   assert.deepEqual(glm.reasoning?.efforts.map(entry => entry.id), ['low', 'high', 'max'])
@@ -119,6 +188,27 @@ test('resolveModel carries context and the family default effort', async () => {
   )
 })
 
+test('a stored row supplies its own efforts and context', async () => {
+  const adapter = makeAdapter({
+    catalog: [{
+      id: 'kimi-k3:cloud',
+      name: 'Kimi K3',
+      contextWindow: 131_072,
+      vision: true,
+      thinking: true,
+      efforts: ['low', 'medium', 'high'],
+      defaultEffort: 'medium',
+    }],
+    discovery: false,
+  })
+  const resolved = await adapter.resolveModel(OLLAMA_CLOUD_ROUTE, 'kimi-k3:cloud')
+  assert.equal(resolved.name, 'Kimi K3')
+  assert.equal(resolved.context?.contextWindow, 131_072)
+  assert.deepEqual(resolved.inputModalities, ['text', 'image'])
+  assert.deepEqual(resolved.reasoning?.efforts.map(entry => entry.id), ['low', 'medium', 'high'])
+  assert.equal(resolved.reasoning?.defaultEffort, 'medium')
+})
+
 test('stream posts max_tokens and finishes on the chat wire', async () => {
   const seen: { headers: Record<string, string>; body: Record<string, unknown> }[] = []
   const fetchFn = (async (_input: RequestInfo | URL, init?: RequestInit) => {
@@ -128,7 +218,7 @@ test('stream posts max_tokens and finishes on the chat wire', async () => {
     })
     return new Response(COMPLETED_SSE)
   }) as FetchFn
-  const adapter = new OllamaAdapter({ apiKey: async () => 'k', fetchFn })
+  const adapter = makeAdapter({ fetchFn })
   const chunks: { type: string }[] = []
   for await (const chunk of adapter.stream(options({
     tools: [{ name: 'bash', description: 'run', parameters: { type: 'object' } }],
@@ -154,7 +244,7 @@ test("stream maps a selected 'off' effort to the wire spelling 'none'", async ()
     bodies.push(JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>)
     return new Response(COMPLETED_SSE)
   }) as FetchFn
-  const adapter = new OllamaAdapter({ apiKey: async () => 'k', fetchFn, discovery: false })
+  const adapter = makeAdapter({ fetchFn, discovery: false })
   for await (const chunk of adapter.stream(options({
     model: 'deepseek-v4.1-flash:cloud',
     reasoningEffort: ReasoningEffortId('off'),
@@ -163,7 +253,7 @@ test("stream maps a selected 'off' effort to the wire spelling 'none'", async ()
 })
 
 test('stream without a key fails before provider I/O', async () => {
-  const adapter = new OllamaAdapter({
+  const adapter = makeAdapter({
     apiKey: async () => undefined,
     fetchFn: (() => Promise.reject(new Error('must not fetch'))) as FetchFn,
   })
@@ -175,15 +265,14 @@ test('stream without a key fails before provider I/O', async () => {
 
 test('non-vision models never send image bytes', async () => {
   const { fetchFn, bodies } = fakeFetch({ [CHAT_URL]: { payload: COMPLETED_SSE } })
-  const adapter = new OllamaAdapter({ apiKey: async () => 'k', fetchFn })
+  const adapter = makeAdapter({ fetchFn })
   for await (const chunk of adapter.stream(options({ model: 'glm-5.3:cloud', messages: imageMessage() }))) void chunk
   const sent = JSON.stringify(bodies(CHAT_URL)[0])
   assert.ok(!sent.includes('image_url'), `vision bytes leaked: ${sent}`)
   const { fetchFn: visionFetch, bodies: visionBodies } = fakeFetch({ [CHAT_URL]: { payload: COMPLETED_SSE } })
   // The store is never touched for pre-resolved bytes; its presence alone
   // satisfies the resolution precondition.
-  const visionAdapter = new OllamaAdapter({
-    apiKey: async () => 'k',
+  const visionAdapter = makeAdapter({
     fetchFn: visionFetch,
     resolveAttachments: () => ({}) as AttachmentStore,
   })
@@ -209,27 +298,43 @@ function fakeDiscovery(tags: unknown, shows: Record<string, unknown>): FetchFn {
   }) as FetchFn
 }
 
-test('fetchOllamaModels maps capabilities and num_ctx', async () => {
-  const models = await fetchOllamaModels({
-    baseURL: DEFAULT_OLLAMA_BASE_URL,
-    apiKey: 'k',
-    fetchFn: fakeDiscovery(
-      // The live endpoint lists bare names; the raw fetcher keeps them.
-      { models: [{ model: 'glm-5.3' }, { name: 'deepseek-v4.1-flash' }] },
-      {
-        'glm-5.3': { capabilities: ['tools', 'thinking', 'cloud'], parameters: 'num_ctx 1048576' },
-        'deepseek-v4.1-flash': {
-          capabilities: ['vision', 'tools', 'thinking', 'cloud'],
-          model_info: { 'llama.context_length': 1000000 },
-        },
+test('fetchOllamaModels normalizes listing ids and maps capabilities', async () => {
+  const requested: string[] = []
+  const inner = fakeDiscovery(
+    // The live endpoint lists bare names; the fetcher normalizes them to the
+    // wire ids the chat endpoint takes.
+    { models: [{ model: 'glm-5.3' }, { name: 'deepseek-v4.1-flash' }] },
+    {
+      'glm-5.3': { capabilities: ['tools', 'thinking', 'cloud'], parameters: 'num_ctx 1048576' },
+      'deepseek-v4.1-flash': {
+        capabilities: ['vision', 'tools', 'thinking', 'cloud'],
+        model_info: { 'llama.context_length': 1000000 },
       },
-    ),
-  })
-  assert.deepEqual(models.map(model => model.id), ['glm-5.3', 'deepseek-v4.1-flash'])
+    },
+  )
+  // Record the raw id each `/api/show` asked about: normalization happens
+  // after enrichment, so the endpoint still sees the id it published.
+  const fetchFn = ((input: RequestInfo | URL, init?: RequestInit) => {
+    if (String(input) === SHOW_URL) requested.push((JSON.parse(String(init?.body ?? '{}')) as { model: string }).model)
+    return inner(input, init)
+  }) as FetchFn
+  const models = await fetchOllamaModels({ baseURL: DEFAULT_OLLAMA_BASE_URL, apiKey: 'k', fetchFn })
+  assert.deepEqual(models.map(model => model.id), ['glm-5.3:cloud', 'deepseek-v4.1-flash:cloud'])
+  assert.deepEqual(models.map(model => model.rawId), ['glm-5.3', 'deepseek-v4.1-flash'])
+  assert.deepEqual(requested.sort(), ['deepseek-v4.1-flash', 'glm-5.3'])
   assert.equal(models[0]?.contextWindow, 1048576)
+  assert.equal(models[0]?.thinking, true)
   assert.deepEqual(models[0]?.inputModalities, ['text'])
   assert.deepEqual(models[1]?.inputModalities, ['text', 'image'])
   assert.equal(models[1]?.reasoning?.defaultEffort, 'high')
+})
+
+test('normalizeOllamaModelId tags only the official Cloud host', () => {
+  assert.equal(normalizeOllamaModelId('glm-5.3', DEFAULT_OLLAMA_BASE_URL), 'glm-5.3:cloud')
+  assert.equal(normalizeOllamaModelId('glm-5.3:cloud', DEFAULT_OLLAMA_BASE_URL), 'glm-5.3:cloud')
+  // A local daemon takes the bare name; only the Cloud wire needs the tag.
+  assert.equal(normalizeOllamaModelId('glm-5.3', 'http://localhost:11434'), 'glm-5.3')
+  assert.equal(normalizeOllamaModelId('qwen3:8b', 'http://localhost:11434'), 'qwen3:8b')
 })
 
 test('a failed show degrades to an id-only row; a failed listing fails', async () => {
@@ -239,6 +344,7 @@ test('a failed show degrades to an id-only row; a failed listing fails', async (
     fetchFn: fakeDiscovery({ models: [{ model: 'new-model:cloud' }] }, {}),
   })
   assert.deepEqual(models.map(model => model.id), ['new-model:cloud'])
+  assert.equal(models[0]?.thinking, false)
   await assert.rejects(
     fetchOllamaModels({
       baseURL: DEFAULT_OLLAMA_BASE_URL,
@@ -249,9 +355,9 @@ test('a failed show degrades to an id-only row; a failed listing fails', async (
   )
 })
 
-test('listModels falls back to the static catalog when discovery fails', async () => {
+test('listModels falls back to the stored catalog when discovery fails', async () => {
   const failing: FetchFn = (() => Promise.reject(new Error('down'))) as FetchFn
-  const adapter = new OllamaAdapter({ apiKey: async () => 'k', fetchFn: failing })
+  const adapter = makeAdapter({ fetchFn: failing })
   const models = await adapter.listModels(OLLAMA_CLOUD_ROUTE)
   assert.deepEqual(models.map(model => model.id), [
     'deepseek-v4.1-flash:cloud',
@@ -260,12 +366,11 @@ test('listModels falls back to the static catalog when discovery fails', async (
   ])
 })
 
-test('listModels advertises the static allowlist even when discovery lists bare names', async () => {
-  // Regression test for picker entries no request could serve: the live
-  // endpoint lists bare names the chat wire rejects, so discovery may
-  // enrich the static rows but never extend the picker.
-  const adapter = new OllamaAdapter({
-    apiKey: async () => 'k',
+test('listModels advertises the stored allowlist even when discovery lists more', async () => {
+  // Regression test for picker entries no request could serve: discovery may
+  // enrich the stored rows but never extend the picker, so a model the user
+  // never adopted stays out.
+  const adapter = makeAdapter({
     fetchFn: fakeDiscovery(
       { models: [{ model: 'glm-5.3' }, { model: 'kimi-k3' }] },
       { 'glm-5.3': { capabilities: ['tools', 'thinking', 'cloud'], parameters: 'num_ctx 262144' } },
@@ -281,13 +386,13 @@ test('listModels advertises the static allowlist even when discovery lists bare 
 
 test('listModels hides the route when the key is rejected', async () => {
   const denied: FetchFn = (async () => new Response('', { status: 401 })) as FetchFn
-  const adapter = new OllamaAdapter({ apiKey: async () => 'bad', fetchFn: denied })
+  const adapter = makeAdapter({ apiKey: async () => 'bad', fetchFn: denied })
   assert.deepEqual(await adapter.listModels(OLLAMA_CLOUD_ROUTE), [])
 })
 
-test('a 403 falls back to the static catalog instead of hiding the route', async () => {
+test('a 403 falls back to the stored catalog instead of hiding the route', async () => {
   const forbidden: FetchFn = (async () => new Response('', { status: 403 })) as FetchFn
-  const adapter = new OllamaAdapter({ apiKey: async () => 'k', fetchFn: forbidden })
+  const adapter = makeAdapter({ fetchFn: forbidden })
   const models = await adapter.listModels(OLLAMA_CLOUD_ROUTE)
   assert.deepEqual(models.map(model => model.id), [
     'deepseek-v4.1-flash:cloud',
@@ -296,9 +401,8 @@ test('a 403 falls back to the static catalog instead of hiding the route', async
   ])
 })
 
-test('discovery enriches capabilities but keeps the static display name', async () => {
-  const adapter = new OllamaAdapter({
-    apiKey: async () => 'k',
+test('discovery enriches capabilities but keeps the stored display name', async () => {
+  const adapter = makeAdapter({
     fetchFn: fakeDiscovery(
       { models: [{ model: 'glm-5.3' }] },
       { 'glm-5.3': { capabilities: ['tools', 'thinking', 'cloud'], parameters: 'num_ctx 262144' } },
@@ -342,6 +446,33 @@ test('web search posts the query and drops url-less rows', async () => {
     body: { kind: 'text', content: '# hi' },
     truncated: false,
   })
+})
+
+test('web providers read the base URL and the switch live', async () => {
+  let enabled = false
+  let base = DEFAULT_OLLAMA_BASE_URL
+  const seen: string[] = []
+  const fetchFn = (async (input: RequestInfo | URL) => {
+    seen.push(String(input))
+    return Response.json({ results: [] })
+  }) as FetchFn
+  const provider = new OllamaWebSearchProvider({
+    apiKey: async () => 'k' as string | undefined,
+    baseURL: () => base,
+    enabled: () => enabled,
+    fetchFn,
+  })
+  // Off by default: unavailable, and a pinned profile's call is refused
+  // before any provider I/O.
+  assert.equal(provider.available(), false)
+  await assert.rejects(() => provider.search({ query: 'q' }),
+    (error: unknown) => error instanceof Error && (error as { code?: string }).code === 'OLLAMA_WEB_DISABLED')
+  assert.deepEqual(seen, [])
+  enabled = true
+  base = 'http://localhost:11434'
+  assert.equal(provider.available(), true)
+  await provider.search({ query: 'q' })
+  assert.deepEqual(seen, ['http://localhost:11434/web_search'])
 })
 
 test('web providers fail loudly without a key and never follow redirects', async () => {
@@ -492,41 +623,4 @@ test('an undeclared oversized stream stops early and cancels', async () => {
     (error: unknown) => error instanceof Error && (error as { code?: string }).code === 'OLLAMA_WEB_BAD_REPLY')
   assert.equal(cancelled, true)
   assert.ok(pulls <= 12, `read ${String(pulls)} chunks past the cap`)
-})
-
-test('mount registers the ollama-cloud route serving the static catalog', async () => {
-  const { Context } = await import('@deepseek-ai/cordis')
-  const { createFakeConnection } = await import('./fake-connection.js')
-  const plugin = await import('../src/index.js')
-  const routes = new Map<string, unknown>()
-  const ctx = new Context()
-  ctx.provide('llm', {
-    registerAdapter: (ids: string[], adapter: unknown) => {
-      for (const id of ids) routes.set(id, adapter)
-      return Object.assign(() => {}, { replace: () => {} })
-    },
-  })
-  ctx.provide('connection', createFakeConnection().connection)
-  ctx.provide('credentials', {
-    resolve: async (ref: string) => ref === 'OLLAMA_API_KEY' ? { value: 'k', source: 'env' } : undefined,
-  })
-  // Live discovery stays offline: the offline fetch proves listModels
-  // served the static catalog through real wiring.
-  ctx.plugin(plugin, {
-    providers: [],
-    codexClientVersion: '0.153.4',
-    ollama: { apiKeyRef: 'OLLAMA_API_KEY', baseURL: 'https://ollama.com/api', models: [], web: false },
-  })
-  // The adapter's fetchFn defaults to hostFetch; stub globalThis.fetch so
-  // an offline discovery fails fast and the static fallback serves.
-  const originalFetch = globalThis.fetch
-  globalThis.fetch = (() => Promise.reject(new Error('offline'))) as typeof globalThis.fetch
-  await new Promise(resolve => setTimeout(resolve, 50))
-  const adapter = routes.get('ollama-cloud') as Pick<OllamaAdapter, 'listModels'>
-  assert.ok(adapter !== undefined, 'ollama-cloud route was registered')
-  assert.deepEqual((await adapter.listModels('ollama-cloud')).map(model => model.id), [
-    'deepseek-v4.1-flash:cloud',
-    'glm-5.3:cloud',
-    'glm-5.3-flash:cloud',
-  ])
 })
