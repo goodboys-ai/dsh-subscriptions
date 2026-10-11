@@ -207,10 +207,11 @@ function mergeDiscoveredReasoning(
     ? vendorLevels
     : [...row.efforts, ...(row.efforts.length > 0 ? [] : reasoningFamily(row.id)?.efforts ?? [])]
   const vendorDefault = discovered.defaultEffort === undefined ? undefined : String(discovered.defaultEffort)
-  const candidate = vendorDefault ?? configuredDefault ?? row.defaultEffort
-  // The runtime rejects a default the model does not advertise, so an
-  // override the endpoint no longer lists falls back to the first level.
-  const defaultEffort = candidate !== undefined && efforts.includes(candidate) ? candidate : efforts[0]
+  // The user's explicit choice wins only within the levels the model still
+  // offers: a stored default outside a retracted vendor set must not ride
+  // the wire, so it falls through to the vendor or stored fallback.
+  const priority = [configuredDefault, vendorDefault, row.defaultEffort]
+  const defaultEffort = priority.find(entry => entry !== undefined && efforts.includes(entry))
   return {
     efforts: efforts.map(effort => ({ id: ReasoningEffortId(effort), name: effortDisplayName(effort) })),
     ...defaultEffort === undefined ? {} : { defaultEffort: ReasoningEffortId(defaultEffort) },

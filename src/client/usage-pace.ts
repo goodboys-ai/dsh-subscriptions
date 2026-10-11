@@ -76,19 +76,6 @@ export function usageBarColor(used: number, elapsed?: number, preset: UsageColor
 }
 
 /**
- * Whether the window's derived start is provider-verified: an explicit start,
- * or a fixed span the provider vouched for. A display start assumed from the
- * window kind is not — the marker may ride it, pace warnings must not.
- */
-export function hasVerifiedStart(window: UsageWindow): boolean {
-  if (window.startsAt !== undefined) return true
-  return window.fixedWindow === true
-    && window.windowDurationMs !== undefined
-    && Number.isFinite(window.windowDurationMs)
-    && window.windowDurationMs > 0
-}
-
-/**
  * Marker position from the window's display-only assumed start
  * (`displayStartsAt`): the reading and its age are irrelevant, exactly
  * like the verified marker. Returns undefined when the window carries no

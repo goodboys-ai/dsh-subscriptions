@@ -3,8 +3,8 @@ import type { CSSProperties } from 'react'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SubscriptionsSectionInjected } from './SubscriptionsSection.js'
 import { callSubscriptionsAuth } from './subscriptions-rpc.js'
-import { adoptCandidates, contextLabel, moveModel, removeModel } from './ollama-draft.js'
-import type { OllamaCloudCandidate, OllamaModelDraft, OllamaSettingsDraft, OllamaSettingsView } from './ollama-draft.js'
+import { adoptCandidates, contextLabel, moveModel, removeModel, renameModel, setModelEffort } from './ollama-draft.js'
+import type { OllamaCloudCandidate, OllamaSettingsDraft, OllamaSettingsView } from './ollama-draft.js'
 import { subscriptionCardStyles as styles } from './subscription-card-styles.js'
 import { providerSettingsCss } from './provider-settings-styles.js'
 
@@ -40,9 +40,10 @@ function capabilities(t: Translate, model: { vision?: boolean; thinking?: boolea
  * `ollamaSetSettings` call, so a failure keeps every edit. Fetching the cloud
  * catalog is a read-only side trip: adopting a candidate only edits the
  * draft, and a key typed for the fetch never leaves this component. The
- * model list works like the shared model editor: a filter box, select
- * all/none, an automatic toggle, and expandable rows with per-model
- * defaults.
+ * model list works like the shared model editor in spirit: a filter box,
+ * select all/none, and expandable rows carrying the per-model fields the
+ * shared editor shows (display name, default effort); adoption is
+ * explicit here, so there is no automatic toggle.
  */
 export function OllamaSettingsManager({ rpc, t, onClose, onSaved }: Props) {
   const dialog = useRef<HTMLDialogElement>(null)
@@ -173,21 +174,13 @@ export function OllamaSettingsManager({ rpc, t, onClose, onSaved }: Props) {
   const models = (draft.models ?? [])
     .filter(model => `${model.name ?? model.id} ${model.id}`.toLowerCase().includes(query.trim().toLowerCase()))
 
-  /** Per-model default-effort edit, folded into the stored row on save. */
-  function editModel(id: string, patch: Partial<OllamaModelDraft> | { effort: string }) {
-    const list = [...draft.models ?? []]
-    const index = list.findIndex(entry => entry.id === id)
-    if (index < 0) return
-    if ('effort' in patch) {
-      const value = patch.effort
-      const current = { ...list[index]! }
-      if (value) current.defaultEffort = value
-      else delete current.defaultEffort
-      list[index] = current
-    } else {
-      list[index] = { ...list[index]!, ...patch }
-    }
-    edit({ ...draft, models: list })
+  /** Rename and default-effort edits ride the tested draft helpers. */
+  function rename(id: string, name: string): void {
+    edit({ ...draft, models: renameModel(draft.models ?? [], id, name) })
+  }
+  function setEffort(id: string, effort: string): void {
+    setDraftEffort({ ...draftEffort, [id]: effort })
+    edit({ ...draft, models: setModelEffort(draft.models ?? [], id, effort) })
   }
   return <dialog className="dsh-subscription-manager" ref={dialog} aria-labelledby={title} aria-describedby={description}
     onCancel={event => { if (saveLock.current) event.preventDefault() }} onClose={onClose}
@@ -258,14 +251,15 @@ export function OllamaSettingsManager({ rpc, t, onClose, onSaved }: Props) {
           {models.length === 0 && <p className="dsh-subscription-hint">
             {query.trim() ? t('modelDefaultsFilterEmpty', { query }) : t('ollamaModelsEmpty')}</p>}
           <div style={{ display: 'grid', gap: 8, maxHeight: 360, overflowY: 'auto' }}>
-            {models.map((model, index) => {
+            {models.map(model => {
+              const index = (draft.models ?? []).findIndex(entry => entry.id === model.id)
               const open = expanded.has(model.id)
               const thought = model.thinking === true
               const catalogRow = view?.models.find(entry => entry.id === model.id)
               const efforts = catalogRow?.efforts ?? []
               return <div key={model.id} style={{ borderBottom: border, paddingBottom: 8, display: 'grid', gap: 8 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <button type="button" aria-expanded={open} aria-label={model.name}
+                  <button type="button" aria-expanded={open} aria-label={model.name ?? model.id}
                     onClick={() => {
                       const next = new Set(expanded)
                       if (open) next.delete(model.id)
@@ -279,14 +273,13 @@ export function OllamaSettingsManager({ rpc, t, onClose, onSaved }: Props) {
                   <label style={actions}>
                     <span className="dsh-subscription-label">{t('ollamaDisplayName')}</span>
                     <input value={model.name ?? ''} placeholder={model.id}
-                      onChange={event => editModel(model.id, { name: event.target.value })} />
+                      onChange={event => rename(model.id, event.target.value)} />
                   </label>
                   {thought && efforts.length > 0 && <label style={actions}>
                     <span className="dsh-subscription-label">{t('modelDefaultsTitle')}</span>
                     <select aria-label={`${model.name} ${t('modelDefaultsTitle')}`}
                       value={draftEffort[model.id] ?? model.defaultEffort ?? ''} onChange={event => {
-                        setDraftEffort({ ...draftEffort, [model.id]: event.target.value })
-                        editModel(model.id, { effort: event.target.value })
+                        setEffort(model.id, event.target.value)
                       }}>
                       <option value="">{t('modelDefaultsFollowProvider')}</option>
                       {efforts.map(effort => <option key={effort.id}

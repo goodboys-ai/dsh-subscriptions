@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { adoptCandidates, contextLabel, moveModel, removeModel } from '../src/client/ollama-draft.js'
+import { adoptCandidates, contextLabel, moveModel, removeModel, renameModel, setModelEffort } from '../src/client/ollama-draft.js'
 import type { OllamaCloudCandidate, OllamaModelDraft } from '../src/client/ollama-draft.js'
 
 const candidates: readonly OllamaCloudCandidate[] = [
@@ -34,12 +34,14 @@ test('adoptCandidates copies capabilities and efforts and omits absent optional 
   assert.deepEqual(models, [
     {
       id: 'glm-5.3:cloud', name: 'glm-5.3', thinking: true,
-      efforts: ['low', 'high'], defaultEffort: 'high',
+      efforts: ['low', 'high'],
     },
     { id: 'gpt-oss:cloud', name: 'gpt-oss' },
   ])
   assert.deepEqual(Object.keys(models[1]), ['id', 'name'])
-  assert.deepEqual(Object.keys(models[0]), ['id', 'name', 'thinking', 'efforts', 'defaultEffort'])
+  // defaultEffort is absent: the store records only the user's explicit
+  // choice, so the vendor default keeps flowing from discovery.
+  assert.deepEqual(Object.keys(models[0]), ['id', 'name', 'thinking', 'efforts'])
 })
 
 test('adoptCandidates dedupes ids already in the draft and never replaces their rows', () => {
@@ -81,4 +83,43 @@ test('contextLabel formats millions, thousands, small windows, and unknown value
   assert.equal(contextLabel(262_144), '262K')
   assert.equal(contextLabel(128_000), '128K')
   assert.equal(contextLabel(512), '512')
+})
+
+test('renameModel trims, keeps text, and clears an emptied name', () => {
+  const models: OllamaModelDraft[] = [{ id: 'glm-5.3:cloud', name: 'GLM-5.3' }]
+  assert.deepEqual(renameModel(models, 'glm-5.3:cloud', '  GLM-5.3 官方  '), [
+    { id: 'glm-5.3:cloud', name: 'GLM-5.3 官方' },
+  ])
+  // An empty display name deletes the field so the store validator keeps
+  // accepting the draft, and the wire id remains the fallback label.
+  assert.deepEqual(renameModel(models, 'glm-5.3:cloud', '   '), [{ id: 'glm-5.3:cloud' }])
+  assert.deepEqual(renameModel(models, 'unknown', 'x'), models)
+})
+
+test('setModelEffort writes a choice and clears it back to vendor priority', () => {
+  const models: OllamaModelDraft[] = [{ id: 'glm-5.3:cloud', defaultEffort: 'low' }]
+  assert.deepEqual(setModelEffort(models, 'glm-5.3:cloud', 'max'), [
+    { id: 'glm-5.3:cloud', defaultEffort: 'max' },
+  ])
+  // Clearing removes the store default so the resolver falls back to the
+  // vendor or family default (adoption never stores one).
+  assert.deepEqual(setModelEffort(models, 'glm-5.3:cloud', ''), [{ id: 'glm-5.3:cloud' }])
+  assert.deepEqual(setModelEffort(models, 'unknown', 'max'), models)
+})
+
+test('adoptCandidates never copies the vendor default effort', () => {
+  const candidate: OllamaCloudCandidate = {
+    id: 'glm-5.3:cloud', rawId: 'glm-5.3', name: 'glm-5.3',
+    vision: false, thinking: true,
+    efforts: ['low', 'high', 'max'],
+    defaultEffort: 'max',
+  }
+  // Efforts are kept for the selector; the default stays unset so the
+  // store records only the user's explicit choice.
+  assert.deepEqual(adoptCandidates([], [candidate], ['glm-5.3:cloud']), [{
+    id: 'glm-5.3:cloud',
+    name: 'glm-5.3',
+    thinking: true,
+    efforts: ['low', 'high', 'max'],
+  }])
 })

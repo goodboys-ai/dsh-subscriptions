@@ -103,8 +103,11 @@ export function adoptCandidates(
       ...(candidate.contextWindow === undefined ? {} : { contextWindow: candidate.contextWindow }),
       ...(candidate.vision ? { vision: true } : {}),
       ...(candidate.thinking ? { thinking: true } : {}),
+      // The vendor's default is not copied: defaultEffort in the store is
+      // the user's explicit choice only, so the resolver's priority
+      // (user, then vendor, then family) keeps the vendor default live
+      // in discovery while the selector stays an override.
       ...(candidate.efforts.length ? { efforts: [...candidate.efforts] } : {}),
-      ...(candidate.defaultEffort ? { defaultEffort: candidate.defaultEffort } : {}),
     })
   }
   return models
@@ -152,4 +155,44 @@ export function contextLabel(contextWindow: number | undefined): string | undefi
     return `${Number.isInteger(millions) ? millions : Number(millions.toFixed(1))}M`
   }
   return `${Math.round(contextWindow / 1000)}K`
+}
+
+/**
+ * Rename one model row. An empty display name deletes the field so the
+ * validator keeps accepting the draft; a blank id leaves the list unchanged.
+ * @param models - the current list.
+ * @param id - the row to rename; an unknown id leaves the list unchanged.
+ * @param name - the new display name; whitespace trims before storing.
+ * @returns a new list; the input array is not mutated.
+ */
+export function renameModel(models: readonly OllamaModelDraft[], id: string, name: string): OllamaModelDraft[] {
+  return models.map(model => {
+    if (model.id !== id) return model
+    const trimmed = name.trim()
+    const next = { ...model }
+    if (trimmed === '') delete next.name
+    else next.name = trimmed
+    return next
+  })
+}
+
+/**
+ * Set or clear one model row's default reasoning effort. An empty choice
+ * deletes the field so the resolver falls back to the vendor or family
+ * default.
+ * @param models - the current list.
+ * @param id - the row to edit; an unknown id leaves the list unchanged.
+ * @param effort - the chosen level, or `''` to clear.
+ * @returns a new list; the input array is not mutated.
+ */
+export function setModelEffort(models: readonly OllamaModelDraft[], id: string, effort: string): OllamaModelDraft[] {
+  return models.map(model => {
+    if (model.id !== id) return model
+    if (effort === '') {
+      const next = { ...model }
+      delete next.defaultEffort
+      return next
+    }
+    return { ...model, defaultEffort: effort }
+  })
 }

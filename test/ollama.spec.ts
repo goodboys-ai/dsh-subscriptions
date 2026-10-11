@@ -474,7 +474,7 @@ test('a discovery hit takes the endpoint levels over the stored row', async () =
   assert.equal(resolved.reasoning?.defaultEffort, 'high')
 })
 
-test('a stored default applies only when the endpoint publishes none', async () => {
+test('a stored user default outranks the vendor default within the offered set', async () => {
   const catalog: OllamaModelSetting[] = [{
     id: 'kimi-k3:cloud',
     thinking: true,
@@ -488,20 +488,27 @@ test('a stored default applies only when the endpoint publishes none', async () 
       { 'kimi-k3:cloud': { capabilities: ['thinking'], thinking: { values: ['low', 'high'], default: 'high' } } },
     ),
   })
+  // The user's stored default wins over the vendor's; the selector's
+  // priority is user, then vendor, then the family table.
   assert.equal(
     (await vendorDefault.resolveModel(OLLAMA_CLOUD_ROUTE, 'kimi-k3:cloud')).reasoning?.defaultEffort,
-    'high',
+    'low',
   )
-  const noVendorDefault = makeAdapter({
-    catalog,
+  // With no user default stored (`defaultEffortOf` absent, and the
+  // adoption flow no longer copies the vendor value into the row), the
+  // vendor's default serves when it names one, else the resolved model
+  // carries none for this familyless model rather than inventing one.
+  const noStoredDefault = makeAdapter({
+    catalog: catalog.map(({ defaultEffort: _ignored, ...row }) => row),
     fetchFn: fakeDiscovery(
       { models: [{ model: 'kimi-k3:cloud' }] },
+      // The vendor bloom retracts its default along with naming none.
       { 'kimi-k3:cloud': { capabilities: ['thinking'], thinking: { values: ['low', 'high'] } } },
     ),
   })
   assert.equal(
-    (await noVendorDefault.resolveModel(OLLAMA_CLOUD_ROUTE, 'kimi-k3:cloud')).reasoning?.defaultEffort,
-    'low',
+    (await noStoredDefault.resolveModel(OLLAMA_CLOUD_ROUTE, 'kimi-k3:cloud')).reasoning?.defaultEffort,
+    undefined,
   )
 })
 

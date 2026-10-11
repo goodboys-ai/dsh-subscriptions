@@ -490,7 +490,7 @@ export const zh = {
   ollamaExpandAll: '全部展开',
   ollamaCollapseAll: '全部折叠',
   ollamaDisplayName: '显示名',
-  ollamaEffortsUnknown: '该模型支持思考，推理档位将由 live 发现补充。',
+  ollamaEffortsUnknown: '该模型支持思考，推理档位将由实时发现补充。',
   ollamaMoveUp: '上移',
   ollamaMoveDown: '下移',
   ollamaRemove: '移除',
