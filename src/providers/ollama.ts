@@ -184,11 +184,11 @@ function reasoningFor(row: OllamaCatalogRow, configuredDefault: string | undefin
 
 /**
  * Merge a discovered reasoning block into the stored row. The endpoint is the
- * truth about the live model, so its levels come first and its default wins;
- * the stored default applies only when the endpoint publishes none. Stored
- * levels the endpoint omits stay selectable (a stored row may pin a level the
- * listing did not repeat), and the family fallback fills in only levels
- * neither side reported.
+ * truth about the live model: when it publishes a level set, nothing may
+ * widen it (a level the gateway stopped offering would only fail the
+ * request), and its default wins when it names one. Without a published set,
+ * the stored row then the family table supply the levels. The stored default
+ * applies only when the endpoint publishes none.
  * @param row - the stored catalog row, with the family fallback already applied.
  * @param discovered - the endpoint's reasoning block.
  * @param configuredDefault - the per-model configured default, when set.
@@ -199,15 +199,13 @@ function mergeDiscoveredReasoning(
   discovered: NonNullable<DiscoveredModel['reasoning']>,
   configuredDefault: string | undefined,
 ): DiscoveredModel['reasoning'] {
-  const efforts = discovered.efforts.map(entry => String(entry.id))
-  // The endpoint is the truth about the live model: when it publishes a
-  // level set, nothing else may widen it — a level the gateway stops
-  // offering would only fail the request. The family fallback fills in
-  // just the levels neither side reported.
-  for (const effort of row.efforts) if (!efforts.includes(effort)) efforts.push(effort)
-  if (efforts.length === 0) {
-    for (const effort of reasoningFamily(row.id)?.efforts ?? []) efforts.push(effort)
-  }
+  const vendorLevels = discovered.efforts.map(entry => String(entry.id))
+  // A published vendor set is closed: the stored row and the family table
+  // must not widen it. When the endpoint names no levels, the stored row
+  // supplies them and only a still-empty list falls to the family table.
+  const efforts = vendorLevels.length > 0
+    ? vendorLevels
+    : [...row.efforts, ...(row.efforts.length > 0 ? [] : reasoningFamily(row.id)?.efforts ?? [])]
   const vendorDefault = discovered.defaultEffort === undefined ? undefined : String(discovered.defaultEffort)
   const candidate = vendorDefault ?? configuredDefault ?? row.defaultEffort
   // The runtime rejects a default the model does not advertise, so an

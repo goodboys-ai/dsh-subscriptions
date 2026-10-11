@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { UsageWindow, SubscriptionsSectionInjected } from './SubscriptionsSection.js'
-import { elapsedPercent, isUsageFresh, resetCountdownParts, usageBarColor, usageColorState, validUsage } from './usage-pace.js'
+import { displayStartPercent, elapsedPercent, isUsageFresh, resetCountdownParts, usageBarColor, usageColorState, validUsage } from './usage-pace.js'
 import type { CountdownPart, UsageObservation } from './usage-pace.js'
 import { useUsageColorPreset } from './usage-color-preferences.js'
 import type { SubscriptionsKey } from './locales.js'
@@ -27,11 +27,13 @@ export function UsageMeter({ window: quota, t, style, observedAt, stale }: {
   const valid = validUsage(quota.usedPercent)
   const used = valid ? quota.usedPercent : 0
   const fresh = isUsageFresh(quota, { observedAt, stale }, current)
-  // The cursor is where the window stands in time. It needs only the window's
-  // own timing, so it stays for an unused, stale, aged or unobserved reading.
+  // The cursor is where the window stands in time: a provider-verified start
+  // through elapsedPercent, else the display-only assumption.
   const elapsed = elapsedPercent(quota, current)
+  const marker = elapsed ?? displayStartPercent(quota, current)
   // Comparing usage with elapsed time is meaningful only while the percentage
-  // is current; an old one is not set against today's clock.
+  // is current AND the start is verified: a display-estimated start must not
+  // color the bar — elapsed already excludes it, so pace below is safe.
   const pace = fresh ? elapsed : undefined
   const state = usageColorState(quota.usedPercent, pace, preset, fresh)
   const lead = pace === undefined ? 0 : Math.round(used - pace)
@@ -41,7 +43,9 @@ export function UsageMeter({ window: quota, t, style, observedAt, stale }: {
     !valid ? '' : !fresh ? t('usageMeterStale') : state === 'red' ? t('usageMeterNearLimit')
       : pace === undefined && preset !== 'remaining' ? t('usageMeterUnknownTime')
         : state === 'yellow' ? t('usageMeterAhead') : t('usageMeterNoWarning'),
-    elapsed === undefined ? '' : t('usageMeterPace', { elapsed: Math.round(elapsed) }),
+    // The elapsed-time line is a timing fact: it shows whenever the window's
+    // interval is known, even for a stale or invalid reading.
+    marker === undefined ? '' : t('usageMeterPace', { elapsed: Math.round(marker) }),
     pace === undefined ? '' : lead > 0 ? t('usageMeterPaceAhead', { points: lead })
       : lead < 0 ? t('usageMeterPaceBehind', { points: -lead }) : t('usageMeterPaceEven'),
     quota.resetsAt !== undefined && quota.resetsAt > current ? t('usageMeterReset', {
@@ -57,8 +61,8 @@ export function UsageMeter({ window: quota, t, style, observedAt, stale }: {
   }}>
     <div style={{ height: '100%', borderRadius: 'inherit', width: `${used}%`,
       background: usageBarColor(quota.usedPercent, pace, preset, fresh) }} />
-    {elapsed !== undefined && <span aria-hidden="true" data-usage-time-marker style={{
-      position: 'absolute', left: `clamp(0px, calc(${elapsed}% - 1px), calc(100% - 2px))`,
+    {marker !== undefined && <span aria-hidden="true" data-usage-time-marker style={{
+      position: 'absolute', left: `clamp(0px, calc(${marker}% - 1px), calc(100% - 2px))`,
       top: 0, bottom: 0, width: 2, background: 'var(--dsw-alias-label-primary)',
       boxShadow: '0 0 0 1px var(--dsw-alias-bg-layer-1)',
     }} />}

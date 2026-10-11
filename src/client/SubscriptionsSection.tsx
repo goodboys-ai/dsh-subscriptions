@@ -80,6 +80,8 @@ export interface UsageWindow {
   startsAt?: number
   windowDurationMs?: number
   fixedWindow?: boolean
+  /** Display-only assumed start; the marker rides it, never pace. */
+  displayStartsAt?: number
 }
 
 /** `usage` endpoint value: the node half owns this shape. */

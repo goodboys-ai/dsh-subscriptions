@@ -74,3 +74,30 @@ export function usageBarColor(used: number, elapsed?: number, preset: UsageColor
     : state === 'yellow' ? 'var(--dsw-alias-state-warn-label)'
       : 'var(--dsw-alias-state-success-primary)'
 }
+
+/**
+ * Whether the window's derived start is provider-verified: an explicit start,
+ * or a fixed span the provider vouched for. A display start assumed from the
+ * window kind is not — the marker may ride it, pace warnings must not.
+ */
+export function hasVerifiedStart(window: UsageWindow): boolean {
+  if (window.startsAt !== undefined) return true
+  return window.fixedWindow === true
+    && window.windowDurationMs !== undefined
+    && Number.isFinite(window.windowDurationMs)
+    && window.windowDurationMs > 0
+}
+
+/**
+ * Marker position from the window's display-only assumed start
+ * (`displayStartsAt`): the reading and its age are irrelevant, exactly
+ * like the verified marker. Returns undefined when the window carries no
+ * assumed start or its reset has passed.
+ */
+export function displayStartPercent(window: UsageWindow, now = Date.now()): number | undefined {
+  const end = window.resetsAt
+  const start = window.displayStartsAt
+  if (end === undefined || !Number.isFinite(end) || end <= now) return undefined
+  if (start === undefined || !Number.isFinite(start) || start >= end || start > now) return undefined
+  return Math.min(100, Math.max(0, (now - start) / (end - start) * 100))
+}

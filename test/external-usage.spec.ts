@@ -19,7 +19,7 @@ test('OpenCode Go usage maps all three windows and sends the key only upstream',
       { kind: 'session', usedPercent: 25, fixedWindow: true, windowDurationMs: 18_000_000, resetsAt: Date.parse('2026-09-28T08:00:00Z') },
       { kind: 'weekly', usedPercent: 50, fixedWindow: true, windowDurationMs: 604_800_000, resetsAt: Date.parse('2026-10-01T00:00:00Z') },
       { kind: 'other', scope: 'Monthly', usedPercent: 75, resetsAt: Date.parse('2026-10-28T00:00:00Z'),
-        startsAt: Math.min(Date.parse('2026-10-28T00:00:00Z') - 30 * 86_400_000, Date.now()) },
+        displayStartsAt: Math.min(Date.parse('2026-10-28T00:00:00Z') - 30 * 86_400_000, Date.now()) },
     ],
   })
 })
@@ -55,7 +55,7 @@ test('Kimi Code usage maps present ratio pools and tolerates absent windows', as
     windows: [
       { kind: 'session', usedPercent: 0, resetsAt: Date.parse('2026-09-28T08:00:00Z') },
       { kind: 'other', scope: 'Monthly', usedPercent: 42, resetsAt: Date.parse('2026-10-17T00:00:00Z'),
-        startsAt: Math.min(Date.parse('2026-10-17T00:00:00Z') - 30 * 86_400_000, Date.now()) },
+        displayStartsAt: Math.min(Date.parse('2026-10-17T00:00:00Z') - 30 * 86_400_000, Date.now()) },
     ],
   })
 })

@@ -177,16 +177,31 @@ export function validateOllamaSettings(input: unknown): OllamaSettings {
 export class OllamaSettingsStore {
   private current: OllamaSettings = {}
   private writes: Promise<void> = Promise.resolve()
+  /** Set when the stored file existed but was unreadable or invalid. */
+  private corrupt: string | undefined
 
-  constructor(readonly path = dshHomePath('plugins', 'subscriptions', 'ollama-settings.json')) {
+  constructor(
+    readonly path = dshHomePath('plugins', 'subscriptions', 'ollama-settings.json'),
+    private readonly onCorrupt?: (message: string) => void,
+  ) {
     try {
       this.current = validateOllamaSettings(JSON.parse(readFileSync(path, 'utf8')) as unknown)
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        throw new Error(`Cannot read Ollama settings at ${path}`, { cause: error })
+        // A broken file must not take the whole plugin down: degrade to
+        // defaults, keep the file untouched for manual recovery, and let
+        // the next save overwrite it.
+        this.corrupt = error instanceof Error ? error.message : String(error)
+        // The raw V8 message quotes the offending bytes; the log keeps a
+        // fixed diagnosis and corruption() carries the detail for callers
+        // that surface it outside log lines.
+        this.onCorrupt?.(`Ollama settings at ${path} are unreadable and ignored; defaults serve until the next save.`)
       }
     }
   }
+
+  /** Why the stored file is ignored, when it is. */
+  corruption(): string | undefined { return this.corrupt }
 
   get(): OllamaSettings { return structuredClone(this.current) }
 
@@ -211,6 +226,7 @@ export class OllamaSettingsStore {
         await rm(temporary, { force: true })
       }
       this.current = validated
+      this.corrupt = undefined
     })
     this.writes = run.catch(() => undefined)
     return run

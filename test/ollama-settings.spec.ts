@@ -92,10 +92,21 @@ test('baseURL and model ids are trimmed before they are stored', () => {
   )
 })
 
-test('a corrupt store file fails loudly instead of silently dropping settings', (t) => {
+test('a corrupt store file degrades to defaults and stays untouched', async (t) => {
   const path = join(tempDir(t), 'settings.json')
   writeFileSync(path, '{not json')
-  assert.throws(() => new OllamaSettingsStore(path), /Cannot read Ollama settings/)
+  const warnings: string[] = []
+  const store = new OllamaSettingsStore(path, message => { warnings.push(message) })
+  // The plugin must survive a broken file: defaults serve, the corruption
+  // is surfaced for diagnosis, and the file is left as-is for recovery.
+  assert.deepEqual(store.get(), {})
+  assert.ok(store.corruption()?.includes('JSON'))
+  assert.ok(warnings.join('\n').includes('unreadable'))
+  assert.equal(readFileSync(path, 'utf8'), '{not json')
+  // The next save overwrites the corrupt document and clears the flag.
+  await store.set({ web: true })
+  assert.equal(store.get().web, true)
+  assert.equal(store.corruption(), undefined)
 })
 
 test('validateOllamaSettings rejects unusable documents', () => {

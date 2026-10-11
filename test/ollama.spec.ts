@@ -466,9 +466,10 @@ test('a discovery hit takes the endpoint levels over the stored row', async () =
     ),
   })
   const resolved = await adapter.resolveModel(OLLAMA_CLOUD_ROUTE, 'glm-5.3:cloud')
-  // The endpoint's levels come first, the stored `max` stays selectable, and
-  // the family table adds nothing the two already list.
-  assert.deepEqual(resolved.reasoning?.efforts.map(effort => effort.id), ['low', 'high', 'max'])
+  // A published vendor set is closed: the stored `max` and the family
+  // table must not widen it, or a gateway-retracted level would ride
+  // the wire and 400.
+  assert.deepEqual(resolved.reasoning?.efforts.map(effort => effort.id), ['low', 'high'])
   // The endpoint's default wins over the stored `max`.
   assert.equal(resolved.reasoning?.defaultEffort, 'high')
 })

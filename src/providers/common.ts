@@ -572,6 +572,13 @@ export interface UsageWindow {
   windowDurationMs?: number
   /** Provider-verified fixed interval; permits deriving start from end and duration. */
   fixedWindow?: boolean
+  /**
+   * Display-only start the reader assumed (kind or label based, clamped
+   * to now). The time marker may ride it; pace and color must never —
+   * it is not evidence of when the window opened. Mutually exclusive
+   * with `startsAt`.
+   */
+  displayStartsAt?: number
 }
 
 /** One banked reset credit (Codex), or one grant containing resets (Claude). */

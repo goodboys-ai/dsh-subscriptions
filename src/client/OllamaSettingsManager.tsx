@@ -80,6 +80,8 @@ export function OllamaSettingsManager({ rpc, t, onClose, onSaved }: Props) {
     void callSubscriptionsAuth<OllamaSettingsView>(rpc, 'ollamaSettings', {}).then(data => {
       if (!current) return
       setView(data)
+      // An unset store value inherits the deployed config (N2): the
+      // checkbox shows the effective state, so saving writes it down.
       setDraft({ ...data.settings })
       setDirty(false)
     }).catch(failure => {
@@ -235,7 +237,7 @@ export function OllamaSettingsManager({ rpc, t, onClose, onSaved }: Props) {
             onChange={event => editOverride('apiKeyRef', event.target.value)} />
         </label>
         <p className="dsh-subscription-hint">{t('ollamaConnectionHint')}</p>
-        <label><input type="checkbox" checked={draft.web === true}
+        <label><input type="checkbox" checked={(draft.web ?? view.effective.web) === true}
           onChange={event => edit({ ...draft, web: event.target.checked })} /> {t('modelsWebSearch')}</label>
         <p className="dsh-subscription-hint">{t('ollamaWebHint')}</p>
       </fieldset>}

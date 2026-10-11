@@ -762,7 +762,7 @@ export function apply(ctx: Context, config: Config): void {
   ctx.effect(() => () => { restoreConnectAttemptTimeout(previousAttemptTimeout) }, 'dsh-subscriptions: connect attempt timeout')
   const preferences = new ProviderSettingsStore()
   const cursorModelSettings = new CursorModelSettingsStore()
-  const ollamaSettings = new OllamaSettingsStore()
+  const ollamaSettings = new OllamaSettingsStore(undefined, message => { ctx.logger.warn(`${name}: ${message}`) })
   const codexVersion = new CodexClientVersionCache()
   const claudeVersion = new ClaudeCliVersionCache()
   const providers = [...new Set(config.providers ?? [...PROVIDER_IDS])]

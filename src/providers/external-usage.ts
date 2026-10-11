@@ -72,9 +72,9 @@ export async function fetchOpenCodeGoUsage(
     const resetsAt = resetTime(value?.resetsAt)
     // Monthly has no interval fields. Both key providers' monthly pools
     // read the same display assumption: a 30-day span back from the
-    // reset, clamped to now; the marker only shows, pace never fires.
+    // reset, clamped to now. Only the marker may ride it — pace never.
     const monthlyDisplay = field === 'monthly' && resetsAt !== undefined
-      ? { startsAt: Math.min(resetsAt - 30 * 86_400_000, Date.now()) }
+      ? { displayStartsAt: Math.min(resetsAt - 30 * 86_400_000, Date.now()) }
       : {}
     windows.push({
       kind,
@@ -130,9 +130,9 @@ export async function fetchKimiCodeUsage(
     const scope = detail.name ?? detail.title ?? item.name ?? item.title
     // A vendor-declared span anchors the display marker at
     // min(reset − span, now); pace stays unverified (rolling semantics
-    // are not established).
+    // are not established), so the assumed instant rides displayStartsAt.
     const displayStart = resetsAt !== undefined && durationMs !== undefined
-      ? { startsAt: Math.min(resetsAt - durationMs, Date.now()) }
+      ? { displayStartsAt: Math.min(resetsAt - durationMs, Date.now()) }
       : {}
     modern.push({ kind, usedPercent,
       ...(typeof scope === 'string' ? { scope } : {}),
@@ -159,9 +159,10 @@ export async function fetchKimiCodeUsage(
     if (typeof ratio !== 'number' || !Number.isFinite(ratio) || ratio < 0 || ratio > 1) continue
     const resetsAt = resetTime(value?.reset_time ?? value?.resetAt)
     // The monthly total resets on the subscription's cycle, not the
-    // calendar month; the display marker assumes ~30 days back.
+    // calendar month; the display marker assumes ~30 days back. It only
+    // moves the marker — pace never rides it.
     const monthlyDisplay = field === 'limit_month_total' && resetsAt !== undefined
-      ? { startsAt: Math.min(resetsAt - 30 * 86_400_000, Date.now()) }
+      ? { displayStartsAt: Math.min(resetsAt - 30 * 86_400_000, Date.now()) }
       : {}
     windows.push({
       kind,

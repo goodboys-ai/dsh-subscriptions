@@ -56,12 +56,17 @@ export class ExternalUsageController {
   }
 
   async usage(source: ExternalUsageSource, signal?: AbortSignal): Promise<ProviderUsage> {
-    const credential = await this.resolveCredential(valueOf(this.refs[source]))
+    // Snapshot the endpoint facts before the first await: a save that
+    // switches the ref or host mid-flight must not send the old
+    // reference's key to the new host.
+    const ref = valueOf(this.refs[source])
+    const ollamaBase = valueOf(this.ollamaBaseURL)
+    const credential = await this.resolveCredential(ref)
     if (credential?.value === undefined || credential.value.length === 0) {
       throw new Error(`${source} API key is not configured`)
     }
     if (source === 'minimax' || source === 'minimax-cn') return fetchMiniMaxUsage(credential.value, source === 'minimax-cn' ? 'cn' : 'global', this.http, signal)
-    if (source === 'ollama-cloud') return fetchOllamaUsage(credential.value, valueOf(this.ollamaBaseURL), this.http, signal)
+    if (source === 'ollama-cloud') return fetchOllamaUsage(credential.value, ollamaBase, this.http, signal)
     return source === 'opencode-go'
       ? fetchOpenCodeGoUsage(credential.value, this.http, signal)
       : fetchKimiCodeUsage(credential.value, this.http, signal)
