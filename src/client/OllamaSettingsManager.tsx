@@ -215,7 +215,9 @@ export function OllamaSettingsManager({ rpc, t, onClose, onSaved }: Props) {
                 onChange={event => setCandidateQuery(event.target.value)}
                 placeholder={t('modelDefaultsFilterPlaceholder')}
                 aria-label={t('modelDefaultsFilterPlaceholder')} />
-              <button type="button" onClick={() => setSelected(new Set(candidates.map(entry => entry.id)))}>{t('modelsSelectAll')}</button>
+              <button type="button" onClick={() => setSelected(new Set([
+                ...candidates.filter(entry => `${entry.name} ${entry.id}`.toLowerCase().includes(candidateQuery.trim().toLowerCase())).map(entry => entry.id),
+              ]))}>{t('modelsSelectAll')}</button>
               <button type="button" onClick={() => setSelected(new Set())}>{t('modelsSelectNone')}</button>
             </div>
             <div style={{ ...stack, gap: 8, maxHeight: 240, overflowY: 'auto' }}>

@@ -168,10 +168,9 @@ export function contextLabel(contextWindow: number | undefined): string | undefi
 export function renameModel(models: readonly OllamaModelDraft[], id: string, name: string): OllamaModelDraft[] {
   return models.map(model => {
     if (model.id !== id) return model
-    const trimmed = name.trim()
     const next = { ...model }
-    if (trimmed === '') delete next.name
-    else next.name = trimmed
+    if (name === '') delete next.name
+    else next.name = name
     return next
   })
 }

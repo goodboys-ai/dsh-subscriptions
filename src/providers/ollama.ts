@@ -173,18 +173,29 @@ function discoveredFor(catalogId: string, discovered: readonly DiscoveredModel[]
 }
 
 function reasoningFor(row: OllamaCatalogRow, configuredDefault: string | undefined): DiscoveredModel['reasoning'] {
-  const familyDefault = row.efforts.includes(reasoningFamily(row.id)?.defaultEffort ?? '')
-    ? reasoningFamily(row.id)?.defaultEffort
+  const family = reasoningFamily(row.id)
+  const familyDefault = row.efforts.includes(family?.defaultEffort ?? '')
+    ? family?.defaultEffort
     : undefined
-  const base = row.efforts.length === 0
-    ? undefined
-    : {
-      efforts: row.efforts.map(effort => ({ id: ReasoningEffortId(effort), name: effortDisplayName(effort) })),
-      // The family default is the last resort, mirroring the discovery
-      // path's priority; the stored row no longer bakes it in.
-      ...((row.defaultEffort ?? familyDefault) === undefined ? {} : { defaultEffort: ReasoningEffortId((row.defaultEffort ?? familyDefault)!) }),
-    }
-  return mergeReasoning(configuredDefault, base, { extendable: true })
+  if (row.efforts.length === 0) return undefined
+  // Every level here comes from the row or a family that named it; a
+  // stored default the row does not list cannot ride the wire.
+  const efforts = row.efforts.map(effort => ({ id: ReasoningEffortId(effort), name: effortDisplayName(effort) }))
+  const storedDefault = row.efforts.includes(row.defaultEffort ?? '')
+    ? row.defaultEffort
+    : undefined
+  const priority = [
+    configuredDefault,
+    // The family default is the last resort, mirroring the discovery
+    // path's priority; the stored row no longer bakes it in.
+    familyDefault,
+    storedDefault,
+  ]
+  const defaultEffort = priority.find(entry => entry !== undefined && row.efforts.includes(entry))
+  return {
+    efforts,
+    ...defaultEffort === undefined ? {} : { defaultEffort: ReasoningEffortId(defaultEffort) },
+  }
 }
 
 /**

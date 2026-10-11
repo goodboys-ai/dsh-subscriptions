@@ -87,12 +87,14 @@ test('contextLabel formats millions, thousands, small windows, and unknown value
 
 test('renameModel trims, keeps text, and clears an emptied name', () => {
   const models: OllamaModelDraft[] = [{ id: 'glm-5.3:cloud', name: 'GLM-5.3' }]
+  // Keypresses store the raw text: trimming on every change would eat the
+  // space a middle word needs; the input commits the trim on blur.
   assert.deepEqual(renameModel(models, 'glm-5.3:cloud', '  GLM-5.3 官方  '), [
-    { id: 'glm-5.3:cloud', name: 'GLM-5.3 官方' },
+    { id: 'glm-5.3:cloud', name: '  GLM-5.3 官方  ' },
   ])
-  // An empty display name deletes the field so the store validator keeps
+  // An emptied display name deletes the field so the store validator keeps
   // accepting the draft, and the wire id remains the fallback label.
-  assert.deepEqual(renameModel(models, 'glm-5.3:cloud', '   '), [{ id: 'glm-5.3:cloud' }])
+  assert.deepEqual(renameModel(models, 'glm-5.3:cloud', ''), [{ id: 'glm-5.3:cloud' }])
   assert.deepEqual(renameModel(models, 'unknown', 'x'), models)
 })
 
