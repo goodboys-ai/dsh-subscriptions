@@ -17,6 +17,13 @@ export interface OllamaModelSetting {
   name?: string
   /** Known combined request/response context capacity in tokens. */
   contextWindow?: number
+  /**
+   * The user's local context-window choice. Unlike `contextWindow`, which
+   * snapshots what the endpoint advertised, this records only an explicit
+   * edit: absent follows the endpoint. The runtime caps it at the advertised
+   * window and it never widens the API's real capacity.
+   */
+  contextOverride?: number
   /** Per-request output cap; defaults to the route's fallback. */
   maxTokens?: number
   /** The endpoint advertised the `vision` capability. */
@@ -119,6 +126,9 @@ function readModel(entry: unknown, index: number): OllamaModelSetting {
   if (record.name !== undefined) model.name = readNonEmptyString(record.name, `models[${index}].name`)
   if (record.contextWindow !== undefined) {
     model.contextWindow = readPositiveInteger(record.contextWindow, `models[${index}].contextWindow`)
+  }
+  if (record.contextOverride !== undefined) {
+    model.contextOverride = readPositiveInteger(record.contextOverride, `models[${index}].contextOverride`)
   }
   if (record.maxTokens !== undefined) {
     model.maxTokens = readPositiveInteger(record.maxTokens, `models[${index}].maxTokens`)

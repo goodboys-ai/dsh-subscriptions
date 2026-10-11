@@ -873,6 +873,7 @@ export function apply(ctx: Context, config: Config): void {
   // fast-tier support so a stale choice cannot leak onto a plain model.
   const speedBySession = new Map<string, SpeedTier>()
   let codexAdapter: CodexAdapter | undefined
+  let claudeAdapter: ClaudeAdapter | undefined
   // Dropped on every copilot auth transition so replay state (captured
   // reasoning) never survives an account switch in memory.
   let copilotAdapter: CopilotAdapter | undefined
@@ -972,10 +973,12 @@ export function apply(ctx: Context, config: Config): void {
           resolveAttachments,
           catalogStore: catalogStore('claude'),
           defaultEffortOf: (model: string) => defaultEffortOf('claude', model),
+          contextWindowOf: model => preferences.contextWindow(model, 'claude'),
           resolveCliVersion: () => claudeVersion.resolve(),
           promptCacheTtl: claudePromptCacheTtl,
           pool: () => poolAdapter,
         })
+        claudeAdapter = adapter
         adapters.set('claude', adapter)
         handles.set('claude', register('claude', adapter))
         break
@@ -1414,6 +1417,10 @@ export function apply(ctx: Context, config: Config): void {
               if (limits) contexts.push(limits)
             }
           }
+        }
+        if (provider === 'claude' && claudeAdapter) {
+          const limits = await claudeAdapter.contextLimits(model.id).catch(() => undefined)
+          if (limits) contexts.push(limits)
         }
         // A model with unavailable capabilities can still be hidden or restored.
         const info = await withTimeout(() => adapter.resolveModel(provider, model.id), DISCOVERY_TIMEOUT_MS).catch(() => undefined)

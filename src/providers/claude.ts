@@ -635,6 +635,12 @@ export interface ClaudeAdapterOptions {
    * the provider's own default.
    */
   defaultEffortOf?: (model: string) => string | undefined
+  /**
+   * The user's local context-window override for one model (the Settings
+   * editor). Returns undefined to follow the advertised window. The result
+   * is capped at that window: Anthropic advertises no separate maximum.
+   */
+  contextWindowOf?: (model: string) => number | undefined
   /** Resolves the Claude Code version to present (npm-backed); absent means the local floor. */
   resolveCliVersion?: () => Promise<string>
   /** Cache breakpoint lifetime; absent means the API's five-minute default. */
@@ -851,18 +857,34 @@ export class ClaudeAdapter extends LlmAdapter {
   async resolveOwnModel(provider: string, model: string): Promise<LlmResolvedModelInfo> {
     const disc = await this.discovered(model)
     const configured = this.options.models.find(entry => entry.id === model)
+    const limits = this.contextLimitsFor(disc, configured)
     const reasoning = mergeReasoning(this.options.defaultEffortOf?.(model), disc?.reasoning)
     return {
       provider,
       id: model,
       name: disc?.name ?? configured?.name ?? model,
       inputModalities: configured?.inputModalities ?? CLAUDE_MODALITIES,
-      context: {
-        contextWindow: disc?.contextWindow ?? configured?.contextWindow ?? CLAUDE_CONTEXT_WINDOW,
-      },
+      context: { contextWindow: Math.min(this.options.contextWindowOf?.(model) ?? limits.default, limits.max) },
       defaultMaxTokens: claudeMaxTokens(configured, disc),
       ...(reasoning === undefined ? {} : { reasoning }),
     }
+  }
+
+  /** The advertised window is both the default and the ceiling for a local override. */
+  private contextLimitsFor(
+    disc: DiscoveredModel | undefined,
+    configured: { contextWindow?: number } | undefined,
+  ): { default: number; max: number } {
+    const advertised = disc?.contextWindow ?? configured?.contextWindow ?? CLAUDE_CONTEXT_WINDOW
+    return { default: advertised, max: advertised }
+  }
+
+  /** Bounds the Settings editor shows next to a model's override input. */
+  async contextLimits(model: string): Promise<{ default: number; max: number }> {
+    return this.contextLimitsFor(
+      await this.discovered(model),
+      this.options.models.find(entry => entry.id === model),
+    )
   }
 
   async *stream(options: GenerateOptions): AsyncIterable<StreamChunk> {

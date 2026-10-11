@@ -38,6 +38,9 @@ register under the same route id on the web seam, gated behind the
 `ollama.web` opt-in. The vendor publishes no per-model output
 ceiling, so the adapter sets no request-level cap of its own beyond
 the catalog row's default.
+A model row may also carry a user-chosen `contextOverride`, capped at the
+advertised window; see the
+[context-window override note](../architecture/2026-10-11-local-context-window-override.md).
 
 ## Alternatives considered
 

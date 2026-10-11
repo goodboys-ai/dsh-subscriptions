@@ -90,11 +90,26 @@ function reasoningFamily(id: string): { efforts: readonly string[]; defaultEffor
   return OLLAMA_REASONING_FAMILIES.find(family => id.startsWith(family.prefix))
 }
 
+/**
+ * The window the session plans against: the user's override, capped at what
+ * the endpoint advertises (or, without discovery, the stored snapshot). The
+ * cap keeps a stale or mistyped override from planning past the model.
+ */
+export function effectiveContextWindow(
+  row: { contextWindow: number; contextOverride: number | undefined },
+  discovered: number | undefined,
+): number {
+  const advertised = discovered ?? row.contextWindow
+  return Math.min(row.contextOverride ?? advertised, advertised)
+}
+
 /** One catalog row the adapter serves, with every fallback already applied. */
 interface OllamaCatalogRow {
   id: string
   name: string
   contextWindow: number
+  /** The user's local choice; the runtime caps it at {@link contextWindow} or the discovered window. */
+  contextOverride: number | undefined
   maxTokens: number
   vision: boolean
   efforts: string[]
@@ -470,6 +485,7 @@ export class OllamaAdapter extends LlmAdapter {
         id: entry.id,
         name: entry.name ?? entry.id,
         contextWindow: entry.contextWindow ?? OLLAMA_DEFAULT_CONTEXT_WINDOW,
+        contextOverride: entry.contextOverride,
         maxTokens: entry.maxTokens ?? OLLAMA_DEFAULT_MAX_TOKENS,
         vision: entry.vision === true,
         efforts: entry.efforts !== undefined && entry.efforts.length > 0
@@ -586,7 +602,7 @@ export class OllamaAdapter extends LlmAdapter {
       id: model,
       name: entry.name,
       inputModalities: [...modalities],
-      context: { contextWindow: discovered?.contextWindow ?? entry.contextWindow },
+      context: { contextWindow: effectiveContextWindow(entry, discovered?.contextWindow) },
       defaultMaxTokens: entry.maxTokens,
       ...reasoning === undefined ? {} : { reasoning },
     }

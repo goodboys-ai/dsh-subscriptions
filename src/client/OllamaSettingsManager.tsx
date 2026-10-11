@@ -3,8 +3,11 @@ import type { CSSProperties } from 'react'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SubscriptionsSectionInjected } from './SubscriptionsSection.js'
 import { callSubscriptionsAuth } from './subscriptions-rpc.js'
-import { adoptCandidates, contextLabel, moveModel, removeModel, renameModel, setModelEffort } from './ollama-draft.js'
-import type { OllamaCloudCandidate, OllamaSettingsDraft, OllamaSettingsView } from './ollama-draft.js'
+import {
+  contextLabel, effortOptions, moveModel, parseContextInput, renameModel, setModelContext, setModelEffort,
+  tickModel, tickModels, untickModel, untickModels,
+} from './ollama-draft.js'
+import type { OllamaCloudCandidate, OllamaModelDraft, OllamaSettingsDraft, OllamaSettingsView, OllamaStash } from './ollama-draft.js'
 import { subscriptionCardStyles as styles } from './subscription-card-styles.js'
 import { providerSettingsCss } from './provider-settings-styles.js'
 
@@ -19,6 +22,8 @@ interface Props {
 interface OllamaRow {
   id: string
   name: string
+  /** In the draft list, so Save will keep it. */
+  ticked: boolean
   vision: boolean
   thinking: boolean
   contextWindow?: number
@@ -46,12 +51,13 @@ function capabilities(t: Translate, model: { vision?: boolean; thinking?: boolea
  * Ollama Cloud settings dialog. It owns one draft (model list, web toggle,
  * base URL and credential reference) that Save writes in a single
  * `ollamaSetSettings` call, so a failure keeps every edit. Fetching the cloud
- * catalog is a read-only side trip: ticking a candidate only edits the
- * draft, and a key typed for the fetch never leaves this component. The
- * model list works like the shared model editor in spirit: a filter box,
- * select all/none, and expandable rows carrying the per-model fields the
- * shared editor shows (display name, default effort); adoption is
- * explicit here, so there is no automatic toggle.
+ * catalog is a read-only side trip, and a key typed for the fetch never
+ * leaves this component. The model list follows the shared model editor: a
+ * filter, select all/none over the filtered rows, and one checkbox per
+ * model, where ticking edits the draft and enables Save. Ollama adds what the
+ * shared editor lacks: a display name, ordering, and a local context window.
+ * Unticking keeps the row's full settings in a dialog-local stash, so ticking
+ * it again restores them even when the cloud listing no longer returns it.
  */
 export function OllamaSettingsManager({ rpc, t, onClose, onSaved }: Props) {
   const dialog = useRef<HTMLDialogElement>(null)
@@ -71,6 +77,8 @@ export function OllamaSettingsManager({ rpc, t, onClose, onSaved }: Props) {
   const [fetchError, setFetchError] = useState('')
   const [query, setQuery] = useState('')
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [stash, setStash] = useState<OllamaStash>(new Map())
+  const [contextText, setContextText] = useState<Record<string, string>>({})
   const alive = useRef(true)
   const saveLock = useRef(false)
   const fetchLock = useRef(false)
@@ -96,6 +104,8 @@ export function OllamaSettingsManager({ rpc, t, onClose, onSaved }: Props) {
       // An unset store value inherits the deployed config: the checkbox
       // shows the effective state, and ticking it writes the override.
       setDraft({ ...data.settings })
+      setStash(new Map())
+      setContextText({})
       setDirty(false)
     }).catch(failure => {
       if (current) setError(t('ollamaModelsLoadFailed', { message: message(failure) }))
@@ -177,26 +187,29 @@ export function OllamaSettingsManager({ rpc, t, onClose, onSaved }: Props) {
 
   /**
    * One list for both sources, like the shared editor: the ticked models in
-   * draft order first (so Move up/down is visible), then the fetched cloud
-   * models not yet ticked. A kept model the fetch did not return stays listed.
+   * draft order first (so Move up/down is visible), then the unticked ones
+   * (stashed in this dialog, or fetched and not yet adopted). A kept model
+   * the fetch did not return stays listed, ticked or not.
    */
+  const fetchedById = new Map((candidates ?? []).map(candidate => [candidate.id, candidate]))
+  const present = new Set((draft.models ?? []).map(model => model.id))
+  const asRow = (model: OllamaModelDraft, ticked: boolean): OllamaRow => {
+    const fetched = fetchedById.get(model.id)
+    const contextWindow = model.contextWindow ?? fetched?.contextWindow
+    return {
+      id: model.id, name: model.name ?? fetched?.name ?? model.id, ticked,
+      vision: model.vision === true || fetched?.vision === true,
+      thinking: model.thinking === true || fetched?.thinking === true,
+      ...(contextWindow === undefined ? {} : { contextWindow }),
+      efforts: model.efforts ?? fetched?.efforts ?? [],
+    }
+  }
   const rows: OllamaRow[] = [
-    ...(draft.models ?? []).map(model => {
-      const fetched = (candidates ?? []).find(candidate => candidate.id === model.id)
-      return {
-        id: model.id, name: model.name ?? fetched?.name ?? model.id,
-        vision: model.vision === true || fetched?.vision === true,
-        thinking: model.thinking === true || fetched?.thinking === true,
-        ...((model.contextWindow ?? fetched?.contextWindow) === undefined
-          ? {} : { contextWindow: (model.contextWindow ?? fetched?.contextWindow)! }),
-        efforts: model.efforts ?? fetched?.efforts ?? [],
-      }
-    }),
-    ...(candidates ?? []).filter(candidate => !(draft.models ?? []).some(model => model.id === candidate.id)).map(candidate => ({
-      id: candidate.id, name: candidate.name, vision: candidate.vision, thinking: candidate.thinking,
-      ...(candidate.contextWindow === undefined ? {} : { contextWindow: candidate.contextWindow }),
-      efforts: candidate.efforts,
-    })),
+    ...(draft.models ?? []).map(model => asRow(model, true)),
+    ...[...stash.values()].filter(model => !present.has(model.id)).map(model => asRow(model, false)),
+    ...(candidates ?? [])
+      .filter(candidate => !present.has(candidate.id) && !stash.has(candidate.id))
+      .map(candidate => asRow({ id: candidate.id }, false)),
   ]
   const shown = rows.filter(row => `${row.name} ${row.id}`.toLowerCase().includes(query.trim().toLowerCase()))
 
@@ -207,6 +220,18 @@ export function OllamaSettingsManager({ rpc, t, onClose, onSaved }: Props) {
   function setEffort(id: string, effort: string): void {
     edit({ ...draft, models: setModelEffort(draft.models ?? [], id, effort) })
   }
+  /** Keep the typed text; only a valid number (or blank) reaches the draft. */
+  function setContext(id: string, text: string): void {
+    setContextText(current => ({ ...current, [id]: text }))
+    const tokens = parseContextInput(text)
+    if (tokens !== null) edit({ ...draft, models: setModelContext(draft.models ?? [], id, tokens) })
+  }
+  function applyTicks(next: { models: OllamaModelDraft[]; stash: OllamaStash }): void {
+    setStash(next.stash)
+    edit({ ...draft, models: next.models })
+  }
+  const invalidContext = Object.entries(contextText)
+    .filter(([id, text]) => present.has(id) && parseContextInput(text) === null).map(([id]) => id)
   return <dialog className="dsh-subscription-manager" ref={dialog} aria-labelledby={title} aria-describedby={description}
     onCancel={event => { if (saveLock.current) event.preventDefault() }} onClose={onClose}
     style={{ width: 620, maxWidth: 'calc(100vw - 32px)', maxHeight: 'calc(100dvh - 32px)', overflow: 'auto' }}>
@@ -239,26 +264,26 @@ export function OllamaSettingsManager({ rpc, t, onClose, onSaved }: Props) {
           <div style={actions}>
             <input style={{ flex: '1 1 180px' }} value={query} onChange={event => setQuery(event.target.value)}
               placeholder={t('modelDefaultsFilterPlaceholder')} aria-label={t('modelDefaultsFilterPlaceholder')} />
-            <button type="button" onClick={() => edit({ ...draft, models: adoptCandidates(draft.models, candidates ?? [], shown.map(row => row.id)) })}>
+            <button type="button" onClick={() => applyTicks(tickModels(draft.models ?? [], stash, candidates ?? [], shown.map(row => row.id)))}>
               {t('modelsSelectAll')}</button>
-            <button type="button" onClick={() => {
-              const hidden = new Set(shown.map(row => row.id))
-              edit({ ...draft, models: (draft.models ?? []).filter(entry => !hidden.has(entry.id)) })
-            }}>{t('modelsSelectNone')}</button>
+            <button type="button" onClick={() => applyTicks(untickModels(draft.models ?? [], stash, shown.map(row => row.id)))}>
+              {t('modelsSelectNone')}</button>
           </div>
           <div style={{ maxHeight: 360, overflowY: 'auto', display: 'grid', gap: 8 }}>
             {shown.map(row => {
               const stored = (draft.models ?? []).find(entry => entry.id === row.id)
               const index = (draft.models ?? []).findIndex(entry => entry.id === row.id)
               const open = expanded.has(row.id)
-              const efforts = view.models.find(entry => entry.id === row.id)?.efforts
-                ?? row.efforts.map(id => ({ id, name: id }))
+              const details = `${row.id}-details`
+              const efforts = stored === undefined ? [] : effortOptions(stored,
+                fetchedById.get(row.id)?.efforts, view.models.find(entry => entry.id === row.id)?.efforts)
+              const contextProblem = invalidContext.includes(row.id)
               return <div key={row.id} style={{ borderBottom: border, padding: '8px 2px', display: 'grid', gap: 8 }}>
                 <label style={{ overflowWrap: 'anywhere' }}>
-                  <input type="checkbox" checked={stored !== undefined} onChange={event => {
-                    edit({ ...draft, models: event.target.checked
-                      ? adoptCandidates(draft.models, candidates ?? [], [row.id])
-                      : removeModel(draft.models ?? [], row.id) })
+                  <input type="checkbox" checked={row.ticked} onChange={event => {
+                    applyTicks(event.target.checked
+                      ? tickModel(draft.models ?? [], stash, candidates ?? [], row.id)
+                      : untickModel(draft.models ?? [], stash, row.id))
                   }} /> {row.name} <span style={styles.status}>{capabilities(t, row)}</span>
                 </label>
                 {stored !== undefined && <div style={actions}>
@@ -266,11 +291,22 @@ export function OllamaSettingsManager({ rpc, t, onClose, onSaved }: Props) {
                     <select aria-label={`${row.name} ${t('modelDefaultsTitle')}`}
                       value={stored.defaultEffort ?? ''} onChange={event => setEffort(row.id, event.target.value)}>
                       <option value="">{t('modelDefaultsFollowProvider')}</option>
-                      {efforts.map(effort => <option key={effort.id} value={effort.id}>{effort.name}</option>)}
+                      {efforts.map(effort => <option key={effort.id} value={effort.id} disabled={effort.unavailable === true}>
+                        {effort.unavailable === true ? `${effort.name} (${t('modelsUnavailable')})` : effort.name}</option>)}
                     </select>
                   </label>}
                   {row.thinking && efforts.length === 0 && <small>{t('ollamaEffortsUnknown')}</small>}
-                  <button type="button" className="dsh-subscription-quiet" aria-expanded={open}
+                  <label style={actions}>{t('modelsContext')}
+                    <input style={{ width: 140 }} inputMode="numeric" aria-invalid={contextProblem}
+                      value={contextText[row.id] ?? (stored.contextOverride === undefined ? '' : String(stored.contextOverride))}
+                      aria-label={`${row.name} ${t('modelsContext')}`}
+                      placeholder={row.contextWindow === undefined ? '' : String(row.contextWindow)}
+                      onChange={event => setContext(row.id, event.target.value)} />
+                  </label>
+                  {row.contextWindow !== undefined && <small>
+                    {t('modelsContextBounds', { default: row.contextWindow, max: row.contextWindow })}</small>}
+                  <button type="button" className="dsh-subscription-quiet" aria-expanded={open} aria-controls={details}
+                    aria-label={`${row.name} ${t('ollamaRowDetails')}`}
                     onClick={() => {
                       const next = new Set(expanded)
                       if (open) next.delete(row.id)
@@ -278,15 +314,16 @@ export function OllamaSettingsManager({ rpc, t, onClose, onSaved }: Props) {
                       setExpanded(next)
                     }}>{t('ollamaRowDetails')} {open ? '\u25BE' : '\u25B8'}</button>
                 </div>}
-                {stored !== undefined && open && <div style={actions}>
+                {contextProblem && <p role="alert">{t('modelsContextInvalid', { model: row.name })}</p>}
+                {stored !== undefined && open && <div id={details} style={actions}>
                   <label style={actions}>{t('ollamaDisplayName')}
-                    <input value={stored.name ?? ''} placeholder={row.id}
+                    <input value={stored.name ?? ''} placeholder={row.id} aria-label={`${row.name} ${t('ollamaDisplayName')}`}
                       onChange={event => rename(row.id, event.target.value)}
                       onBlur={event => rename(row.id, event.target.value.trim())} />
                   </label>
-                  <button type="button" disabled={index === 0}
+                  <button type="button" disabled={index === 0} aria-label={`${row.name} ${t('ollamaMoveUp')}`}
                     onClick={() => edit({ ...draft, models: moveModel(draft.models ?? [], row.id, -1) })}>{t('ollamaMoveUp')}</button>
-                  <button type="button" disabled={index === (draft.models ?? []).length - 1}
+                  <button type="button" disabled={index === (draft.models ?? []).length - 1} aria-label={`${row.name} ${t('ollamaMoveDown')}`}
                     onClick={() => edit({ ...draft, models: moveModel(draft.models ?? [], row.id, 1) })}>{t('ollamaMoveDown')}</button>
                 </div>}
               </div>
@@ -294,6 +331,7 @@ export function OllamaSettingsManager({ rpc, t, onClose, onSaved }: Props) {
             {shown.length === 0 && <span className="dsh-subscription-hint">
               {query.trim() ? t('modelDefaultsFilterEmpty', { query }) : t('ollamaModelsEmpty')}</span>}
           </div>
+          <small>{t('modelsContextHint')}</small>
         </div>
         <label style={{ ...stack, gap: 6 }}>
           <span className="dsh-subscription-label">{t('ollamaBaseURL')}</span>
@@ -317,7 +355,7 @@ export function OllamaSettingsManager({ rpc, t, onClose, onSaved }: Props) {
           <button type="button" style={{ marginRight: 'auto' }} disabled={loading || saving}
             onClick={() => { void resetDefaults() }}>{t('ollamaResetDefaults')}</button>
           <button type="button" disabled={saving} onClick={onClose}>{t('cancel')}</button>
-          <button type="button" className="dsh-subscription-primary" disabled={loading || saving || !dirty}
+          <button type="button" className="dsh-subscription-primary" disabled={loading || saving || !dirty || invalidContext.length > 0}
             onClick={() => { void save() }}>{saving ? t('modelDefaultsSaving') : t('modelsSave')}</button>
         </div>
       </footer>
