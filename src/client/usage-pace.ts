@@ -64,14 +64,14 @@ export function elapsedPercent(window: UsageWindow, now = Date.now()): number | 
 
 /**
  * Assumed window lengths by kind, used only to place the display marker
- * when the provider discloses no timing. A monthly window is assumed to
- * span 28 days back from its reset; a session five hours, a week seven
- * days. These are display estimates, never pace evidence.
+ * when the provider discloses no timing. Both key providers' monthly
+ * pools read 30 days back from the reset; a session five hours, a week
+ * seven days. These are display estimates, never pace evidence.
  */
 const KIND_FALLBACK_MS = {
   session: 5 * 3_600_000,
   weekly: 7 * 86_400_000,
-  other: 28 * 86_400_000,
+  other: 30 * 86_400_000,
 } as const
 
 /**

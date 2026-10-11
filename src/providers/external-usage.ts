@@ -70,11 +70,11 @@ export async function fetchOpenCodeGoUsage(
     const usedPercent = percent(value?.percent)
     if (usedPercent === undefined) continue
     const resetsAt = resetTime(value?.resetsAt)
-    // Monthly has no interval fields, and a fixed 28-day reading of the
-    // calendar month is the display assumption the maintainer accepted:
-    // the marker starts at min(reset − 28d, now); pace never uses it.
+    // Monthly has no interval fields. Both key providers' monthly pools
+    // read the same display assumption: a 30-day span back from the
+    // reset, clamped to now; the marker only shows, pace never fires.
     const monthlyDisplay = field === 'monthly' && resetsAt !== undefined
-      ? { startsAt: Math.min(resetsAt - 28 * 86_400_000, Date.now()) }
+      ? { startsAt: Math.min(resetsAt - 30 * 86_400_000, Date.now()) }
       : {}
     windows.push({
       kind,
