@@ -141,7 +141,7 @@ const cases: Case[] = [
   },
   {
     // Display assumption accepted by the maintainer: monthly reads
-    // min(reset − 28d, now) as its start, so the marker places.
+    // min(reset − 30d, now) as its start, so the marker places.
     name: 'OpenCode Go monthly: display marker assumes min(reset - 30d, now)',
     cursor: true,
     load: () => fetchOpenCodeGoUsage('k', answer({ usage: { monthly: { percent: 0, resetsAt: iso(now + 20 * DAY) } } }) as typeof fetch),

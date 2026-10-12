@@ -20,7 +20,9 @@ Codex uses its reported duration with reset. Claude session and weekly buckets
 supply five-hour and seven-day durations in both supported response shapes.
 OpenCode Go's five-hour counter is first-use anchored; weekly resets at UTC
 Monday. Its monthly window is a subscription-anchored calendar month, so reset
-alone does not establish the start and must not be treated as thirty days.
+alone does not establish the start. Pace and verified timing never treat it
+as thirty days; a display-only marker later assumed that span (see the
+[display-start note](2026-10-12-display-only-assumed-window-start.md)).
 
 Kimi reads the official CLI's `usage` and `limits[].detail/window` count schema
 while retaining legacy ratio compatibility. Summary labels do not prove a weekly
@@ -86,4 +88,6 @@ routes pay-as-you-go keys to balance queries, not subscription quota endpoints.
 The UI remains visible without guessing calendar-month boundaries. MiniMax is
 usage-only and does not register models or add an OAuth login. Unsupported
 unlimited or boosted pools need a richer non-percentage UI before they can be
-shown accurately. Kimi markers are display-only assumptions, not evidence.
+shown accurately. Where Kimi's span is only assumed (the summary row, the
+legacy monthly pool), the marker is display-only, not evidence; a declared
+7 DAY window keeps its fixed-window claim.

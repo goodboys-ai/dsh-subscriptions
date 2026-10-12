@@ -21,8 +21,11 @@ comparison needs a current reading. Where the window stands in time does not.
 `elapsedPercent`. The percentage, `stale`, `observedAt` and the percentage's
 validity do not enter. It is drawn at 0% used, for a stale or old reading, and
 for an unusable percentage whose interval is known. It is absent when the
-timing cannot place it: no reset, a reset in the past, a start in the future,
-or a reset with neither a start nor a provider-verified fixed duration.
+verified timing cannot place it: no reset, a reset in the past, a start in
+the future, or a reset with neither a start nor a provider-verified fixed
+duration. A display-only assumed start may still place a marker where this
+rule leaves none; see the
+[display-start note](2026-10-12-display-only-assumed-window-start.md).
 
 Freshness still gates comparison. Yellow, the "ahead of pace" summary and the
 ahead/behind points use the cursor only for a fresh reading. A stale or old

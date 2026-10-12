@@ -133,8 +133,9 @@ export async function fetchKimiCodeUsage(
     // A vendor-declared span anchors the display marker at
     // min(reset − span, now); pace stays unverified (rolling semantics
     // are not established), so the assumed instant rides displayStartsAt.
-    // The top-level summary without period fields is read as the weekly
-    // limit (above), so its marker assumes seven days. The official CLI
+    // The top-level summary without a usable period (absent, zero, or no
+    // unit) is read as the weekly limit (above), so its marker assumes seven
+    // days. The official CLI
     // gives only the label, not a span; the span rests on a live account
     // whose summary reset matched `usages.limit_7d` to within a second.
     // An anonymous `limits[]` entry gets no such assumption. Display only.
