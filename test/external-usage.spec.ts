@@ -71,7 +71,9 @@ test('Kimi official CLI shape: summary assumes weekly, explicit durations win', 
   const usage = await fetchKimiCodeUsage('key', http)
   assert.deepEqual(usage.windows, [
     // No period fields: the official CLI labels this summary the weekly limit.
-    { kind: 'weekly', usedPercent: 40, resetsAt: Date.parse('2026-10-01T00:00:00Z') },
+    // Its marker assumes seven days back from the reset (display only).
+    { kind: 'weekly', usedPercent: 40, resetsAt: Date.parse('2026-10-01T00:00:00Z'),
+      displayStartsAt: Date.parse('2026-10-01T00:00:00Z') - 604_800_000 },
     { kind: 'session', usedPercent: 25, windowDurationMs: 18_000_000 },
     { kind: 'weekly', usedPercent: 50, windowDurationMs: 604_800_000, fixedWindow: true },
   ])

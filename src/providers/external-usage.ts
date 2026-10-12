@@ -131,8 +131,12 @@ export async function fetchKimiCodeUsage(
     // A vendor-declared span anchors the display marker at
     // min(reset − span, now); pace stays unverified (rolling semantics
     // are not established), so the assumed instant rides displayStartsAt.
-    const displayStart = resetsAt !== undefined && durationMs !== undefined
-      ? { displayStartsAt: Math.min(resetsAt - durationMs, Date.now()) }
+    // The summary row carries no period fields and is treated as the weekly
+    // limit (above), so its marker assumes seven days too; a live account
+    // shows its reset within a second of `usages.limit_7d`. Display only.
+    const markerSpan = durationMs ?? (kind === 'weekly' && unit === '' ? 604_800_000 : undefined)
+    const displayStart = resetsAt !== undefined && markerSpan !== undefined
+      ? { displayStartsAt: Math.min(resetsAt - markerSpan, Date.now()) }
       : {}
     modern.push({ kind, usedPercent,
       ...(typeof scope === 'string' ? { scope } : {}),

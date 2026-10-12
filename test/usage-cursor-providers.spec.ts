@@ -152,6 +152,22 @@ const cases: Case[] = [
     }) as typeof fetch),
   },
   {
+    // The live shape for a plan whose weekly quota is the `usage` summary:
+    // string numbers, `resetTime`, and no period fields. The row is read as
+    // the weekly limit, so its marker assumes seven days (display only).
+    name: 'Kimi weekly summary row without period fields: assumed seven-day marker',
+    cursor: true,
+    load: () => fetchKimiCodeUsage('k', answer({
+      usage: { limit: '100', used: '0', remaining: '100', resetTime: iso(now + 6 * DAY) },
+    }) as typeof fetch),
+  },
+  {
+    // A summary row with no reset has nothing to anchor a marker on.
+    name: 'Kimi weekly summary row without a reset time: no marker',
+    cursor: false,
+    load: () => fetchKimiCodeUsage('k', answer({ usage: { limit: '100', used: '0' } }) as typeof fetch),
+  },
+  {
     // The five-hour span is endpoint-declared (300 MINUTE), so the marker
     // derives from min(reset − 5h, now) like every shown window; pace
     // stays unverified because rolling semantics are not established.
