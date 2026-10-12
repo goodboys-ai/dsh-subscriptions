@@ -30,11 +30,14 @@ reading keeps its absolute green or red color and its stale label, and its
 tooltip states time elapsed without comparing it with the old percentage.
 Near exhaustion is red whatever the freshness, as before.
 
-No provider gains timing. Antigravity reports a reset only. Kimi's five-hour
-limit has unverified rolling semantics. OpenCode Go's monthly window is
-anchored to the subscription date. Grok and Cursor show no cursor when the
-response omits the period start. These stay without a cursor because the
-provider has not said where the window began, not because of their percentage.
+No provider gains verified timing from this change. Antigravity reports a
+reset only. Kimi's five-hour limit has unverified rolling semantics.
+OpenCode Go's monthly window is anchored to the subscription date. Grok and
+Cursor show no cursor when the response omits the period start. These stay
+without a verified cursor because the provider has not said where the window
+began, not because of their percentage. A later
+[note](2026-10-12-display-only-assumed-window-start.md) lets a reader attach
+a display-only assumed start for some of them; it never reaches pace.
 
 ## Alternatives considered
 
@@ -49,7 +52,9 @@ today's clock, the comparison the freshness rule exists to prevent.
 **Infer a start for providers that report only a reset.** This would give
 every provider a cursor. It would also invent a start from a window's label,
 which the earlier decision rejected, and it would be wrong for the first-use
-and subscription-anchored windows above.
+and subscription-anchored windows above. Narrowed later: an assumed start is
+allowed where a vendor or its client fixes the span, as a display-only field
+(see the [display-start note](2026-10-12-display-only-assumed-window-start.md)).
 
 **Tolerate small clock skew when the start is in the future.** A window that
 just began and a browser clock a few seconds behind the provider produce a

@@ -6,8 +6,10 @@
  * schema, with 0% used, then renders the real `UsageMeter` for the resulting
  * window. The question is only whether the cursor is drawn. A cursor must
  * appear when the provider's own timing fields place the window in time, and
- * must not appear when they do not: the plugin never supplies a start, a
- * duration, or a fixed-window claim the provider did not.
+ * must not appear when they do not. The plugin supplies no start, duration,
+ * or fixed-window claim for pace. The one exception is a display-only assumed
+ * start (`displayStartsAt`) for the few windows where a label or the official
+ * client fixes the span; each such case says so in its name.
  *
  * The bodies are written for these tests. They show how this plugin maps
  * fields, not what any provider returns for a real account.
@@ -159,6 +161,15 @@ const cases: Case[] = [
     cursor: true,
     load: () => fetchKimiCodeUsage('k', answer({
       usage: { limit: '100', used: '0', remaining: '100', resetTime: iso(now + 6 * DAY) },
+    }) as typeof fetch),
+  },
+  {
+    // Only the top-level summary is the CLI's "Weekly limit". An anonymous
+    // `limits[]` entry has no label or span to assume, so it gets no marker.
+    name: 'Kimi anonymous limits[] entry without period fields: no assumed marker',
+    cursor: false,
+    load: () => fetchKimiCodeUsage('k', answer({
+      limits: [{ detail: { limit: '100', used: '0', resetTime: iso(now + 6 * DAY) } }],
     }) as typeof fetch),
   },
   {

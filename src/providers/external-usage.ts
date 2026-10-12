@@ -100,11 +100,13 @@ export async function fetchKimiCodeUsage(
   const body = record(await getUsage('https://api.kimi.com/coding/v1/usages', apiKey, http, signal))
   if (body === undefined) throw new Error('Kimi Code usage response is not an object')
   const modern: UsageWindow[] = []
-  const rows = [
-    ...(record(body.usage) ? [{ detail: body.usage }] : []),
-    ...(Array.isArray(body.limits) ? body.limits : []),
+  // Only the top-level `usage` object is the summary the official CLI labels
+  // "Weekly limit"; an anonymous `limits[]` entry is "Limit #n" there.
+  const rows: { raw: unknown; summary: boolean }[] = [
+    ...(record(body.usage) ? [{ raw: { detail: body.usage }, summary: true }] : []),
+    ...(Array.isArray(body.limits) ? body.limits.map(raw => ({ raw, summary: false })) : []),
   ]
-  for (const raw of rows) {
+  for (const { raw, summary } of rows) {
     const item = record(raw)
     if (!item) continue
     const detail = record(item.detail) ?? item
@@ -123,18 +125,20 @@ export async function fetchKimiCodeUsage(
       ? undefined : duration * multiplier
     const kind = durationMs === 18_000_000 ? 'session'
       : durationMs === 604_800_000 ? 'weekly'
-        // No period fields at all: the official CLI labels this summary
-        // row the weekly limit, so assume that span rather than 'other'.
+        // No period fields at all: the official CLI labels the top-level
+        // summary the weekly limit, so use that kind rather than 'other'.
         : durationMs === undefined && unit === '' ? 'weekly' : 'other'
     const resetsAt = kimiReset(detail)
     const scope = detail.name ?? detail.title ?? item.name ?? item.title
     // A vendor-declared span anchors the display marker at
     // min(reset − span, now); pace stays unverified (rolling semantics
     // are not established), so the assumed instant rides displayStartsAt.
-    // The summary row carries no period fields and is treated as the weekly
-    // limit (above), so its marker assumes seven days too; a live account
-    // shows its reset within a second of `usages.limit_7d`. Display only.
-    const markerSpan = durationMs ?? (kind === 'weekly' && unit === '' ? 604_800_000 : undefined)
+    // The top-level summary without period fields is read as the weekly
+    // limit (above), so its marker assumes seven days. The official CLI
+    // gives only the label, not a span; the span rests on a live account
+    // whose summary reset matched `usages.limit_7d` to within a second.
+    // An anonymous `limits[]` entry gets no such assumption. Display only.
+    const markerSpan = durationMs ?? (summary && kind === 'weekly' ? 604_800_000 : undefined)
     const displayStart = resetsAt !== undefined && markerSpan !== undefined
       ? { displayStartsAt: Math.min(resetsAt - markerSpan, Date.now()) }
       : {}
