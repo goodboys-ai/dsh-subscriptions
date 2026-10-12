@@ -16,9 +16,10 @@ reported quota in **Settings → Subscriptions**.
 - **Ollama Cloud key route:** Add the `ollama-cloud` route with an
   `OLLAMA_API_KEY` credential. The route ships no model catalog:
   configure it on the Settings → Subscriptions card, which fetches the
-  cloud list, adopts the models to keep, and orders or removes them.
-  The picker shows exactly that list, so an unconfigured route offers
-  no model. The card also edits the base URL, the credential
+  cloud list, ticks the models to keep, and edits each one's display
+  name, order, default reasoning effort, and local context window.
+  The picker shows exactly the ticked list, so an unconfigured route
+  offers no model. The card also edits the base URL, the credential
   reference, and the web search/fetch switch, and persists them under
   the DSH home directory. No OAuth sign-in. A hand-written `llm-pi-ai`
   route with the same id collides with this one: delete the manual
@@ -78,7 +79,9 @@ in the composer's tool row: Standard or Fast, per session.
 
 **Settings → Subscriptions → provider → Manage** edits account aliases,
 pool participation, model allowlists, and the per-model effort, context,
-and tool settings.
+and tool settings. A context value only lowers the window a session plans
+against, never above what the provider advertises; Codex and Claude support
+it, and it does not enlarge the API's capacity.
 
 ![Model settings](docs/images/model-settings.png)
 
