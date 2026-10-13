@@ -18,7 +18,7 @@ rests on a host-capability claim the published host package contradicts. This
 section is the human summary; the JSON is the source of truth.
 
 - **Baseline:** upstream `v0.9.5` — commit `75a83460b27f869d6972c6d0a2b39d76ca49eabb` (2026-09-28).
-- **Reviewed up to:** upstream `v0.9.8` — commit `85e6c6c9`.
+- **Reviewed up to:** upstream `v0.9.9` — commit `9930c5ee`.
 - **Already covered before this ledger existed:** `f6e1b3f1` (the Settings card
   shows the CLI version Codex and Claude present, upstream issue
   [#108](https://github.com/V1ki/dsh-plugin-subscriptions/issues/108)). Ported
@@ -32,12 +32,20 @@ section is the human summary; the JSON is the source of truth.
   cancellation split out of `c5cc37fe`, whose release mechanics still do not
   apply here.
 - **Deliberately not taken:** upstream's release and CI work (`564be625`,
-  `800a08f5`, `69ac9c37`, `74f44a29`, `d8ab13e9`) and its peer-range move
-  (`867136be`) — this repo versions and releases on its own policy, and its
-  bounded range already admits the DSH versions upstream is adding.
+  `800a08f5`, `69ac9c37`, `74f44a29`, `d8ab13e9`, `9e90ef87`) and its
+  peer-range move (`867136be`) — this repo versions and releases on its own
+  policy, and its bounded range already admits the DSH versions upstream is
+  adding. `9930c5ee` hardens the schedule assertion for the hourly catalog
+  refresh; this fork refreshes catalogs on an explicit user action, so it has
+  no schedule to harden.
 - **Open decisions:** `998cea06` and `a85fb93a` (display names) collide with
   this fork's own localized naming; `f359301e` (hourly catalog refresh)
-  changes list freshness.
+  changes list freshness; `094f2b0a` retries the catalog write's `rename` when
+  Windows holds the destination open, a case this fork can hit too;
+  `fafd737c` already fixed its reporting half here, but a terminal pool
+  exhaustion is still not warned and a forced Settings refresh still leaves
+  that account's cooldowns in place; `dd3ff272` would add the account-level
+  Claude TTL control to a Settings surface this fork rewrote.
 
 ## How the baseline was determined
 
