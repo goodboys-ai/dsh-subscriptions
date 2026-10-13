@@ -272,43 +272,51 @@
     {
       "upstream": "094f2b0a",
       "subject": "fix(catalog-store): retry rename on Windows share-mode errors and cover concurrent saves (#129)",
-      "status": "pending",
+      "status": "ported",
       "area": "catalog",
       "forkCommits": [
-        "3987969"
+        "3987969",
+        "b053a3b",
+        "5268f9b"
       ],
       "evidence": {
         "test": "test/catalog-store.spec.ts"
       },
-      "reason": "Two halves, and the fork already holds the first: 3987969 serializes catalog mutations per path, and test/catalog-store.spec.ts proves overlapping account saves cannot drop a sibling snapshot, so the lost update this test guards cannot recur here. Not taken is the bounded rename retry on EPERM/EBUSY/EACCES. The conflict is reachable rather than hypothetical — the fork writes the same tmp-then-rename path and already branches on process.platform === 'win32' elsewhere — so whether to retry is a maintainer decision."
+      "reason": "Split, not cherry-picked. The concurrent-save half was already covered here: 3987969 serializes catalog mutations per path and test/catalog-store.spec.ts proves overlapping account saves cannot drop a sibling snapshot, so upstream's regression test is not ported. The bounded rename retry on EPERM/EBUSY/EACCES is, with one deviation: it runs on Windows only, because on POSIX those codes are real failures and retrying would delay surfacing them by about 300 ms."
     },
     {
       "upstream": "fafd737c",
       "subject": "fix(pool): report the real cause of an exhausted pool instead of a synthetic RATE_LIMIT (#139)",
-      "status": "pending",
+      "status": "ported",
       "area": "pool",
       "forkCommits": [
         "7aee561",
-        "441ff75"
+        "441ff75",
+        "e75b7c6",
+        "85bbfa2"
       ],
       "evidence": {
         "test": "test/pool.spec.ts",
         "test:health": "test/pool-health.spec.ts"
       },
-      "reason": "The fault this fixes is already gone here, and the fork's fix goes further: 7aee561 returns a lone non-quota member failure as that same error, keeping its code, status, and cause, and reports RATE_LIMIT only when every failure really is a quota or rate limit; 441ff75 then keeps the pool's earliest scoped recovery on it. Not taken are the two smaller halves: the terminal exhaustion is still thrown without an onWarn line, so dsh.log records the per-member failover but not the exhaustion that ends it, and a forced usage refresh from Settings still does not clear that account's pool cooldowns."
+      "reason": "Split, and the fork's reporting half goes further than upstream: 7aee561 returns a lone non-quota member failure as that same error, keeping its code, status, and cause, and reports RATE_LIMIT only when every failure really is a quota or rate limit; 441ff75 keeps the pool's earliest scoped recovery on it. e75b7c6 ports the other two halves: the terminal exhaustion now reaches onWarn, so dsh.log records the exhaustion that ends a failover, and a forced usage refresh from Settings clears that account's pool cooldowns. Two user actions force a refresh, the Refresh button and the re-check that follows a reset-credit redemption attempt, whether or not the redemption succeeded; no background poll does. The cooldown clears even when the re-check itself fails."
     },
     {
       "upstream": "dd3ff272",
       "subject": "feat(settings): choose the Claude prompt-cache TTL from the manage dialog",
-      "status": "pending",
+      "status": "ported",
       "area": "claude",
       "forkCommits": [
-        "e3fcd52"
+        "e3fcd52",
+        "9045486",
+        "733c682"
       ],
       "evidence": {
-        "test": "test/claude-cache-ttl.spec.ts"
+        "test": "test/claude-cache-ttl.spec.ts",
+        "test:settings": "test/provider-settings.spec.ts",
+        "test:ui": "test/model-defaults-view.spec.ts"
       },
-      "reason": "Follows the configurable TTL this fork ported in e3fcd52, which is config-only here: claudePromptCacheTtl is a plugin Config value and src/providers/claude.ts reads it from adapter options per request. This commit adds the account-level half upstream did not ship — a promptCacheTtl account preference applied through a per-request override. The fork's AccountPreferences store is the seam it would use and ProviderAccountManager.tsx is a rewritten component, so whether to expose it in Settings is a maintainer decision."
+      "reason": "e3fcd52 ported the config-level TTL; 9045486 adds the Manage dialog's Prompt cache lifetime picker on this fork's rewritten dialog. The choice is a Claude-only provider preference, promptCacheTtl, not a per-account one; the adapter re-reads it on every request, so a save applies from the next turn, and compaction and session-title requests stay at five minutes. 733c682 makes a models-only Save take the TTL from the freshly re-read settings instead of writing back the value the model editor loaded."
     }
   ]
 }

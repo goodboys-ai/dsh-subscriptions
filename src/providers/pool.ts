@@ -252,7 +252,7 @@ export class PoolAdapter extends LlmAdapter {
     if (definition === undefined) throw new LlmError(`unknown pool model "${options.model}"`, 'NO_ADAPTER')
     const members = await this.concrete(definition.members)
     const candidates = await this.select(options.model, members, options.sessionId)
-    if (candidates.length === 0) throw this.exhausted(options.model, members)
+    if (candidates.length === 0) throw this.exhaustedWithWarn(options.model, members)
     const failures: LlmError[] = []
     for (const member of candidates) {
       const adapter = this.options.adapters[member.provider]
@@ -313,7 +313,7 @@ export class PoolAdapter extends LlmAdapter {
       }
       return
     }
-    throw this.exhausted(options.model, members, failures)
+    throw this.exhaustedWithWarn(options.model, members, failures)
   }
 
   /**
@@ -371,6 +371,19 @@ export class PoolAdapter extends LlmAdapter {
       if (oldest.done !== true) this.sticky.delete(oldest.value)
     }
     this.sticky.set(key, memberKey(member.provider, member.account, member.model))
+  }
+
+  /**
+   * Build the terminal exhaustion error and log it. Per-member failovers are
+   * already warned above; without this line dsh.log shows the failover chain
+   * but not the exhaustion that ends it. The message carries only the
+   * LlmError's own sanitized text and code — raw provider payloads never
+   * reach here (see the note in {@link exhausted}).
+   */
+  private exhaustedWithWarn(model: string, pool: ConcretePoolMember[], failures: readonly LlmError[] = []): LlmError {
+    const error = this.exhausted(model, pool, failures)
+    this.options.onWarn(`pool "${model}": exhausted (${error.code}: ${error.message})`)
+    return error
   }
 
   /** Report attempt failures or this pool's active cooldowns, never unrelated health records. */

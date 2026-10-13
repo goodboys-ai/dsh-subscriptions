@@ -24,6 +24,7 @@ import { ProviderAccountManager } from '../src/client/ProviderAccountManager.js'
 import { en } from '../src/client/locales.js'
 import type { SubscriptionsKey } from '../src/client/locales.js'
 import type { ProviderPreferences } from '../src/provider-settings.js'
+import type { SubscriptionProvider } from '../src/client/SubscriptionsSection.js'
 import { Component, nodes, settle, text } from './component-harness.js'
 import type { Node } from './component-harness.js'
 
@@ -52,11 +53,13 @@ const model = (id: string, name: string, efforts: string[] = ['low', 'high'], co
   id, name, efforts: efforts.map(id => ({ id, name: id })), ...(configured === undefined ? {} : { configured }),
 })
 const catalog = (models = [model('a', 'Alpha')], settings: ProviderPreferences = {}) => ({
-  provider: 'codex' as const, models, settings, tools: [], accounts: [{ key: 'personal', label: 'Personal', models }],
+  provider: 'codex' as SubscriptionProvider, models, settings, tools: [], accounts: [{ key: 'personal', label: 'Personal', models }],
 })
 type Catalog = ReturnType<typeof catalog>
-function fixture(initial: Catalog) {
-  let data = initial
+type CatalogBody = Omit<Catalog, 'provider'>
+type Fixture = { rpc: ConnectionHandle['rpc']; calls: { endpoint: string; payload: any }[]; replace: (next: CatalogBody) => void; failEffort: (fail: boolean) => void }
+function fixture(initial: Catalog): Fixture {
+  let data: Catalog = initial
   const calls: { endpoint: string; payload: any }[] = []
   let failEffort = false
   const rpc = { call: async (channel: string, endpoint: string, payload: any) => {
@@ -75,7 +78,7 @@ function fixture(initial: Catalog) {
     }
     throw new Error(`unexpected fixture endpoint ${endpoint}`)
   } } as unknown as ConnectionHandle['rpc']
-  return { rpc, calls, replace: (next: Catalog) => { data = next }, failEffort: (fail: boolean) => { failEffort = fail } }
+  return { rpc, calls, replace: (next: CatalogBody) => { data = { ...data, ...next } }, failEffort: (fail: boolean) => { failEffort = fail } }
 }
 function editor(rpc: ConnectionHandle['rpc'], ref = { current: null as ProviderModelEditorHandle | null },
   onDirtyChange?: (dirty: boolean) => void) {
@@ -85,13 +88,13 @@ function editor(rpc: ConnectionHandle['rpc'], ref = { current: null as ProviderM
 }
 
 // The native dialog is not mounted: do not interpret these stubs as DOM coverage.
-function manager(rpc: ConnectionHandle['rpc']) {
+function manager(rpc: ConnectionHandle['rpc'], provider: SubscriptionProvider = 'codex') {
   let closed = 0
   const previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document')
   Object.defineProperty(globalThis, 'document', { configurable: true, value: { activeElement: null } })
   const dialog = { showModal() {}, close() {} }
   const component = new Component(() => {
-    const tree = ProviderAccountManager({ provider: 'codex', name: 'Codex', rpc, t, onClose: () => { closed++ } })
+    const tree = ProviderAccountManager({ provider, name: 'Codex', rpc, t, onClose: () => { closed++ } })
     ;(tree as unknown as { ref: { current: unknown } }).ref.current = dialog
     return tree
   })
@@ -267,4 +270,90 @@ test('manager Save re-reads changed accounts instead of restoring the model draf
     }, 'added account survives and removed account is not resurrected')
     assert.equal(f.calls.at(-2)!.endpoint, 'subscriptions-auth.providerSettings', 'fresh read immediately precedes settings write')
   } finally { view.cleanup() }
+})
+
+function ttlSelect(component: Component) {
+  const select = nodes(component.tree).find(node => node.type === 'select' && node.props['aria-label'] === en.claudeCacheTtl)
+  assert.ok(select, 'the prompt-cache TTL select')
+  return select
+}
+
+test('the prompt-cache TTL select is Claude-only, follows config by default, and Save sends the choice', async () => {
+  const f = fixture(catalog())
+  const view = manager(f.rpc)
+  try {
+    await settle(view.component, view.models)
+    assert.equal(nodes(view.component.tree).some(node => node.type === 'select' && node.props['aria-label'] === en.claudeCacheTtl), false,
+      'the Codex dialog has no Claude TTL picker')
+  } finally { view.cleanup() }
+  const claude = manager(f.rpc, 'claude')
+  try {
+    await settle(claude.component, claude.models)
+    assert.deepEqual(nodes(ttlSelect(claude.component)).filter(node => node.type === 'option')
+      .map(node => ({ value: node.props.value, label: text(node) })), [
+      { value: '', label: en.claudeCacheTtlFollowConfig },
+      { value: '5m', label: en.claudeCacheTtl5m },
+      { value: '1h', label: en.claudeCacheTtl1h },
+    ])
+    assert.equal(ttlSelect(claude.component).props.value, '', 'absent stored value follows the config')
+    assert.equal(button(claude.component, en.modelsSave).props.disabled, true, 'an untouched picker does not enable Save')
+    ttlSelect(claude.component).props.onChange({ target: { value: '1h' } })
+    await settle(claude.component, claude.models)
+    assert.equal(button(claude.component, en.modelsSave).props.disabled, false)
+    button(claude.component, en.modelsSave).props.onClick()
+    await settle(claude.component, claude.models)
+    const writes = f.calls.filter(call => call.endpoint.endsWith('.setProviderSettings'))
+    assert.equal(writes.length, 1)
+    assert.deepEqual(writes[0].payload.settings, { promptCacheTtl: '1h', accounts: {} })
+  } finally { claude.cleanup() }
+  // Reopening shows the saved value, and clearing the picker drops the field so the config applies again.
+  const again = manager(f.rpc, 'claude')
+  try {
+    await settle(again.component, again.models)
+    assert.equal(ttlSelect(again.component).props.value, '1h')
+    ttlSelect(again.component).props.onChange({ target: { value: '' } })
+    await settle(again.component, again.models)
+    button(again.component, en.modelsSave).props.onClick()
+    await settle(again.component, again.models)
+    const writes = f.calls.filter(call => call.endpoint.endsWith('.setProviderSettings'))
+    assert.equal(writes.at(-1)!.payload.settings.promptCacheTtl, undefined, 'follow config clears the stored override')
+  } finally { again.cleanup() }
+})
+
+test('a model-only Save takes the TTL from the re-read settings, not the editor draft', async () => {
+  const claudeCatalog = (settings: ProviderPreferences) => ({
+    models: [model('a', 'Alpha')], settings, tools: [],
+    accounts: [{ key: 'personal', label: 'Personal', models: [model('a', 'Alpha')] }],
+  })
+  const f = fixture({ provider: 'claude', ...claudeCatalog({ promptCacheTtl: '1h' }) })
+  const view = manager(f.rpc, 'claude')
+  try {
+    await settle(view.component, view.models)
+    assert.equal(ttlSelect(view.component).props.value, '1h', 'the dialog loads the stored override')
+    // Another client clears the override while this dialog is open.
+    f.replace(claudeCatalog({}))
+    // Only a model setting changes; the TTL picker is untouched.
+    button(view.models, en.modelsSelectNone).props.onClick()
+    await settle(view.models, view.component)
+    button(view.component, en.modelsSave).props.onClick()
+    await settle(view.component, view.models)
+    const writes = f.calls.filter(call => call.endpoint.endsWith('.setProviderSettings'))
+    assert.equal(writes.length, 1)
+    assert.deepEqual(writes[0].payload.settings, { visibleModels: [], contextWindows: {}, accounts: {} },
+      'the editor draft loaded with promptCacheTtl 1h; the write carries the re-read absence, not the stale value')
+  } finally { view.cleanup() }
+  // With the picker touched, its choice wins over whatever the re-read holds.
+  const f2 = fixture({ provider: 'claude', ...claudeCatalog({ promptCacheTtl: '1h' }) })
+  const touched = manager(f2.rpc, 'claude')
+  try {
+    await settle(touched.component, touched.models)
+    f2.replace(claudeCatalog({}))
+    ttlSelect(touched.component).props.onChange({ target: { value: '5m' } })
+    await settle(touched.component, touched.models)
+    button(touched.component, en.modelsSave).props.onClick()
+    await settle(touched.component, touched.models)
+    const writes = f2.calls.filter(call => call.endpoint.endsWith('.setProviderSettings'))
+    assert.equal(writes.length, 1)
+    assert.equal(writes[0].payload.settings.promptCacheTtl, '5m', 'the picker choice survives the re-read')
+  } finally { touched.cleanup() }
 })

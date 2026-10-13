@@ -29,7 +29,10 @@ function tokens(): AccountTokenManager<ClaudeSession> {
 }
 
 /** Send one turn through the adapter with fetch stubbed; return its POST body. */
-async function sentBody(promptCacheTtl: PromptCacheTtl | undefined): Promise<{ system: Record<string, unknown>[], messages: { content: Record<string, unknown>[] }[] }> {
+async function sentBody(
+  promptCacheTtl: PromptCacheTtl | undefined,
+  promptCacheTtlOverride?: () => PromptCacheTtl | undefined,
+): Promise<{ system: Record<string, unknown>[], messages: { content: Record<string, unknown>[] }[] }> {
   const original = globalThis.fetch
   let body = ''
   globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
@@ -44,6 +47,7 @@ async function sentBody(promptCacheTtl: PromptCacheTtl | undefined): Promise<{ s
       discovery: false,
       resolveCliVersion: async () => '2.1.999',
       ...promptCacheTtl === undefined ? {} : { promptCacheTtl },
+      ...promptCacheTtlOverride === undefined ? {} : { promptCacheTtlOverride },
     })
     const options: GenerateOptions = {
       provider: 'claude',
@@ -78,6 +82,23 @@ test('a Claude turn sends one-hour cache marks when the adapter is configured fo
     [{ type: 'ephemeral', ttl: '1h' }, { type: 'ephemeral', ttl: '1h' }],
     'both the tools+system mark and the conversation tail mark carry the one-hour TTL',
   )
+})
+
+test('the account-level override wins over the configured TTL, and undefined falls back to it', async () => {
+  const overridden = await sentBody('5m', () => '1h')
+  assert.deepEqual(markers(overridden), [{ type: 'ephemeral', ttl: '1h' }, { type: 'ephemeral', ttl: '1h' }])
+  const following = await sentBody('5m', () => undefined)
+  assert.deepEqual(markers(following), [{ type: 'ephemeral' }, { type: 'ephemeral' }])
+})
+
+test('the override is re-read on every request, so a save applies from the next turn', async () => {
+  let ttl: PromptCacheTtl | undefined = '1h'
+  const first = await sentBody('5m', () => ttl)
+  assert.deepEqual(markers(first), [{ type: 'ephemeral', ttl: '1h' }, { type: 'ephemeral', ttl: '1h' }])
+  ttl = undefined
+  const second = await sentBody('5m', () => ttl)
+  assert.deepEqual(markers(second), [{ type: 'ephemeral' }, { type: 'ephemeral' }],
+    'the same adapter switches to the configured TTL without reconstruction')
 })
 
 test('cacheControl spells five minutes by omitting ttl, and one hour explicitly', () => {
