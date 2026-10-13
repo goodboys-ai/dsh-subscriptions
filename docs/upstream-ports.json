@@ -7,10 +7,10 @@
     "date": "2026-09-28"
   },
   "upstreamRef": {
-    "sha": "85e6c6c9",
+    "sha": "9930c5ee",
     "note": "Full sha is re-derived by the check from the remote ref; recorded here for humans."
   },
-  "updatedAt": "2026-10-08",
+  "updatedAt": "2026-10-13",
   "entries": [
     {
       "upstream": "527f4d90",
@@ -254,6 +254,61 @@
       "status": "already-covered",
       "area": "settings",
       "reason": "Behaviour ported before this ledger existed. The fork commit is not a descendant of the upstream sha, which is exactly the case this ledger makes visible."
+    },
+    {
+      "upstream": "9930c5ee",
+      "subject": "test: tolerate the hourly refresh landing a few minutes past the hour",
+      "status": "not-applicable",
+      "area": "performance",
+      "reason": "Hardens the schedule assertion belonging to f359301e: each run is scheduled an hour after the previous one finishes, and that run does file I/O a fixed settle budget cannot bound. This fork has not taken the hourly refresh — f359301e stays open below — so it has no schedule to harden."
+    },
+    {
+      "upstream": "9e90ef87",
+      "subject": "chore: release v0.9.9",
+      "status": "not-applicable",
+      "area": "release",
+      "reason": "Upstream release line; the fork versions independently (see docs/compatibility.md)."
+    },
+    {
+      "upstream": "094f2b0a",
+      "subject": "fix(catalog-store): retry rename on Windows share-mode errors and cover concurrent saves (#129)",
+      "status": "pending",
+      "area": "catalog",
+      "forkCommits": [
+        "3987969"
+      ],
+      "evidence": {
+        "test": "test/catalog-store.spec.ts"
+      },
+      "reason": "Two halves, and the fork already holds the first: 3987969 serializes catalog mutations per path, and test/catalog-store.spec.ts proves overlapping account saves cannot drop a sibling snapshot, so the lost update this test guards cannot recur here. Not taken is the bounded rename retry on EPERM/EBUSY/EACCES. The conflict is reachable rather than hypothetical — the fork writes the same tmp-then-rename path and already branches on process.platform === 'win32' elsewhere — so whether to retry is a maintainer decision."
+    },
+    {
+      "upstream": "fafd737c",
+      "subject": "fix(pool): report the real cause of an exhausted pool instead of a synthetic RATE_LIMIT (#139)",
+      "status": "pending",
+      "area": "pool",
+      "forkCommits": [
+        "7aee561",
+        "441ff75"
+      ],
+      "evidence": {
+        "test": "test/pool.spec.ts",
+        "test:health": "test/pool-health.spec.ts"
+      },
+      "reason": "The fault this fixes is already gone here, and the fork's fix goes further: 7aee561 returns a lone non-quota member failure as that same error, keeping its code, status, and cause, and reports RATE_LIMIT only when every failure really is a quota or rate limit; 441ff75 then keeps the pool's earliest scoped recovery on it. Not taken are the two smaller halves: the terminal exhaustion is still thrown without an onWarn line, so dsh.log records the per-member failover but not the exhaustion that ends it, and a forced usage refresh from Settings still does not clear that account's pool cooldowns."
+    },
+    {
+      "upstream": "dd3ff272",
+      "subject": "feat(settings): choose the Claude prompt-cache TTL from the manage dialog",
+      "status": "pending",
+      "area": "claude",
+      "forkCommits": [
+        "e3fcd52"
+      ],
+      "evidence": {
+        "test": "test/claude-cache-ttl.spec.ts"
+      },
+      "reason": "Follows the configurable TTL this fork ported in e3fcd52, which is config-only here: claudePromptCacheTtl is a plugin Config value and src/providers/claude.ts reads it from adapter options per request. This commit adds the account-level half upstream did not ship — a promptCacheTtl account preference applied through a per-request override. The fork's AccountPreferences store is the seam it would use and ProviderAccountManager.tsx is a rewritten component, so whether to expose it in Settings is a maintainer decision."
     }
   ]
 }
