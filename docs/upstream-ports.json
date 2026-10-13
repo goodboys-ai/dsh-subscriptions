@@ -285,7 +285,7 @@
     {
       "upstream": "fafd737c",
       "subject": "fix(pool): report the real cause of an exhausted pool instead of a synthetic RATE_LIMIT (#139)",
-      "status": "pending",
+      "status": "ported",
       "area": "pool",
       "forkCommits": [
         "7aee561",
@@ -295,7 +295,7 @@
         "test": "test/pool.spec.ts",
         "test:health": "test/pool-health.spec.ts"
       },
-      "reason": "The fault this fixes is already gone here, and the fork's fix goes further: 7aee561 returns a lone non-quota member failure as that same error, keeping its code, status, and cause, and reports RATE_LIMIT only when every failure really is a quota or rate limit; 441ff75 then keeps the pool's earliest scoped recovery on it. Not taken are the two smaller halves: the terminal exhaustion is still thrown without an onWarn line, so dsh.log records the per-member failover but not the exhaustion that ends it, and a forced usage refresh from Settings still does not clear that account's pool cooldowns."
+      "reason": "The reporting half was already gone here, and the fork's fix goes further: 7aee561 returns a lone non-quota member failure as that same error, keeping its code, status, and cause, and reports RATE_LIMIT only when every failure really is a quota or rate limit; 441ff75 then keeps the pool's earliest scoped recovery on it. The two smaller halves are ported on this branch: the terminal exhaustion now emits one onWarn line naming the pool model and the thrown error's code and message, and a forced usage refresh from Settings clears that account's pool cooldowns."
     },
     {
       "upstream": "dd3ff272",

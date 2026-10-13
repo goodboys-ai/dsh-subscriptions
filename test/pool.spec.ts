@@ -825,6 +825,42 @@ test('stream: pool failure reporting uses non-quota cooldown reasons without ret
   }
 })
 
+test('stream: terminal exhaustion is warned once, naming the pool model and the thrown error', async () => {
+  // Per-member failovers already warn; the exhaustion that ENDS the failover
+  // must reach dsh.log too, carrying the same code/message the caller sees.
+  const failure = new LlmError('socket hang up', 'TRANSPORT')
+  const codex = new FakeAdapter(() => serveFail(failure))
+  const single = new Map<string, PoolDefinition>([
+    [poolKey('codex', 'm'), { members: [{ provider: 'codex', account: 'a1', model: 'm' }] }],
+  ])
+  const { pool, warnings } = makePool({ codex }, { families: single })
+  await assert.rejects(collect(pool.stream(OPTIONS)), (error: unknown) => {
+    assert.ok(error instanceof LlmError)
+    assert.equal(error.code, 'TRANSPORT')
+    assert.equal(error.message, 'socket hang up')
+    return true
+  })
+  const exhaustion = warnings.filter(message => message.includes('exhausted'))
+  assert.equal(exhaustion.length, 1, 'exactly one terminal-exhaustion line')
+  assert.match(exhaustion[0]!, /^pool "m": exhausted \(TRANSPORT: socket hang up\)$/)
+})
+
+test('stream: exhaustion from cooling members is warned with the thrown error', async () => {
+  const codex = new FakeAdapter(() => serveOk())
+  const { pool, health, warnings } = makePool({ codex })
+  for (const account of ['a1', 'a2']) health.markUnavailable(memberKey('codex', account, 'm'), 60_000, 'SERVER')
+  await assert.rejects(collect(pool.stream(OPTIONS)), (error: unknown) => {
+    assert.ok(error instanceof LlmError)
+    assert.equal(error.code, 'SERVER')
+    assert.match(error.message, /2 members are cooling down/)
+    return true
+  })
+  assert.equal(codex.calls, 0)
+  const exhaustion = warnings.filter(message => message.includes('exhausted'))
+  assert.equal(exhaustion.length, 1, 'exactly one terminal-exhaustion line')
+  assert.ok(exhaustion[0]!.startsWith('pool "m": exhausted (SERVER: pool "m" unavailable:'))
+})
+
 test('stream: pool failure reporting summarizes distinct failures and retains every cause', async () => {
   for (const codes of [['AUTH', 'SERVER', 'RATE_LIMIT'], ['RATE_LIMIT', 'SERVER', 'AUTH']]) {
     const failures = codes.map(code => new LlmError(`provider failure: ${code}`, code))
