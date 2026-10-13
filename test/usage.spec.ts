@@ -444,6 +444,26 @@ test('usage(): a forced refresh fires the onUsageForced callback once with (prov
   assert.deepEqual(forced, ['codex/a1'])
 })
 
+test('usage(): a forced refresh fires the callback before the fetch and even when the fetch fails', async () => {
+  // A stale cooldown must be lifted even if the re-check itself fails; the
+  // next real request re-proves health and re-marks the cooldown if the
+  // account is still failing.
+  const forced: string[] = []
+  const failure = new OAuthEndpointError('usage endpoint error (HTTP 500)', 500)
+  const poolUsage = new PoolUsageTracker((provider, account) =>
+    provider === 'codex' && account === 'a1' ? () => Promise.reject(failure) : undefined)
+  const controller = new SubscriptionsAuthController(
+    new OAuthFlowManager(), new DeviceFlowManager(), () => {}, () => undefined,
+    { codex: unreachableFetcher }, undefined, poolUsage, {}, {}, undefined,
+    (provider, account) => { forced.push(`${provider}/${account}`) },
+  )
+  await assert.rejects(
+    controller.usage('codex', 'a1', new AbortController().signal, true),
+    (error: unknown) => error === failure,
+  )
+  assert.deepEqual(forced, ['codex/a1'], 'the cooldown was lifted before the failing fetch')
+})
+
 test('usage(): the controller preserves reset credits and optional lookup errors', async () => {
   let snapshot: ProviderUsage = { supported: true, windows: [], resetCredits: [{ expiresAt: 1791152194306 }] }
   const tracker = new PoolUsageTracker(() => async () => snapshot)
