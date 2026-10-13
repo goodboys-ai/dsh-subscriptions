@@ -27,10 +27,13 @@ section is the human summary; the JSON is the source of truth.
 - **Ported since:** Codex reasoning-effort `ultra` handling (`0c65c7d0`,
   `527f4d90`); Codex reset credits, end to end (`62453f2f`, `9c0ae036`,
   `d7a7f752`, `53577040`, `b0c6220a`); the Claude prompt-cache TTL setting
-  (`f2622e49`, `8a80d4e4`); the Claude image-request budget (`eb429662`); the
-  native-UI restyle (`080450d0`); and the account-scoped replay and SSE stream
-  cancellation split out of `c5cc37fe`, whose release mechanics still do not
-  apply here.
+  (`f2622e49`, `8a80d4e4`) and its Manage-dialog picker (`dd3ff272`); the
+  Claude image-request budget (`eb429662`); the native-UI restyle (`080450d0`);
+  the account-scoped replay and SSE stream cancellation split out of
+  `c5cc37fe`, whose release mechanics still do not apply here; the catalog
+  write's `rename` retry for Windows (`094f2b0a`, Windows only); and pool
+  exhaustion reporting (`fafd737c`), whose terminal warning and forced-refresh
+  cooldown clear were the parts this fork still lacked.
 - **Deliberately not taken:** upstream's release and CI work (`564be625`,
   `800a08f5`, `69ac9c37`, `74f44a29`, `d8ab13e9`, `9e90ef87`) and its
   peer-range move (`867136be`) — this repo versions and releases on its own
@@ -40,12 +43,7 @@ section is the human summary; the JSON is the source of truth.
   no schedule to harden.
 - **Open decisions:** `998cea06` and `a85fb93a` (display names) collide with
   this fork's own localized naming; `f359301e` (hourly catalog refresh)
-  changes list freshness; `094f2b0a` retries the catalog write's `rename` when
-  Windows holds the destination open, a case this fork can hit too;
-  `fafd737c` already fixed its reporting half here, but a terminal pool
-  exhaustion is still not warned and a forced Settings refresh still leaves
-  that account's cooldowns in place; `dd3ff272` would add the account-level
-  Claude TTL control to a Settings surface this fork rewrote.
+  changes list freshness.
 
 ## How the baseline was determined
 
