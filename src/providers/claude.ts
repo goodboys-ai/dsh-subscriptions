@@ -645,6 +645,12 @@ export interface ClaudeAdapterOptions {
   resolveCliVersion?: () => Promise<string>
   /** Cache breakpoint lifetime; absent means the API's five-minute default. */
   promptCacheTtl?: PromptCacheTtl
+  /**
+   * The Settings page's per-route TTL override, consulted on every request so
+   * a saved change applies from the next turn without a restart. Returning
+   * undefined follows {@link ClaudeAdapterOptions.promptCacheTtl}.
+   */
+  promptCacheTtlOverride?: () => PromptCacheTtl | undefined
 }
 
 /**
@@ -682,8 +688,9 @@ const CLAUDE_MODALITIES: readonly ('text' | 'image')[] = ['text', 'image']
  * @param effort - the reasoning effort, when the model advertises efforts.
  * @param cacheTtl - lifetime of every cache breakpoint; defaults to five minutes.
  * Requests that carry a `purpose` (compaction, session titles) always use five
- * minutes to preserve their existing auxiliary-request behavior. A five-minute
- * mark can still read an entry a one-hour mark wrote.
+ * minutes to preserve their existing auxiliary-request behavior — the override
+ * changes the TTL for ordinary turns only, never the auxiliary floor. A
+ * five-minute mark can still read an entry a one-hour mark wrote.
  * @returns the JSON body to POST.
  */
 export function claudeRequestBody(
@@ -969,8 +976,11 @@ export class ClaudeAdapter extends LlmAdapter {
     const effort = options.reasoningEffort !== undefined && disc?.reasoning !== undefined
       ? String(options.reasoningEffort)
       : undefined
+    // Read the Settings override per request: a saved change must apply from
+    // the next turn, and a cached value here would go stale.
+    const cacheTtl = this.options.promptCacheTtlOverride?.() ?? this.options.promptCacheTtl
     const body = claudeRequestBody(
-      options, messages, maxTokens, thinking, effort, this.options.promptCacheTtl,
+      options, messages, maxTokens, thinking, effort, cacheTtl,
     )
     const cliVersion = await (this.options.resolveCliVersion ?? localClaudeCliVersion)()
     return hostFetch(CLAUDE_API_URL, {

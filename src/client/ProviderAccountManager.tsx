@@ -2,10 +2,11 @@ import { useEffect, useId, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-api-remotes/client'
 import type { AccountPreferences, ProviderPreferences } from '../provider-settings.js'
+import type { PromptCacheTtl } from '../translate/anthropic.js'
 import type { SubscriptionProvider } from './SubscriptionsSection.js'
 import type { SubscriptionsKey } from './locales.js'
 import { callSubscriptionsAuth } from './subscriptions-rpc.js'
-import { accountModelRows, accountPoolSelection, mergeAccountChanges, mergeLatestAccounts } from './account-preferences.js'
+import { accountModelRows, accountPoolSelection, mergeAccountChanges, mergeLatestAccounts, mergePromptCacheTtl } from './account-preferences.js'
 import type { AccountCatalogRow } from './account-preferences.js'
 import { ProviderModelEditor } from './ProviderModelEditor.js'
 import type { ProviderModelEditorHandle } from './ProviderModelEditor.js'
@@ -36,6 +37,9 @@ export function ProviderAccountManager({ provider, name, rpc, t, onClose }: Prop
   const [saveError, setSaveError] = useState('')
   const [attempt, setAttempt] = useState(0)
   const [modelsDirty, setModelsDirty] = useState(false)
+  // The Claude prompt-cache TTL draft: undefined follows the plugin config.
+  const [ttlDraft, setTtlDraft] = useState<PromptCacheTtl>()
+  const [ttlDirty, setTtlDirty] = useState(false)
   const alive = useRef(true)
   const saveLock = useRef(false)
   const editor = useRef<ProviderModelEditorHandle>(null)
@@ -56,7 +60,11 @@ export function ProviderAccountManager({ provider, name, rpc, t, onClose }: Prop
     setError('')
     void callSubscriptionsAuth<Catalog>(rpc,
       provider === 'cursor-subscription' ? 'cursorSettings' : 'providerSettings', { provider }).then(data => {
-      if (current) setCatalog(data)
+      if (current) {
+        setCatalog(data)
+        setTtlDraft(data.settings.promptCacheTtl)
+        setTtlDirty(false)
+      }
     }).catch(error => {
       if (current) setError(t('accountsLoadFailed', { message: error instanceof Error ? error.message : String(error) }))
     }).finally(() => { if (current) setLoading(false) })
@@ -98,7 +106,10 @@ export function ProviderAccountManager({ provider, name, rpc, t, onClose }: Prop
         await callSubscriptionsAuth(rpc, 'cursorSetSettings', { settings: models.settings ?? latest.settings })
       } else {
         const base = models.settings === undefined ? latest.settings : mergeLatestAccounts(models.settings, latest.settings)
-        await callSubscriptionsAuth(rpc, 'setProviderSettings', { provider, settings: mergeAccountChanges(base, changes) })
+        // The TTL picker belongs to this dialog, so its draft replaces the
+        // re-read settings' value rather than being carried by the model editor.
+        const withTtl = ttlDirty ? mergePromptCacheTtl(base, ttlDraft) : base
+        await callSubscriptionsAuth(rpc, 'setProviderSettings', { provider, settings: mergeAccountChanges(withTtl, changes) })
       }
       if (alive.current) onClose()
     } catch (error) {
@@ -185,12 +196,30 @@ export function ProviderAccountManager({ provider, name, rpc, t, onClose }: Prop
       </fieldset>}
       {(provider !== 'cursor-subscription' || (catalog?.accounts.length ?? 0) > 0) &&
         <ProviderModelEditor ref={editor} provider={provider} rpc={rpc} t={t} disabled={saving} onDirtyChange={setModelsDirty} />}
+      {provider === 'claude' && catalog && <div style={{ ...stack, gap: 6, borderTop: border, marginTop: 12, paddingTop: 12 }}>
+        <label style={{ ...stack, gap: 6 }}>
+          <span className="dsh-subscription-label">{t('claudeCacheTtl')}</span>
+          <select aria-label={t('claudeCacheTtl')} style={{ width: 220 }}
+            value={ttlDraft ?? ''} disabled={saving}
+            onChange={event => {
+              const value = event.target.value
+              setTtlDraft(value === '' ? undefined : value as PromptCacheTtl)
+              setTtlDirty(true)
+            }}>
+            <option value="">{t('claudeCacheTtlFollowConfig')}</option>
+            <option value="5m">{t('claudeCacheTtl5m')}</option>
+            <option value="1h">{t('claudeCacheTtl1h')}</option>
+          </select>
+        </label>
+        <p className="dsh-subscription-hint">{t('claudeCacheTtlHint')}</p>
+      </div>}
       <footer style={{ ...stack, gap: 8, borderTop: border, padding: '14px 0 8px',
         position: 'sticky', bottom: 0, background: 'var(--dsw-alias-bg-layer-2, var(--dsw-alias-bg-layer-1))' }}>
         {saveError && <p role="alert">{saveError}</p>}
         <div style={{ ...actions, justifyContent: 'flex-end' }}>
           <button type="button" disabled={saving} onClick={onClose}>{t('cancel')}</button>
-          <button type="button" className="dsh-subscription-primary" disabled={loading || saving || (!Object.keys(changes).length && !modelsDirty)}
+          <button type="button" className="dsh-subscription-primary"
+            disabled={loading || saving || (!Object.keys(changes).length && !modelsDirty && !ttlDirty)}
             onClick={() => { void save() }}>{saving ? t('modelDefaultsSaving') : t('modelsSave')}</button>
         </div>
       </footer>

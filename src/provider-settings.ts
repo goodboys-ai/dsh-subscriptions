@@ -3,6 +3,7 @@ import { mkdir, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
 import { PROVIDER_IDS, type ProviderId } from './auth/store.js'
+import type { PromptCacheTtl } from './translate/anthropic.js'
 
 export const PROVIDER_TOOLS = {
   codex: ['image_generate', 'web_search'],
@@ -27,6 +28,11 @@ export interface ProviderPreferences {
   visibleModels?: string[]
   contextWindows?: Record<string, number>
   tools?: Partial<Record<SubscriptionTool, boolean>>
+  /**
+   * Claude only: overrides the `claudePromptCacheTtl` plugin config for this
+   * route. Absent follows the configured TTL.
+   */
+  promptCacheTtl?: PromptCacheTtl
 }
 interface ToolRevision {
   at: number
@@ -87,6 +93,13 @@ export function validatePreferences(provider: ProviderId, input: unknown): Provi
       result.contextWindows[model] = value
     }
   }
+  if (raw.promptCacheTtl !== undefined) {
+    if (provider !== 'claude') throw new Error('the prompt-cache TTL override is supported only for Claude')
+    if (raw.promptCacheTtl !== '5m' && raw.promptCacheTtl !== '1h') {
+      throw new Error('promptCacheTtl must be "5m" or "1h"')
+    }
+    result.promptCacheTtl = raw.promptCacheTtl
+  }
   if (raw.tools !== undefined) {
     if (!raw.tools || typeof raw.tools !== 'object' || Array.isArray(raw.tools)) throw new Error('tools must be an object')
     result.tools = {}
@@ -136,6 +149,15 @@ export class ProviderSettingsStore {
   contextWindow(model: string, provider: ProviderId = 'codex'): number | undefined {
     const windows = this.current.providers[provider]?.contextWindows
     return windows && Object.hasOwn(windows, model) ? windows[model] : undefined
+  }
+
+  /**
+   * The Claude route's prompt-cache TTL override, read live so a saved change
+   * takes effect from the next request without a restart. Absent means follow
+   * the `claudePromptCacheTtl` config.
+   */
+  promptCacheTtl(): PromptCacheTtl | undefined {
+    return this.current.providers.claude?.promptCacheTtl
   }
 
   /** Creation-time policy survives restarts and never changes an existing session. */

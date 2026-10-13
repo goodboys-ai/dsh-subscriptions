@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { accountModelRows, accountPoolSelection, mergeAccountChanges, mergeLatestAccounts } from '../src/client/account-preferences.js'
+import { accountModelRows, accountPoolSelection, mergeAccountChanges, mergeLatestAccounts, mergePromptCacheTtl } from '../src/client/account-preferences.js'
 import { en, zh } from '../src/client/locales.js'
 
 const models = [{ id: 'a', name: 'Alpha' }, { id: 'b', name: 'Beta' }]
@@ -30,6 +30,12 @@ test('account manager preserves latest other settings and untouched accounts', (
   })
   assert.equal(latest.accounts.personal.alias, 'Old')
 })
+test('the TTL draft replaces the re-read settings value; clearing it drops the field', () => {
+  const latest = { visibleModels: ['a'], promptCacheTtl: '1h' as const, accounts: { personal: { alias: 'Old' } } }
+  assert.deepEqual(mergePromptCacheTtl(latest, '5m'), { visibleModels: ['a'], promptCacheTtl: '5m', accounts: latest.accounts })
+  assert.deepEqual(mergePromptCacheTtl(latest, undefined), { visibleModels: ['a'], accounts: latest.accounts })
+  assert.equal(latest.promptCacheTtl, '1h', 'the merge does not mutate the re-read settings')
+})
 test('account manager has bilingual copy and explicitly limits isolation claims', () => {
   for (const key of Object.keys(en).filter(key => key.startsWith('accounts')) as (keyof typeof en)[]) {
     assert.ok(en[key].length)
@@ -38,4 +44,10 @@ test('account manager has bilingual copy and explicitly limits isolation claims'
   assert.match(en.accountsHint, /only to LLM routing/)
   assert.match(en.accountsIndependentHint, /no fallback/)
   assert.match(zh.accountsIndependentHint, /不会回退/)
+})
+test('the Claude prompt-cache TTL picker copy names the config it overrides, in both locales', () => {
+  assert.match(en.claudeCacheTtlHint, /claudePromptCacheTtl/)
+  assert.match(en.claudeCacheTtlHint, /Follow config/)
+  assert.match(zh.claudeCacheTtlHint, /claudePromptCacheTtl/)
+  assert.match(zh.claudeCacheTtlHint, /跟随配置/)
 })

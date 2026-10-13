@@ -27,7 +27,8 @@ section is the human summary; the JSON is the source of truth.
 - **Ported since:** Codex reasoning-effort `ultra` handling (`0c65c7d0`,
   `527f4d90`); Codex reset credits, end to end (`62453f2f`, `9c0ae036`,
   `d7a7f752`, `53577040`, `b0c6220a`); the Claude prompt-cache TTL setting
-  (`f2622e49`, `8a80d4e4`); the Claude image-request budget (`eb429662`); the
+  (`f2622e49`, `8a80d4e4`) and its account-level override in the Manage
+  dialog (`dd3ff272`); the Claude image-request budget (`eb429662`); the
   native-UI restyle (`080450d0`); and the account-scoped replay and SSE stream
   cancellation split out of `c5cc37fe`, whose release mechanics still do not
   apply here.
@@ -44,8 +45,7 @@ section is the human summary; the JSON is the source of truth.
   Windows holds the destination open, a case this fork can hit too;
   `fafd737c` already fixed its reporting half here, but a terminal pool
   exhaustion is still not warned and a forced Settings refresh still leaves
-  that account's cooldowns in place; `dd3ff272` would add the account-level
-  Claude TTL control to a Settings surface this fork rewrote.
+  that account's cooldowns in place.
 
 ## How the baseline was determined
 

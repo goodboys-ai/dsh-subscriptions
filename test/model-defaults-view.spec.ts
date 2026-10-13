@@ -24,6 +24,7 @@ import { ProviderAccountManager } from '../src/client/ProviderAccountManager.js'
 import { en } from '../src/client/locales.js'
 import type { SubscriptionsKey } from '../src/client/locales.js'
 import type { ProviderPreferences } from '../src/provider-settings.js'
+import type { SubscriptionProvider } from '../src/client/SubscriptionsSection.js'
 import { Component, nodes, settle, text } from './component-harness.js'
 import type { Node } from './component-harness.js'
 
@@ -85,13 +86,13 @@ function editor(rpc: ConnectionHandle['rpc'], ref = { current: null as ProviderM
 }
 
 // The native dialog is not mounted: do not interpret these stubs as DOM coverage.
-function manager(rpc: ConnectionHandle['rpc']) {
+function manager(rpc: ConnectionHandle['rpc'], provider: SubscriptionProvider = 'codex') {
   let closed = 0
   const previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document')
   Object.defineProperty(globalThis, 'document', { configurable: true, value: { activeElement: null } })
   const dialog = { showModal() {}, close() {} }
   const component = new Component(() => {
-    const tree = ProviderAccountManager({ provider: 'codex', name: 'Codex', rpc, t, onClose: () => { closed++ } })
+    const tree = ProviderAccountManager({ provider, name: 'Codex', rpc, t, onClose: () => { closed++ } })
     ;(tree as unknown as { ref: { current: unknown } }).ref.current = dialog
     return tree
   })
@@ -267,4 +268,52 @@ test('manager Save re-reads changed accounts instead of restoring the model draf
     }, 'added account survives and removed account is not resurrected')
     assert.equal(f.calls.at(-2)!.endpoint, 'subscriptions-auth.providerSettings', 'fresh read immediately precedes settings write')
   } finally { view.cleanup() }
+})
+
+function ttlSelect(component: Component) {
+  const select = nodes(component.tree).find(node => node.type === 'select' && node.props['aria-label'] === en.claudeCacheTtl)
+  assert.ok(select, 'the prompt-cache TTL select')
+  return select
+}
+
+test('the prompt-cache TTL select is Claude-only, follows config by default, and Save sends the choice', async () => {
+  const f = fixture(catalog())
+  const view = manager(f.rpc)
+  try {
+    await settle(view.component, view.models)
+    assert.equal(nodes(view.component.tree).some(node => node.type === 'select' && node.props['aria-label'] === en.claudeCacheTtl), false,
+      'the Codex dialog has no Claude TTL picker')
+  } finally { view.cleanup() }
+  const claude = manager(f.rpc, 'claude')
+  try {
+    await settle(claude.component, claude.models)
+    assert.deepEqual(nodes(ttlSelect(claude.component)).filter(node => node.type === 'option')
+      .map(node => ({ value: node.props.value, label: text(node) })), [
+      { value: '', label: en.claudeCacheTtlFollowConfig },
+      { value: '5m', label: en.claudeCacheTtl5m },
+      { value: '1h', label: en.claudeCacheTtl1h },
+    ])
+    assert.equal(ttlSelect(claude.component).props.value, '', 'absent stored value follows the config')
+    assert.equal(button(claude.component, en.modelsSave).props.disabled, true, 'an untouched picker does not enable Save')
+    ttlSelect(claude.component).props.onChange({ target: { value: '1h' } })
+    await settle(claude.component, claude.models)
+    assert.equal(button(claude.component, en.modelsSave).props.disabled, false)
+    button(claude.component, en.modelsSave).props.onClick()
+    await settle(claude.component, claude.models)
+    const writes = f.calls.filter(call => call.endpoint.endsWith('.setProviderSettings'))
+    assert.equal(writes.length, 1)
+    assert.deepEqual(writes[0].payload.settings, { promptCacheTtl: '1h', accounts: {} })
+  } finally { claude.cleanup() }
+  // Reopening shows the saved value, and clearing the picker drops the field so the config applies again.
+  const again = manager(f.rpc, 'claude')
+  try {
+    await settle(again.component, again.models)
+    assert.equal(ttlSelect(again.component).props.value, '1h')
+    ttlSelect(again.component).props.onChange({ target: { value: '' } })
+    await settle(again.component, again.models)
+    button(again.component, en.modelsSave).props.onClick()
+    await settle(again.component, again.models)
+    const writes = f.calls.filter(call => call.endpoint.endsWith('.setProviderSettings'))
+    assert.equal(writes.at(-1)!.payload.settings.promptCacheTtl, undefined, 'follow config clears the stored override')
+  } finally { again.cleanup() }
 })

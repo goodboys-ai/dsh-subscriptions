@@ -976,6 +976,9 @@ export function apply(ctx: Context, config: Config): void {
           contextWindowOf: model => preferences.contextWindow(model, 'claude'),
           resolveCliVersion: () => claudeVersion.resolve(),
           promptCacheTtl: claudePromptCacheTtl,
+          // The Manage dialog's per-route override, re-read from the settings
+          // store on every request so a save applies from the next turn.
+          promptCacheTtlOverride: () => preferences.promptCacheTtl(),
           pool: () => poolAdapter,
         })
         claudeAdapter = adapter

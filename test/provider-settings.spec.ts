@@ -61,6 +61,33 @@ test('provider settings reject invalid contexts and unsupported tools; ids are s
   assert.equal(prefs.contextWindows?.['toString'], 123)
 })
 
+test('the Claude prompt-cache TTL accepts 5m/1h, rejects other values and non-Claude providers', () => {
+  assert.equal(validatePreferences('claude', { promptCacheTtl: '5m' }).promptCacheTtl, '5m')
+  assert.equal(validatePreferences('claude', { promptCacheTtl: '1h' }).promptCacheTtl, '1h')
+  assert.equal(validatePreferences('claude', {}).promptCacheTtl, undefined)
+  for (const invalid of ['30m', '1H', '', 3600, true, null]) {
+    assert.throws(() => validatePreferences('claude', { promptCacheTtl: invalid }), /promptCacheTtl/, `rejects ${JSON.stringify(invalid)}`)
+  }
+  for (const provider of ['codex', 'grok', 'copilot', 'antigravity'] as const) {
+    assert.throws(() => validatePreferences(provider, { promptCacheTtl: '1h' }), /Claude/, `${provider} rejects the Claude-only field`)
+  }
+})
+
+test('the Claude prompt-cache TTL persists and round-trips through a reload', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'provider-ttl-'))
+  try {
+    const path = join(dir, 'settings.json')
+    const store = new ProviderSettingsStore(path)
+    assert.equal(store.promptCacheTtl(), undefined)
+    await store.set('claude', { promptCacheTtl: '1h' })
+    assert.equal(store.promptCacheTtl(), '1h')
+    const reload = new ProviderSettingsStore(path)
+    assert.equal(reload.promptCacheTtl(), '1h')
+    await reload.set('claude', {})
+    assert.equal(reload.promptCacheTtl(), undefined)
+  } finally { await rm(dir, { recursive: true, force: true }) }
+})
+
 test('failed persistence leaves live settings unchanged and permits a later retry', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'provider-failure-'))
   const { mkdir } = await import('node:fs/promises')

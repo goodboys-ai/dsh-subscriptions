@@ -300,15 +300,17 @@
     {
       "upstream": "dd3ff272",
       "subject": "feat(settings): choose the Claude prompt-cache TTL from the manage dialog",
-      "status": "pending",
+      "status": "ported",
       "area": "claude",
       "forkCommits": [
         "e3fcd52"
       ],
       "evidence": {
-        "test": "test/claude-cache-ttl.spec.ts"
+        "test": "test/claude-cache-ttl.spec.ts",
+        "test:settings": "test/provider-settings.spec.ts",
+        "test:ui": "test/model-defaults-view.spec.ts"
       },
-      "reason": "Follows the configurable TTL this fork ported in e3fcd52, which is config-only here: claudePromptCacheTtl is a plugin Config value and src/providers/claude.ts reads it from adapter options per request. This commit adds the account-level half upstream did not ship — a promptCacheTtl account preference applied through a per-request override. The fork's AccountPreferences store is the seam it would use and ProviderAccountManager.tsx is a rewritten component, so whether to expose it in Settings is a maintainer decision."
+      "reason": "Follows the configurable TTL this fork ported in e3fcd52, which was config-only: claudePromptCacheTtl is a plugin Config value and src/providers/claude.ts reads it from adapter options per request. This port adds the account-level half upstream did not ship — a Claude-only promptCacheTtl provider preference in the provider-settings store, applied through the adapter's per-request promptCacheTtlOverride, and a Prompt cache lifetime picker in the rewritten Manage dialog. The ledger names only the config-half commit; the dialog half lands on this branch."
     }
   ]
 }

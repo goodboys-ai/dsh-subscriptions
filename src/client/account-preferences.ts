@@ -1,4 +1,5 @@
 import type { AccountPreferences, ProviderPreferences } from '../provider-settings.js'
+import type { PromptCacheTtl } from '../translate/anthropic.js'
 
 export interface AccountCatalogRow {
   key: string
@@ -25,6 +26,19 @@ export function accountModelRows(account: AccountCatalogRow, preferences: Accoun
 export function mergeLatestAccounts(draft: ProviderPreferences, latest: ProviderPreferences): ProviderPreferences {
   const { accounts: _stale, ...settings } = draft
   return { ...settings, ...(latest.accounts === undefined ? {} : { accounts: latest.accounts }) }
+}
+
+/**
+ * The account manager owns the Claude prompt-cache TTL picker; the model
+ * editor's draft never carries it, so the dialog's choice replaces whatever
+ * the freshly re-read settings hold.
+ */
+export function mergePromptCacheTtl(
+  settings: ProviderPreferences,
+  promptCacheTtl: PromptCacheTtl | undefined,
+): ProviderPreferences {
+  const { promptCacheTtl: _stale, ...rest } = settings
+  return promptCacheTtl === undefined ? rest : { ...rest, promptCacheTtl }
 }
 
 /** Only touched accounts replace their latest preferences; other settings survive. */
