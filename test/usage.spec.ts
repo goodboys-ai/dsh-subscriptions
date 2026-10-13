@@ -450,8 +450,13 @@ test('usage(): a forced refresh fires the callback before the fetch and even whe
   // account is still failing.
   const forced: string[] = []
   const failure = new OAuthEndpointError('usage endpoint error (HTTP 500)', 500)
+  // The flag is read INSIDE the fetcher, so a callback that only fired in a
+  // `finally` (after the fetch) would leave it false.
+  let firedBeforeFetch = false
   const poolUsage = new PoolUsageTracker((provider, account) =>
-    provider === 'codex' && account === 'a1' ? () => Promise.reject(failure) : undefined)
+    provider === 'codex' && account === 'a1'
+      ? () => { firedBeforeFetch = forced.length > 0; return Promise.reject(failure) }
+      : undefined)
   const controller = new SubscriptionsAuthController(
     new OAuthFlowManager(), new DeviceFlowManager(), () => {}, () => undefined,
     { codex: unreachableFetcher }, undefined, poolUsage, {}, {}, undefined,
@@ -461,6 +466,7 @@ test('usage(): a forced refresh fires the callback before the fetch and even whe
     controller.usage('codex', 'a1', new AbortController().signal, true),
     (error: unknown) => error === failure,
   )
+  assert.equal(firedBeforeFetch, true, 'the callback had already fired when the fetch ran')
   assert.deepEqual(forced, ['codex/a1'], 'the cooldown was lifted before the failing fetch')
 })
 

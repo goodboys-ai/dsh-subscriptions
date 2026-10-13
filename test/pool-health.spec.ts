@@ -173,19 +173,6 @@ test('PoolHealthRegistry: unavailableReasons reads only active scoped reasons wi
   assert.deepEqual(registry.unavailableReasons(keys, 3000), [])
 })
 
-test('PoolHealthRegistry: clear(provider, account) lifts that account only (the forced-refresh path)', () => {
-  // A forced usage refresh from Settings is the user's "retry now": it must
-  // lift both the account-wide record and every member record of THAT account
-  // while another account of the same provider keeps cooling.
-  const registry = new PoolHealthRegistry()
-  registry.markUnavailable(accountKey('codex', 'a1'), 60_000, 'RATE_LIMIT', 0)
-  registry.markUnavailable(memberKey('codex', 'a1', 'm'), 60_000, 'SERVER', 0)
-  registry.markUnavailable(memberKey('codex', 'a2', 'm'), 60_000, 'SERVER', 0)
-  registry.clear('codex', 'a1')
-  assert.equal(registry.isMemberAvailable('codex', 'a1', 'm', 0), true)
-  assert.equal(registry.isMemberAvailable('codex', 'a2', 'm', 0), false)
-})
-
 test('PoolHealthRegistry: clear drops one account, or the whole provider when no account is given', () => {
   const registry = new PoolHealthRegistry()
   registry.markUnavailable(memberKey('codex', 'a1', 'a'), 60_000, 'AUTH', 0)
