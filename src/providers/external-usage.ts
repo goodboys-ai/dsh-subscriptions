@@ -70,6 +70,12 @@ export async function fetchOpenCodeGoUsage(
     const usedPercent = percent(value?.percent)
     if (usedPercent === undefined) continue
     const resetsAt = resetTime(value?.resetsAt)
+    // Monthly has no interval fields. Both key providers' monthly pools
+    // read the same display assumption: a 30-day span back from the
+    // reset, clamped to now. Only the marker may ride it — pace never.
+    const monthlyDisplay = field === 'monthly' && resetsAt !== undefined
+      ? { displayStartsAt: Math.min(resetsAt - 30 * 86_400_000, Date.now()) }
+      : {}
     windows.push({
       kind,
       ...(scope === undefined ? {} : { scope }),
@@ -78,6 +84,7 @@ export async function fetchOpenCodeGoUsage(
       ...(field === 'rolling' ? { fixedWindow: true, windowDurationMs: 18_000_000 }
         : field === 'weekly' ? { fixedWindow: true, windowDurationMs: 604_800_000 } : {}),
       ...(resetsAt === undefined ? {} : { resetsAt }),
+      ...monthlyDisplay,
     })
   }
   if (windows.length === 0) throw new Error('OpenCode Go usage response has no valid windows')
@@ -93,11 +100,13 @@ export async function fetchKimiCodeUsage(
   const body = record(await getUsage('https://api.kimi.com/coding/v1/usages', apiKey, http, signal))
   if (body === undefined) throw new Error('Kimi Code usage response is not an object')
   const modern: UsageWindow[] = []
-  const rows = [
-    ...(record(body.usage) ? [{ detail: body.usage }] : []),
-    ...(Array.isArray(body.limits) ? body.limits : []),
+  // Only the top-level `usage` object is the summary the official CLI labels
+  // "Weekly limit"; an anonymous `limits[]` entry is "Limit #n" there.
+  const rows: { raw: unknown; summary: boolean }[] = [
+    ...(record(body.usage) ? [{ raw: { detail: body.usage }, summary: true }] : []),
+    ...(Array.isArray(body.limits) ? body.limits.map(raw => ({ raw, summary: false })) : []),
   ]
-  for (const raw of rows) {
+  for (const { raw, summary } of rows) {
     const item = record(raw)
     if (!item) continue
     const detail = record(item.detail) ?? item
@@ -114,16 +123,34 @@ export async function fetchKimiCodeUsage(
       : unit.includes('DAY') ? 86_400_000 : unit.includes('SECOND') ? 1000 : undefined
     const durationMs = duration === undefined || duration <= 0 || multiplier === undefined
       ? undefined : duration * multiplier
-    const kind = durationMs === 18_000_000 ? 'session' : durationMs === 604_800_000 ? 'weekly' : 'other'
+    const kind = durationMs === 18_000_000 ? 'session'
+      : durationMs === 604_800_000 ? 'weekly'
+        // No period fields at all: the official CLI labels the top-level
+        // summary the weekly limit, so use that kind rather than 'other'.
+        : durationMs === undefined && unit === '' ? 'weekly' : 'other'
     const resetsAt = kimiReset(detail)
     const scope = detail.name ?? detail.title ?? item.name ?? item.title
+    // A vendor-declared span anchors the display marker at
+    // min(reset − span, now); pace stays unverified (rolling semantics
+    // are not established), so the assumed instant rides displayStartsAt.
+    // The top-level summary without a usable period (absent, zero, or no
+    // unit) is read as the weekly limit (above), so its marker assumes seven
+    // days. The official CLI
+    // gives only the label, not a span; the span rests on a live account
+    // whose summary reset matched `usages.limit_7d` to within a second.
+    // An anonymous `limits[]` entry gets no such assumption. Display only.
+    const markerSpan = durationMs ?? (summary && kind === 'weekly' ? 604_800_000 : undefined)
+    const displayStart = resetsAt !== undefined && markerSpan !== undefined
+      ? { displayStartsAt: Math.min(resetsAt - markerSpan, Date.now()) }
+      : {}
     modern.push({ kind, usedPercent,
       ...(typeof scope === 'string' ? { scope } : {}),
       ...(resetsAt === undefined ? {} : { resetsAt }),
       ...(durationMs === undefined ? {} : { windowDurationMs: durationMs }),
-      // Legacy weekly plans reset as whole seven-day buckets; five-hour semantics
-      // are documented as rolling, so no fixed-window assertion is made there.
-      ...(kind === 'weekly' ? { fixedWindow: true } : {}),
+      // A whole seven-day bucket reset, not a rolling span, only where the
+      // endpoint actually said 7 DAY.
+      ...(durationMs === 604_800_000 ? { fixedWindow: true } : {}),
+      ...displayStart,
     })
   }
   if (modern.length) return { supported: true, windows: modern, plan: 'Kimi Code' }
@@ -140,44 +167,30 @@ export async function fetchKimiCodeUsage(
     const ratio = value?.used_ratio ?? value?.usedRatio
     if (typeof ratio !== 'number' || !Number.isFinite(ratio) || ratio < 0 || ratio > 1) continue
     const resetsAt = resetTime(value?.reset_time ?? value?.resetAt)
+    // The monthly total resets on the subscription's cycle, not the
+    // calendar month; the display marker assumes ~30 days back. It only
+    // moves the marker — pace never rides it.
+    const monthlyDisplay = field === 'limit_month_total' && resetsAt !== undefined
+      ? { displayStartsAt: Math.min(resetsAt - 30 * 86_400_000, Date.now()) }
+      : {}
     windows.push({
       kind,
       ...(scope === undefined ? {} : { scope }),
       usedPercent: ratio * 100,
       ...(field === 'limit_7d' ? { fixedWindow: true, windowDurationMs: 604_800_000 } : {}),
       ...(resetsAt === undefined ? {} : { resetsAt }),
+      ...monthlyDisplay,
     })
   }
   return { supported: true, windows, plan: 'Kimi Code' }
 }
 
-/** A usage ratio in any spelling the Cloud endpoint has used. */
-function usageRatio(window: Record<string, unknown>): number | undefined {
-  for (const key of ['usage', 'used_ratio', 'usedRatio', 'consumed', 'consumed_ratio']) {
-    const value = numeric(window[key])
-    if (value !== undefined && value >= 0) return value
-  }
-  return undefined
-}
-
-/** A reset instant in any spelling the Cloud endpoint has used. */
-function usageReset(window: Record<string, unknown>): number | undefined {
-  for (const key of ['resets_at', 'reset_at', 'reset', 'resetsAt']) {
-    const value = window[key]
-    if (typeof value === 'string') {
-      const parsed = Date.parse(value)
-      if (Number.isFinite(parsed)) return parsed
-    } else if (typeof value === 'number' && Number.isFinite(value)) {
-      return value < 1e12 ? value * 1000 : value
-    }
-  }
-  return undefined
-}
-
 /**
- * Read Ollama Cloud quota windows from `GET {base}/usage`. A 404 means a
- * self-hosted endpoint without the usage surface: not an error, the card
- * renders an unsupported note instead.
+ * Read Ollama Cloud quota from `GET {base}/balance`. The Cloud has no
+ * `limits` object: quota is the included allowance against its remaining
+ * balance (`included.allowance_usd`, `included.balance_usd`) over the
+ * reported period. A 404 means a self-hosted endpoint without the
+ * surface: not an error, the card renders an unsupported note instead.
  */
 export async function fetchOllamaUsage(
   apiKey: string,
@@ -188,7 +201,7 @@ export async function fetchOllamaUsage(
   const combined = signal === undefined
     ? AbortSignal.timeout(15_000)
     : AbortSignal.any([AbortSignal.timeout(15_000), signal])
-  const response = await http(`${baseURL.replace(/\/+$/, '')}/usage`, {
+  const response = await http(`${baseURL.replace(/\/+$/, '')}/balance`, {
     headers: {
       accept: 'application/json',
       authorization: `Bearer ${apiKey}`,
@@ -201,29 +214,25 @@ export async function fetchOllamaUsage(
   if (response.status === 404) return { supported: false }
   if (!response.ok) throw new Error(`Usage endpoint returned HTTP ${response.status}`)
   const body = record(await readBoundedJson(response, 'usage', 1 * 1024 * 1024))
-  const limits = record(body?.limits)
-  if (limits === undefined) throw new Error('Ollama usage response has no limits object')
-  const windows: UsageWindow[] = []
-  for (const [field, kind, scope] of [
-    ['session', 'session', undefined],
-    ['weekly', 'weekly', undefined],
-    ['monthly', 'other', 'Monthly'],
-  ] as const) {
-    const window = record(limits[field])
-    if (window === undefined) continue
-    const ratio = usageRatio(window)
-    // The endpoint reports a consumed share, normally within 0..1; an
-    // over-quota share stays visible instead of dropping the window.
-    if (ratio === undefined || !Number.isFinite(ratio * 100)) continue
-    const resetsAt = usageReset(window)
-    windows.push({
-      kind,
-      ...(scope === undefined ? {} : { scope }),
-      usedPercent: ratio * 100,
-      ...(kind === 'weekly' ? { fixedWindow: true, windowDurationMs: 604_800_000 } : {}),
-      ...(resetsAt === undefined ? {} : { resetsAt }),
-    })
+  const included = record(body?.included)
+  const allowance = numeric(included?.allowance_usd)
+  const balance = numeric(included?.balance_usd)
+  if (included === undefined || allowance === undefined || allowance <= 0 || balance === undefined) {
+    throw new Error('Ollama balance response has no usable included allowance')
   }
-  if (windows.length === 0) throw new Error('Ollama usage response has no valid windows')
-  return { supported: true, windows, plan: 'Ollama Cloud' }
+  const period = record(included.period)
+  const resetsAt = period === undefined ? undefined : resetTime(period.until)
+  const startsAt = period === undefined ? undefined : resetTime(period.from)
+  return {
+    supported: true,
+    windows: [{
+      kind: 'other',
+      scope: 'Credits',
+      // An overdrawn balance stays visible instead of dropping the window.
+      usedPercent: (allowance - balance) / allowance * 100,
+      ...(resetsAt === undefined ? {} : { resetsAt }),
+      ...(startsAt === undefined ? {} : { startsAt }),
+    }],
+    plan: 'Ollama Cloud',
+  }
 }

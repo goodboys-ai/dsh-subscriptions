@@ -142,9 +142,9 @@ export const FIXTURE_REQUESTS = {
     body: { usages: { limit_5h: { used_ratio: USAGE_PERCENT['kimi-coding'].percent / 100 } } },
     required: true,
   },
-  'GET https://ollama.com/api/usage': {
+  'GET https://ollama.com/api/balance': {
     credential: ['authorization', 'Bearer fake-ollama-key'],
-    body: { limits: { session: { usage: USAGE_PERCENT['ollama-cloud'].percent / 100 } } },
+    body: { included: { balance_usd: 100 - USAGE_PERCENT['ollama-cloud'].percent, allowance_usd: 100 } },
     required: true,
   },
   'GET https://www.minimax.io/v1/token_plan/remains': {
@@ -191,9 +191,9 @@ export const EXPECTED_REFUSALS = [
   'https://update.code.visualstudio.com/api/releases/stable',
   'https://api.x.ai/v1/models',
   'https://cli-chat-proxy.grok.com/v1/models',
-  // Ollama discovery endpoints stay offline as permitted refusals. The
-  // static-catalog fallback is covered by unit tests; the driver makes
-  // no picker assertions for this route.
+  // Ollama discovery and management endpoints stay offline as permitted
+  // refusals; the pull-and-pick flow and fallbacks are covered by unit
+  // tests, and the driver makes no picker assertions for this route.
   'https://ollama.com/api/tags',
   'https://ollama.com/api/show',
   'api2.cursor.sh:443',

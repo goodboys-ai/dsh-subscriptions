@@ -635,6 +635,12 @@ export interface ClaudeAdapterOptions {
    * the provider's own default.
    */
   defaultEffortOf?: (model: string) => string | undefined
+  /**
+   * The user's local context-window override for one model (the Settings
+   * editor). Returns undefined to follow the advertised window. The result
+   * is capped at that window: Anthropic advertises no separate maximum.
+   */
+  contextWindowOf?: (model: string) => number | undefined
   /** Resolves the Claude Code version to present (npm-backed); absent means the local floor. */
   resolveCliVersion?: () => Promise<string>
   /** Cache breakpoint lifetime; absent means the API's five-minute default. */
@@ -760,9 +766,13 @@ export class ClaudeAdapter extends LlmAdapter {
     return cache
   }
 
-  private async discovered(model: string): Promise<DiscoveredModel | undefined> {
+  private async discovered(model: string, account?: string): Promise<DiscoveredModel | undefined> {
     if (!this.options.discovery) return undefined
-    const accounts = (await this.options.tokens.list()).map(entry => entry.key)
+    // A named account is looked up alone: its window must not be borrowed
+    // from another account's catalog.
+    const accounts = account === undefined
+      ? (await this.options.tokens.list()).map(entry => entry.key)
+      : [account]
     return discoverAcrossAccounts(accounts, async account => {
       const catalog = await this.catalogFor(account)
       const models = await catalog.resolve(() => this.fetchCatalog(account))
@@ -848,21 +858,37 @@ export class ClaudeAdapter extends LlmAdapter {
   }
 
   /** Capability resolution of the provider's own models (the pool resolves members here). */
-  async resolveOwnModel(provider: string, model: string): Promise<LlmResolvedModelInfo> {
-    const disc = await this.discovered(model)
+  async resolveOwnModel(provider: string, model: string, account?: string): Promise<LlmResolvedModelInfo> {
+    const disc = await this.discovered(model, account)
     const configured = this.options.models.find(entry => entry.id === model)
+    const limits = this.contextLimitsFor(disc, configured)
     const reasoning = mergeReasoning(this.options.defaultEffortOf?.(model), disc?.reasoning)
     return {
       provider,
       id: model,
       name: disc?.name ?? configured?.name ?? model,
       inputModalities: configured?.inputModalities ?? CLAUDE_MODALITIES,
-      context: {
-        contextWindow: disc?.contextWindow ?? configured?.contextWindow ?? CLAUDE_CONTEXT_WINDOW,
-      },
+      context: { contextWindow: Math.min(this.options.contextWindowOf?.(model) ?? limits.default, limits.max) },
       defaultMaxTokens: claudeMaxTokens(configured, disc),
       ...(reasoning === undefined ? {} : { reasoning }),
     }
+  }
+
+  /** The advertised window is both the default and the ceiling for a local override. */
+  private contextLimitsFor(
+    disc: DiscoveredModel | undefined,
+    configured: { contextWindow?: number } | undefined,
+  ): { default: number; max: number } {
+    const advertised = disc?.contextWindow ?? configured?.contextWindow ?? CLAUDE_CONTEXT_WINDOW
+    return { default: advertised, max: advertised }
+  }
+
+  /** Account-specific bounds the Settings editor shows next to a model's override input. */
+  async contextLimits(model: string, account?: string): Promise<{ default: number; max: number }> {
+    return this.contextLimitsFor(
+      await this.discovered(model, account),
+      this.options.models.find(entry => entry.id === model),
+    )
   }
 
   async *stream(options: GenerateOptions): AsyncIterable<StreamChunk> {

@@ -1,5 +1,39 @@
 # Changelog
 
+## v0.2.0 — 2026-10-13
+
+- **New provider: Ollama Cloud.** Add the `ollama-cloud` route with an
+  `OLLAMA_API_KEY` credential. Chat, live model discovery, quota, and web
+  search and fetch all run against `ollama.com`, with no OAuth sign-in. An
+  unconfigured route offers no models.
+- **The route ships no built-in models (breaking).** The picker shows only
+  the models you tick on the Settings card, so an install that used the
+  built-in three must tick them once; a profile can still pin a list with
+  `Config.ollama.models`. The card fetches the cloud list and edits each
+  model's display name, order, default reasoning effort, and local context
+  window, plus the base URL, the credential reference, and the web switch.
+- **Ollama Cloud quota reads `GET /api/balance`** as one Credits window.
+- **Local context windows for Ollama Cloud and Claude.** A per-model value
+  lowers the window a session plans against and is capped at the value the
+  provider advertises; blank follows the provider. Claude resolves that cap
+  per account, so a pooled model uses its smallest member's window. Codex
+  already worked this way. The setting controls local history and
+  compaction, not the API's capacity.
+- **Time cursors for more key-provider windows.** OpenCode Go's monthly
+  pool, Kimi's legacy monthly total, and Kimi's weekly summary row now show
+  a cursor. These are display estimates (30 days, and 7 days for the Kimi
+  summary), so the pace warning still reads only provider-verified timing.
+  The Kimi weekly span comes from the official CLI's "Weekly limit" label
+  plus one account whose summary reset matched `usages.limit_7d`.
+- **Reasoning defaults** follow your choice, then the vendor's, then the
+  family fallback, always inside the levels the model advertises. A saved
+  default the endpoint no longer offers shows as unavailable instead of
+  quietly following the provider.
+- Live-provider gaps: no real key exercised Ollama Cloud chat, listing,
+  usage, or web calls, and the new dialog was not checked in a browser. CI
+  ran the per-version build, tests, host E2E, and boot smoke. Kimi's usage
+  response was read once with a real key, structure only.
+
 ## v0.1.5 — 2026-10-09
 
 The release date is set when the tag is cut.

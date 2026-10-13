@@ -47,6 +47,8 @@ export interface ProviderModelEditorHandle {
   collect(): ModelDraft | undefined
 }
 
+/** Providers whose runtime honours a local context-window override. */
+const supportsContext = (provider: string): boolean => provider === 'codex' || provider === 'claude'
 const border = '0.5px solid var(--dsw-alias-border-l2, #ddd)'
 const actions: CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }
 
@@ -109,7 +111,7 @@ export const ProviderModelEditor = forwardRef<ProviderModelEditorHandle, Props>(
         windows[model] = value
       }
       setError('')
-      const { accounts: _accounts, ...settings } = { ...draft, ...(provider === 'codex' ? { contextWindows: windows } : {}) }
+      const { accounts: _accounts, ...settings } = { ...draft, ...(supportsContext(provider) ? { contextWindows: windows } : {}) }
       return {
         settings,
         efforts: catalog.models.flatMap(model => {
@@ -166,7 +168,7 @@ export const ProviderModelEditor = forwardRef<ProviderModelEditorHandle, Props>(
                 {model.efforts?.map(effort => <option key={effort.id} value={effort.id}>{effort.name}</option>)}
               </select>
             </label>}
-            {provider === 'codex' && model.maxContextWindow !== undefined && <div style={actions}>
+            {supportsContext(provider) && model.maxContextWindow !== undefined && <div style={actions}>
               <label style={actions}>{t('modelsContext')}
                 <input style={{ width: 140 }} inputMode="numeric" value={contexts[model.id] ?? ''}
                   aria-label={`${model.name} ${t('modelsContext')}`} placeholder={String(model.defaultContextWindow)}
@@ -178,7 +180,7 @@ export const ProviderModelEditor = forwardRef<ProviderModelEditorHandle, Props>(
           </div>)}
           {models.length === 0 && <span>{t('modelDefaultsFilterEmpty', { query })}</span>}
         </div>
-        {provider === 'codex' && <small>{t('modelsContextHint')}</small>}
+        {supportsContext(provider) && <small>{t('modelsContextHint')}</small>}
         {catalog.tools.length > 0 && <div style={{ display: 'grid', gap: 8 }}>
           <strong>{t('modelsTools')}</strong>
           <small>{t('modelsToolsHint')}</small>

@@ -14,17 +14,22 @@ reported quota in **Settings → Subscriptions**.
   GitHub Copilot, Google Antigravity, or Cursor and choose their models in
   DSH's picker. These routes use account sign-in, without provider API keys.
 - **Ollama Cloud key route:** Add the `ollama-cloud` route with an
-  `OLLAMA_API_KEY` credential: three Cloud models
-  (deepseek-v4.1-flash, glm-5.3, glm-5.3-flash) with live discovery,
-  quota, and web search/fetch. No OAuth sign-in. A hand-written
-  `llm-pi-ai` route with the same id collides with this one: delete
-  the manual block when enabling the plugin route. Stop sequences
-  are unsupported on this route, consistent with the other adapters.
-  Web search/fetch stay off until `ollama.web` is enabled and the
-  profile pins them to `ollama-cloud`, so untouched installs keep
-  their existing web provider. Not ported from the standalone
-  plugin: its transient-error reclassification, per-image request
-  quotas, and per-model usage counts. See the
+  `OLLAMA_API_KEY` credential. The route ships no model catalog:
+  configure it on the Settings → Subscriptions card, which fetches the
+  cloud list, ticks the models to keep, and edits each one's display
+  name, order, default reasoning effort, and local context window.
+  The picker shows exactly the ticked list, so an unconfigured route
+  offers no model. The card also edits the base URL, the credential
+  reference, and the web search/fetch switch, and persists them under
+  the DSH home directory. No OAuth sign-in. A hand-written `llm-pi-ai`
+  route with the same id collides with this one: delete the manual
+  block when enabling the plugin route. Stop sequences are unsupported
+  on this route, consistent with the other adapters. Web search/fetch
+  stay off until the card's switch is on (or a profile sets
+  `ollama.web`), so untouched installs keep their existing web
+  provider; a profile still pins them to `ollama-cloud`. Not ported
+  from the standalone plugin: its transient-error reclassification,
+  per-image request quotas, and per-model usage counts. See the
   [key-route note](.agents/notes/implemented/provider/2026-10-10-ollama-cloud-key-route.md).
 - **Account and model control:** Refresh catalogs and choose visible models.
   For Codex, Claude, Grok, Copilot, and Antigravity, manage multiple accounts
@@ -74,7 +79,9 @@ in the composer's tool row: Standard or Fast, per session.
 
 **Settings → Subscriptions → provider → Manage** edits account aliases,
 pool participation, model allowlists, and the per-model effort, context,
-and tool settings.
+and tool settings. A context value only lowers the window a session plans
+against, never above what the provider advertises; Codex and Claude support
+it, and it does not enlarge the API's capacity.
 
 ![Model settings](docs/images/model-settings.png)
 
@@ -224,9 +231,10 @@ that a provider still accepts live sign-in or model requests. See
   keys stay on the DSH host; the browser receives configured status and quota
   windows, not the keys.
 - **Ollama Cloud:** Unit and fixture coverage only (chat wire, discovery
-  mapping, usage parsing, web providers, host E2E fixtures). Live chat,
-  discovery, usage, and web calls against `ollama.com` remain to be
-  verified with a real key.
+  mapping and wire-id normalization, the settings store and its RPC
+  endpoints, usage parsing, web providers, host E2E fixtures). The card's
+  rendering has no browser test. Live chat, listing, usage, and web calls
+  against `ollama.com` remain to be verified with a real key.
 
 Cursor uses one connected account and a live model catalog. Its model
 visibility selection persists under the DSH home directory, and automatic

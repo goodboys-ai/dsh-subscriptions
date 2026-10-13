@@ -127,3 +127,32 @@ test('Ollama Cloud honors a custom credential ref override', async () => {
   })
   assert.ok(seen.includes('CUSTOM_OLLAMA_REF'))
 })
+
+test('usage snapshots ref and host before the first await', async () => {
+  // Regression for the cross-save race: a slow credential resolver must
+  // not let a mid-flight save send the old ref's key to the new host.
+  const seen: { url: string; auth: string }[] = []
+  const controller = new ExternalUsageController(async name => {
+    if (name === 'SLOW') {
+      await new Promise(resolve => setTimeout(resolve, 30))
+      return { value: 'slow-key' }
+    }
+    return { value: 'fast-key' }
+  }, (async (url: string | URL | Request, init?: RequestInit) => {
+    seen.push({ url: String(url), auth: String((init?.headers as Record<string, string>).authorization) })
+    return Response.json({ included: { balance_usd: 50, allowance_usd: 100 } })
+  }) as typeof fetch, { 'ollama-cloud': 'SLOW' }, 'http://host-a/api')
+  const first = controller.usage('ollama-cloud')
+  // Save switches host and ref while the first resolve is still pending.
+  ;(controller as unknown as { refs: Record<string, () => string> }).refs['ollama-cloud'] = () => 'FAST'
+  ;(controller as unknown as { ollamaBaseURL: () => string }).ollamaBaseURL = () => 'http://host-b/api'
+  const second = controller.usage('ollama-cloud')
+  await first
+  await second
+  // Pairings must hold regardless of completion order: the first call
+  // keeps slow-key on the old host; the second rides the new pairing.
+  assert.deepEqual(seen.find(call => call.url === 'http://host-a/api/balance'),
+    { url: 'http://host-a/api/balance', auth: 'Bearer slow-key' })
+  assert.deepEqual(seen.find(call => call.url === 'http://host-b/api/balance'),
+    { url: 'http://host-b/api/balance', auth: 'Bearer fast-key' })
+})

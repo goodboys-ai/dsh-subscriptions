@@ -20,6 +20,7 @@ import { ProviderAccountManager } from './ProviderAccountManager.js'
 import { providerSettingsCss } from './provider-settings-styles.js'
 import { ExternalUsageCards } from './ExternalUsageCards.js'
 import { CursorCard } from './CursorCard.js'
+import { OllamaCard } from './OllamaCard.js'
 import { UsageMeter } from './UsageMeter.js'
 import { ResetCreditsDisclosure, ResetCreditsErrorLine, showsResetCredits } from './reset-credits-view.js'
 import { displayUsedPercent } from './usage-pace.js'
@@ -79,6 +80,8 @@ export interface UsageWindow {
   startsAt?: number
   windowDurationMs?: number
   fixedWindow?: boolean
+  /** Display-only assumed start; the marker rides it, never pace. */
+  displayStartsAt?: number
 }
 
 /** `usage` endpoint value: the node half owns this shape. */
@@ -803,6 +806,7 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
         )
       })}
       <CursorCard rpc={rpc} t={t} />
+      <OllamaCard rpc={rpc} t={t} />
       <ExternalUsageCards rpc={rpc} t={t} />
       {managedProvider && <ProviderAccountManager provider={managedProvider.id} name={managedProvider.name}
         rpc={rpc} t={t} onClose={() => setManagedProvider(undefined)} />}

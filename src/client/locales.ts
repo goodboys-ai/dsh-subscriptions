@@ -38,7 +38,6 @@ export const en = {
   modelsWebSearch: "Web search",
   modelsSave: "Save changes",
   modelsUnavailable: "Currently unavailable",
-
   nav: 'Subscriptions',
   intro: 'Log a subscription provider in or out. Login opens the provider’s authorization page in a new tab; headless setups can paste the callback URL or code instead.',
   unavailable: 'Connection unavailable; subscription status cannot be loaded.',
@@ -141,7 +140,6 @@ export const en = {
   externalUsageNotConfigured: 'Not configured',
   externalUsageApiKey: 'API key',
   externalUsageConfigure: 'No API key found at {ref}. Add one in Settings → Models.',
-  externalUsageConfigureFile: 'No API key found at {ref}. Add it to the credentials file (~/.dsh/.credentials.yaml).',
   externalUsageUnavailable: 'Usage status unavailable: {message}',
   cursorTitle: 'Cursor',
   cursorOpenLogin: 'Open Cursor sign-in',
@@ -203,6 +201,56 @@ export const en = {
   speedFastDescription: '1.5x speed, more usage',
   commandFast: 'Switch the Codex speed tier (Standard/Fast)',
   commandFastUnavailable: 'The current model has no fast tier; /fast only works on Codex models whose catalog advertises one',
+  ollamaTitle: 'Ollama Cloud',
+  ollamaStatus: '{count} model(s) in the picker',
+  ollamaStatusNone: 'No models configured',
+  ollamaWebOn: 'Web search/fetch enabled',
+  ollamaWebOff: 'Web search/fetch off',
+  ollamaManageTitle: 'Manage Ollama Cloud',
+  ollamaManageHint:
+    'Fetch the Cloud list, tick the models this route serves, then Save. The picker '
+    + 'shows the ticked models in order; the API key itself stays in DSH credentials.',
+  ollamaFetch: 'Fetch cloud models',
+  ollamaFetching: 'Fetching…',
+  ollamaKeyPlaceholder: 'One-time API key (optional)',
+  ollamaKeyHint:
+    'A key typed here is used for this fetch only and is never saved. Leave it '
+    + 'blank to use the stored credential.',
+  ollamaFetchFailed: 'Could not fetch cloud models: {message}',
+  ollamaCandidatesCount: '{count} returned',
+  ollamaCandidatesEmpty: 'No cloud models returned.',
+  ollamaModelsEmpty:
+    'No models configured. Fetch the cloud list and tick the ones to keep.',
+  ollamaModelsLoadFailed: 'Could not load Ollama settings: {message}',
+  ollamaModelsSaveFailed: 'Could not save Ollama settings: {message}',
+  ollamaConfigureHint:
+    'No API key found at {ref}. Add it to the credentials file '
+    + '(~/.dsh/.credentials.yaml).',
+  ollamaDisplayName: 'Display name',
+  ollamaRowDetails: 'Details',
+  ollamaEffortsUnknown:
+    'This model reasons; its level set will come from live discovery.',
+  ollamaMoveUp: 'Move up',
+  ollamaMoveDown: 'Move down',
+  ollamaBaseURL: 'Base URL',
+  ollamaApiKeyRef: 'API key reference',
+  ollamaConnectionHint:
+    "The base URL receives this route's requests and the credential lookup; the "
+    + "reference names the DSH credential, not the key itself. Requests send "
+    + "the resolved key to that address, so point it only at a host you trust.",
+  ollamaWebHint:
+    'Enables the Ollama Cloud web search and fetch providers. The host still '
+    + 'has to select them before the web tools use them.',
+  ollamaCatalogOverride:
+    "A profile pins this route's model list; the picker ignores store models "
+    + "until that override is removed.",
+  ollamaResetDefaults: 'Restore deployment defaults',
+  ollamaResetConfirm:
+    'Clear every saved Ollama override? The profile values and built-in '
+    + 'defaults apply again.',
+  ollamaCapVision: 'vision',
+  ollamaCapThinking: 'thinking',
+  ollamaContext: 'context {tokens}',
 } satisfies Record<string, string>
 
 /** zh strings, one per {@link en} key. */
@@ -243,7 +291,6 @@ export const zh = {
   modelsWebSearch: "网页搜索",
   modelsSave: "保存更改",
   modelsUnavailable: "当前不可用",
-
   nav: '订阅',
   intro: '在此登录或退出订阅服务商。点击登录会在新标签页打开服务商的授权页面；无浏览器环境可改为粘贴回调 URL 或授权码。',
   unavailable: '连接不可用，无法加载订阅状态。',
@@ -346,7 +393,6 @@ export const zh = {
   externalUsageNotConfigured: '未配置',
   externalUsageApiKey: 'API 密钥',
   externalUsageConfigure: '未在 {ref} 找到 API 密钥。请在「设置 → 模型」中添加。',
-  externalUsageConfigureFile: '未在 {ref} 找到 API 密钥。请在凭据文件（~/.dsh/.credentials.yaml）中添加。',
   externalUsageUnavailable: '无法获取用量状态：{message}',
   cursorTitle: 'Cursor',
   cursorOpenLogin: '打开 Cursor 登录页面',
@@ -408,6 +454,42 @@ export const zh = {
   speedFastDescription: '约 1.5 倍速度，消耗更多用量',
   commandFast: '切换 Codex 速度档（标准/快速）',
   commandFastUnavailable: '当前模型不支持快速档；/fast 仅对目录声明了 fast tier 的 Codex 模型可用',
+  ollamaTitle: 'Ollama Cloud',
+  ollamaStatus: '选择器中 {count} 个模型',
+  ollamaStatusNone: '尚未配置模型',
+  ollamaWebOn: '网页搜索/抓取已启用',
+  ollamaWebOff: '网页搜索/抓取已关闭',
+  ollamaManageTitle: '管理 Ollama Cloud',
+  ollamaManageHint: '选择此路由提供的云端模型后保存。模型选择器按此顺序显示这份列表；API 密钥本身仍保存在 DSH 凭据中。',
+  ollamaFetch: '拉取云端模型',
+  ollamaFetching: '拉取中…',
+  ollamaKeyPlaceholder: '一次性 API 密钥（可选）',
+  ollamaKeyHint: '在此输入的密钥仅用于本次拉取，不会保存。留空则使用已存凭据。',
+  ollamaFetchFailed: '拉取云端模型失败：{message}',
+  ollamaCandidatesCount: '返回 {count} 个',
+  ollamaCandidatesEmpty: '未返回任何云端模型。',
+  ollamaModelsEmpty: '尚未配置模型。请拉取云端列表并勾选需要保留的模型。',
+  ollamaModelsLoadFailed: 'Ollama 设置加载失败：{message}',
+  ollamaModelsSaveFailed: 'Ollama 设置保存失败：{message}',
+  ollamaConfigureHint:
+    '未在 {ref} 找到 API 密钥。请在凭据文件（~/.dsh/.credentials.yaml）中添加。',
+  ollamaDisplayName: '显示名',
+  ollamaRowDetails: '详情',
+  ollamaEffortsUnknown: '该模型支持思考，推理档位将由实时发现补充。',
+  ollamaMoveUp: '上移',
+  ollamaMoveDown: '下移',
+  ollamaBaseURL: '基础 URL',
+  ollamaApiKeyRef: 'API 密钥引用',
+  ollamaConnectionHint:
+    '基础 URL 用于此路由的请求与凭据查询；引用是 DSH 凭据的名称，不是密钥本身。'
+    + '请求会把解析出的密钥发往该地址，请只填写可信主机。',
+  ollamaWebHint: '启用 Ollama Cloud 的网页搜索与抓取能力。宿主仍需选择它们，网页工具才会使用。',
+  ollamaCatalogOverride: '配置档案固定了此路由的模型列表；在移除该覆盖前，选择器会忽略存储中的模型。',
+  ollamaResetDefaults: '恢复部署默认值',
+  ollamaResetConfirm: '清除全部已保存的 Ollama 覆盖项？将重新使用配置档案值与内置默认值。',
+  ollamaCapVision: '视觉',
+  ollamaCapThinking: '思考',
+  ollamaContext: '上下文 {tokens}',
 } satisfies Record<keyof typeof en, string>
 
 /** The Subscriptions namespace key union (en is the key-set source of truth). */
