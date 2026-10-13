@@ -299,7 +299,7 @@
         "test": "test/pool.spec.ts",
         "test:health": "test/pool-health.spec.ts"
       },
-      "reason": "Split, and the fork's reporting half goes further than upstream: 7aee561 returns a lone non-quota member failure as that same error, keeping its code, status, and cause, and reports RATE_LIMIT only when every failure really is a quota or rate limit; 441ff75 keeps the pool's earliest scoped recovery on it. e75b7c6 ports the other two halves: the terminal exhaustion now reaches onWarn, so dsh.log records the exhaustion that ends a failover, and a forced usage refresh from Settings clears that account's pool cooldowns. Only the user's Refresh button forces a refresh, and the cooldown clears even when the re-check fails."
+      "reason": "Split, and the fork's reporting half goes further than upstream: 7aee561 returns a lone non-quota member failure as that same error, keeping its code, status, and cause, and reports RATE_LIMIT only when every failure really is a quota or rate limit; 441ff75 keeps the pool's earliest scoped recovery on it. e75b7c6 ports the other two halves: the terminal exhaustion now reaches onWarn, so dsh.log records the exhaustion that ends a failover, and a forced usage refresh from Settings clears that account's pool cooldowns. Two user actions force a refresh, the Refresh button and the re-check that follows a reset-credit redemption attempt, whether or not the redemption succeeded; no background poll does. The cooldown clears even when the re-check itself fails."
     },
     {
       "upstream": "dd3ff272",
