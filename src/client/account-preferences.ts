@@ -29,9 +29,10 @@ export function mergeLatestAccounts(draft: ProviderPreferences, latest: Provider
 }
 
 /**
- * The account manager owns the Claude prompt-cache TTL picker; the model
- * editor's draft never carries it, so the dialog's choice replaces whatever
- * the freshly re-read settings hold.
+ * The account manager owns the Claude prompt-cache TTL picker. The model
+ * editor's draft carries the TTL it loaded, so the dialog always replaces it
+ * with the picker's choice when touched, or the freshly re-read value
+ * otherwise.
  */
 export function mergePromptCacheTtl(
   settings: ProviderPreferences,

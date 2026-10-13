@@ -53,11 +53,13 @@ const model = (id: string, name: string, efforts: string[] = ['low', 'high'], co
   id, name, efforts: efforts.map(id => ({ id, name: id })), ...(configured === undefined ? {} : { configured }),
 })
 const catalog = (models = [model('a', 'Alpha')], settings: ProviderPreferences = {}) => ({
-  provider: 'codex' as const, models, settings, tools: [], accounts: [{ key: 'personal', label: 'Personal', models }],
+  provider: 'codex' as SubscriptionProvider, models, settings, tools: [], accounts: [{ key: 'personal', label: 'Personal', models }],
 })
 type Catalog = ReturnType<typeof catalog>
-function fixture(initial: Catalog) {
-  let data = initial
+type CatalogBody = Omit<Catalog, 'provider'>
+type Fixture = { rpc: ConnectionHandle['rpc']; calls: { endpoint: string; payload: any }[]; replace: (next: CatalogBody) => void; failEffort: (fail: boolean) => void }
+function fixture(initial: Catalog): Fixture {
+  let data: Catalog = initial
   const calls: { endpoint: string; payload: any }[] = []
   let failEffort = false
   const rpc = { call: async (channel: string, endpoint: string, payload: any) => {
@@ -76,7 +78,7 @@ function fixture(initial: Catalog) {
     }
     throw new Error(`unexpected fixture endpoint ${endpoint}`)
   } } as unknown as ConnectionHandle['rpc']
-  return { rpc, calls, replace: (next: Catalog) => { data = next }, failEffort: (fail: boolean) => { failEffort = fail } }
+  return { rpc, calls, replace: (next: CatalogBody) => { data = { ...data, ...next } }, failEffort: (fail: boolean) => { failEffort = fail } }
 }
 function editor(rpc: ConnectionHandle['rpc'], ref = { current: null as ProviderModelEditorHandle | null },
   onDirtyChange?: (dirty: boolean) => void) {
@@ -316,4 +318,42 @@ test('the prompt-cache TTL select is Claude-only, follows config by default, and
     const writes = f.calls.filter(call => call.endpoint.endsWith('.setProviderSettings'))
     assert.equal(writes.at(-1)!.payload.settings.promptCacheTtl, undefined, 'follow config clears the stored override')
   } finally { again.cleanup() }
+})
+
+test('a model-only Save takes the TTL from the re-read settings, not the editor draft', async () => {
+  const claudeCatalog = (settings: ProviderPreferences) => ({
+    models: [model('a', 'Alpha')], settings, tools: [],
+    accounts: [{ key: 'personal', label: 'Personal', models: [model('a', 'Alpha')] }],
+  })
+  const f = fixture({ provider: 'claude', ...claudeCatalog({ promptCacheTtl: '1h' }) })
+  const view = manager(f.rpc, 'claude')
+  try {
+    await settle(view.component, view.models)
+    assert.equal(ttlSelect(view.component).props.value, '1h', 'the dialog loads the stored override')
+    // Another client clears the override while this dialog is open.
+    f.replace(claudeCatalog({}))
+    // Only a model setting changes; the TTL picker is untouched.
+    button(view.models, en.modelsSelectNone).props.onClick()
+    await settle(view.models, view.component)
+    button(view.component, en.modelsSave).props.onClick()
+    await settle(view.component, view.models)
+    const writes = f.calls.filter(call => call.endpoint.endsWith('.setProviderSettings'))
+    assert.equal(writes.length, 1)
+    assert.deepEqual(writes[0].payload.settings, { visibleModels: [], contextWindows: {}, accounts: {} },
+      'the editor draft loaded with promptCacheTtl 1h; the write carries the re-read absence, not the stale value')
+  } finally { view.cleanup() }
+  // With the picker touched, its choice wins over whatever the re-read holds.
+  const f2 = fixture({ provider: 'claude', ...claudeCatalog({ promptCacheTtl: '1h' }) })
+  const touched = manager(f2.rpc, 'claude')
+  try {
+    await settle(touched.component, touched.models)
+    f2.replace(claudeCatalog({}))
+    ttlSelect(touched.component).props.onChange({ target: { value: '5m' } })
+    await settle(touched.component, touched.models)
+    button(touched.component, en.modelsSave).props.onClick()
+    await settle(touched.component, touched.models)
+    const writes = f2.calls.filter(call => call.endpoint.endsWith('.setProviderSettings'))
+    assert.equal(writes.length, 1)
+    assert.equal(writes[0].payload.settings.promptCacheTtl, '5m', 'the picker choice survives the re-read')
+  } finally { touched.cleanup() }
 })

@@ -106,9 +106,10 @@ export function ProviderAccountManager({ provider, name, rpc, t, onClose }: Prop
         await callSubscriptionsAuth(rpc, 'cursorSetSettings', { settings: models.settings ?? latest.settings })
       } else {
         const base = models.settings === undefined ? latest.settings : mergeLatestAccounts(models.settings, latest.settings)
-        // The TTL picker belongs to this dialog, so its draft replaces the
-        // re-read settings' value rather than being carried by the model editor.
-        const withTtl = ttlDirty ? mergePromptCacheTtl(base, ttlDraft) : base
+        // The editor's draft carries the TTL it loaded, so the dialog always
+        // replaces it: the picker's choice when touched, otherwise the value
+        // from the freshly re-read settings.
+        const withTtl = mergePromptCacheTtl(base, ttlDirty ? ttlDraft : latest.settings.promptCacheTtl)
         await callSubscriptionsAuth(rpc, 'setProviderSettings', { provider, settings: mergeAccountChanges(withTtl, changes) })
       }
       if (alive.current) onClose()
