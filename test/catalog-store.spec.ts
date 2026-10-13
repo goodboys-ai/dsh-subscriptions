@@ -198,6 +198,16 @@ function restoreFsMocks(t: TestContext): void {
   })
 }
 
+// renameWithRetry reads process.platform at call time, so retry tests pin it
+// here and the restore runs in t.after even when an assertion fails.
+function forcePlatform(t: TestContext, platform: string): void {
+  const original = Object.getOwnPropertyDescriptor(process, 'platform')
+  Object.defineProperty(process, 'platform', { value: platform })
+  t.after(() => {
+    if (original !== undefined) Object.defineProperty(process, 'platform', original)
+  })
+}
+
 const firstSnapshot = { at: 1, models: [{ id: 'first', name: 'First' }] }
 const secondSnapshot = { at: 2, models: [{ id: 'second', name: 'Second' }] }
 
@@ -376,6 +386,7 @@ test('rename retries on transient share-mode errors and then succeeds', async (t
   await provider.save(firstSnapshot)
   const originalRename = fs.rename
   let attempts = 0
+  forcePlatform(t, 'win32')
   restoreFsMocks(t)
   // Windows surfaces a destination held without FILE_SHARE_DELETE as EBUSY;
   // the retry must ride through two transient failures, not just one.
@@ -396,10 +407,10 @@ test('rename failure with a non-retryable code rejects after one attempt', async
   const path = await tempStorePath(t)
   const provider = catalogStore('codex', path)
   await provider.save(firstSnapshot)
-  const originalRename = fs.rename
   let attempts = 0
+  forcePlatform(t, 'win32')
   restoreFsMocks(t)
-  t.mock.method(fs, 'rename', async (...[source]: Parameters<typeof fs.rename>) => {
+  t.mock.method(fs, 'rename', async () => {
     attempts++
     throw Object.assign(new Error('injected non-retryable error'), { code: 'ENOENT' })
   })
@@ -415,7 +426,10 @@ test('rename keeps failing with EPERM rejects after the bounded attempts', async
   const path = await tempStorePath(t)
   const provider = catalogStore('codex', path)
   await provider.save(firstSnapshot)
+  // Mirrors the module's private RENAME_RETRIES = 5; keep in sync.
+  const expectedAttempts = 6
   let attempts = 0
+  forcePlatform(t, 'win32')
   restoreFsMocks(t)
   t.mock.method(fs, 'rename', async () => {
     attempts++
@@ -424,7 +438,28 @@ test('rename keeps failing with EPERM rejects after the bounded attempts', async
   syncBuiltinESMExports()
 
   await assert.rejects(provider.save(secondSnapshot), { code: 'EPERM' })
-  assert.equal(attempts, 6, 'retries are bounded at 5 after the initial attempt')
+  assert.equal(attempts, expectedAttempts, 'retries are bounded at 5 after the initial attempt')
+  assert.deepEqual(await provider.load(), firstSnapshot, 'the previous file must survive')
+  assert.deepEqual(await readdir(dirname(path)), ['models.json'], 'the temporary file must be removed')
+})
+
+test('rename share-mode errors are not retried off Windows', async (t) => {
+  const path = await tempStorePath(t)
+  const provider = catalogStore('codex', path)
+  await provider.save(firstSnapshot)
+  let attempts = 0
+  forcePlatform(t, 'linux')
+  restoreFsMocks(t)
+  // On POSIX EBUSY is a real failure, not a transient share-mode conflict;
+  // retrying would only delay surfacing it.
+  t.mock.method(fs, 'rename', async () => {
+    attempts++
+    throw Object.assign(new Error('injected share-mode error'), { code: 'EBUSY' })
+  })
+  syncBuiltinESMExports()
+
+  await assert.rejects(provider.save(secondSnapshot), { code: 'EBUSY' })
+  assert.equal(attempts, 1, 'a POSIX rename failure must not be retried')
   assert.deepEqual(await provider.load(), firstSnapshot, 'the previous file must survive')
   assert.deepEqual(await readdir(dirname(path)), ['models.json'], 'the temporary file must be removed')
 })
