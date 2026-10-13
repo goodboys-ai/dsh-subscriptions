@@ -3,13 +3,15 @@ import assert from 'node:assert/strict'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
+import { MessageId, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import { Context } from '@deepseek-ai/cordis'
 import type { AccountAwareAdapter } from '../src/providers/accounts.js'
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools'
 
 type Agent = NonNullable<ToolRunContext['agent']>
 import { CodexAdapter } from '../src/providers/codex.js'
+import { ClaudeAdapter, CLAUDE_API_URL, CLAUDE_TOKEN_URL } from '../src/providers/claude.js'
+import { CLAUDE_CLI_VERSION_URL } from '../src/providers/claude-cli-version.js'
 import { saveAccountSession } from '../src/auth/store.js'
 import * as plugin from '../src/index.js'
 import { createFakeConnection } from './fake-connection.js'
@@ -82,6 +84,81 @@ test('provider settings RPC edits picker visibility without losing the editor ca
   } finally {
     await runtime.dispose()
     CodexAdapter.prototype.resolveOwnModel = originalResolve
+    if (previous === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = previous
+    await rm(home, { recursive: true, force: true })
+  }
+})
+
+test('the Claude route serves the saved prompt-cache TTL override without a restart', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'claude-ttl-rpc-'))
+  const previous = process.env.DSH_HOME
+  process.env.DSH_HOME = home
+  const ctx = new Context()
+  const adapters = new Map<string, AccountAwareAdapter>()
+  ctx.provide('llm', {
+    registerAdapter: (routes: string[], adapter: AccountAwareAdapter) => {
+      adapters.set(routes[0], adapter)
+      return Object.assign(() => {}, { replace: () => {} })
+    },
+  })
+  const connection = createFakeConnection()
+  ctx.provide('connection', connection.connection)
+  // The catalog behind providerSettings lists models from api.anthropic.com and
+  // the CLI version cache checks npm, so the stub goes in before the first RPC
+  // call; it records only the messages POST.
+  const original = globalThis.fetch
+  let body = ''
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    if (url === CLAUDE_API_URL) {
+      body = String(init?.body)
+      return new Response(JSON.stringify({ type: 'error', error: { type: 'invalid_request_error', message: 'stop here' } }), { status: 400 })
+    }
+    if (url === CLAUDE_TOKEN_URL) {
+      return new Response(JSON.stringify({ access_token: 'at', expires_in: 3_600_000, scope: 'scope' }), { status: 200 })
+    }
+    if (url === CLAUDE_CLI_VERSION_URL) {
+      return new Response(JSON.stringify({ version: '2.1.999' }), { status: 200 })
+    }
+    if (url.startsWith('https://api.anthropic.com/v1/models')) {
+      return new Response(JSON.stringify({ data: [{ id: 'claude-opus-5', display_name: 'Claude Opus 5', max_input_tokens: 200_000 }] }), { status: 200 })
+    }
+    throw new Error(`unexpected outbound request to ${url}`)
+  }) as typeof globalThis.fetch
+  const runtime = ctx.plugin(plugin, { providers: ['claude'], pool: { enabled: false } })
+  try {
+    await new Promise(resolve => setTimeout(resolve, 50))
+    if (!connection.registered()) await runtime
+    assert.ok(connection.registered())
+    await saveAccountSession('claude', 'acct', {
+      accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3_600_000, scopes: 'scope',
+    })
+    const call = (endpoint: string, payload: unknown) => connection.handler(endpoint, payload, new AbortController().signal)
+    assert.equal((await call('setProviderSettings', { provider: 'claude', settings: { promptCacheTtl: '30m' } })).ok, false)
+    assert.equal((await call('setProviderSettings', { provider: 'claude', settings: { promptCacheTtl: '1h' } })).ok, true)
+    const catalog = await call('providerSettings', { provider: 'claude' })
+    assert.ok(catalog.ok)
+    assert.equal((catalog.value as { settings: { promptCacheTtl?: string } }).settings.promptCacheTtl, '1h')
+    // The adapter reads the store per request, so the saved value reaches the
+    // next wire body without reconstructing the adapter.
+    const adapter = adapters.get('claude') as ClaudeAdapter
+    await assert.rejects(async () => {
+      for await (const _chunk of adapter.stream({
+        provider: 'claude', model: 'claude-opus-5', system: 'be brief',
+        messages: [{ id: MessageId('m'), role: 'user', content: [{ type: 'text', text: 'hi' }], source: { kind: 'user' } }],
+        maxTokens: 1_000,
+      })) { /* drain */ }
+    }, 'the fixture answers with an error status')
+    const sent = JSON.parse(body) as { system: { cache_control?: { ttl?: string } }[] }
+    assert.deepEqual(sent.system.filter(block => block.cache_control !== undefined).map(block => block.cache_control),
+      [{ type: 'ephemeral', ttl: '1h' }], 'the saved override is on the wire for the next request')
+    assert.equal((await call('setProviderSettings', { provider: 'claude', settings: {} })).ok, true)
+    const cleared = await call('providerSettings', { provider: 'claude' })
+    assert.ok(cleared.ok)
+    assert.equal((cleared.value as { settings: { promptCacheTtl?: string } }).settings.promptCacheTtl, undefined)
+  } finally {
+    globalThis.fetch = original
+    await runtime.dispose()
     if (previous === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = previous
     await rm(home, { recursive: true, force: true })
   }

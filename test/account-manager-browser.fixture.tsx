@@ -28,7 +28,7 @@ function App() {
   const [open, setOpen] = useState(false)
   const dictionary = state.locale === 'zh' ? zh : en
   return <><button onClick={() => setOpen(true)}>Manage</button>{open && <ProviderAccountManager
-    provider="codex" name="Codex (ChatGPT)" rpc={rpc} onClose={() => setOpen(false)}
+    provider={state.provider ?? 'codex'} name="Codex (ChatGPT)" rpc={rpc} onClose={() => setOpen(false)}
     t={(key, params) => Object.entries(params ?? {}).reduce((text, [name, value]) => text.replaceAll(`{${name}}`, String(value)), dictionary[key])} />}</>
 }
 createRoot(document.getElementById('root')!).render(<App />)

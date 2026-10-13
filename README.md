@@ -249,7 +249,11 @@ UI have been retired; an old plugin proxy config file is ignored.
 ## Claude prompt-cache TTL
 
 Set `claudePromptCacheTtl: '5m'` (default) or `'1h'` in the plugin config and
-restart DSH. This affects Claude only; other providers keep their own caching.
+restart DSH. The Claude **Manage** dialog can override this for the Claude
+route: its "Prompt cache lifetime" picker offers Follow config, 5 minutes, or
+1 hour, and a saved choice applies from the next request without a restart.
+Follow config leaves the config value in charge. This affects Claude only;
+other providers keep their own caching.
 Five minutes omits the wire `ttl` field, preserving the existing request. One
 hour adds `ttl: "1h"` to the tools+system prefix and up to three conversation
 breakpoints. All marks share one TTL: Anthropic rejects a one-hour mark after
