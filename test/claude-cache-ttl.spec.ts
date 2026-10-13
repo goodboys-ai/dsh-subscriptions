@@ -84,7 +84,7 @@ test('a Claude turn sends one-hour cache marks when the adapter is configured fo
   )
 })
 
-test('the account-level override wins over the configured TTL, and undefined falls back to it', async () => {
+test('the provider-level Settings override wins over the configured TTL, and undefined falls back to it', async () => {
   const overridden = await sentBody('5m', () => '1h')
   assert.deepEqual(markers(overridden), [{ type: 'ephemeral', ttl: '1h' }, { type: 'ephemeral', ttl: '1h' }])
   const following = await sentBody('5m', () => undefined)
