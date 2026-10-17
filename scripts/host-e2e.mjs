@@ -471,7 +471,7 @@ async function drive(cdp, page, evidence) {
   // Product: the dialog lists every source with its own percentage.
   const colorPreset = await cdp.evaluate(`localStorage.getItem('dsh.subscriptions.usageColorPreset')`)
   if (colorPreset !== null && colorPreset !== 'standard') throw new HarnessFailure('MiniMax zero-used marker check requires Standard usage coloring')
-  if (!await cdp.evaluate(`(() => { const button = [...document.querySelectorAll('button[aria-haspopup="dialog"]')].find(b => b.getAttribute('aria-label')?.includes('Codex ')); if (!button) return false; button.click(); return true })()`)) throw new HarnessFailure('the usage pill could not be clicked')
+  if (!await clickPill(cdp)) throw new HarnessFailure('the usage pill could not be clicked')
   if (!await waitFor(cdp, '(() => document.querySelector(\'[role="dialog"]\') !== null)()', 10_000)) {
     throw new ProductFailure('the usage dialog did not open')
   }
@@ -862,7 +862,7 @@ async function checkDialogSurface(cdp, evidence) {
       if (pill.pillBackground === null || !pill.placed) {
         throw new ProductFailure(`the usage pill is not in the stats row in the ${theme} theme`)
       }
-      if (!await cdp.evaluate(`(() => { const button = [...document.querySelectorAll('button[aria-haspopup="dialog"]')].find(b => b.getAttribute('aria-label')?.includes('Codex ')); if (!button) return false; button.click(); return true })()`)) {
+      if (!await clickPill(cdp)) {
         throw new HarnessFailure(`the usage pill could not be clicked in the ${theme} theme`)
       }
       if (!await waitFor(cdp, `(() => document.querySelector(${JSON.stringify(USAGE_DIALOG)}) !== null)()`, 10_000)) {
@@ -915,6 +915,8 @@ async function checkDialogSurface(cdp, evidence) {
  * Open the settings panel. Through 0.2.0 the sidebar foot carries a
  * Settings trigger; from 0.2.1 the settings launcher is the sidebar
  * account menu (the "More" button), whose Settings item opens the panel.
+ * The direct trigger gets a short probe: on 0.2.1 hosts every open would
+ * otherwise burn the full click-retry window before falling back.
  */
 async function openSettingsPanel(cdp) {
   if (await clickLabel(cdp, ['Settings', '设置'], 3)) return true
@@ -1051,6 +1053,29 @@ function dialogSurface(cdp) {
 }
 
 /**
+ * Ancestor bound for the probe's dock search — the same bound, under the
+ * same name, as COMPOSER_SCOPE_DEPTH in SubscriptionUsageBadge.tsx, whose
+ * statsScopeOf searches with it. The probe judges placement with the
+ * product's own reach, so the two cannot disagree about scope.
+ */
+const COMPOSER_SCOPE_DEPTH = 4
+
+/**
+ * Click the usage pill. Several buttons carry the pill's label prefix (the
+ * transcript's session actions among them); the pill is the one that opens
+ * a dialog, so the search requires aria-haspopup="dialog".
+ */
+async function clickPill(cdp) {
+  return cdp.evaluate(`(() => {
+    const button = [...document.querySelectorAll('button[aria-haspopup="dialog"]')]
+      .find(node => (node.getAttribute('aria-label') || '').includes(${JSON.stringify(CODEX_PILL)}))
+    if (button === undefined) return false
+    button.click()
+    return true
+  })()`)
+}
+
+/**
  * Page expression probing the usage pill: its placement ('row' inside the
  * stats row hosts render through 0.2.0, 'dock' when its own composer-dock
  * entry shares an ancestor with a docked stat pill, from 0.2.1, 'outside'
@@ -1068,7 +1093,7 @@ function pillProbe() {
       .filter(node => (node.getAttribute('aria-label') || '').includes(${JSON.stringify(CODEX_PILL)}))
     const inRow = (button) => button.closest('[${rowAttribute}]') !== null
     const inDock = (button) => {
-      for (let node = button.parentElement, depth = 0; node !== null && depth < 4; node = node.parentElement, depth += 1) {
+      for (let node = button.parentElement, depth = 0; node !== null && depth < ${COMPOSER_SCOPE_DEPTH}; node = node.parentElement, depth += 1) {
         if (node.querySelector('[${statAttribute}]') !== null) return true
       }
       return false

@@ -689,13 +689,20 @@ export function SubscriptionUsageBadge({ rpc, currentModel, t, rotationMs }: Sub
 }
 
 /**
+ * Ancestor bound for the scope search in statsScopeOf below. The host E2E
+ * pill probe uses the same bound under the same name, so the check judges
+ * placement with the product's own reach.
+ */
+const COMPOSER_SCOPE_DEPTH = 4
+
+/**
  * Nearest ancestor of the dock seat that can contain the host's stats row:
  * the composer bar. Bounded so a badge in an unfamiliar layout never adopts
  * some other composer's pills.
  */
 function statsScopeOf(seat: HTMLElement): HTMLElement | null {
   let node: HTMLElement | null = seat.parentElement
-  for (let depth = 0; node !== null && depth < 4; depth++) {
+  for (let depth = 0; node !== null && depth < COMPOSER_SCOPE_DEPTH; depth++) {
     if (node.querySelector('[data-composer-stats]') !== null) return node
     node = node.parentElement
   }
