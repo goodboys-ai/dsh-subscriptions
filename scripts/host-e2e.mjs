@@ -70,6 +70,15 @@ const DIALOG_SETTLE_MS = 10_000
 const USAGE_DIALOG = 'div[role="dialog"]:not([aria-modal="true"])'
 
 /**
+ * Ancestor bound for the pill probe's dock search — the same bound, under
+ * the same name, as COMPOSER_SCOPE_DEPTH in SubscriptionUsageBadge.tsx,
+ * whose statsScopeOf searches with it. The probe judges placement with the
+ * product's own reach, so the two cannot disagree about scope. Declared
+ * with the other top-level constants, for the reason THEME_LABELS gives.
+ */
+const COMPOSER_SCOPE_DEPTH = 4
+
+/**
  * Appearance-row cube labels per theme, in the driver's two locales. Declared
  * with the other top-level constants: the checks below run from the module's
  * top-level try, before any declaration placed after it is initialized.
@@ -1051,14 +1060,6 @@ function dialogSurface(cdp) {
     }
   })()`)
 }
-
-/**
- * Ancestor bound for the probe's dock search — the same bound, under the
- * same name, as COMPOSER_SCOPE_DEPTH in SubscriptionUsageBadge.tsx, whose
- * statsScopeOf searches with it. The probe judges placement with the
- * product's own reach, so the two cannot disagree about scope.
- */
-const COMPOSER_SCOPE_DEPTH = 4
 
 /**
  * Click the usage pill. Several buttons carry the pill's label prefix (the
