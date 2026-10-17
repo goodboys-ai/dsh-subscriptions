@@ -36,8 +36,10 @@ import {
 import type { VideoGenerateToolviewInjected } from './VideoGenerateToolview.js'
 import {
   SpeedSelect,
+  createModelSelectionWatch,
   createSpeedLoader,
   createSpeedSetter,
+  notifySpeedChanged,
 } from './SpeedSelect.js'
 import type {
   ModelDirectoriesLike,
@@ -190,6 +192,7 @@ export function apply(ctx: ClientContext): void {
         inject: (sessionId: string): SpeedSelectInjected => ({
           loadSpeed: createSpeedLoader(connection, models, sessionId),
           setSpeed: createSpeedSetter(connection, sessionId),
+          watchModel: createModelSelectionWatch(models, sessionId),
         }),
       },
       SpeedSelect,
@@ -265,10 +268,11 @@ export function apply(ctx: ClientContext): void {
               }))
             },
             onSelect: async (option, session) => {
-              await createSpeedSetter(
+              const wrote = await createSpeedSetter(
                 connection,
                 session.sessionId,
               )(option.id as 'standard' | 'fast')
+              if (wrote) notifySpeedChanged()
             },
           },
         }),

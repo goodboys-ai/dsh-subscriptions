@@ -45,11 +45,27 @@ export interface SpeedSelectState {
  * ship it with this shape; it replaces rc.2's `connection.api.sessions.models`
  * read, which the 0.1.2-alpha removed along with the whole `.api` face.
  */
+/** Selected model pushed by ui-model-selection's directory store. */
+export interface ModelSelectionSnapshot {
+  current: { provider: string; model: string } | null
+}
+
+/**
+ * The directory store (`ModelDirectory.store`). Present on hosts that publish
+ * selection changes; absent on a directory that only offers `load()`.
+ */
+export interface ModelSelectionStore {
+  subscribe(listener: () => void): () => void
+  getSnapshot(): ModelSelectionSnapshot
+}
+
 export interface ModelDirectoriesLike {
   /** Resolve one session's shared model directory (throws for unknown sessions). */
   directoryFor(sessionId: string): {
     /** Load the directory; `current` is the session's effective model selection. */
-    load(): Promise<{ current: { provider: string; model: string } | null }>
+    load(): Promise<ModelSelectionSnapshot>
+    /** Pushes selection changes. Missing when the host only offers `load()`. */
+    store?: ModelSelectionStore
   }
 }
 
@@ -59,6 +75,12 @@ export interface SpeedSelectInjected {
   loadSpeed: () => Promise<SpeedSelectState>
   /** Set the session's speed tier; resolves false when the write failed. */
   setSpeed: (tier: SpeedTier) => Promise<boolean>
+  /**
+   * Subscribe to the session's selected model. The listener runs when
+   * `provider` or `model` changes, and once when a directory that was missing
+   * at subscribe time becomes available. The returned function detaches it.
+   */
+  watchModel: (listener: () => void) => () => void
 }
 
 /**
@@ -105,6 +127,121 @@ export function createSpeedLoader(
   }
 }
 
+/** Stable identity of a model selection. Empty when nothing is selected. */
+export function modelSelectionKey(
+  current: ModelSelectionSnapshot['current'] | undefined,
+): string {
+  if (current == null) return ''
+  return JSON.stringify([current.provider, current.model])
+}
+
+/**
+ * How often a host without a directory store is re-read, and how often a
+ * missing directory service is retried. Neither interval calls
+ * `subscriptions-auth.speed`.
+ */
+export const MODEL_DIRECTORY_POLL_INTERVAL_MS = 3000
+
+/** Fired after `/fast` writes a tier, so an open composer re-reads `speed`. */
+export const SPEED_CHANGED_EVENT = 'dsh:subscriptions:speed-changed'
+
+/** Tell mounted Speed controls that this page changed a session tier. */
+export function notifySpeedChanged(): void {
+  if (typeof window === 'undefined') return
+  window.dispatchEvent(new Event(SPEED_CHANGED_EVENT))
+}
+
+/**
+ * Subscribe to the session's selected model. A directory store notifies the
+ * listener only when `provider` or `model` changes. A directory with no store
+ * is re-read on {@link MODEL_DIRECTORY_POLL_INTERVAL_MS}; a service that is
+ * not registered yet, or whose `directoryFor` throws, is retried on that same
+ * interval. The first successful attach after a miss notifies once, so a
+ * mount that ran before the service existed reads `speed` again.
+ */
+export function createModelSelectionWatch(
+  models: () => ModelDirectoriesLike | undefined,
+  sessionId: string,
+): SpeedSelectInjected['watchModel'] {
+  return (listener) => {
+    let stopped = false
+    let unsubscribeStore: (() => void) | undefined
+    let timer: ReturnType<typeof setInterval> | undefined
+    let mode: 'seek' | 'store' | 'poll' = 'seek'
+    let lastKey: string | undefined
+
+    const stopTimer = (): void => {
+      if (timer === undefined) return
+      clearInterval(timer)
+      timer = undefined
+    }
+    const changed = (
+      current: ModelSelectionSnapshot['current'] | undefined,
+    ): boolean => {
+      const next = modelSelectionKey(current)
+      if (lastKey === undefined) {
+        lastKey = next
+        return false
+      }
+      if (next === lastKey) return false
+      lastKey = next
+      return true
+    }
+    const attach = (late: boolean): void => {
+      if (stopped || mode !== 'seek') return
+      let directory:
+        ReturnType<ModelDirectoriesLike['directoryFor']> | undefined
+      try {
+        directory = models()?.directoryFor(sessionId)
+      } catch {
+        return
+      }
+      if (directory === undefined) return
+      const store = directory.store
+      if (store !== undefined) {
+        mode = 'store'
+        stopTimer()
+        lastKey = modelSelectionKey(store.getSnapshot().current)
+        unsubscribeStore = store.subscribe(() => {
+          if (!stopped && changed(store.getSnapshot().current)) listener()
+        })
+        if (late) listener()
+        return
+      }
+      mode = 'poll'
+      stopTimer()
+      let force = late
+      const seed = (): void => {
+        void directory.load().then(
+          (state) => {
+            if (stopped || mode !== 'poll') return
+            const identityChanged = changed(state.current)
+            const forced = force
+            force = false
+            if (identityChanged || forced) listener()
+          },
+          () => {
+            /* keep the last model; the next tick retries */
+          },
+        )
+      }
+      seed()
+      timer = setInterval(seed, MODEL_DIRECTORY_POLL_INTERVAL_MS)
+    }
+
+    attach(false)
+    if (mode === 'seek')
+      timer = setInterval(() => {
+        attach(true)
+      }, MODEL_DIRECTORY_POLL_INTERVAL_MS)
+    return () => {
+      stopped = true
+      unsubscribeStore?.()
+      stopTimer()
+    }
+  }
+}
+
 /** The `setSpeed` half of the inject face: boolean outcome for the component's busy state. */
 export function createSpeedSetter(
   connection: ConnectionHandle,
@@ -127,58 +264,85 @@ const TIERS: readonly SpeedTier[] = ['standard', 'fast']
 /**
  * The composer Speed control: a trigger reading `速度 · 快速`/`速度 · 标准`
  * that opens a two-row menu (standard/fast with descriptions, check mark on
- * the current tier). Mount and every open reload the host state so a model
- * switch made since the last open self-corrects.
+ * the current tier). It reads `subscriptions-auth.speed` on mount, when the
+ * menu opens, when {@link SpeedSelectInjected.watchModel} reports a new
+ * selected model, and when {@link notifySpeedChanged} fires. Until the first
+ * read succeeds, a failure is retried on
+ * {@link MODEL_DIRECTORY_POLL_INTERVAL_MS}; after that, a failed read keeps
+ * the last known state.
  */
-/** How often the control re-reads the host state (model switches arrive only by asking). */
-const POLL_INTERVAL_MS = 3000
-
-/**
- * The composer Speed control: a trigger reading `速度 · 快速`/`速度 · 标准`
- * that opens a two-row menu (standard/fast with descriptions, check mark on
- * the current tier). The host pushes nothing on a model switch, so the
- * control re-reads on a slow poll with a single-flight guard; a failed read
- * keeps the last known state, so a transient RPC failure can never lock the
- * toggle away (the earlier mount-only load had no recovery path).
- */
-export function SpeedSelect({ loadSpeed, setSpeed, t }: SpeedSelectProps) {
+export function SpeedSelect({
+  loadSpeed,
+  setSpeed,
+  watchModel,
+  t,
+}: SpeedSelectProps) {
   const translate = t ?? fallbackTranslate
   const [state, setState] = useState<SpeedSelectState | null>(null)
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const rootRef = useRef<HTMLDivElement | null>(null)
   // The inject face may be re-evaluated (new callback identities) on re-render;
-  // the poll effect mounts once and reads through this ref, so identity churn
-  // neither resets the interval nor multiplies in-flight loads.
+  // the mount effect reads through these refs, so identity churn neither
+  // resubscribes nor multiplies in-flight loads.
   const loadRef = useRef(loadSpeed)
   loadRef.current = loadSpeed
+  const watchRef = useRef(watchModel)
+  watchRef.current = watchModel
 
   useEffect(() => {
     if (loadRef.current === undefined) return
     let cancelled = false
     let inflight = false
+    let again = false
+    let loadedOnce = false
+    let retry: ReturnType<typeof setInterval> | undefined
+    const stopRetry = (): void => {
+      if (retry === undefined) return
+      clearInterval(retry)
+      retry = undefined
+    }
     const reload = (): void => {
       const load = loadRef.current
-      if (load === undefined || inflight) return
+      if (load === undefined) return
+      if (inflight) {
+        again = true
+        return
+      }
       inflight = true
       void load()
         .then(
           (loaded) => {
-            if (!cancelled) setState(loaded)
+            if (cancelled) return
+            loadedOnce = true
+            stopRetry()
+            setState(loaded)
           },
           () => {
-            /* keep the last known state; the next tick retries */
+            /* keep the last known state; the retry interval covers a miss */
           },
         )
         .finally(() => {
           inflight = false
+          if (cancelled || !again) return
+          again = false
+          reload()
         })
     }
     reload()
-    const timer = setInterval(reload, POLL_INTERVAL_MS)
+    retry = setInterval(() => {
+      if (!loadedOnce) reload()
+    }, MODEL_DIRECTORY_POLL_INTERVAL_MS)
+    const unsubscribe = watchRef.current?.(reload)
+    const onSpeedChanged = (): void => {
+      reload()
+    }
+    window.addEventListener(SPEED_CHANGED_EVENT, onSpeedChanged)
     return () => {
       cancelled = true
-      clearInterval(timer)
+      unsubscribe?.()
+      stopRetry()
+      window.removeEventListener(SPEED_CHANGED_EVENT, onSpeedChanged)
     }
   }, [])
 
