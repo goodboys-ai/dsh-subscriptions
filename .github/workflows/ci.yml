@@ -28,7 +28,9 @@ jobs:
     #  - the compatibility statements (package.json peers, the README sentence,
     #    and the compatibility table) against dsh-versions.txt;
     #  - PR evidence bitmap sizes and the recording ban, protecting every
-    #    clone and CI fetch from oversized committed media.
+    #    clone and CI fetch from oversized committed media;
+    #  - the pull request title topic and template sections, when the event
+    #    is a pull request. A push still parses the template file.
     runs-on: ubuntu-latest
     steps:
       # Full history: the upstream-port ledger checks that every ported
@@ -49,6 +51,8 @@ jobs:
       # It catches a compatibility statement that drifted from the window.
       - run: node scripts/check-compat-docs.mjs
       - run: node scripts/check-image-budget.mjs
+      - name: Check the pull request template
+        run: node scripts/check-pr-template.mjs --event "$GITHUB_EVENT_PATH"
       # Local ledger checks only: fork ancestry, evidence, prose status, and
       # host-capability re-verification. No upstream repository is fetched on PRs.
       # upstream-audit.yml independently fetches and enumerates upstream/main
