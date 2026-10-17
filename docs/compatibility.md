@@ -80,7 +80,7 @@ Status legend:
 - ⚠️ **untested** — inside the window but the gate hasn't run it yet
   (typically a brand-new RC, less than a few days old).
 - ❌ **known-broken** — the gate is red or a specific incompatibility is
-  documented; see the notes column.
+  documented.
 
 Anything outside the window is unsupported. Versions inside the peer range
 but outside the window install and may work, but CI doesn't check them and
@@ -98,11 +98,11 @@ main CI on 2026-10-02; the `0.2.1-rc.2` row was recorded locally on
 2026-10-17. The CI matrix runs identical gates on every push. A
 cell becomes ✅ only from a green gate run, never from "it should work".
 
-| DSH | build | tests | host exports | host contract | boot smoke | host E2E | Notes |
-|-----|-------|-------|--------------|---------------|------------|----------|-------|
-| `0.1.7-rc.2` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | window floor; devDeps pin here |
-| `0.2.0-rc.2` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | packed-tarball install verified |
-| `0.2.1-rc.2` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | stats pills are composer-dock entries from this version |
+| DSH | build | tests | host exports | host contract | boot smoke | host E2E |
+|-----|-------|-------|--------------|---------------|------------|----------|
+| `0.1.7-rc.2` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `0.2.0-rc.2` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `0.2.1-rc.2` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 The boot smoke and host E2E installed the packed tarball (no
 `node_modules`). The host E2E used the host's default workspace on every version, without the directory picker.
