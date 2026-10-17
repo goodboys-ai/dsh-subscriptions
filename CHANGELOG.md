@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.2.2 — 2026-10-17
 
 - **Composer Speed toggle stops polling.** The control calls
   `subscriptions-auth.speed` when the composer mounts, when its menu opens, when
@@ -10,7 +10,8 @@
   identity changes. A mount that runs before the model service exists, or whose
   first read fails, tries again until that read succeeds, and stops after four
   attempts. A session whose model selection is unavailable stays hidden after
-  one read.
+  one read. No provider protocol changed. The PR gate was green for build,
+  tests, boot smoke, and host E2E on the supported window.
 
 ## v0.2.1 — 2026-10-17
 
