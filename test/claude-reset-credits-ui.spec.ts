@@ -29,8 +29,12 @@ const NOW = Date.parse('2026-10-08T12:00:00Z')
 const HOUR = 3_600_000
 const SECRET = 'Bearer sk-ant-secret-do-not-render'
 
-const translator = (dictionary: typeof en) => (key: keyof typeof en, params?: Record<string, unknown>): string =>
-  dictionary[key].replace(/\{(\w+)\}/g, (_, name: string) => String(params?.[name] ?? ''))
+const translator =
+  (dictionary: typeof en) =>
+  (key: keyof typeof en, params?: Record<string, unknown>): string =>
+    dictionary[key].replace(/\{(\w+)\}/g, (_, name: string) =>
+      String(params?.[name] ?? ''),
+    )
 
 function markup(node: ReactElement): string {
   return renderToStaticMarkup(node)
@@ -42,18 +46,26 @@ function disclosure(
   options?: { use?: boolean },
 ): string {
   const t = translator(dictionary)
-  return markup(createElement(ResetCreditsDisclosure, {
-    mode: 'grants',
-    credits,
-    t,
-    now: NOW,
-    ...options?.use ? {
-      useAction: {
-        accountKey: 'claude-1', busy: false, disabled: false, title: 'should not appear',
-        label: dictionary.resetUseButton, onUse: () => undefined,
-      },
-    } : {},
-  }))
+  return markup(
+    createElement(ResetCreditsDisclosure, {
+      mode: 'grants',
+      credits,
+      t,
+      now: NOW,
+      ...(options?.use
+        ? {
+            useAction: {
+              accountKey: 'claude-1',
+              busy: false,
+              disabled: false,
+              title: 'should not appear',
+              label: dictionary.resetUseButton,
+              onUse: () => undefined,
+            },
+          }
+        : {}),
+    }),
+  )
 }
 
 const eligible: ResetCreditView = {
@@ -101,7 +113,10 @@ const exhausted: ResetCreditView = {
 test('Claude headline sums remaining resets, and an omitted list is not an empty row', () => {
   const credits = [eligible, cooling, expired, paused, exhausted]
   assert.equal(resetCreditsAvailableCount(credits, NOW, 'grants'), 6)
-  assert.notEqual(resetCreditsAvailableCount(credits, NOW, 'grants'), credits.length)
+  assert.notEqual(
+    resetCreditsAvailableCount(credits, NOW, 'grants'),
+    credits.length,
+  )
   assert.equal(resetCreditsAvailableCount([eligible], NOW, 'credits'), 1)
   assert.equal(showsResetCredits('claude', undefined), false)
   assert.equal(showsResetCredits('claude', []), false)
@@ -115,7 +130,11 @@ test('eligible, cooling, expired, paused, and exhausted grants render as text in
     const html = disclosure(dictionary, credits)
     assert.ok(html.includes(t('resetCreditsTitle')), html)
     assert.ok(html.includes(t('resetCreditsAvailable', { count: 6 })), html)
-    assert.equal(html.includes(t('resetCreditsAvailable', { count: credits.length })), false, html)
+    assert.equal(
+      html.includes(t('resetCreditsAvailable', { count: credits.length })),
+      false,
+      html,
+    )
     assert.ok(html.includes(t('resetCreditReadOnlyLabel')), html)
     assert.ok(html.includes(t('resetCreditReadOnly')), html)
     assert.equal(html.includes('<button'), false, html)
@@ -134,9 +153,30 @@ test('eligible, cooling, expired, paused, and exhausted grants render as text in
     assert.ok(html.includes('data-reset-state="paused"'), html)
     assert.ok(html.includes('data-reset-state="exhausted"'), html)
     assert.ok(html.includes('data-reset-claimable="true"'), html)
-    assert.ok(html.includes(t('resetCreditCooldownUntil', { date: new Date(cooling.cooldownUntil!).toLocaleString() })), html)
-    assert.ok(html.includes(t('resetCreditExpires', { date: new Date(expired.expiresAt!).toLocaleString() })), html)
-    assert.equal(html.includes(t('usageResets', { date: new Date(expired.expiresAt!).toLocaleString() })), false)
+    assert.ok(
+      html.includes(
+        t('resetCreditCooldownUntil', {
+          date: new Date(cooling.cooldownUntil!).toLocaleString(),
+        }),
+      ),
+      html,
+    )
+    assert.ok(
+      html.includes(
+        t('resetCreditExpires', {
+          date: new Date(expired.expiresAt!).toLocaleString(),
+        }),
+      ),
+      html,
+    )
+    assert.equal(
+      html.includes(
+        t('usageResets', {
+          date: new Date(expired.expiresAt!).toLocaleString(),
+        }),
+      ),
+      false,
+    )
   }
 })
 
@@ -146,14 +186,29 @@ test('an ineligible Claude account has no reset row, and a failed lookup does no
     assert.equal(showsResetCredits('claude', undefined), false)
     assert.equal(showsResetCredits('claude', []), false)
     const error = resetCreditsErrorText('claude', SECRET, t)
-    const errorHtml = markup(createElement(ResetCreditsErrorLine, { provider: 'claude', message: SECRET, t }))
+    const errorHtml = markup(
+      createElement(ResetCreditsErrorLine, {
+        provider: 'claude',
+        message: SECRET,
+        t,
+      }),
+    )
     assert.equal(error, t('resetCreditsErrorFixed'))
     assert.ok(errorHtml.includes(t('resetCreditsErrorFixed')), errorHtml)
     assert.equal(errorHtml.includes(SECRET), false)
     assert.equal(errorHtml.includes('sk-ant'), false)
     assert.equal(errorHtml.includes('Bearer'), false)
-    assert.equal(resetCreditsErrorText('codex', 'HTTP 403', t), t('resetCreditsError', { message: 'HTTP 403' }))
-    const codexError = markup(createElement(ResetCreditsErrorLine, { provider: 'codex', message: 'HTTP 403', t }))
+    assert.equal(
+      resetCreditsErrorText('codex', 'HTTP 403', t),
+      t('resetCreditsError', { message: 'HTTP 403' }),
+    )
+    const codexError = markup(
+      createElement(ResetCreditsErrorLine, {
+        provider: 'codex',
+        message: 'HTTP 403',
+        t,
+      }),
+    )
     assert.ok(codexError.includes('HTTP 403'), codexError)
   }
 })
@@ -165,19 +220,45 @@ test('a claimable Claude grant stays non-actionable even if a use handler is pas
     assert.ok(html.includes('cursor:default'), html)
     assert.match(html, /<summary[^>]*cursor:pointer/)
     assert.ok(html.includes('data-reset-claimable="true"'), html)
-    assert.ok(html.includes(translator(dictionary)('resetCreditAvailable')), html)
+    assert.ok(
+      html.includes(translator(dictionary)('resetCreditAvailable')),
+      html,
+    )
   }
 })
 
 test('a future cooldown wins over usableNow, and a past cooldown does not', () => {
   const t = translator(en)
-  const held = disclosure(en, [{ ...eligible, id: 'held', usableNow: true, claimable: true, cooldownUntil: NOW + HOUR }])
+  const held = disclosure(en, [
+    {
+      ...eligible,
+      id: 'held',
+      usableNow: true,
+      claimable: true,
+      cooldownUntil: NOW + HOUR,
+    },
+  ])
   assert.ok(held.includes('data-reset-state="notUsable"'), held)
   assert.equal(held.includes('<button'), false)
-  const released = disclosure(en, [{ ...cooling, id: 'released', usableNow: true, cooldownUntil: NOW - HOUR, claimable: true }])
+  const released = disclosure(en, [
+    {
+      ...cooling,
+      id: 'released',
+      usableNow: true,
+      cooldownUntil: NOW - HOUR,
+      claimable: true,
+    },
+  ])
   assert.ok(released.includes('data-reset-state="available"'), released)
   assert.ok(released.includes(t('resetCreditAvailable')))
-  assert.equal(released.includes(t('resetCreditCooldownUntil', { date: new Date(NOW - HOUR).toLocaleString() })), false)
+  assert.equal(
+    released.includes(
+      t('resetCreditCooldownUntil', {
+        date: new Date(NOW - HOUR).toLocaleString(),
+      }),
+    ),
+    false,
+  )
 })
 
 test('the grant expiry is not the window cursor', () => {
@@ -189,10 +270,23 @@ test('the grant expiry is not the window cursor', () => {
     startsAt: current - 2 * HOUR,
     resetsAt: current + 2 * HOUR,
   }
-  const meter = markup(createElement(UsageMeter, { window, t, observedAt: current }))
+  const meter = markup(
+    createElement(UsageMeter, { window, t, observedAt: current }),
+  )
   const grant = disclosure(en, [{ ...eligible, expiresAt: NOW + 48 * HOUR }])
   assert.match(meter, /data-usage-time-marker/)
   assert.equal(grant.includes('data-usage-time-marker'), false)
-  assert.equal(grant.includes(t('usageResets', { date: new Date(NOW + 48 * HOUR).toLocaleString() })), false)
-  assert.ok(grant.includes(t('resetCreditExpires', { date: new Date(NOW + 48 * HOUR).toLocaleString() })))
+  assert.equal(
+    grant.includes(
+      t('usageResets', { date: new Date(NOW + 48 * HOUR).toLocaleString() }),
+    ),
+    false,
+  )
+  assert.ok(
+    grant.includes(
+      t('resetCreditExpires', {
+        date: new Date(NOW + 48 * HOUR).toLocaleString(),
+      }),
+    ),
+  )
 })

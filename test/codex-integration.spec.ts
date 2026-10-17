@@ -29,7 +29,11 @@ import {
   fetchCodexUsage,
   refreshCodex,
 } from '../src/providers/codex.js'
-import { FAKE_CODEX_IDENTITY, installFakeCodex, type FakeCodex } from './fakes/fake-codex.js'
+import {
+  FAKE_CODEX_IDENTITY,
+  installFakeCodex,
+  type FakeCodex,
+} from './fakes/fake-codex.js'
 
 interface VirtualLogin {
   fake: FakeCodex
@@ -61,13 +65,20 @@ async function virtualLogin(t: TestContext): Promise<VirtualLogin> {
   assert.equal(callback.status, 200)
   assert.match(await callback.text(), /Login successful/)
   const code = await attempt.waitCode()
-  const session = await exchangeCodexCode(code, attempt.pkce.verifier, attempt.redirectUri)
+  const session = await exchangeCodexCode(
+    code,
+    attempt.pkce.verifier,
+    attempt.redirectUri,
+  )
   return { fake, session, attempt }
 }
 
 test('codex: full OAuth login flow against the virtual provider', async (t) => {
   const { fake, session, attempt } = await virtualLogin(t)
-  assert.ok(fake.issuedCodes.size <= 1, 'the issued code was consumed by the exchange')
+  assert.ok(
+    fake.issuedCodes.size <= 1,
+    'the issued code was consumed by the exchange',
+  )
   assert.equal(session.accountId, FAKE_CODEX_IDENTITY.accountId)
   assert.equal(session.emailAddress, FAKE_CODEX_IDENTITY.email)
   assert.equal(session.planType, FAKE_CODEX_IDENTITY.planType)
@@ -76,10 +87,13 @@ test('codex: full OAuth login flow against the virtual provider', async (t) => {
   assert.ok(session.expiresAt > Date.now())
 
   // The exchange used the real form-encoded grant against the real token URL.
-  const tokenCall = fake.calls.find(call => call.url === CODEX_TOKEN_URL)
+  const tokenCall = fake.calls.find((call) => call.url === CODEX_TOKEN_URL)
   assert.ok(tokenCall !== undefined)
   assert.equal(tokenCall.method, 'POST')
-  assert.match(tokenCall.headers['content-type'] ?? '', /application\/x-www-form-urlencoded/)
+  assert.match(
+    tokenCall.headers['content-type'] ?? '',
+    /application\/x-www-form-urlencoded/,
+  )
   const form = new URLSearchParams(tokenCall.bodyText)
   assert.equal(form.get('grant_type'), 'authorization_code')
   assert.equal(form.get('code_verifier'), attempt.pkce.verifier)
@@ -111,8 +125,11 @@ test('codex: refresh rotates tokens and keeps identity claims', async (t) => {
   assert.equal(refreshed.accountId, FAKE_CODEX_IDENTITY.accountId)
   assert.equal(refreshed.emailAddress, FAKE_CODEX_IDENTITY.email)
 
-  const refreshCall = fake.calls.find(call =>
-    call.url === CODEX_TOKEN_URL && call.headers['content-type']?.includes('application/json'))
+  const refreshCall = fake.calls.find(
+    (call) =>
+      call.url === CODEX_TOKEN_URL &&
+      call.headers['content-type']?.includes('application/json'),
+  )
   assert.ok(refreshCall !== undefined)
   const body = JSON.parse(refreshCall.bodyText) as Record<string, unknown>
   assert.equal(body.grant_type, 'refresh_token')
@@ -125,7 +142,10 @@ test('codex: usage windows are classified by duration', async (t) => {
   assert.equal(usage.supported, true)
   assert.equal(usage.plan, FAKE_CODEX_IDENTITY.planType)
   assert.ok(usage.windows !== undefined)
-  assert.deepEqual(usage.windows.map(w => w.kind), ['session', 'weekly'])
+  assert.deepEqual(
+    usage.windows.map((w) => w.kind),
+    ['session', 'weekly'],
+  )
   assert.equal(usage.windows[0].usedPercent, 42.5)
   assert.equal(usage.windows[1].usedPercent, 10)
   assert.ok((usage.windows[1].resetsAt ?? 0) > Date.now())
@@ -133,16 +153,32 @@ test('codex: usage windows are classified by duration', async (t) => {
 
 test('codex: catalog discovery parses, filters, and sorts', async (t) => {
   const { fake, session } = await virtualLogin(t)
-  const models = await fetchCodexModels(session, undefined, undefined, '0.153.4')
-  assert.deepEqual(models.map(m => m.id), ['gpt-5.3-codex', 'gpt-5.3'])
+  const models = await fetchCodexModels(
+    session,
+    undefined,
+    undefined,
+    '0.153.4',
+  )
+  assert.deepEqual(
+    models.map((m) => m.id),
+    ['gpt-5.3-codex', 'gpt-5.3'],
+  )
   assert.equal(models[0].fastTier, true)
   assert.equal(models[0].reasoning?.efforts.length, 1)
 
-  const modelsCall = fake.calls.find(call => call.url.startsWith(CODEX_MODELS_URL))
+  const modelsCall = fake.calls.find((call) =>
+    call.url.startsWith(CODEX_MODELS_URL),
+  )
   assert.ok(modelsCall !== undefined)
   assert.match(modelsCall.url, /client_version=0\.153\.4/)
-  assert.equal(modelsCall.headers['authorization'], `Bearer ${session.accessToken}`)
-  assert.equal(modelsCall.headers['chatgpt-account-id'], FAKE_CODEX_IDENTITY.accountId)
+  assert.equal(
+    modelsCall.headers['authorization'],
+    `Bearer ${session.accessToken}`,
+  )
+  assert.equal(
+    modelsCall.headers['chatgpt-account-id'],
+    FAKE_CODEX_IDENTITY.accountId,
+  )
 })
 
 test('codex: a model run streams text through the real adapter', async (t) => {
@@ -150,7 +186,11 @@ test('codex: a model run streams text through the real adapter', async (t) => {
   const tokens = new AccountTokenManager({
     provider: 'codex',
     displayName: 'Virtual Codex',
-    makeOptions: () => ({ preemptMs: 0, refresh: async () => session, isPermanent: () => false }),
+    makeOptions: () => ({
+      preemptMs: 0,
+      refresh: async () => session,
+      isPermanent: () => false,
+    }),
     io: {
       list: async () => [{ key: 'acct', session }],
       get: async () => session,
@@ -168,12 +208,14 @@ test('codex: a model run streams text through the real adapter', async (t) => {
     provider: 'codex',
     model: 'gpt-5.3-codex',
     sessionId: 'virtual-run' as NonNullable<GenerateOptions['sessionId']>,
-    messages: [{
-      id: MessageId('user'),
-      role: 'user',
-      source: { kind: 'user' },
-      content: [{ type: 'text', text: 'hello' }],
-    }],
+    messages: [
+      {
+        id: MessageId('user'),
+        role: 'user',
+        source: { kind: 'user' },
+        content: [{ type: 'text', text: 'hello' }],
+      },
+    ],
   }
   let text = ''
   let finish: unknown
@@ -184,11 +226,17 @@ test('codex: a model run streams text through the real adapter', async (t) => {
   assert.equal(text, 'Hello, world!')
   assert.deepEqual(finish, { kind: 'stop' })
 
-  const apiCall = fake.calls.find(call => call.url === CODEX_API_URL)
+  const apiCall = fake.calls.find((call) => call.url === CODEX_API_URL)
   assert.ok(apiCall !== undefined)
   assert.equal(apiCall.method, 'POST')
-  assert.equal(apiCall.headers['authorization'], `Bearer ${session.accessToken}`)
-  assert.equal(apiCall.headers['chatgpt-account-id'], FAKE_CODEX_IDENTITY.accountId)
+  assert.equal(
+    apiCall.headers['authorization'],
+    `Bearer ${session.accessToken}`,
+  )
+  assert.equal(
+    apiCall.headers['chatgpt-account-id'],
+    FAKE_CODEX_IDENTITY.accountId,
+  )
   const body = JSON.parse(apiCall.bodyText) as Record<string, unknown>
   assert.equal(body.model, 'gpt-5.3-codex')
   assert.equal(body.stream, true)

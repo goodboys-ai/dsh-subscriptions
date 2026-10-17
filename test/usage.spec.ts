@@ -18,9 +18,11 @@ import type { FakeConnectionHandler } from './fake-connection.js'
 process.env.DSH_HOME ??= mkdtempSync(join(tmpdir(), 'router-usage-test-'))
 
 // Imports after the env override so the store path resolves under the temp home.
-const { fetchCodexUsage, fetchCodexResetCredits } = await import('../src/providers/codex.js')
+const { fetchCodexUsage, fetchCodexResetCredits } =
+  await import('../src/providers/codex.js')
 const { fetchClaudeUsage } = await import('../src/providers/claude.js')
-const { fetchGrokUsage, grokTierName } = await import('../src/providers/grok.js')
+const { fetchGrokUsage, grokTierName } =
+  await import('../src/providers/grok.js')
 const plugin = await import('../src/index.js')
 const { SubscriptionsAuthController } = plugin
 const { registerAuthRpc } = await import('../src/auth/rpc.js')
@@ -31,7 +33,11 @@ const { PoolUsageTracker } = await import('../src/providers/pool-usage.js')
 
 import { OAuthEndpointError } from '../src/providers/common.js'
 import type { FetchFn, ProviderUsage } from '../src/providers/common.js'
-import type { ClaudeSession, CodexSession, GrokSession } from '../src/auth/store.js'
+import type {
+  ClaudeSession,
+  CodexSession,
+  GrokSession,
+} from '../src/auth/store.js'
 
 const codexSession: CodexSession = {
   accessToken: 'at',
@@ -53,14 +59,22 @@ const grokSession: GrokSession = {
 }
 
 /** A fetch implementation answering one JSON payload; records the request. */
-function fakeFetch(payload: unknown, status = 200): {
+function fakeFetch(
+  payload: unknown,
+  status = 200,
+): {
   fetchFn: FetchFn
   requests: { url: string; headers: Record<string, string> }[]
 } {
   const requests: { url: string; headers: Record<string, string> }[] = []
-  const fetchFn: FetchFn = ((url: string | URL | Request, init?: RequestInit) => {
+  const fetchFn: FetchFn = ((
+    url: string | URL | Request,
+    init?: RequestInit,
+  ) => {
     const headers: Record<string, string> = {}
-    new Headers(init?.headers).forEach((value, key) => { headers[key] = value })
+    new Headers(init?.headers).forEach((value, key) => {
+      headers[key] = value
+    })
     requests.push({ url: String(url), headers })
     return Promise.resolve(new Response(JSON.stringify(payload), { status }))
   }) as FetchFn
@@ -71,8 +85,16 @@ test('fetchCodexUsage maps windows, plan, and reset timestamps', async () => {
   const { fetchFn, requests } = fakeFetch({
     plan_type: 'plus',
     rate_limit: {
-      primary_window: { used_percent: 27, limit_window_seconds: 18000, reset_at: 1_782_770_922 },
-      secondary_window: { used_percent: 4, limit_window_seconds: 604800, reset_at: 1_783_357_722 },
+      primary_window: {
+        used_percent: 27,
+        limit_window_seconds: 18000,
+        reset_at: 1_782_770_922,
+      },
+      secondary_window: {
+        used_percent: 4,
+        limit_window_seconds: 604800,
+        reset_at: 1_783_357_722,
+      },
     },
   })
   const usage = await fetchCodexUsage(codexSession, fetchFn)
@@ -80,8 +102,20 @@ test('fetchCodexUsage maps windows, plan, and reset timestamps', async () => {
     supported: true,
     plan: 'plus',
     windows: [
-      { kind: 'session', usedPercent: 27, resetsAt: 1_782_770_922_000, windowDurationMs: 18_000_000, fixedWindow: true },
-      { kind: 'weekly', usedPercent: 4, resetsAt: 1_783_357_722_000, windowDurationMs: 604_800_000, fixedWindow: true },
+      {
+        kind: 'session',
+        usedPercent: 27,
+        resetsAt: 1_782_770_922_000,
+        windowDurationMs: 18_000_000,
+        fixedWindow: true,
+      },
+      {
+        kind: 'weekly',
+        usedPercent: 4,
+        resetsAt: 1_783_357_722_000,
+        windowDurationMs: 604_800_000,
+        fixedWindow: true,
+      },
     ],
   })
   assert.equal(requests.length, 1)
@@ -91,15 +125,32 @@ test('fetchCodexUsage maps windows, plan, and reset timestamps', async () => {
 })
 
 test('fetchCodexResetCredits maps only available Codex reset credits', async () => {
-  const { fetchFn, requests } = fakeFetch({ credits: [
-    { id: 'credit-1', reset_type: 'codex_rate_limits', status: 'available', granted_at: '2026-09-20T00:00:00Z', expires_at: '2026-10-20T00:00:00Z' },
-    { id: 'credit-2', reset_type: 'codex_rate_limits', status: 'redeemed' },
-    { id: 'credit-3', reset_type: 'other', status: 'available' },
-    { id: 'credit-4', reset_type: 'codex_rate_limits', status: 'available', expires_at: null },
-  ] })
+  const { fetchFn, requests } = fakeFetch({
+    credits: [
+      {
+        id: 'credit-1',
+        reset_type: 'codex_rate_limits',
+        status: 'available',
+        granted_at: '2026-09-20T00:00:00Z',
+        expires_at: '2026-10-20T00:00:00Z',
+      },
+      { id: 'credit-2', reset_type: 'codex_rate_limits', status: 'redeemed' },
+      { id: 'credit-3', reset_type: 'other', status: 'available' },
+      {
+        id: 'credit-4',
+        reset_type: 'codex_rate_limits',
+        status: 'available',
+        expires_at: null,
+      },
+    ],
+  })
   const credits = await fetchCodexResetCredits(codexSession, fetchFn)
   assert.deepEqual(credits, [
-    { id: 'credit-1', grantedAt: Date.parse('2026-09-20T00:00:00Z'), expiresAt: Date.parse('2026-10-20T00:00:00Z') },
+    {
+      id: 'credit-1',
+      grantedAt: Date.parse('2026-09-20T00:00:00Z'),
+      expiresAt: Date.parse('2026-10-20T00:00:00Z'),
+    },
     { id: 'credit-4' },
   ])
   assert.equal(requests.length, 1)
@@ -110,23 +161,39 @@ test('fetchCodexResetCredits maps only available Codex reset credits', async () 
 
 test('fetchCodexResetCredits reports malformed payloads and endpoint errors', async () => {
   const { fetchFn } = fakeFetch({ available_count: 0 })
-  await assert.rejects(fetchCodexResetCredits(codexSession, fetchFn), /missing credits array/)
+  await assert.rejects(
+    fetchCodexResetCredits(codexSession, fetchFn),
+    /missing credits array/,
+  )
   const { fetchFn: empty } = fakeFetch({ credits: [] })
   assert.deepEqual(await fetchCodexResetCredits(codexSession, empty), [])
   const { fetchFn: failing } = fakeFetch({ error: 'nope' }, 500)
-  await assert.rejects(fetchCodexResetCredits(codexSession, failing), /codex reset credits/)
+  await assert.rejects(
+    fetchCodexResetCredits(codexSession, failing),
+    /codex reset credits/,
+  )
 })
 
 test('fetchCodexUsage classifies a weekly primary window by duration', async () => {
   const { fetchFn } = fakeFetch({
     plan_type: 'plus',
     rate_limit: {
-      primary_window: { used_percent: 39, limit_window_seconds: 604800, reset_at: 1_783_357_722 },
+      primary_window: {
+        used_percent: 39,
+        limit_window_seconds: 604800,
+        reset_at: 1_783_357_722,
+      },
     },
   })
   const usage = await fetchCodexUsage(codexSession, fetchFn)
   assert.deepEqual(usage.windows, [
-    { kind: 'weekly', usedPercent: 39, resetsAt: 1_783_357_722_000, windowDurationMs: 604_800_000, fixedWindow: true },
+    {
+      kind: 'weekly',
+      usedPercent: 39,
+      resetsAt: 1_783_357_722_000,
+      windowDurationMs: 604_800_000,
+      fixedWindow: true,
+    },
   ])
 })
 
@@ -139,8 +206,18 @@ test('fetchCodexUsage maps unrecognized durations to other, not a fixed label', 
   })
   const usage = await fetchCodexUsage(codexSession, fetchFn)
   assert.deepEqual(usage.windows, [
-    { kind: 'session', usedPercent: 10, windowDurationMs: 18_000_000, fixedWindow: true },
-    { kind: 'other', usedPercent: 5, windowDurationMs: 3_600_000, fixedWindow: true },
+    {
+      kind: 'session',
+      usedPercent: 10,
+      windowDurationMs: 18_000_000,
+      fixedWindow: true,
+    },
+    {
+      kind: 'other',
+      usedPercent: 5,
+      windowDurationMs: 3_600_000,
+      fixedWindow: true,
+    },
   ])
 })
 
@@ -161,7 +238,9 @@ test('fetchCodexUsage falls back to slot-based kind when duration is absent', as
 test('fetchCodexUsage falls back to reset_after_seconds and tolerates missing windows', async () => {
   const before = Date.now()
   const { fetchFn } = fakeFetch({
-    rate_limit: { primary_window: { used_percent: 10, reset_after_seconds: 100 } },
+    rate_limit: {
+      primary_window: { used_percent: 10, reset_after_seconds: 100 },
+    },
   })
   const usage = await fetchCodexUsage(codexSession, fetchFn)
   assert.equal(usage.supported, true)
@@ -170,22 +249,44 @@ test('fetchCodexUsage falls back to reset_after_seconds and tolerates missing wi
   const [window] = usage.windows ?? []
   assert.equal(window.kind, 'session')
   assert.equal(window.usedPercent, 10)
-  assert.ok(window.resetsAt !== undefined && window.resetsAt >= before + 100_000)
+  assert.ok(
+    window.resetsAt !== undefined && window.resetsAt >= before + 100_000,
+  )
 })
 
 test('Claude and Codex adapter windows enable pace, not just duration labels', async () => {
   const now = Date.now()
   const reset = now + 4 * 60 * 60_000
-  const codex = await fetchCodexUsage(codexSession, fakeFetch({ rate_limit: {
-    primary_window: { used_percent: 40, limit_window_seconds: 18000, reset_at: reset / 1000 },
-  } }).fetchFn)
-  const claude = await fetchClaudeUsage(claudeSession, fakeFetch({
-    five_hour: { utilization: 40, resets_at: new Date(reset).toISOString() },
-  }).fetchFn)
+  const codex = await fetchCodexUsage(
+    codexSession,
+    fakeFetch({
+      rate_limit: {
+        primary_window: {
+          used_percent: 40,
+          limit_window_seconds: 18000,
+          reset_at: reset / 1000,
+        },
+      },
+    }).fetchFn,
+  )
+  const claude = await fetchClaudeUsage(
+    claudeSession,
+    fakeFetch({
+      five_hour: { utilization: 40, resets_at: new Date(reset).toISOString() },
+    }).fetchFn,
+  )
   for (const usage of [codex, claude]) {
     const window = usage.windows![0]!
     assert.equal(elapsedPercent(window, now), 20)
-    assert.equal(usageColorState(window.usedPercent, elapsedPercent(window, now), 'standard', true), 'yellow')
+    assert.equal(
+      usageColorState(
+        window.usedPercent,
+        elapsedPercent(window, now),
+        'standard',
+        true,
+      ),
+      'yellow',
+    )
   }
 })
 
@@ -205,9 +306,27 @@ test('fetchClaudeUsage maps legacy buckets and skips null ones', async () => {
   assert.deepEqual(usage, {
     supported: true,
     windows: [
-      { kind: 'session', usedPercent: 6, windowDurationMs: 18_000_000, fixedWindow: true, resetsAt: Date.parse('2026-04-08T18:59:59Z') },
-      { kind: 'weekly', usedPercent: 35, windowDurationMs: 604_800_000, fixedWindow: true, resetsAt: Date.parse('2026-04-14T16:59:59Z') },
-      { kind: 'weekly', scope: 'Sonnet', usedPercent: 21, windowDurationMs: 604_800_000, fixedWindow: true },
+      {
+        kind: 'session',
+        usedPercent: 6,
+        windowDurationMs: 18_000_000,
+        fixedWindow: true,
+        resetsAt: Date.parse('2026-04-08T18:59:59Z'),
+      },
+      {
+        kind: 'weekly',
+        usedPercent: 35,
+        windowDurationMs: 604_800_000,
+        fixedWindow: true,
+        resetsAt: Date.parse('2026-04-14T16:59:59Z'),
+      },
+      {
+        kind: 'weekly',
+        scope: 'Sonnet',
+        usedPercent: 21,
+        windowDurationMs: 604_800_000,
+        fixedWindow: true,
+      },
     ],
   })
   assert.equal(requests[0].headers['anthropic-beta'], 'oauth-2025-04-20')
@@ -215,15 +334,25 @@ test('fetchClaudeUsage maps legacy buckets and skips null ones', async () => {
 })
 
 test('fetchClaudeUsage: a 429 carries the retry-after header as retryAfterMs (issue #46)', async () => {
-  const fetchFn: FetchFn = ((_url: string | URL | Request, _init?: RequestInit) => Promise.resolve(
-    new Response(JSON.stringify({}), { status: 429, headers: { 'retry-after': '462' } }),
-  )) as FetchFn
-  await assert.rejects(fetchClaudeUsage(claudeSession, fetchFn), (error: unknown) => {
-    assert.ok(error instanceof OAuthEndpointError)
-    assert.equal(error.status, 429)
-    assert.equal(error.retryAfterMs, 462_000)
-    return true
-  })
+  const fetchFn: FetchFn = ((
+    _url: string | URL | Request,
+    _init?: RequestInit,
+  ) =>
+    Promise.resolve(
+      new Response(JSON.stringify({}), {
+        status: 429,
+        headers: { 'retry-after': '462' },
+      }),
+    )) as FetchFn
+  await assert.rejects(
+    fetchClaudeUsage(claudeSession, fetchFn),
+    (error: unknown) => {
+      assert.ok(error instanceof OAuthEndpointError)
+      assert.equal(error.status, 429)
+      assert.equal(error.retryAfterMs, 462_000)
+      return true
+    },
+  )
 })
 
 test('fetchClaudeUsage prefers the modern limits array when present', async () => {
@@ -233,15 +362,39 @@ test('fetchClaudeUsage prefers the modern limits array when present', async () =
     limits: [
       { kind: 'session', percent: 12, resets_at: '2026-04-08T18:59:59Z' },
       { kind: 'weekly_all', percent: 40, resets_at: '2026-04-14T16:59:59Z' },
-      { kind: 'weekly_scoped', percent: 7, resets_at: '2026-04-14T16:59:59Z', scope: { model: { display_name: 'Opus' } } },
+      {
+        kind: 'weekly_scoped',
+        percent: 7,
+        resets_at: '2026-04-14T16:59:59Z',
+        scope: { model: { display_name: 'Opus' } },
+      },
       { kind: 'weekly_scoped' }, // no percent → skipped
     ],
   })
   const usage = await fetchClaudeUsage(claudeSession, fetchFn)
   assert.deepEqual(usage.windows, [
-    { kind: 'session', usedPercent: 12, windowDurationMs: 18_000_000, fixedWindow: true, resetsAt: Date.parse('2026-04-08T18:59:59Z') },
-    { kind: 'weekly', usedPercent: 40, windowDurationMs: 604_800_000, fixedWindow: true, resetsAt: Date.parse('2026-04-14T16:59:59Z') },
-    { kind: 'weekly', scope: 'Opus', usedPercent: 7, windowDurationMs: 604_800_000, fixedWindow: true, resetsAt: Date.parse('2026-04-14T16:59:59Z') },
+    {
+      kind: 'session',
+      usedPercent: 12,
+      windowDurationMs: 18_000_000,
+      fixedWindow: true,
+      resetsAt: Date.parse('2026-04-08T18:59:59Z'),
+    },
+    {
+      kind: 'weekly',
+      usedPercent: 40,
+      windowDurationMs: 604_800_000,
+      fixedWindow: true,
+      resetsAt: Date.parse('2026-04-14T16:59:59Z'),
+    },
+    {
+      kind: 'weekly',
+      scope: 'Opus',
+      usedPercent: 7,
+      windowDurationMs: 604_800_000,
+      fixedWindow: true,
+      resetsAt: Date.parse('2026-04-14T16:59:59Z'),
+    },
   ])
 })
 
@@ -262,10 +415,18 @@ test('fetchGrokUsage maps the credits-config shape (weekly percent + reset)', as
     supported: true,
     plan: 'SuperGrok Heavy',
     windows: [
-      { kind: 'weekly', usedPercent: 2, startsAt: Date.parse('2026-08-11T10:14:00Z'), resetsAt: Date.parse('2026-08-18T10:14:00Z') },
+      {
+        kind: 'weekly',
+        usedPercent: 2,
+        startsAt: Date.parse('2026-08-11T10:14:00Z'),
+        resetsAt: Date.parse('2026-08-18T10:14:00Z'),
+      },
     ],
   })
-  assert.match(requests[0].url, /cli-chat-proxy\.grok\.com\/v1\/billing\?format=credits/)
+  assert.match(
+    requests[0].url,
+    /cli-chat-proxy\.grok\.com\/v1\/billing\?format=credits/,
+  )
   assert.equal(requests[0].headers['x-xai-token-auth'], 'xai-grok-cli')
   assert.equal(requests[0].headers.authorization, 'Bearer at')
 })
@@ -280,13 +441,18 @@ test('fetchGrokUsage derives the percent from the legacy cent-valued shape', asy
   })
   const usage = await fetchGrokUsage(grokSession, fetchFn)
   assert.deepEqual(usage.windows, [
-    { kind: 'other', usedPercent: 25, resetsAt: Date.parse('2026-09-01T00:00:00Z') },
+    {
+      kind: 'other',
+      usedPercent: 25,
+      resetsAt: Date.parse('2026-09-01T00:00:00Z'),
+    },
   ])
 })
 
 /** Build an unsigned JWT with the given payload (header.payload.sig, base64url). */
 function unsignedJwt(payload: Record<string, unknown>): string {
-  const encode = (value: unknown): string => Buffer.from(JSON.stringify(value)).toString('base64url')
+  const encode = (value: unknown): string =>
+    Buffer.from(JSON.stringify(value)).toString('base64url')
   return `${encode({ alg: 'none' })}.${encode(payload)}.sig`
 }
 
@@ -304,11 +470,17 @@ test('grokTierName maps the JWT tier claim to display names', () => {
 })
 
 test('fetchGrokUsage falls back to the access-token tier when billing omits subscriptionTier', async () => {
-  const session: GrokSession = { ...grokSession, accessToken: unsignedJwt({ tier: 5 }) }
+  const session: GrokSession = {
+    ...grokSession,
+    accessToken: unsignedJwt({ tier: 5 }),
+  }
   const { fetchFn } = fakeFetch({
     config: {
       creditUsagePercent: 2,
-      currentPeriod: { type: 'USAGE_PERIOD_TYPE_WEEKLY', end: '2026-08-18T10:14:00Z' },
+      currentPeriod: {
+        type: 'USAGE_PERIOD_TYPE_WEEKLY',
+        end: '2026-08-18T10:14:00Z',
+      },
     },
   })
   const usage = await fetchGrokUsage(session, fetchFn)
@@ -326,7 +498,10 @@ test('fetchGrokUsage tolerates a null config and non-2xx responses', async () =>
 test('fetchGrokUsage extracts reset window when creditUsagePercent is absent but currentPeriod is present', async () => {
   const { fetchFn } = fakeFetch({
     config: {
-      currentPeriod: { type: 'USAGE_PERIOD_TYPE_WEEKLY', end: '2026-09-10T12:00:00Z' },
+      currentPeriod: {
+        type: 'USAGE_PERIOD_TYPE_WEEKLY',
+        end: '2026-09-10T12:00:00Z',
+      },
     },
   })
   const usage = await fetchGrokUsage(grokSession, fetchFn)
@@ -340,11 +515,13 @@ test('fetchGrokUsage extracts reset window when creditUsagePercent is absent but
 /** Mount the plugin with fake llm/connection; return the RPC handler. */
 async function mount(): Promise<FakeConnectionHandler> {
   const ctx = new Context()
-  ctx.provide('llm', { registerAdapter: () => Object.assign(() => {}, { replace: () => {} }) })
+  ctx.provide('llm', {
+    registerAdapter: () => Object.assign(() => {}, { replace: () => {} }),
+  })
   const fake = createFakeConnection()
   ctx.provide('connection', fake.connection)
   ctx.plugin(plugin, { providers: ['codex'] })
-  await new Promise(resolve => setTimeout(resolve, 50))
+  await new Promise((resolve) => setTimeout(resolve, 50))
   assert.ok(fake.registered(), 'the subscriptions-auth routes were registered')
   return fake.handler
 }
@@ -352,13 +529,21 @@ async function mount(): Promise<FakeConnectionHandler> {
 test('usage endpoint: provider without a usage fetcher answers supported:false', async () => {
   const handler = await mount()
   // Only codex is registered, so grok never got a usage fetcher.
-  const result = await handler('usage', { provider: 'grok', account: 'a1' }, new AbortController().signal)
+  const result = await handler(
+    'usage',
+    { provider: 'grok', account: 'a1' },
+    new AbortController().signal,
+  )
   assert.deepEqual(result, { ok: true, value: { supported: false } })
 })
 
 test('usage endpoint: logged-out provider answers an error result', async () => {
   const handler = await mount()
-  const result = await handler('usage', { provider: 'codex', account: 'a1' }, new AbortController().signal)
+  const result = await handler(
+    'usage',
+    { provider: 'codex', account: 'a1' },
+    new AbortController().signal,
+  )
   assert.equal(result.ok, false)
   if (!result.ok) {
     assert.equal(result.error.code, 'internal')
@@ -368,14 +553,22 @@ test('usage endpoint: logged-out provider answers an error result', async () => 
 
 test('usage endpoint: payload validation rejects unknown providers', async () => {
   const handler = await mount()
-  const result = await handler('usage', { provider: 'gemini' }, new AbortController().signal)
+  const result = await handler(
+    'usage',
+    { provider: 'gemini' },
+    new AbortController().signal,
+  )
   assert.equal(result.ok, false)
   if (!result.ok) assert.equal(result.error.code, 'bad-request')
 })
 
 test('usage endpoint: payload validation rejects a non-boolean force flag', async () => {
   const handler = await mount()
-  const result = await handler('usage', { provider: 'codex', account: 'a1', force: 'yes' }, new AbortController().signal)
+  const result = await handler(
+    'usage',
+    { provider: 'codex', account: 'a1', force: 'yes' },
+    new AbortController().signal,
+  )
   assert.equal(result.ok, false)
   if (!result.ok) assert.equal(result.error.code, 'bad-request')
 })
@@ -392,32 +585,71 @@ test('usage endpoint: payload validation rejects a non-boolean force flag', asyn
 
 /** A usage fetcher the delegation tests assert is never reached once a pool tracker is wired in. */
 function unreachableFetcher(): Promise<ProviderUsage> {
-  throw new Error('the raw fetcher must not be called once the pool usage cache is wired in')
+  throw new Error(
+    'the raw fetcher must not be called once the pool usage cache is wired in',
+  )
 }
 
 test('usage(): delegates to the pool usage cache, which withholds retries through a 429 cooldown', async () => {
   let calls = 0
-  const error = new OAuthEndpointError('claude usage token endpoint error (HTTP 429)', 429, undefined, 60_000)
-  const poolUsage = new PoolUsageTracker((provider, account) =>
-    provider === 'codex' && account === 'a1' ? () => { calls += 1; return Promise.reject(error) } : undefined)
-  const controller = new SubscriptionsAuthController(
-    new OAuthFlowManager(), new DeviceFlowManager(), () => {}, () => undefined,
-    { codex: unreachableFetcher }, undefined, poolUsage,
+  const error = new OAuthEndpointError(
+    'claude usage token endpoint error (HTTP 429)',
+    429,
+    undefined,
+    60_000,
   )
-  await assert.rejects(controller.usage('codex', 'a1', new AbortController().signal), error)
+  const poolUsage = new PoolUsageTracker((provider, account) =>
+    provider === 'codex' && account === 'a1'
+      ? () => {
+          calls += 1
+          return Promise.reject(error)
+        }
+      : undefined,
+  )
+  const controller = new SubscriptionsAuthController(
+    new OAuthFlowManager(),
+    new DeviceFlowManager(),
+    () => {},
+    () => undefined,
+    { codex: unreachableFetcher },
+    undefined,
+    poolUsage,
+  )
+  await assert.rejects(
+    controller.usage('codex', 'a1', new AbortController().signal),
+    error,
+  )
   assert.equal(calls, 1)
-  await assert.rejects(controller.usage('codex', 'a1', new AbortController().signal), error)
-  assert.equal(calls, 1, 'a second call inside the retry-after window must not hit the network again')
+  await assert.rejects(
+    controller.usage('codex', 'a1', new AbortController().signal),
+    error,
+  )
+  assert.equal(
+    calls,
+    1,
+    'a second call inside the retry-after window must not hit the network again',
+  )
 })
 
 test('usage(): a manual (forced) refresh bypasses a fresh cached snapshot, not a live cooldown', async () => {
   let calls = 0
   const usage: ProviderUsage = { supported: true, windows: [] }
   const poolUsage = new PoolUsageTracker((provider, account) =>
-    provider === 'codex' && account === 'a1' ? () => { calls += 1; return Promise.resolve(usage) } : undefined)
+    provider === 'codex' && account === 'a1'
+      ? () => {
+          calls += 1
+          return Promise.resolve(usage)
+        }
+      : undefined,
+  )
   const controller = new SubscriptionsAuthController(
-    new OAuthFlowManager(), new DeviceFlowManager(), () => {}, () => undefined,
-    { codex: unreachableFetcher }, undefined, poolUsage,
+    new OAuthFlowManager(),
+    new DeviceFlowManager(),
+    () => {},
+    () => undefined,
+    { codex: unreachableFetcher },
+    undefined,
+    poolUsage,
   )
   await controller.usage('codex', 'a1', new AbortController().signal)
   await controller.usage('codex', 'a1', new AbortController().signal)
@@ -430,11 +662,23 @@ test('usage(): a forced refresh fires the onUsageForced callback once with (prov
   // The plugin wires this to the pool health registry so a manual "Refresh"
   // clears the account's cooldowns; a background poll must not disturb them.
   const forced: string[] = []
-  const poolUsage = new PoolUsageTracker(() => () => Promise.resolve({ supported: true, windows: [] }))
+  const poolUsage = new PoolUsageTracker(
+    () => () => Promise.resolve({ supported: true, windows: [] }),
+  )
   const controller = new SubscriptionsAuthController(
-    new OAuthFlowManager(), new DeviceFlowManager(), () => {}, () => undefined,
-    { codex: unreachableFetcher }, undefined, poolUsage, {}, {}, undefined,
-    (provider, account) => { forced.push(`${provider}/${account}`) },
+    new OAuthFlowManager(),
+    new DeviceFlowManager(),
+    () => {},
+    () => undefined,
+    { codex: unreachableFetcher },
+    undefined,
+    poolUsage,
+    {},
+    {},
+    undefined,
+    (provider, account) => {
+      forced.push(`${provider}/${account}`)
+    },
   )
   const signal = new AbortController().signal
   await controller.usage('codex', 'a1', signal)
@@ -455,44 +699,96 @@ test('usage(): a forced refresh fires the callback before the fetch and even whe
   let firedBeforeFetch = false
   const poolUsage = new PoolUsageTracker((provider, account) =>
     provider === 'codex' && account === 'a1'
-      ? () => { firedBeforeFetch = forced.length > 0; return Promise.reject(failure) }
-      : undefined)
+      ? () => {
+          firedBeforeFetch = forced.length > 0
+          return Promise.reject(failure)
+        }
+      : undefined,
+  )
   const controller = new SubscriptionsAuthController(
-    new OAuthFlowManager(), new DeviceFlowManager(), () => {}, () => undefined,
-    { codex: unreachableFetcher }, undefined, poolUsage, {}, {}, undefined,
-    (provider, account) => { forced.push(`${provider}/${account}`) },
+    new OAuthFlowManager(),
+    new DeviceFlowManager(),
+    () => {},
+    () => undefined,
+    { codex: unreachableFetcher },
+    undefined,
+    poolUsage,
+    {},
+    {},
+    undefined,
+    (provider, account) => {
+      forced.push(`${provider}/${account}`)
+    },
   )
   await assert.rejects(
     controller.usage('codex', 'a1', new AbortController().signal, true),
     (error: unknown) => error === failure,
   )
-  assert.equal(firedBeforeFetch, true, 'the callback had already fired when the fetch ran')
-  assert.deepEqual(forced, ['codex/a1'], 'the cooldown was lifted before the failing fetch')
+  assert.equal(
+    firedBeforeFetch,
+    true,
+    'the callback had already fired when the fetch ran',
+  )
+  assert.deepEqual(
+    forced,
+    ['codex/a1'],
+    'the cooldown was lifted before the failing fetch',
+  )
 })
 
 test('usage(): the controller preserves reset credits and optional lookup errors', async () => {
-  let snapshot: ProviderUsage = { supported: true, windows: [], resetCredits: [{ expiresAt: 1791152194306 }] }
+  let snapshot: ProviderUsage = {
+    supported: true,
+    windows: [],
+    resetCredits: [{ expiresAt: 1791152194306 }],
+  }
   const tracker = new PoolUsageTracker(() => async () => snapshot)
   const controller = new SubscriptionsAuthController(
-    new OAuthFlowManager(), new DeviceFlowManager(), () => {}, () => undefined,
-    { codex: unreachableFetcher }, undefined, tracker,
+    new OAuthFlowManager(),
+    new DeviceFlowManager(),
+    () => {},
+    () => undefined,
+    { codex: unreachableFetcher },
+    undefined,
+    tracker,
   )
   const signal = new AbortController().signal
-  assert.deepEqual((await controller.usage('codex', 'a1', signal)).resetCredits, snapshot.resetCredits)
-  assert.deepEqual((await controller.usage('codex', 'a1', signal)).resetCredits, snapshot.resetCredits)
+  assert.deepEqual(
+    (await controller.usage('codex', 'a1', signal)).resetCredits,
+    snapshot.resetCredits,
+  )
+  assert.deepEqual(
+    (await controller.usage('codex', 'a1', signal)).resetCredits,
+    snapshot.resetCredits,
+  )
   snapshot = { supported: true, windows: [], resetCreditsError: 'HTTP 403' }
-  assert.equal((await controller.usage('codex', 'a1', signal, true)).resetCreditsError, 'HTTP 403')
+  assert.equal(
+    (await controller.usage('codex', 'a1', signal, true)).resetCreditsError,
+    'HTTP 403',
+  )
 })
 
 test('usage(): with no pool tracker (pool disabled), every call hits the raw fetcher directly', async () => {
   let calls = 0
   const controller = new SubscriptionsAuthController(
-    new OAuthFlowManager(), new DeviceFlowManager(), () => {}, () => undefined,
-    { codex: async () => { calls += 1; return { supported: true, windows: [] } } },
+    new OAuthFlowManager(),
+    new DeviceFlowManager(),
+    () => {},
+    () => undefined,
+    {
+      codex: async () => {
+        calls += 1
+        return { supported: true, windows: [] }
+      },
+    },
   )
   await controller.usage('codex', 'a1', new AbortController().signal)
   await controller.usage('codex', 'a1', new AbortController().signal)
-  assert.equal(calls, 2, 'unchanged prior behavior when the pool usage cache is unavailable')
+  assert.equal(
+    calls,
+    2,
+    'unchanged prior behavior when the pool usage cache is unavailable',
+  )
 })
 
 // Drive the same exact POST route and controller as the browser, with only
@@ -501,32 +797,54 @@ test('reset RPC requires a prepared account-bound ticket and surfaces ambiguous 
   let submissions = 0
   let ambiguous = false
   let invalidations = 0
-  const redemption = new ResetRedemption(async () => ({
-    supported: true,
-    windows: [{ kind: 'weekly', usedPercent: 92, resetsAt: Date.now() + 120_000 }],
-    resetCredits: [{ id: 'credit', expiresAt: Date.now() + 120_000 }],
-  }), async (account, credit, request, signal) => {
-    assert.equal(account, 'a1')
-    assert.equal(credit, 'credit')
-    assert.match(request, /^[0-9a-f-]{36}$/)
-    assert.equal(signal.aborted, false)
-    submissions++
-    if (ambiguous) throw new Error('lost response')
-  }, () => { invalidations++ }, async account => account)
+  const redemption = new ResetRedemption(
+    async () => ({
+      supported: true,
+      windows: [
+        { kind: 'weekly', usedPercent: 92, resetsAt: Date.now() + 120_000 },
+      ],
+      resetCredits: [{ id: 'credit', expiresAt: Date.now() + 120_000 }],
+    }),
+    async (account, credit, request, signal) => {
+      assert.equal(account, 'a1')
+      assert.equal(credit, 'credit')
+      assert.match(request, /^[0-9a-f-]{36}$/)
+      assert.equal(signal.aborted, false)
+      submissions++
+      if (ambiguous) throw new Error('lost response')
+    },
+    () => {
+      invalidations++
+    },
+    async (account) => account,
+  )
   const controller = new SubscriptionsAuthController(
-    new OAuthFlowManager(), new DeviceFlowManager(), () => {}, () => undefined,
-    {}, undefined, undefined, {}, {}, redemption,
+    new OAuthFlowManager(),
+    new DeviceFlowManager(),
+    () => {},
+    () => undefined,
+    {},
+    undefined,
+    undefined,
+    {},
+    {},
+    redemption,
   )
   const ctx = new Context()
   const fake = createFakeConnection()
   ctx.provide('connection', fake.connection)
   registerAuthRpc(ctx, controller, {
-    speed: async () => ({ tier: 'standard', fastModels: [] }), setSpeed: async () => {},
+    speed: async () => ({ tier: 'standard', fastModels: [] }),
+    setSpeed: async () => {},
   })
-  await new Promise(resolve => setTimeout(resolve, 50))
+  await new Promise((resolve) => setTimeout(resolve, 50))
   assert.ok(fake.registered(), 'the reset routes were registered')
   const signal = new AbortController().signal
-  const unprepared = await fake.handler('consumeReset', { account: 'a1', ticket: 'invented' }, signal)
+  const unprepared = await fake.handler(
+    'consumeReset',
+    { account: 'a1', ticket: 'invented' },
+    signal,
+  )
   assert.equal(unprepared.ok, false)
   assert.equal(submissions, 0)
   const invalid = await fake.handler('prepareReset', { account: '' }, signal)
@@ -535,18 +853,32 @@ test('reset RPC requires a prepared account-bound ticket and surfaces ambiguous 
   const prepared = await fake.handler('prepareReset', { account: 'a1' }, signal)
   assert.equal(prepared.ok, true)
   if (!prepared.ok) return
-  const confirmation = prepared.value as { ticket: string; weeklyUsedPercent: number; expiresAt: number }
+  const confirmation = prepared.value as {
+    ticket: string
+    weeklyUsedPercent: number
+    expiresAt: number
+  }
   assert.equal(confirmation.weeklyUsedPercent, 92)
   assert.ok(confirmation.expiresAt > Date.now())
-  assert.deepEqual(await fake.handler('consumeReset', { account: 'a1', ticket: confirmation.ticket }, signal),
-    { ok: true, value: { ok: true } })
+  assert.deepEqual(
+    await fake.handler(
+      'consumeReset',
+      { account: 'a1', ticket: confirmation.ticket },
+      signal,
+    ),
+    { ok: true, value: { ok: true } },
+  )
   assert.equal(submissions, 1)
   assert.equal(invalidations, 1)
   const again = await fake.handler('prepareReset', { account: 'a1' }, signal)
   assert.equal(again.ok, true)
   if (!again.ok) return
   ambiguous = true
-  const failed = await fake.handler('consumeReset', { account: 'a1', ticket: (again.value as { ticket: string }).ticket }, signal)
+  const failed = await fake.handler(
+    'consumeReset',
+    { account: 'a1', ticket: (again.value as { ticket: string }).ticket },
+    signal,
+  )
   assert.equal(failed.ok, false)
   if (!failed.ok) assert.match(failed.error.message, /Do not retry or restart/)
   const blocked = await fake.handler('prepareReset', { account: 'a1' }, signal)

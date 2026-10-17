@@ -2,7 +2,7 @@
   "globs": [
     "CHANGELOG.md",
     ".agents/notes/**/*.md",
-    "!.agents/notes/archived/**"
+    "!.agents/notes/archived/**",
   ],
   "config": {
     "default": false,
@@ -12,7 +12,7 @@
       "code_blocks": false,
       "tables": false,
       "strict": false,
-      "stern": false
-    }
-  }
+      "stern": false,
+    },
+  },
 }

@@ -65,7 +65,9 @@ interface DeviceTokenWire {
 function sleep(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     if (signal.aborted) {
-      reject(signal.reason instanceof Error ? signal.reason : new Error('aborted'))
+      reject(
+        signal.reason instanceof Error ? signal.reason : new Error('aborted'),
+      )
       return
     }
     const timer = setTimeout(() => {
@@ -75,7 +77,9 @@ function sleep(ms: number, signal: AbortSignal): Promise<void> {
     timer.unref()
     const onAbort = (): void => {
       clearTimeout(timer)
-      reject(signal.reason instanceof Error ? signal.reason : new Error('aborted'))
+      reject(
+        signal.reason instanceof Error ? signal.reason : new Error('aborted'),
+      )
     }
     signal.addEventListener('abort', onAbort, { once: true })
   })
@@ -122,26 +126,43 @@ export class DeviceFlowManager {
     const response = await fetchFn(spec.deviceCodeUrl, {
       method: 'POST',
       headers: {
-        'accept': 'application/json',
+        accept: 'application/json',
         'content-type': 'application/x-www-form-urlencoded',
       },
-      body: new URLSearchParams({ client_id: spec.clientId, scope: spec.scope }).toString(),
+      body: new URLSearchParams({
+        client_id: spec.clientId,
+        scope: spec.scope,
+      }).toString(),
     })
     if (!response.ok) {
-      throw new Error(`${provider} device-code request failed (HTTP ${String(response.status)})`)
+      throw new Error(
+        `${provider} device-code request failed (HTTP ${String(response.status)})`,
+      )
     }
-    const wire = await parseProviderJson(response, 'device code request') as DeviceCodeWire
-    if (typeof wire.device_code !== 'string' || wire.device_code.length === 0
-      || typeof wire.user_code !== 'string' || wire.user_code.length === 0
-      || typeof wire.verification_uri !== 'string' || wire.verification_uri.length === 0) {
-      throw new Error(`${provider} device-code response is missing device_code/user_code/verification_uri`)
+    const wire = (await parseProviderJson(
+      response,
+      'device code request',
+    )) as DeviceCodeWire
+    if (
+      typeof wire.device_code !== 'string' ||
+      wire.device_code.length === 0 ||
+      typeof wire.user_code !== 'string' ||
+      wire.user_code.length === 0 ||
+      typeof wire.verification_uri !== 'string' ||
+      wire.verification_uri.length === 0
+    ) {
+      throw new Error(
+        `${provider} device-code response is missing device_code/user_code/verification_uri`,
+      )
     }
-    const intervalSec = typeof wire.interval === 'number' && wire.interval > 0
-      ? wire.interval
-      : DEFAULT_INTERVAL_SEC
-    const expiresInSec = typeof wire.expires_in === 'number' && wire.expires_in > 0
-      ? wire.expires_in
-      : DEFAULT_EXPIRES_IN_SEC
+    const intervalSec =
+      typeof wire.interval === 'number' && wire.interval > 0
+        ? wire.interval
+        : DEFAULT_INTERVAL_SEC
+    const expiresInSec =
+      typeof wire.expires_in === 'number' && wire.expires_in > 0
+        ? wire.expires_in
+        : DEFAULT_EXPIRES_IN_SEC
 
     const controller = new AbortController()
     let resolveToken!: (token: string) => void
@@ -170,13 +191,17 @@ export class DeviceFlowManager {
       while (true) {
         await sleep(intervalMs, controller.signal)
         if (Date.now() >= deadline) {
-          settle(new Error(`login timed out after ${String(Math.round(expiresInSec))}s`))
+          settle(
+            new Error(
+              `login timed out after ${String(Math.round(expiresInSec))}s`,
+            ),
+          )
           return
         }
         const pollResponse = await fetchFn(spec.tokenUrl, {
           method: 'POST',
           headers: {
-            'accept': 'application/json',
+            accept: 'application/json',
             'content-type': 'application/x-www-form-urlencoded',
           },
           body: new URLSearchParams({
@@ -186,8 +211,14 @@ export class DeviceFlowManager {
           }).toString(),
           signal: controller.signal,
         })
-        const result = await parseProviderJson(pollResponse, 'device token poll') as DeviceTokenWire
-        if (typeof result.access_token === 'string' && result.access_token.length > 0) {
+        const result = (await parseProviderJson(
+          pollResponse,
+          'device token poll',
+        )) as DeviceTokenWire
+        if (
+          typeof result.access_token === 'string' &&
+          result.access_token.length > 0
+        ) {
           settle(undefined, result.access_token)
           return
         }
@@ -202,14 +233,20 @@ export class DeviceFlowManager {
             settle(new Error('login declined on the GitHub authorization page'))
             return
           case 'expired_token':
-            settle(new Error('the device code expired before authorization completed'))
+            settle(
+              new Error(
+                'the device code expired before authorization completed',
+              ),
+            )
             return
           default:
             // Safe means this failure path carries no provider-controlled free text,
             // not that no secret can exist elsewhere in the system.
-            settle(new Error(
-              `${provider} device-flow polling failed (HTTP ${String(pollResponse.status)}): [provider response body omitted]`,
-            ))
+            settle(
+              new Error(
+                `${provider} device-flow polling failed (HTTP ${String(pollResponse.status)}): [provider response body omitted]`,
+              ),
+            )
             return
         }
       }

@@ -28,7 +28,11 @@ import { OAuthFlowManager } from '../src/auth/oauth-flow.js'
 import { DeviceFlowManager } from '../src/auth/device-flow.js'
 import { readClaudeCodeCredentials } from '../src/auth/claude-code-creds.js'
 import {
-  CLAUDE_AUTHORIZE_URL, CLAUDE_CALLBACK_PATH, CLAUDE_CLIENT_ID, CLAUDE_SCOPE, CLAUDE_TOKEN_URL,
+  CLAUDE_AUTHORIZE_URL,
+  CLAUDE_CALLBACK_PATH,
+  CLAUDE_CLIENT_ID,
+  CLAUDE_SCOPE,
+  CLAUDE_TOKEN_URL,
 } from '../src/providers/claude.js'
 import { accountKeyOf, authFilePath, listAccounts } from '../src/auth/store.js'
 import type { ClaudeSession, StoredSession } from '../src/auth/store.js'
@@ -37,12 +41,18 @@ import type { ClaudeSession, StoredSession } from '../src/auth/store.js'
 const CALLBACK_SPEC = {
   callbackPath: '/callback',
   listen: { host: '127.0.0.1', ports: [0] },
-  buildAuthorizeUrl: ({ state }: { state: string }) => `https://provider.invalid/authorize?state=${state}`,
+  buildAuthorizeUrl: ({ state }: { state: string }) =>
+    `https://provider.invalid/authorize?state=${state}`,
 }
 
 for (const category of [
-  'invalid_request', 'unauthorized_client', 'access_denied', 'unsupported_response_type',
-  'invalid_scope', 'server_error', 'temporarily_unavailable',
+  'invalid_request',
+  'unauthorized_client',
+  'access_denied',
+  'unsupported_response_type',
+  'invalid_scope',
+  'server_error',
+  'temporarily_unavailable',
 ]) {
   test(`OAuth callback: ${category} omits provider text from the Error and page`, async () => {
     const flows = new OAuthFlowManager()
@@ -60,7 +70,10 @@ for (const category of [
       assert.equal(response.status, 200)
       assert.ok(error instanceof Error)
       assert.equal(error.constructor, Error)
-      assert.doesNotMatch(`${error.message}\n${page}`, /customer-input SHORT_SECRET!/)
+      assert.doesNotMatch(
+        `${error.message}\n${page}`,
+        /customer-input SHORT_SECRET!/,
+      )
       const detail = `authorization failed (${category}): [provider message omitted]`
       assert.equal(error.message, detail)
       assert.ok(page.includes(`<p>${detail}</p>`))
@@ -87,15 +100,22 @@ for (const params of [
     try {
       const url = new URL(attempt.redirectUri)
       url.searchParams.set('state', attempt.state)
-      for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value)
+      for (const [key, value] of Object.entries(params))
+        url.searchParams.set(key, value)
       const response = await fetch(url)
       const page = await response.text()
       const error = await outcome
       assert.equal(response.status, 200)
       assert.ok(error instanceof Error)
       assert.equal(error.constructor, Error)
-      assert.doesNotMatch(`${error.message}\n${page}`, /customer-input SHORT_SECRET!/)
-      assert.equal(error.message, 'authorization failed: [provider message omitted]')
+      assert.doesNotMatch(
+        `${error.message}\n${page}`,
+        /customer-input SHORT_SECRET!/,
+      )
+      assert.equal(
+        error.message,
+        'authorization failed: [provider message omitted]',
+      )
       assert.ok(page.includes(`<p>${error.message}</p>`))
       assert.equal(flows.isBusy('test-provider'), false)
     } finally {
@@ -111,8 +131,14 @@ for (const state of [undefined, 'wrong-state']) {
     const attempt = await flows.start('test-provider', CALLBACK_SPEC)
     let settled = false
     const outcome = attempt.waitCode().then(
-      code => { settled = true; return code },
-      (error: unknown) => { settled = true; return error },
+      (code) => {
+        settled = true
+        return code
+      },
+      (error: unknown) => {
+        settled = true
+        return error
+      },
     )
     try {
       const url = new URL(attempt.redirectUri)
@@ -121,7 +147,11 @@ for (const state of [undefined, 'wrong-state']) {
       if (state !== undefined) url.searchParams.set('state', state)
       const response = await fetch(url)
       const page = await response.text()
-      assert.equal(settled, false, 'an uncorrelated error callback must leave waitCode pending')
+      assert.equal(
+        settled,
+        false,
+        'an uncorrelated error callback must leave waitCode pending',
+      )
       assert.equal(response.status, 400)
       assert.equal(page, 'state mismatch')
       assert.doesNotMatch(page, /customer-input SHORT_SECRET!/)
@@ -162,7 +192,11 @@ function restoreEnv(name: string, value: string | undefined): void {
   else process.env[name] = value
 }
 
-async function withEnv<T>(name: string, value: string, run: () => Promise<T>): Promise<T> {
+async function withEnv<T>(
+  name: string,
+  value: string,
+  run: () => Promise<T>,
+): Promise<T> {
   const saved = process.env[name]
   process.env[name] = value
   try {
@@ -183,7 +217,10 @@ async function inIsolatedHome<T>(run: () => Promise<T>): Promise<T> {
     // The guard only works because `dshHomePath()` resolves `$DSH_HOME` per
     // call. Assert it rather than trust it: were the home ever captured at
     // import time, this suite would silently start writing to the real one.
-    assert.ok(authFilePath().startsWith(home), 'the session store resolves inside the temp home')
+    assert.ok(
+      authFilePath().startsWith(home),
+      'the session store resolves inside the temp home',
+    )
     return run()
   })
 }
@@ -204,7 +241,9 @@ const keychainAnswers = ((): boolean => {
 })()
 
 const needsFileStore: { skip?: string } = keychainAnswers
-  ? { skip: 'a Claude Code Keychain entry shadows the credentials file on this machine' }
+  ? {
+      skip: 'a Claude Code Keychain entry shadows the credentials file on this machine',
+    }
   : {}
 
 const FAKE_SESSION: ClaudeSession = {
@@ -224,7 +263,10 @@ const VALID_BLOB = JSON.stringify({
 })
 
 /** A controller with no LLM/RPC wiring: enough to drive `login` and `status`. */
-function makeController(readClaudeCreds: () => ClaudeSession | undefined, flows = new OAuthFlowManager()) {
+function makeController(
+  readClaudeCreds: () => ClaudeSession | undefined,
+  flows = new OAuthFlowManager(),
+) {
   return new SubscriptionsAuthController(
     flows,
     new DeviceFlowManager(),
@@ -264,66 +306,125 @@ test('Claude OAuth parameters match what Claude Code sends', () => {
 // Reading the Claude Code credential store
 // ---------------------------------------------------------------------------
 
-test('readClaudeCodeCredentials returns session from .credentials.json', needsFileStore, async () => {
-  await withEnv('CLAUDE_CONFIG_DIR', credentialsDir('claude-creds-', VALID_BLOB), () => {
-    const session = readClaudeCodeCredentials()
-    assert.ok(session !== undefined, 'the credentials file is read')
-    assert.equal(session.accessToken, 'test-access-token')
-    assert.equal(session.refreshToken, 'test-refresh-token')
-    assert.equal(typeof session.expiresAt, 'number')
-    return Promise.resolve()
-  })
-})
+test(
+  'readClaudeCodeCredentials returns session from .credentials.json',
+  needsFileStore,
+  async () => {
+    await withEnv(
+      'CLAUDE_CONFIG_DIR',
+      credentialsDir('claude-creds-', VALID_BLOB),
+      () => {
+        const session = readClaudeCodeCredentials()
+        assert.ok(session !== undefined, 'the credentials file is read')
+        assert.equal(session.accessToken, 'test-access-token')
+        assert.equal(session.refreshToken, 'test-refresh-token')
+        assert.equal(typeof session.expiresAt, 'number')
+        return Promise.resolve()
+      },
+    )
+  },
+)
 
-test('readClaudeCodeCredentials returns undefined when no credentials file', needsFileStore, async () => {
-  await withEnv('CLAUDE_CONFIG_DIR', tempDir('claude-empty-'), () => {
-    assert.equal(readClaudeCodeCredentials(), undefined)
-    return Promise.resolve()
-  })
-})
+test(
+  'readClaudeCodeCredentials returns undefined when no credentials file',
+  needsFileStore,
+  async () => {
+    await withEnv('CLAUDE_CONFIG_DIR', tempDir('claude-empty-'), () => {
+      assert.equal(readClaudeCodeCredentials(), undefined)
+      return Promise.resolve()
+    })
+  },
+)
 
-test('readClaudeCodeCredentials returns undefined for malformed JSON', needsFileStore, async () => {
-  await withEnv('CLAUDE_CONFIG_DIR', credentialsDir('claude-bad-', '{not valid json!!!'), () => {
-    assert.equal(readClaudeCodeCredentials(), undefined)
-    return Promise.resolve()
-  })
-})
+test(
+  'readClaudeCodeCredentials returns undefined for malformed JSON',
+  needsFileStore,
+  async () => {
+    await withEnv(
+      'CLAUDE_CONFIG_DIR',
+      credentialsDir('claude-bad-', '{not valid json!!!'),
+      () => {
+        assert.equal(readClaudeCodeCredentials(), undefined)
+        return Promise.resolve()
+      },
+    )
+  },
+)
 
-test('readClaudeCodeCredentials returns undefined for incomplete credentials', needsFileStore, async () => {
-  const blob = JSON.stringify({ claudeAiOauth: { accessToken: 'only-access' } })
-  await withEnv('CLAUDE_CONFIG_DIR', credentialsDir('claude-incomplete-', blob), () => {
-    assert.equal(readClaudeCodeCredentials(), undefined, 'missing refreshToken/expiresAt = undefined')
-    return Promise.resolve()
-  })
-})
+test(
+  'readClaudeCodeCredentials returns undefined for incomplete credentials',
+  needsFileStore,
+  async () => {
+    const blob = JSON.stringify({
+      claudeAiOauth: { accessToken: 'only-access' },
+    })
+    await withEnv(
+      'CLAUDE_CONFIG_DIR',
+      credentialsDir('claude-incomplete-', blob),
+      () => {
+        assert.equal(
+          readClaudeCodeCredentials(),
+          undefined,
+          'missing refreshToken/expiresAt = undefined',
+        )
+        return Promise.resolve()
+      },
+    )
+  },
+)
 
-test('readClaudeCodeCredentials returns undefined for EMPTY-string credentials', needsFileStore, async () => {
-  // A corrupted Keychain item (observed in the wild after a Claude Code
-  // logout) holds the right keys with empty strings — importing it used to
-  // poison the auth store and blind every provider's status page.
-  const blob = JSON.stringify({
-    claudeAiOauth: {
-      accessToken: '', refreshToken: '', expiresAt: 0,
-      scopes: ['user:profile'], subscriptionType: 'pro',
-    },
-  })
-  await withEnv('CLAUDE_CONFIG_DIR', credentialsDir('claude-empty-str-', blob), () => {
-    assert.equal(readClaudeCodeCredentials(), undefined, 'empty tokens = undefined')
-    return Promise.resolve()
-  })
-})
+test(
+  'readClaudeCodeCredentials returns undefined for EMPTY-string credentials',
+  needsFileStore,
+  async () => {
+    // A corrupted Keychain item (observed in the wild after a Claude Code
+    // logout) holds the right keys with empty strings — importing it used to
+    // poison the auth store and blind every provider's status page.
+    const blob = JSON.stringify({
+      claudeAiOauth: {
+        accessToken: '',
+        refreshToken: '',
+        expiresAt: 0,
+        scopes: ['user:profile'],
+        subscriptionType: 'pro',
+      },
+    })
+    await withEnv(
+      'CLAUDE_CONFIG_DIR',
+      credentialsDir('claude-empty-str-', blob),
+      () => {
+        assert.equal(
+          readClaudeCodeCredentials(),
+          undefined,
+          'empty tokens = undefined',
+        )
+        return Promise.resolve()
+      },
+    )
+  },
+)
 
-test('readClaudeCodeCredentials reads bare fields (no claudeAiOauth wrapper)', needsFileStore, async () => {
-  const blob = JSON.stringify({
-    accessToken: 'bare-at', refreshToken: 'bare-rt', expiresAt: Date.now() + 3600_000,
-  })
-  await withEnv('CLAUDE_CONFIG_DIR', credentialsDir('claude-bare-', blob), () => {
-    const session = readClaudeCodeCredentials()
-    assert.ok(session !== undefined, 'bare fields are accepted too')
-    assert.equal(session.accessToken, 'bare-at')
-    return Promise.resolve()
-  })
-})
+test(
+  'readClaudeCodeCredentials reads bare fields (no claudeAiOauth wrapper)',
+  needsFileStore,
+  async () => {
+    const blob = JSON.stringify({
+      accessToken: 'bare-at',
+      refreshToken: 'bare-rt',
+      expiresAt: Date.now() + 3600_000,
+    })
+    await withEnv(
+      'CLAUDE_CONFIG_DIR',
+      credentialsDir('claude-bare-', blob),
+      () => {
+        const session = readClaudeCodeCredentials()
+        assert.ok(session !== undefined, 'bare fields are accepted too')
+        assert.equal(session.accessToken, 'bare-at')
+        return Promise.resolve()
+      },
+    )
+  },
+)
 
 // ---------------------------------------------------------------------------
 // login('claude'): the two paths
@@ -335,7 +436,10 @@ test('login(claude): credentials found → instant import, session persisted', a
     const { authorizeUrl } = await controller.login('claude')
     assert.equal(authorizeUrl, '', 'the import path opens no browser')
 
-    assert.equal((await listAccounts('claude'))[0]?.session.accessToken, FAKE_SESSION.accessToken)
+    assert.equal(
+      (await listAccounts('claude'))[0]?.session.accessToken,
+      FAKE_SESSION.accessToken,
+    )
     assert.equal((await controller.status('claude')).accounts.length, 1)
   })
 })
@@ -343,40 +447,64 @@ test('login(claude): credentials found → instant import, session persisted', a
 test('status reports the CLI version a route presents, only where one is wired', async () => {
   await inIsolatedHome(async () => {
     const controller = new SubscriptionsAuthController(
-      new OAuthFlowManager(), new DeviceFlowManager(), () => {}, () => undefined, {}, () => undefined, undefined, {},
+      new OAuthFlowManager(),
+      new DeviceFlowManager(),
+      () => {},
+      () => undefined,
+      {},
+      () => undefined,
+      undefined,
+      {},
       { codex: async () => ({ version: '0.157.1', source: 'npm' }) },
     )
-    assert.deepEqual((await controller.status('codex')).clientVersion, { version: '0.157.1', source: 'npm' })
-    assert.equal('clientVersion' in await controller.status('grok'), false)
+    assert.deepEqual((await controller.status('codex')).clientVersion, {
+      version: '0.157.1',
+      source: 'npm',
+    })
+    assert.equal('clientVersion' in (await controller.status('grok')), false)
   })
 })
 
-test('login(claude): the shipped controller reads the credential store by default', needsFileStore, async () => {
-  await inIsolatedHome(async () => {
-    const dir = credentialsDir('claude-default-', VALID_BLOB)
-    await withEnv('CLAUDE_CONFIG_DIR', dir, async () => {
-      // No sixth argument: this is the wiring `apply()` ships. Without it the
-      // plugin would never import a Claude Code session in production, and
-      // every other test here would still pass.
-      const controller = new SubscriptionsAuthController(
-        new OAuthFlowManager(),
-        new DeviceFlowManager(),
-        () => {},
-        () => undefined,
-      )
-      const { authorizeUrl } = await controller.login('claude')
-      assert.equal(authorizeUrl, '', 'the default reader found the credentials file')
-      assert.equal((await listAccounts('claude'))[0]?.session.accessToken, 'test-access-token')
+test(
+  'login(claude): the shipped controller reads the credential store by default',
+  needsFileStore,
+  async () => {
+    await inIsolatedHome(async () => {
+      const dir = credentialsDir('claude-default-', VALID_BLOB)
+      await withEnv('CLAUDE_CONFIG_DIR', dir, async () => {
+        // No sixth argument: this is the wiring `apply()` ships. Without it the
+        // plugin would never import a Claude Code session in production, and
+        // every other test here would still pass.
+        const controller = new SubscriptionsAuthController(
+          new OAuthFlowManager(),
+          new DeviceFlowManager(),
+          () => {},
+          () => undefined,
+        )
+        const { authorizeUrl } = await controller.login('claude')
+        assert.equal(
+          authorizeUrl,
+          '',
+          'the default reader found the credentials file',
+        )
+        assert.equal(
+          (await listAccounts('claude'))[0]?.session.accessToken,
+          'test-access-token',
+        )
+      })
     })
-  })
-})
+  },
+)
 
 test('login(claude): credentials absent → OAuth fallback with Claude Code parameters', async () => {
   await inIsolatedHome(async () => {
     const controller = makeController(() => undefined)
     try {
       const { authorizeUrl } = await controller.login('claude')
-      assert.ok(authorizeUrl.length > 0, 'the fallback returns an authorize URL')
+      assert.ok(
+        authorizeUrl.length > 0,
+        'the fallback returns an authorize URL',
+      )
 
       const url = new URL(authorizeUrl)
       assert.equal(`${url.origin}${url.pathname}`, CLAUDE_AUTHORIZE_URL)
@@ -395,13 +523,19 @@ test('login(claude): credentials absent → OAuth fallback with Claude Code para
       const redirectUri = new URL(params.get('redirect_uri') ?? '')
       assert.equal(redirectUri.protocol, 'http:')
       assert.equal(redirectUri.hostname, 'localhost')
-      assert.ok(Number(redirectUri.port) > 0, 'the redirect URI carries the listening port')
+      assert.ok(
+        Number(redirectUri.port) > 0,
+        'the redirect URI carries the listening port',
+      )
       assert.equal(redirectUri.pathname, CLAUDE_CALLBACK_PATH)
 
       // 32 random bytes, base64url. The endpoint answered "Invalid request
       // format" to the 22-char state this flow used to send, with every other
       // parameter held identical.
-      assert.ok((params.get('state') ?? '').length >= 43, 'state carries at least 32 bytes of entropy')
+      assert.ok(
+        (params.get('state') ?? '').length >= 43,
+        'state carries at least 32 bytes of entropy',
+      )
     } finally {
       await controller.cancel('claude')
     }
@@ -420,27 +554,52 @@ test('login(codex): status stays busy through the token exchange so the Settings
     class Probe extends SubscriptionsAuthController {
       protected override exchange(): Promise<StoredSession> {
         exchanged += 1
-        return new Promise(resolve => { releaseExchange = resolve })
+        return new Promise((resolve) => {
+          releaseExchange = resolve
+        })
       }
     }
     const flows = new OAuthFlowManager()
-    const controller = new Probe(flows, new DeviceFlowManager(), () => {}, () => undefined, {}, () => undefined)
+    const controller = new Probe(
+      flows,
+      new DeviceFlowManager(),
+      () => {},
+      () => undefined,
+      {},
+      () => undefined,
+    )
     try {
       const { authorizeUrl } = await controller.login('codex')
       const attempt = flows.pending('codex')
       assert.ok(attempt !== undefined)
-      assert.equal((await controller.status('codex')).busy, true, 'busy while waiting for the code')
+      assert.equal(
+        (await controller.status('codex')).busy,
+        true,
+        'busy while waiting for the code',
+      )
 
-      attempt.manual(`${attempt.redirectUri}?code=abc&state=${new URL(authorizeUrl).searchParams.get('state') ?? ''}`)
-      await new Promise(resolve => setImmediate(resolve))
-      assert.equal(flows.isBusy('codex'), false, 'the flow manager has already let go of the attempt')
+      attempt.manual(
+        `${attempt.redirectUri}?code=abc&state=${new URL(authorizeUrl).searchParams.get('state') ?? ''}`,
+      )
+      await new Promise((resolve) => setImmediate(resolve))
+      assert.equal(
+        flows.isBusy('codex'),
+        false,
+        'the flow manager has already let go of the attempt',
+      )
       assert.equal(exchanged, 1, 'the exchange is running')
       const during = await controller.status('codex')
       assert.equal(during.busy, true, 'the exchange window still reads as busy')
       assert.equal(during.accounts.length, 0)
 
-      releaseExchange!({ accessToken: 'at', refreshToken: 'rt', expiresAt: Date.now() + 3600_000, accountId: 'acct-1', emailAddress: 'me@example.com' } as StoredSession)
-      await new Promise(resolve => setTimeout(resolve, 50))
+      releaseExchange!({
+        accessToken: 'at',
+        refreshToken: 'rt',
+        expiresAt: Date.now() + 3600_000,
+        accountId: 'acct-1',
+        emailAddress: 'me@example.com',
+      } as StoredSession)
+      await new Promise((resolve) => setTimeout(resolve, 50))
       const after = await controller.status('codex')
       assert.equal(after.busy, false, 'settled once the session is stored')
       assert.equal(after.accounts.length, 1)
@@ -470,10 +629,21 @@ test('login(claude): a later import cancels the OAuth attempt left in flight', a
       const second = await controller.login('claude')
 
       assert.equal(second.authorizeUrl, '', 'the second click imports')
-      assert.equal(flows.isBusy('claude'), false, 'the stale attempt was cancelled')
+      assert.equal(
+        flows.isBusy('claude'),
+        false,
+        'the stale attempt was cancelled',
+      )
       assert.equal(flows.pending('claude'), undefined)
-      assert.equal((await controller.status('claude')).busy, false, 'the Settings card leaves the busy state')
-      assert.equal((await listAccounts('claude'))[0]?.session.accessToken, FAKE_SESSION.accessToken)
+      assert.equal(
+        (await controller.status('claude')).busy,
+        false,
+        'the Settings card leaves the busy state',
+      )
+      assert.equal(
+        (await listAccounts('claude'))[0]?.session.accessToken,
+        FAKE_SESSION.accessToken,
+      )
     } finally {
       // Without this an assertion failure leaves the callback server bound and
       // the test runner hangs until the flow's own timeout.
@@ -514,12 +684,17 @@ function holdTokenEndpoint(
 ): HeldTokenEndpoint {
   const real = globalThis.fetch
   let release!: () => void
-  const gate = new Promise<void>(resolve => { release = resolve })
+  const gate = new Promise<void>((resolve) => {
+    release = resolve
+  })
   let requested!: () => void
-  const seen = new Promise<void>(resolve => { requested = resolve })
-  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+  const seen = new Promise<void>((resolve) => {
+    requested = resolve
+  })
+  globalThis.fetch = (async (input: RequestInfo | URL, _init?: RequestInit) => {
     const url = input instanceof Request ? input.url : String(input)
-    if (url !== CLAUDE_TOKEN_URL) return new Response('not found', { status: 404 })
+    if (url !== CLAUDE_TOKEN_URL)
+      return new Response('not found', { status: 404 })
     requested()
     await gate
     if (outcome === 'network-failure') throw new TypeError('fetch failed')
@@ -530,7 +705,13 @@ function holdTokenEndpoint(
       scope: CLAUDE_SCOPE,
     })
   }) as typeof fetch
-  return { requested: seen, release, restore: () => { globalThis.fetch = real } }
+  return {
+    requested: seen,
+    release,
+    restore: () => {
+      globalThis.fetch = real
+    },
+  }
 }
 
 /**
@@ -573,17 +754,25 @@ test('login(claude): an import beats a token exchange that is still running', as
     try {
       // The code arrived, so the attempt is no longer pending — `cancel()` on
       // it is a no-op from here on, which is exactly why the guard exists.
-      assert.equal(flows.pending('claude'), undefined, 'the attempt left the pending map')
+      assert.equal(
+        flows.pending('claude'),
+        undefined,
+        'the attempt left the pending map',
+      )
       assert.equal((await controller.status('claude')).busy, false)
 
       credentials = { ...FAKE_SESSION, accessToken: 'imported-cli' }
       await controller.login('claude')
-      assert.equal((await listAccounts('claude'))[0]?.session.accessToken, 'imported-cli')
+      assert.equal(
+        (await listAccounts('claude'))[0]?.session.accessToken,
+        'imported-cli',
+      )
 
       held.release()
       await controller.settled('claude')
       assert.equal(
-        (await listAccounts('claude'))[0]?.session.accessToken, 'imported-cli',
+        (await listAccounts('claude'))[0]?.session.accessToken,
+        'imported-cli',
         'the superseded exchange did not overwrite the imported session',
       )
     } finally {
@@ -602,7 +791,11 @@ test('login(claude): an import beats a token exchange that then fails', async ()
     const flows = new OAuthFlowManager()
     const controller = makeController(() => credentials, flows)
     const { authorizeUrl } = await controller.login('claude')
-    const held = await deliverCallback(authorizeUrl, 'old-oauth', 'network-failure')
+    const held = await deliverCallback(
+      authorizeUrl,
+      'old-oauth',
+      'network-failure',
+    )
     try {
       credentials = { ...FAKE_SESSION, accessToken: 'imported-cli' }
       await controller.login('claude')
@@ -610,9 +803,20 @@ test('login(claude): an import beats a token exchange that then fails', async ()
       held.release()
       await controller.settled('claude')
       const status = await controller.status('claude')
-      assert.equal(status.accounts.length, 1, 'the imported session is still the stored one')
-      assert.equal((await listAccounts('claude'))[0]?.session.accessToken, 'imported-cli')
-      assert.equal(status.detail, undefined, 'the superseded failure stayed off the status')
+      assert.equal(
+        status.accounts.length,
+        1,
+        'the imported session is still the stored one',
+      )
+      assert.equal(
+        (await listAccounts('claude'))[0]?.session.accessToken,
+        'imported-cli',
+      )
+      assert.equal(
+        status.detail,
+        undefined,
+        'the superseded failure stayed off the status',
+      )
     } finally {
       held.restore()
     }
@@ -627,12 +831,17 @@ test('login(claude): a logout beats a token exchange that is still running', asy
     const held = await deliverCallback(authorizeUrl, 'old-oauth')
     try {
       await controller.logout('claude', accountKeyOf('claude', FAKE_SESSION))
-      assert.equal((await listAccounts('claude')).length, 0, 'the logout cleared the store')
+      assert.equal(
+        (await listAccounts('claude')).length,
+        0,
+        'the logout cleared the store',
+      )
 
       held.release()
       await controller.settled('claude')
       assert.equal(
-        (await listAccounts('claude')).length, 0,
+        (await listAccounts('claude')).length,
+        0,
         'the superseded exchange did not restore the session',
       )
       assert.equal((await controller.status('claude')).accounts.length, 0)
@@ -647,11 +856,21 @@ test('claude: an import and a logout fired together settle in call order', async
     // Both endpoints read-modify-write the same store file. Fired without an
     // await between them they would race there, so the writes are queued per
     // provider and the later call is the one that survives.
-    const controller = makeController(() => ({ ...FAKE_SESSION, accessToken: 'imported-cli' }))
+    const controller = makeController(() => ({
+      ...FAKE_SESSION,
+      accessToken: 'imported-cli',
+    }))
     const importing = controller.login('claude')
-    const loggingOut = controller.logout('claude', accountKeyOf('claude', FAKE_SESSION))
+    const loggingOut = controller.logout(
+      'claude',
+      accountKeyOf('claude', FAKE_SESSION),
+    )
     await Promise.all([importing, loggingOut])
-    assert.equal((await listAccounts('claude')).length, 0, 'the logout was the later call, so it wins')
+    assert.equal(
+      (await listAccounts('claude')).length,
+      0,
+      'the logout was the later call, so it wins',
+    )
   })
 })
 
@@ -662,14 +881,16 @@ test('claude: an import and a logout fired together settle in call order', async
 /** Mount the plugin with a fake llm/connection host; return the RPC handler. */
 async function mountPlugin(): Promise<FakeConnectionHandler> {
   const ctx = new Context()
-  ctx.provide('llm', { registerAdapter: () => Object.assign(() => {}, { replace: () => {} }) })
+  ctx.provide('llm', {
+    registerAdapter: () => Object.assign(() => {}, { replace: () => {} }),
+  })
   const fake = createFakeConnection()
   ctx.provide('connection', fake.connection)
   // codexClientVersion pins the presented version so `status` never reaches
   // for the npm registry (the hermetic run blocks it); the config branch is
   // the deterministic one for a mounted-plugin test.
   ctx.plugin(plugin, { providers: ['codex'], codexClientVersion: '0.153.4' })
-  await new Promise(resolve => setTimeout(resolve, 50))
+  await new Promise((resolve) => setTimeout(resolve, 50))
   assert.ok(fake.registered(), 'the subscriptions-auth routes were registered')
   return fake.handler
 }
@@ -678,7 +899,9 @@ function signal(): AbortSignal {
   return new AbortController().signal
 }
 
-interface StatusValue { providers: Record<string, { accounts: unknown[]; busy: boolean }> }
+interface StatusValue {
+  providers: Record<string, { accounts: unknown[]; busy: boolean }>
+}
 
 /** Unwrap a successful RPC result, failing the test with its error otherwise. */
 function okValue<T>(result: RpcResult<unknown>, what: string): T {
@@ -693,23 +916,39 @@ test('auth RPC: status / login / cancel round trip', async () => {
     // consumes, without needing a credential reader injected anywhere.
     const handler = await mountPlugin()
 
-    const before = okValue<StatusValue>(await handler('status', {}, signal()), 'status')
+    const before = okValue<StatusValue>(
+      await handler('status', {}, signal()),
+      'status',
+    )
     assert.equal(before.providers.codex.accounts.length, 0)
     assert.equal(before.providers.codex.busy, false)
 
     try {
       const login = okValue<{ authorizeUrl: string }>(
-        await handler('login', { provider: 'codex' }, signal()), 'login',
+        await handler('login', { provider: 'codex' }, signal()),
+        'login',
       )
-      assert.ok(login.authorizeUrl.startsWith('https://'), 'login returns an authorize URL')
+      assert.ok(
+        login.authorizeUrl.startsWith('https://'),
+        'login returns an authorize URL',
+      )
 
-      const during = okValue<StatusValue>(await handler('status', {}, signal()), 'status while busy')
+      const during = okValue<StatusValue>(
+        await handler('status', {}, signal()),
+        'status while busy',
+      )
       assert.equal(during.providers.codex.busy, true)
     } finally {
-      okValue(await handler('cancel', { provider: 'codex' }, signal()), 'cancel')
+      okValue(
+        await handler('cancel', { provider: 'codex' }, signal()),
+        'cancel',
+      )
     }
 
-    const after = okValue<StatusValue>(await handler('status', {}, signal()), 'status after cancel')
+    const after = okValue<StatusValue>(
+      await handler('status', {}, signal()),
+      'status after cancel',
+    )
     assert.equal(after.providers.codex.busy, false)
   })
 })
@@ -723,22 +962,34 @@ test('auth RPC: an unknown provider is rejected, not dispatched', async () => {
   })
 })
 
-
 test('login(antigravity): no client configuration opens the Google PKCE authorization flow', async () => {
-  await inIsolatedHome(() => withEnv('ANTIGRAVITY_CLIENT_ID', '', () => withEnv('ANTIGRAVITY_CLIENT_SECRET', '', async () => {
-    const controller = makeController(() => undefined)
-    try {
-      const { authorizeUrl } = await controller.login('antigravity')
-      const url = new URL(authorizeUrl)
-      assert.equal(url.origin + url.pathname, 'https://accounts.google.com/o/oauth2/v2/auth')
-      assert.match(url.searchParams.get('client_id') ?? '', /\.apps\.googleusercontent\.com$/)
-      assert.equal(url.searchParams.get('code_challenge_method'), 'S256')
-      assert.equal(url.searchParams.get('access_type'), 'offline')
-      assert.ok((url.searchParams.get('state') ?? '').length >= 43)
-      assert.equal(new URL(url.searchParams.get('redirect_uri')!).pathname, '/oauth-callback')
-      assert.equal(url.searchParams.has('client_secret'), false)
-    } finally {
-      await controller.cancel('antigravity')
-    }
-  })))
+  await inIsolatedHome(() =>
+    withEnv('ANTIGRAVITY_CLIENT_ID', '', () =>
+      withEnv('ANTIGRAVITY_CLIENT_SECRET', '', async () => {
+        const controller = makeController(() => undefined)
+        try {
+          const { authorizeUrl } = await controller.login('antigravity')
+          const url = new URL(authorizeUrl)
+          assert.equal(
+            url.origin + url.pathname,
+            'https://accounts.google.com/o/oauth2/v2/auth',
+          )
+          assert.match(
+            url.searchParams.get('client_id') ?? '',
+            /\.apps\.googleusercontent\.com$/,
+          )
+          assert.equal(url.searchParams.get('code_challenge_method'), 'S256')
+          assert.equal(url.searchParams.get('access_type'), 'offline')
+          assert.ok((url.searchParams.get('state') ?? '').length >= 43)
+          assert.equal(
+            new URL(url.searchParams.get('redirect_uri')!).pathname,
+            '/oauth-callback',
+          )
+          assert.equal(url.searchParams.has('client_secret'), false)
+        } finally {
+          await controller.cancel('antigravity')
+        }
+      }),
+    ),
+  )
 })

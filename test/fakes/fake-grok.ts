@@ -46,7 +46,8 @@ import type { TestContext } from 'node:test'
  * constant, requests miss the router and fail loudly with 404.
  */
 const GROK_API_URL = 'https://api.x.ai/v1/responses'
-const GROK_BILLING_URL = 'https://cli-chat-proxy.grok.com/v1/billing?format=credits'
+const GROK_BILLING_URL =
+  'https://cli-chat-proxy.grok.com/v1/billing?format=credits'
 const GROK_CLI_MODELS_URL = 'https://cli-chat-proxy.grok.com/v1/models'
 const GROK_DISCOVERY_URL = 'https://auth.x.ai/.well-known/openid-configuration'
 const GROK_MODELS_URL = 'https://api.x.ai/v1/models'
@@ -72,7 +73,10 @@ function fakeAccessToken(suffix: string): string {
 }
 
 function fakeIdToken(): string {
-  return mintFakeJwt({ sub: 'virtual-grok-user', email: FAKE_GROK_IDENTITY.email })
+  return mintFakeJwt({
+    sub: 'virtual-grok-user',
+    email: FAKE_GROK_IDENTITY.email,
+  })
 }
 
 /** One observed request, for assertions. */
@@ -94,11 +98,24 @@ const LOOPBACK_RE = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/
 
 function responsesSseBody(): string {
   const events = [
-    { type: 'response.output_text.delta', delta: 'Hello, ', item_id: 'msg_1', content_index: 0 },
-    { type: 'response.output_text.delta', delta: 'world!', item_id: 'msg_1', content_index: 0 },
-    { type: 'response.completed', response: { usage: { input_tokens: 10, output_tokens: 5 } } },
+    {
+      type: 'response.output_text.delta',
+      delta: 'Hello, ',
+      item_id: 'msg_1',
+      content_index: 0,
+    },
+    {
+      type: 'response.output_text.delta',
+      delta: 'world!',
+      item_id: 'msg_1',
+      content_index: 0,
+    },
+    {
+      type: 'response.completed',
+      response: { usage: { input_tokens: 10, output_tokens: 5 } },
+    },
   ]
-  return events.map(event => `data: ${JSON.stringify(event)}\n\n`).join('')
+  return events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join('')
 }
 
 /**
@@ -111,15 +128,22 @@ export function installFakeGrok(t: TestContext): FakeGrok {
   const realFetch = globalThis.fetch.bind(globalThis)
   let tokenSerial = 0
 
-  const router = async (input: unknown, init?: RequestInit): Promise<Response> => {
+  const router = async (
+    input: unknown,
+    init?: RequestInit,
+  ): Promise<Response> => {
     const url = input instanceof Request ? input.url : String(input)
     if (LOOPBACK_RE.test(url)) return realFetch(input as RequestInfo, init)
 
-    const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase()
+    const method = (
+      init?.method ?? (input instanceof Request ? input.method : 'GET')
+    ).toUpperCase()
     const headers: Record<string, string> = {}
     const rawHeaders = init?.headers
     if (rawHeaders !== undefined) {
-      new Headers(rawHeaders).forEach((v, k) => { headers[k.toLowerCase()] = v })
+      new Headers(rawHeaders).forEach((v, k) => {
+        headers[k.toLowerCase()] = v
+      })
     }
     let bodyText = ''
     if (init?.body !== undefined) {
@@ -161,7 +185,13 @@ export function installFakeGrok(t: TestContext): FakeGrok {
           return Response.json({ error: 'invalid_grant' }, { status: 400 })
         }
         if (!form.get('code_challenge')) {
-          return Response.json({ error: 'invalid_request', error_description: 'missing code_challenge' }, { status: 400 })
+          return Response.json(
+            {
+              error: 'invalid_request',
+              error_description: 'missing code_challenge',
+            },
+            { status: 400 },
+          )
         }
         fake.issuedCodes.delete(code)
         tokenSerial += 1
@@ -224,9 +254,14 @@ export function installFakeGrok(t: TestContext): FakeGrok {
     }
 
     if (url === GROK_API_URL && method === 'POST') {
-      return new Response(responsesSseBody(), { headers: { 'content-type': 'text/event-stream' } })
+      return new Response(responsesSseBody(), {
+        headers: { 'content-type': 'text/event-stream' },
+      })
     }
-    return new Response(`virtual grok provider has no route for ${method} ${url}`, { status: 404 })
+    return new Response(
+      `virtual grok provider has no route for ${method} ${url}`,
+      { status: 404 },
+    )
   }
 
   t.mock.method(globalThis, 'fetch', router)

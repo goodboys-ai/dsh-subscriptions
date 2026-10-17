@@ -8,8 +8,15 @@
 
 import { LlmError } from '@deepseek-ai/dsh-llm'
 import * as llm from '@deepseek-ai/dsh-llm'
-import type { ContentBlock, Message, RequestMessage } from '@deepseek-ai/dsh-llm'
-import type { AttachmentStore, ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
+import type {
+  ContentBlock,
+  Message,
+  RequestMessage,
+} from '@deepseek-ai/dsh-llm'
+import type {
+  AttachmentStore,
+  ImageAttachmentRef,
+} from '@deepseek-ai/dsh-attachment'
 
 /** An image block with its bytes resolved to inline base64 for the wire. */
 export interface ResolvedImagePart {
@@ -21,7 +28,8 @@ export interface ResolvedImagePart {
 }
 
 /** Translator input block: a harness block, with images pre-resolved. */
-export type TranslatableBlock = ContentBlock | ResolvedImagePart | ResolvedToolResultBlock
+export type TranslatableBlock =
+  ContentBlock | ResolvedImagePart | ResolvedToolResultBlock
 
 /** Tool results may themselves carry attachment-backed images. */
 export interface ResolvedToolResultBlock {
@@ -37,7 +45,9 @@ export interface ResolvedToolResultBlock {
  * parallel tool results can arrive in separate harness messages, and a user
  * image message must not interrupt their tool-call/output pairing.
  */
-export function withToolResultImages(messages: readonly TranslatableMessage[]): TranslatableMessage[] {
+export function withToolResultImages(
+  messages: readonly TranslatableMessage[],
+): TranslatableMessage[] {
   const out: TranslatableMessage[] = []
   let images: TranslatableBlock[] = []
   const flush = (): void => {
@@ -48,16 +58,34 @@ export function withToolResultImages(messages: readonly TranslatableMessage[]): 
     if (message.role === 'assistant') flush()
     out.push(message)
     if (message.role === 'tool') {
-      const parts = message.content.filter((part): part is ResolvedImagePart => part.type === 'image' && 'dataBase64' in part)
+      const parts = message.content.filter(
+        (part): part is ResolvedImagePart =>
+          part.type === 'image' && 'dataBase64' in part,
+      )
       if (parts.length > 0) {
-        images.push({ type: 'text', text: `Images from tool result ${String(message.toolCallId)}:` }, ...parts)
+        images.push(
+          {
+            type: 'text',
+            text: `Images from tool result ${String(message.toolCallId)}:`,
+          },
+          ...parts,
+        )
       }
     }
     for (const block of message.content) {
       if (block.type !== 'tool-result') continue
-      const parts = block.content.filter((part): part is ResolvedImagePart => part.type === 'image' && 'dataBase64' in part)
+      const parts = block.content.filter(
+        (part): part is ResolvedImagePart =>
+          part.type === 'image' && 'dataBase64' in part,
+      )
       if (parts.length > 0) {
-        images.push({ type: 'text', text: `Images from tool result ${String(block.toolCallId)}:` }, ...parts)
+        images.push(
+          {
+            type: 'text',
+            text: `Images from tool result ${String(block.toolCallId)}:`,
+          },
+          ...parts,
+        )
       }
     }
   }
@@ -103,8 +131,10 @@ export const IMAGE_OFFLOAD_REQUIRED = 'IMAGE_OFFLOAD_REQUIRED'
  */
 export function hostSupportsImageOffload(): boolean {
   const exports = llm as Record<string, unknown>
-  return exports['IMAGE_OFFLOAD_REQUIRED_CODE'] === IMAGE_OFFLOAD_REQUIRED
-    && typeof exports['offloadedImageText'] === 'function'
+  return (
+    exports['IMAGE_OFFLOAD_REQUIRED_CODE'] === IMAGE_OFFLOAD_REQUIRED &&
+    typeof exports['offloadedImageText'] === 'function'
+  )
 }
 
 /**
@@ -115,11 +145,15 @@ export function hostSupportsImageOffload(): boolean {
  * @param messages - the resolved request, after {@link resolveImages}.
  * @param maxBase64Bytes - the route's budget for all inline image data.
  */
-export function requiredImageOffloadCount(messages: readonly TranslatableMessage[], maxBase64Bytes: number): number {
+export function requiredImageOffloadCount(
+  messages: readonly TranslatableMessage[],
+  maxBase64Bytes: number,
+): number {
   const lengths: number[] = []
   const visit = (blocks: readonly TranslatableBlock[]): void => {
     for (const block of blocks) {
-      if (block.type === 'image' && 'dataBase64' in block) lengths.push(block.dataBase64.length)
+      if (block.type === 'image' && 'dataBase64' in block)
+        lengths.push(block.dataBase64.length)
       else if (block.type === 'tool-result') visit(block.content)
     }
   }
@@ -144,10 +178,13 @@ export function requiredImageOffloadCount(messages: readonly TranslatableMessage
 export function imageRequestTarget(
   ref: { width: number; height: number },
   limit: ImageRequestLimit,
-): { width: number; height: number; maxPixels: number; maxBytes: number } | undefined {
+):
+  | { width: number; height: number; maxPixels: number; maxBytes: number }
+  | undefined {
   const longEdge = Math.max(ref.width, ref.height)
   if (!(longEdge > limit.maxEdge)) return undefined
-  const short = (edge: number): number => Math.max(1, Math.floor(edge * limit.maxEdge / longEdge))
+  const short = (edge: number): number =>
+    Math.max(1, Math.floor((edge * limit.maxEdge) / longEdge))
   const width = ref.width >= ref.height ? limit.maxEdge : short(ref.width)
   const height = ref.width >= ref.height ? short(ref.height) : limit.maxEdge
   return { width, height, maxPixels: width * height, maxBytes: limit.maxBytes }
@@ -171,63 +208,109 @@ export async function resolveImages(
   signal?: AbortSignal,
   limit?: ImageRequestLimit,
 ): Promise<readonly TranslatableMessage[]> {
-  const hasRetainedImage = (block: TranslatableBlock): boolean => block.type === 'image'
-    ? !('offloaded' in block && block.offloaded === true)
-    : block.type === 'tool-result' && block.content.some(hasRetainedImage)
-  if (attachments === undefined
-    && messages.some(message => message.content.some(hasRetainedImage))) {
+  const hasRetainedImage = (block: TranslatableBlock): boolean =>
+    block.type === 'image'
+      ? !('offloaded' in block && block.offloaded === true)
+      : block.type === 'tool-result' && block.content.some(hasRetainedImage)
+  if (
+    attachments === undefined &&
+    messages.some((message) => message.content.some(hasRetainedImage))
+  ) {
     throw new LlmError(
-      'dsh-subscriptions: the request carries an image but no attachments service is mounted; '
-      + 'image input requires the harness attachment store',
+      'dsh-subscriptions: the request carries an image but no attachments service is mounted; ' +
+        'image input requires the harness attachment store',
       'UNSUPPORTED',
     )
   }
   const readForRequest = async (ref: ImageAttachmentRef) => {
-    if (attachments === undefined) throw new Error('attachments service is unavailable')
-    const target = limit === undefined ? undefined : imageRequestTarget(ref, limit)
+    if (attachments === undefined)
+      throw new Error('attachments service is unavailable')
+    const target =
+      limit === undefined ? undefined : imageRequestTarget(ref, limit)
     if (target !== undefined) {
       try {
         const version = await attachments.readImageRequest(ref, target, signal)
-        return { data: version.data, mediaType: version.mediaType, ref: version.attachment }
+        return {
+          data: version.data,
+          mediaType: version.mediaType,
+          ref: version.attachment,
+        }
       } catch (error) {
         // A host that cannot derive request images keeps sending the stored bytes, as before.
         if (signal?.aborted) throw error
       }
     }
     const stored = await attachments.readImage(ref, signal)
-    return { data: stored.data, mediaType: stored.ref.mediaType, ref: stored.ref }
+    return {
+      data: stored.data,
+      mediaType: stored.ref.mediaType,
+      ref: stored.ref,
+    }
   }
-  const resolveBlock = async (block: TranslatableBlock): Promise<TranslatableBlock[]> => {
+  const resolveBlock = async (
+    block: TranslatableBlock,
+  ): Promise<TranslatableBlock[]> => {
     if (block.type === 'tool-result') {
-      return [{ ...block, content: (await Promise.all(block.content.map(resolveBlock))).flat() }]
+      return [
+        {
+          ...block,
+          content: (await Promise.all(block.content.map(resolveBlock))).flat(),
+        },
+      ]
     }
     if (block.type !== 'image' || 'dataBase64' in block) return [block]
     if ('offloaded' in block && block.offloaded === true) {
       // The host owns omission decisions. Never restore offloaded bytes, even
       // when the original attachment is unreadable or no store is mounted.
-      const format = (llm as {
-        offloadedImageText?: (ref: ImageAttachmentRef) => string
-      }).offloadedImageText
-      return [{ type: 'text', text: format?.(block.attachment)
-        ?? `[image omitted to fit request image limits; ${block.attachment.attachmentId}]` }]
+      const format = (
+        llm as {
+          offloadedImageText?: (ref: ImageAttachmentRef) => string
+        }
+      ).offloadedImageText
+      return [
+        {
+          type: 'text',
+          text:
+            format?.(block.attachment) ??
+            `[image omitted to fit request image limits; ${block.attachment.attachmentId}]`,
+        },
+      ]
     }
-    const { data, mediaType: sentType, ref } = await readForRequest(block.attachment)
-    const { attachmentId, mediaType, bytes, width, height, name } = ref
-    return [{
-      type: 'image',
+    const {
+      data,
       mediaType: sentType,
-      dataBase64: Buffer.from(data).toString('base64'),
-    }, {
-      type: 'text',
-      text: `Image reference (for image_generate.referenceImages): ${JSON.stringify({
-        attachmentId, mediaType, bytes, width, height, ...name === undefined ? {} : { name },
-      })}`,
-    }]
+      ref,
+    } = await readForRequest(block.attachment)
+    const { attachmentId, mediaType, bytes, width, height, name } = ref
+    return [
+      {
+        type: 'image',
+        mediaType: sentType,
+        dataBase64: Buffer.from(data).toString('base64'),
+      },
+      {
+        type: 'text',
+        text: `Image reference (for image_generate.referenceImages): ${JSON.stringify(
+          {
+            attachmentId,
+            mediaType,
+            bytes,
+            width,
+            height,
+            ...(name === undefined ? {} : { name }),
+          },
+        )}`,
+      },
+    ]
   }
-  return Promise.all(messages.map(async (message): Promise<TranslatableMessage> => ({
-    role: message.role,
-    ...message.source === undefined ? {} : { source: message.source },
-    ...message.role === 'tool' ? { toolCallId: message.toolCallId, isError: message.isError } : {},
-    content: (await Promise.all(message.content.map(resolveBlock))).flat(),
-  })))
+  return Promise.all(
+    messages.map(async (message): Promise<TranslatableMessage> => ({
+      role: message.role,
+      ...(message.source === undefined ? {} : { source: message.source }),
+      ...(message.role === 'tool'
+        ? { toolCallId: message.toolCallId, isError: message.isError }
+        : {}),
+      content: (await Promise.all(message.content.map(resolveBlock))).flat(),
+    })),
+  )
 }

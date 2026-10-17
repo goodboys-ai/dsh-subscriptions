@@ -24,4 +24,6 @@
 import { after } from 'node:test'
 
 const keepAlive = setInterval(() => undefined, 60 * 60_000)
-after(() => { clearInterval(keepAlive) })
+after(() => {
+  clearInterval(keepAlive)
+})

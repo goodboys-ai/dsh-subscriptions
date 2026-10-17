@@ -18,7 +18,9 @@ function fakeFetch(script: Record<string, unknown[]>): {
   fetchFn: typeof fetch
   bodies: (url: string) => string[]
 } {
-  const queues = new Map(Object.entries(script).map(([url, responses]) => [url, [...responses]]))
+  const queues = new Map(
+    Object.entries(script).map(([url, responses]) => [url, [...responses]]),
+  )
   const bodies = new Map<string, string[]>()
   const fetchFn = ((input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
@@ -31,9 +33,11 @@ function fakeFetch(script: Record<string, unknown[]>): {
     bodies.set(url, list)
     const payload = queue.shift()
     if (payload instanceof Response) return Promise.resolve(payload)
-    return Promise.resolve(new Response(JSON.stringify(payload), { status: 200 }))
+    return Promise.resolve(
+      new Response(JSON.stringify(payload), { status: 200 }),
+    )
   }) as typeof fetch
-  return { fetchFn, bodies: url => bodies.get(url) ?? [] }
+  return { fetchFn, bodies: (url) => bodies.get(url) ?? [] }
 }
 
 function spec(fetchFn: typeof fetch): DeviceFlowSpec {
@@ -82,17 +86,17 @@ test('device flow: pending polls resolve to the access token', async () => {
   for (const body of bodies(TOKEN_URL)) {
     const params = new URLSearchParams(body)
     assert.equal(params.get('device_code'), 'dc-1')
-    assert.equal(params.get('grant_type'), 'urn:ietf:params:oauth:grant-type:device_code')
+    assert.equal(
+      params.get('grant_type'),
+      'urn:ietf:params:oauth:grant-type:device_code',
+    )
   }
 })
 
 test('device flow: slow_down keeps polling and still resolves', async () => {
   const { fetchFn } = fakeFetch({
     [DEVICE_CODE_URL]: [DEVICE_CODE],
-    [TOKEN_URL]: [
-      { error: 'slow_down' },
-      { access_token: 'gh-token' },
-    ],
+    [TOKEN_URL]: [{ error: 'slow_down' }, { access_token: 'gh-token' }],
   })
   const manager = new DeviceFlowManager()
   const attempt = await manager.start('copilot', spec(fetchFn))
@@ -102,14 +106,22 @@ test('device flow: slow_down keeps polling and still resolves', async () => {
 test('device flow: access_denied rejects the login', async () => {
   const { fetchFn } = fakeFetch({
     [DEVICE_CODE_URL]: [DEVICE_CODE],
-    [TOKEN_URL]: [{ error: 'access_denied', error_description: 'customer-input SHORT_SECRET!' }],
+    [TOKEN_URL]: [
+      {
+        error: 'access_denied',
+        error_description: 'customer-input SHORT_SECRET!',
+      },
+    ],
   })
   const manager = new DeviceFlowManager()
   const attempt = await manager.start('copilot', spec(fetchFn))
   await assert.rejects(attempt.waitToken(), (caught: unknown) => {
     assert.ok(caught instanceof Error)
     assert.equal(caught.constructor, Error)
-    assert.equal(caught.message, 'login declined on the GitHub authorization page')
+    assert.equal(
+      caught.message,
+      'login declined on the GitHub authorization page',
+    )
     assert.doesNotMatch(caught.message, /customer-input SHORT_SECRET!/)
     return true
   })
@@ -119,14 +131,22 @@ test('device flow: access_denied rejects the login', async () => {
 test('device flow: an expired device code rejects the login', async () => {
   const { fetchFn } = fakeFetch({
     [DEVICE_CODE_URL]: [DEVICE_CODE],
-    [TOKEN_URL]: [{ error: 'expired_token', error_description: 'customer-input SHORT_SECRET!' }],
+    [TOKEN_URL]: [
+      {
+        error: 'expired_token',
+        error_description: 'customer-input SHORT_SECRET!',
+      },
+    ],
   })
   const manager = new DeviceFlowManager()
   const attempt = await manager.start('copilot', spec(fetchFn))
   await assert.rejects(attempt.waitToken(), (caught: unknown) => {
     assert.ok(caught instanceof Error)
     assert.equal(caught.constructor, Error)
-    assert.equal(caught.message, 'the device code expired before authorization completed')
+    assert.equal(
+      caught.message,
+      'the device code expired before authorization completed',
+    )
     assert.doesNotMatch(caught.message, /customer-input SHORT_SECRET!/)
     return true
   })
@@ -149,20 +169,29 @@ for (const payload of [
       assert.ok(caught instanceof Error)
       assert.equal(caught.constructor, Error)
       assert.doesNotMatch(caught.message, /customer-input SHORT_SECRET!/)
-      assert.equal(caught.message,
-        'copilot device-flow polling failed (HTTP 400): [provider response body omitted]')
+      assert.equal(
+        caught.message,
+        'copilot device-flow polling failed (HTTP 400): [provider response body omitted]',
+      )
       return true
     })
     assert.equal(manager.isBusy('copilot'), false)
     assert.equal(manager.pending('copilot'), undefined)
-    assert.equal(bodies(TOKEN_URL).length, 1, 'the default branch settles without retrying')
+    assert.equal(
+      bodies(TOKEN_URL).length,
+      1,
+      'the default branch settles without retrying',
+    )
   })
 }
 
 test('device flow: cancel rejects waitToken and frees the provider slot', async () => {
   const { fetchFn } = fakeFetch({
     [DEVICE_CODE_URL]: [DEVICE_CODE, DEVICE_CODE],
-    [TOKEN_URL]: [{ error: 'authorization_pending' }, { access_token: 'gh-token' }],
+    [TOKEN_URL]: [
+      { error: 'authorization_pending' },
+      { access_token: 'gh-token' },
+    ],
   })
   const manager = new DeviceFlowManager()
   const attempt = await manager.start('copilot', spec(fetchFn))
@@ -184,7 +213,10 @@ test('device flow: a second concurrent attempt for one provider is refused', asy
   })
   const manager = new DeviceFlowManager()
   const attempt = await manager.start('copilot', spec(fetchFn))
-  await assert.rejects(manager.start('copilot', spec(fetchFn)), /already in progress/)
+  await assert.rejects(
+    manager.start('copilot', spec(fetchFn)),
+    /already in progress/,
+  )
   attempt.cancel()
 })
 
@@ -201,15 +233,23 @@ test('device flow: a malformed device-code response fails the start without quot
   // Node's parse error quotes a bounded excerpt of the input, so a body that
   // begins with a credential would otherwise reach the Settings error line.
   const { fetchFn } = fakeFetch({
-    [DEVICE_CODE_URL]: [new Response('sk-live-ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789')],
+    [DEVICE_CODE_URL]: [
+      new Response('sk-live-ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'),
+    ],
   })
   const manager = new DeviceFlowManager()
-  await assert.rejects(manager.start('copilot', spec(fetchFn)), (caught: unknown) => {
-    assert.ok(caught instanceof SyntaxError)
-    assert.equal(caught.cause, undefined)
-    assert.equal(caught.message, 'device code request: invalid JSON: [provider response body omitted]')
-    return true
-  })
+  await assert.rejects(
+    manager.start('copilot', spec(fetchFn)),
+    (caught: unknown) => {
+      assert.ok(caught instanceof SyntaxError)
+      assert.equal(caught.cause, undefined)
+      assert.equal(
+        caught.message,
+        'device code request: invalid JSON: [provider response body omitted]',
+      )
+      return true
+    },
+  )
   assert.equal(manager.isBusy('copilot'), false)
 })
 
@@ -223,9 +263,16 @@ test('device flow: a malformed token-poll response fails the login without quoti
   await assert.rejects(attempt.waitToken(), (caught: unknown) => {
     assert.ok(caught instanceof SyntaxError)
     assert.equal(caught.cause, undefined)
-    assert.equal(caught.message, 'device token poll: invalid JSON: [provider response body omitted]')
+    assert.equal(
+      caught.message,
+      'device token poll: invalid JSON: [provider response body omitted]',
+    )
     return true
   })
-  assert.equal(bodies(TOKEN_URL).length, 1, 'a parse failure settles the login without polling again')
+  assert.equal(
+    bodies(TOKEN_URL).length,
+    1,
+    'a parse failure settles the login without polling again',
+  )
   assert.equal(manager.isBusy('copilot'), false)
 })

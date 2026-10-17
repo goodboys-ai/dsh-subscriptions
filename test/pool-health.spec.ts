@@ -20,32 +20,43 @@ import {
 } from '../src/providers/pool-health.js'
 
 test('classifyPoolFailure: quota and rate-limit cool the whole account (account-level quota)', () => {
-  assert.deepEqual(classifyPoolFailure(new LlmError('quota', 'QUOTA'), 'codex'), {
-    action: 'switch',
-    cooldownMs: DEFAULT_QUOTA_COOLDOWN_MS,
-    reason: 'QUOTA',
-    scope: 'account',
-  })
-  assert.deepEqual(classifyPoolFailure(new LlmError('limited', 'RATE_LIMIT'), 'grok'), {
-    action: 'switch',
-    cooldownMs: DEFAULT_QUOTA_COOLDOWN_MS,
-    reason: 'RATE_LIMIT',
-    scope: 'account',
-  })
+  assert.deepEqual(
+    classifyPoolFailure(new LlmError('quota', 'QUOTA'), 'codex'),
+    {
+      action: 'switch',
+      cooldownMs: DEFAULT_QUOTA_COOLDOWN_MS,
+      reason: 'QUOTA',
+      scope: 'account',
+    },
+  )
+  assert.deepEqual(
+    classifyPoolFailure(new LlmError('limited', 'RATE_LIMIT'), 'grok'),
+    {
+      action: 'switch',
+      cooldownMs: DEFAULT_QUOTA_COOLDOWN_MS,
+      reason: 'RATE_LIMIT',
+      scope: 'account',
+    },
+  )
 })
 
 test('classifyPoolFailure: claude quota failures stay member-scoped (per-model lanes)', () => {
-  assert.deepEqual(classifyPoolFailure(new LlmError('quota', 'QUOTA'), 'claude'), {
-    action: 'switch',
-    cooldownMs: DEFAULT_QUOTA_COOLDOWN_MS,
-    reason: 'QUOTA',
-    scope: 'member',
-  })
+  assert.deepEqual(
+    classifyPoolFailure(new LlmError('quota', 'QUOTA'), 'claude'),
+    {
+      action: 'switch',
+      cooldownMs: DEFAULT_QUOTA_COOLDOWN_MS,
+      reason: 'QUOTA',
+      scope: 'member',
+    },
+  )
 })
 
 test('classifyPoolFailure: an Antigravity quota parks only the exhausted model', () => {
   // One model's 35-hour quota reset must not park the account's other models.
-  const error = new LlmError('quota', 'RATE_LIMIT', { providerRetryAfterMs: 35 * 3_600_000 })
+  const error = new LlmError('quota', 'RATE_LIMIT', {
+    providerRetryAfterMs: 35 * 3_600_000,
+  })
   assert.deepEqual(classifyPoolFailure(error, 'antigravity'), {
     action: 'switch',
     cooldownMs: 35 * 3_600_000,
@@ -55,7 +66,9 @@ test('classifyPoolFailure: an Antigravity quota parks only the exhausted model',
 })
 
 test('classifyPoolFailure: the provider retry-after wins over the default cooldown', () => {
-  const error = new LlmError('slow down', 'RATE_LIMIT', { providerRetryAfterMs: 42_000 })
+  const error = new LlmError('slow down', 'RATE_LIMIT', {
+    providerRetryAfterMs: 42_000,
+  })
   assert.deepEqual(classifyPoolFailure(error, 'codex'), {
     action: 'switch',
     cooldownMs: 42_000,
@@ -66,12 +79,15 @@ test('classifyPoolFailure: the provider retry-after wins over the default cooldo
 
 test('classifyPoolFailure: auth failures park the account until re-login', () => {
   for (const code of ['AUTH', 'INVALID_CREDENTIAL', 'MISSING_CREDENTIAL']) {
-    assert.deepEqual(classifyPoolFailure(new LlmError('denied', code), 'claude'), {
-      action: 'switch',
-      cooldownMs: AUTH_COOLDOWN_MS,
-      reason: code,
-      scope: 'account',
-    })
+    assert.deepEqual(
+      classifyPoolFailure(new LlmError('denied', code), 'claude'),
+      {
+        action: 'switch',
+        cooldownMs: AUTH_COOLDOWN_MS,
+        reason: code,
+        scope: 'account',
+      },
+    )
   }
 })
 
@@ -87,26 +103,39 @@ test('classifyPoolFailure: transient server failures cool the member briefly', (
 })
 
 test('classifyPoolFailure: transport failures switch without a health record', () => {
-  assert.deepEqual(classifyPoolFailure(new LlmError('dns', 'TRANSPORT'), 'codex'), { action: 'switch' })
+  assert.deepEqual(
+    classifyPoolFailure(new LlmError('dns', 'TRANSPORT'), 'codex'),
+    { action: 'switch' },
+  )
 })
 
 test('classifyPoolFailure: plan/model availability switches the member', () => {
   for (const code of ['HTTP_402', 'HTTP_404']) {
-    assert.deepEqual(classifyPoolFailure(new LlmError('unavailable', code), 'codex'), {
-      action: 'switch',
-      cooldownMs: TRANSIENT_COOLDOWN_MS,
-      reason: code,
-      scope: 'member',
-    })
+    assert.deepEqual(
+      classifyPoolFailure(new LlmError('unavailable', code), 'codex'),
+      {
+        action: 'switch',
+        cooldownMs: TRANSIENT_COOLDOWN_MS,
+        reason: code,
+        scope: 'member',
+      },
+    )
   }
 })
 
 test('classifyPoolFailure: request-fault and unknown failures rethrow', () => {
   for (const code of ['CONTEXT_WINDOW_EXCEEDED', 'ABORTED', 'HTTP_400']) {
-    assert.deepEqual(classifyPoolFailure(new LlmError('bad request', code), 'codex'), { action: 'throw' })
+    assert.deepEqual(
+      classifyPoolFailure(new LlmError('bad request', code), 'codex'),
+      { action: 'throw' },
+    )
   }
-  assert.deepEqual(classifyPoolFailure(new Error('plain'), 'codex'), { action: 'throw' })
-  assert.deepEqual(classifyPoolFailure('string failure', 'codex'), { action: 'throw' })
+  assert.deepEqual(classifyPoolFailure(new Error('plain'), 'codex'), {
+    action: 'throw',
+  })
+  assert.deepEqual(classifyPoolFailure('string failure', 'codex'), {
+    action: 'throw',
+  })
 })
 
 test('PoolHealthRegistry: members cool down and recover on expiry', () => {
@@ -130,17 +159,32 @@ test('PoolHealthRegistry: a longer existing cooldown wins', () => {
 test('PoolHealthRegistry: an account-wide record parks every member of the account only', () => {
   const registry = new PoolHealthRegistry()
   registry.markUnavailable(accountKey('codex', 'a1'), 60_000, 'RATE_LIMIT', 0)
-  assert.equal(registry.isMemberAvailable('codex', 'a1', 'gpt-5.4', 1000), false)
-  assert.equal(registry.isMemberAvailable('codex', 'a1', 'gpt-5.4-mini', 1000), false)
+  assert.equal(
+    registry.isMemberAvailable('codex', 'a1', 'gpt-5.4', 1000),
+    false,
+  )
+  assert.equal(
+    registry.isMemberAvailable('codex', 'a1', 'gpt-5.4-mini', 1000),
+    false,
+  )
   // Another account of the same provider and other providers are untouched.
   assert.equal(registry.isMemberAvailable('codex', 'a2', 'gpt-5.4', 1000), true)
-  assert.equal(registry.isMemberAvailable('claude', 'a1', 'claude-sonnet-5', 1000), true)
-  assert.equal(registry.isMemberAvailable('codex', 'a1', 'gpt-5.4', 60_000), true)
+  assert.equal(
+    registry.isMemberAvailable('claude', 'a1', 'claude-sonnet-5', 1000),
+    true,
+  )
+  assert.equal(
+    registry.isMemberAvailable('codex', 'a1', 'gpt-5.4', 60_000),
+    true,
+  )
 })
 
 test('PoolHealthRegistry: earliestRecovery reports the soonest expiry among the given keys', () => {
   const registry = new PoolHealthRegistry()
-  const keys = new Set([memberKey('codex', 'a1', 'a'), memberKey('claude', 'a1', 'b')])
+  const keys = new Set([
+    memberKey('codex', 'a1', 'a'),
+    memberKey('claude', 'a1', 'b'),
+  ])
   assert.equal(registry.earliestRecovery(keys, 0), undefined)
   registry.markUnavailable(memberKey('codex', 'a1', 'a'), 9000, 'QUOTA', 0)
   registry.markUnavailable(memberKey('claude', 'a1', 'b'), 3000, 'QUOTA', 0)
@@ -151,9 +195,17 @@ test('PoolHealthRegistry: earliestRecovery reports the soonest expiry among the 
 
 test('PoolHealthRegistry: earliestRecovery ignores records outside the given keys', () => {
   const registry = new PoolHealthRegistry()
-  registry.markUnavailable(memberKey('grok', 'a1', 'other-pool-member'), 1000, 'QUOTA', 0)
+  registry.markUnavailable(
+    memberKey('grok', 'a1', 'other-pool-member'),
+    1000,
+    'QUOTA',
+    0,
+  )
   registry.markUnavailable(memberKey('codex', 'a1', 'a'), 9000, 'QUOTA', 0)
-  const keys = new Set([memberKey('codex', 'a1', 'a'), accountKey('codex', 'a1')])
+  const keys = new Set([
+    memberKey('codex', 'a1', 'a'),
+    accountKey('codex', 'a1'),
+  ])
   // The unrelated pool's sooner recovery must not shape this pool's hint.
   assert.equal(registry.earliestRecovery(keys, 0), 9000)
 })

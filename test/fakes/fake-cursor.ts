@@ -39,7 +39,8 @@ import { mintFakeJwt } from './fake-codex.js'
 
 const POLL_URL = 'https://api2.cursor.sh/auth/poll'
 const REFRESH_URL = 'https://api2.cursor.sh/auth/exchange_user_api_key'
-const MODELS_URL = 'https://api2.cursor.sh/agent.v1.AgentService/GetUsableModels'
+const MODELS_URL =
+  'https://api2.cursor.sh/agent.v1.AgentService/GetUsableModels'
 const USAGE_SUMMARY_URL = 'https://cursor.com/api/usage-summary'
 const USAGE_URL = 'https://cursor.com/api/usage'
 
@@ -97,7 +98,8 @@ function encodeModel(id: string, name: string): Uint8Array {
 /** Encode the GetUsableModels response: repeated field 1 → ModelDetails. */
 function encodeModels(models: { id: string; name: string }[]): Uint8Array {
   const out: number[] = []
-  for (const model of models) out.push(...protoField(1, encodeModel(model.id, model.name)))
+  for (const model of models)
+    out.push(...protoField(1, encodeModel(model.id, model.name)))
   return Uint8Array.from(out)
 }
 
@@ -111,13 +113,20 @@ export function installFakeCursor(t: TestContext): FakeCursor {
   let pollsBeforeApproval = 2
   let tokenSerial = 0
 
-  const router = async (input: unknown, init?: RequestInit): Promise<Response> => {
+  const router = async (
+    input: unknown,
+    init?: RequestInit,
+  ): Promise<Response> => {
     const url = input instanceof Request ? input.url : String(input)
-    const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase()
+    const method = (
+      init?.method ?? (input instanceof Request ? input.method : 'GET')
+    ).toUpperCase()
     const headers: Record<string, string> = {}
     const rawHeaders = init?.headers
     if (rawHeaders !== undefined) {
-      new Headers(rawHeaders).forEach((v, k) => { headers[k.toLowerCase()] = v })
+      new Headers(rawHeaders).forEach((v, k) => {
+        headers[k.toLowerCase()] = v
+      })
     }
     let bodyText = ''
     if (init?.body !== undefined) {
@@ -142,7 +151,10 @@ export function installFakeCursor(t: TestContext): FakeCursor {
     if (url === REFRESH_URL && method === 'POST') {
       const presented = (headers['authorization'] ?? '').replace(/^Bearer /, '')
       if (!presented.startsWith('fake-cursor-refresh-')) {
-        return Response.json({ error: 'invalid refresh token' }, { status: 401 })
+        return Response.json(
+          { error: 'invalid refresh token' },
+          { status: 401 },
+        )
       }
       tokenSerial += 1
       return Response.json({
@@ -154,7 +166,11 @@ export function installFakeCursor(t: TestContext): FakeCursor {
     if (url === USAGE_SUMMARY_URL && method === 'GET') {
       return Response.json({
         individualUsage: {
-          plan: { totalPercentUsed: 25, autoPercentUsed: 10, apiPercentUsed: 5 },
+          plan: {
+            totalPercentUsed: 25,
+            autoPercentUsed: 10,
+            apiPercentUsed: 5,
+          },
         },
         billingCycleEnd: new Date(Date.now() + 20 * 86_400_000).toISOString(),
         membershipType: FAKE_CURSOR_IDENTITY.membershipType,
@@ -172,11 +188,20 @@ export function installFakeCursor(t: TestContext): FakeCursor {
         { id: 'gpt-5.3', name: 'GPT-5.3' },
       ])
       // ArrayBuffer.slice to detach from the shared pool before transfer.
-      return new Response(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer, {
-        headers: { 'content-type': 'application/proto' },
-      })
+      return new Response(
+        bytes.buffer.slice(
+          bytes.byteOffset,
+          bytes.byteOffset + bytes.byteLength,
+        ) as ArrayBuffer,
+        {
+          headers: { 'content-type': 'application/proto' },
+        },
+      )
     }
-    return new Response(`virtual cursor provider has no route for ${method} ${url}`, { status: 404 })
+    return new Response(
+      `virtual cursor provider has no route for ${method} ${url}`,
+      { status: 404 },
+    )
   }
 
   t.mock.method(globalThis, 'fetch', router)

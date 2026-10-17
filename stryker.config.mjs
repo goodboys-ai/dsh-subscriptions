@@ -30,7 +30,9 @@ const SPECS = [
   'account-preferences.spec.js',
   'antigravity.spec.js',
   'copilot.spec.js',
-].map((name) => `lib-test-mutation/test/${name}`).join(' ')
+]
+  .map((name) => `lib-test-mutation/test/${name}`)
+  .join(' ')
 
 /** @type {import('@stryker-mutator/api/core').PartialStrykerOptions} */
 export default {

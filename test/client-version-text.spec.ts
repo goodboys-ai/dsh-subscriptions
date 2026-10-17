@@ -12,8 +12,12 @@ import { clientVersionText } from '../src/client/SubscriptionsSection.js'
 import type { SubscriptionsSectionInjected } from '../src/client/SubscriptionsSection.js'
 import { en, zh } from '../src/client/locales.js'
 
-const translator = (dictionary: typeof en): SubscriptionsSectionInjected['t'] =>
-  (key, params) => dictionary[key].replace(/\{(\w+)\}/g, (_, name: string) => String(params?.[name] ?? ''))
+const translator =
+  (dictionary: typeof en): SubscriptionsSectionInjected['t'] =>
+  (key, params) =>
+    dictionary[key].replace(/\{(\w+)\}/g, (_, name: string) =>
+      String(params?.[name] ?? ''),
+    )
 
 test('the tag shows the version and its source in both locales', () => {
   const enT = translator(en)

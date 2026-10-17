@@ -41,8 +41,8 @@ function readWindow() {
   }
   const versions = text
     .split('\n')
-    .map(line => line.trim())
-    .filter(line => line !== '' && !line.startsWith('#'))
+    .map((line) => line.trim())
+    .filter((line) => line !== '' && !line.startsWith('#'))
   if (versions.length === 0) fail('dsh-versions.txt lists no version')
   return versions
 }
@@ -58,7 +58,8 @@ function readPeerRange() {
   const peers = Object.entries(pkg.peerDependencies ?? {}).filter(([name]) =>
     name.startsWith('@deepseek-ai/dsh-'),
   )
-  if (peers.length === 0) fail('package.json declares no @deepseek-ai/dsh-* peer')
+  if (peers.length === 0)
+    fail('package.json declares no @deepseek-ai/dsh-* peer')
   const [first, range] = peers[0]
   for (const [name, other] of peers.slice(1)) {
     if (other !== range) {
@@ -80,7 +81,8 @@ try {
 } catch {
   fail('package.json is missing or not valid JSON')
 }
-if (typeof pkgName !== 'string' || pkgName.length === 0) fail('package.json has no name')
+if (typeof pkgName !== 'string' || pkgName.length === 0)
+  fail('package.json has no name')
 const tag = process.argv[2] ?? `v${pkgVersion}`
 
 const lines = [

@@ -6,14 +6,23 @@
 
 import { after, test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 
 const HOME = mkdtempSync(join(tmpdir(), 'model-defaults-test-'))
 // Suite-level hook: the mkdtemp is top-level, so there is no test context to hang t.after on.
-after(() => { rmSync(HOME, { recursive: true, force: true }) })
+after(() => {
+  rmSync(HOME, { recursive: true, force: true })
+})
 
 const {
   defaultEffortOf,
@@ -24,7 +33,8 @@ const {
   resetModelDefaultsForTests,
   setDefaultEffort,
 } = await import('../src/model-defaults.js')
-const { effortDisplayName, mergeReasoning } = await import('../src/providers/common.js')
+const { effortDisplayName, mergeReasoning } =
+  await import('../src/providers/common.js')
 
 /**
  * Wipe the module state and the file, with DSH_HOME pointed at this spec's
@@ -40,7 +50,10 @@ async function fresh(): Promise<void> {
   process.env.DSH_HOME = HOME
   // Assert rather than trust: were the path ever captured at import time, this
   // suite would silently start writing somewhere else again.
-  assert.ok(modelDefaultsFilePath().startsWith(HOME), 'the store resolves inside this spec\'s temp home')
+  assert.ok(
+    modelDefaultsFilePath().startsWith(HOME),
+    "the store resolves inside this spec's temp home",
+  )
   await resetModelDefaultsForTests()
   rmSync(modelDefaultsFilePath(), { force: true })
   // Tests that plant a file write it directly; the directory must not depend
@@ -71,13 +84,20 @@ test('setDefaultEffort persists the override and serves it from memory', async (
   assert.equal(defaultEffortOf('claude', 'claude-sonnet-5'), 'high')
   assert.equal(defaultEffortOf('codex', 'gpt-5.6-sol'), undefined)
   assert.deepEqual(plainSnapshot(), { claude: { 'claude-sonnet-5': 'high' } })
-  assert.equal(Object.getPrototypeOf(modelDefaultsSnapshot().claude), null,
-    'sections are prototype-less so a model id cannot inherit from Object.prototype')
+  assert.equal(
+    Object.getPrototypeOf(modelDefaultsSnapshot().claude),
+    null,
+    'sections are prototype-less so a model id cannot inherit from Object.prototype',
+  )
   const path = modelDefaultsFilePath()
   assert.ok(statSync(path).isFile(), 'the file exists after a write')
-  assert.equal(JSON.parse(readFileSync(path, 'utf8')).claude['claude-sonnet-5'], 'high')
+  assert.equal(
+    JSON.parse(readFileSync(path, 'utf8')).claude['claude-sonnet-5'],
+    'high',
+  )
   // Owner-only permissions, matching the rest of the plugin's durable state.
-  if (process.platform !== 'win32') assert.equal(statSync(path).mode & 0o777, 0o600)
+  if (process.platform !== 'win32')
+    assert.equal(statSync(path).mode & 0o777, 0o600)
 })
 
 test('clearing the last override drops the provider section', async () => {
@@ -86,7 +106,10 @@ test('clearing the last override drops the provider section', async () => {
   await setDefaultEffort('grok', 'grok-4', undefined)
   assert.equal(defaultEffortOf('grok', 'grok-4'), undefined)
   assert.deepEqual(plainSnapshot(), {})
-  assert.deepEqual(JSON.parse(readFileSync(modelDefaultsFilePath(), 'utf8')), {})
+  assert.deepEqual(
+    JSON.parse(readFileSync(modelDefaultsFilePath(), 'utf8')),
+    {},
+  )
 })
 
 test('a malformed file reads as empty and is rewritten by the next save', async () => {
@@ -101,11 +124,15 @@ test('a malformed file reads as empty and is rewritten by the next save', async 
 
 test('a malformed entry is skipped, the rest of its section survives', async () => {
   await fresh()
-  writeFileSync(modelDefaultsFilePath(), JSON.stringify({
-    claude: { 'claude-sonnet-5': 'high', broken: 42 },
-    codex: { 'gpt-5.6-sol': 'low' },
-    unknown: { 'x': 'y' },
-  }), 'utf8')
+  writeFileSync(
+    modelDefaultsFilePath(),
+    JSON.stringify({
+      claude: { 'claude-sonnet-5': 'high', broken: 42 },
+      codex: { 'gpt-5.6-sol': 'low' },
+      unknown: { x: 'y' },
+    }),
+    'utf8',
+  )
   await resetModelDefaultsForTests()
   await loadModelDefaults()
   // One bad value must not un-configure the sibling that was fine.
@@ -131,7 +158,10 @@ test('mergeReasoning: a configured default wins over the advertised one', () => 
   }
   const merged = mergeReasoning('high', base)
   assert.equal(merged?.defaultEffort, 'high')
-  assert.deepEqual(merged?.efforts.map(effort => effort.id), ['low', 'high'])
+  assert.deepEqual(
+    merged?.efforts.map((effort) => effort.id),
+    ['low', 'high'],
+  )
 })
 
 test('mergeReasoning: a configured default outside a discovered set is dropped', () => {
@@ -147,8 +177,15 @@ test('mergeReasoning: a configured default outside a discovered set is dropped',
     defaultEffort: ReasoningEffortId('low'),
   }
   const merged = mergeReasoning('max', base)
-  assert.deepEqual(merged?.efforts.map(effort => effort.id), ['low', 'high'])
-  assert.equal(merged?.defaultEffort, 'low', 'falls back to the advertised default')
+  assert.deepEqual(
+    merged?.efforts.map((effort) => effort.id),
+    ['low', 'high'],
+  )
+  assert.equal(
+    merged?.defaultEffort,
+    'low',
+    'falls back to the advertised default',
+  )
 })
 
 test('mergeReasoning: an extendable base accepts a configured level it omits', () => {
@@ -163,7 +200,10 @@ test('mergeReasoning: an extendable base accepts a configured level it omits', (
   }
   const merged = mergeReasoning('max', base, { extendable: true })
   assert.equal(merged?.defaultEffort, 'max')
-  assert.deepEqual(merged?.efforts.map(effort => effort.id), ['low', 'high', 'max'])
+  assert.deepEqual(
+    merged?.efforts.map((effort) => effort.id),
+    ['low', 'high', 'max'],
+  )
   assert.equal(merged?.efforts[2]?.name, 'Max')
 })
 
@@ -185,7 +225,11 @@ test('mergeReasoning: no configured default returns the advertised block (fresh 
   }
   const merged = mergeReasoning(undefined, base)
   assert.deepEqual(merged, base)
-  assert.notEqual(merged, base, 'returns a detached block, not the caller object')
+  assert.notEqual(
+    merged,
+    base,
+    'returns a detached block, not the caller object',
+  )
 })
 
 test('mergeReasoning: without a base, a configured default claims no capability', () => {
@@ -196,7 +240,10 @@ test('mergeReasoning: without a base, a configured default claims no capability'
   // A fallback-based provider is the one exception.
   const extended = mergeReasoning('high', undefined, { extendable: true })
   assert.equal(extended?.defaultEffort, 'high')
-  assert.deepEqual(extended?.efforts.map(effort => effort.id), ['high'])
+  assert.deepEqual(
+    extended?.efforts.map((effort) => effort.id),
+    ['high'],
+  )
 })
 
 test('mergeReasoning: nothing configured, nothing discovered, nothing returned', () => {
@@ -210,13 +257,28 @@ test('a model named after an Object.prototype member has no configured default',
   // mergeReasoning, which then throws and breaks that model's resolution.
   // Reachable only once the provider has any override at all (section exists).
   await setDefaultEffort('codex', 'gpt-5.6-sol', 'high')
-  for (const inherited of ['toString', 'valueOf', 'hasOwnProperty', 'constructor']) {
-    assert.equal(defaultEffortOf('codex', inherited), undefined, `${inherited} must not resolve`)
-    assert.doesNotThrow(() => mergeReasoning(defaultEffortOf('codex', inherited), {
-      efforts: [{ id: ReasoningEffortId('low'), name: 'Low' }],
-    }))
+  for (const inherited of [
+    'toString',
+    'valueOf',
+    'hasOwnProperty',
+    'constructor',
+  ]) {
+    assert.equal(
+      defaultEffortOf('codex', inherited),
+      undefined,
+      `${inherited} must not resolve`,
+    )
+    assert.doesNotThrow(() =>
+      mergeReasoning(defaultEffortOf('codex', inherited), {
+        efforts: [{ id: ReasoningEffortId('low'), name: 'Low' }],
+      }),
+    )
   }
-  assert.equal(defaultEffortOf('codex', 'gpt-5.6-sol'), 'high', 'real overrides still resolve')
+  assert.equal(
+    defaultEffortOf('codex', 'gpt-5.6-sol'),
+    'high',
+    'real overrides still resolve',
+  )
 })
 
 test('mergeReasoning keeps defaultEffort ∈ efforts through the pool intersection', () => {
@@ -226,28 +288,49 @@ test('mergeReasoning keeps defaultEffort ∈ efforts through the pool intersecti
   // pool's default. Mirrors intersectReasoning from providers/pool.ts, which
   // is module-private.
   const intersect = (
-    members: readonly (ReturnType<typeof mergeReasoning>)[],
+    members: readonly ReturnType<typeof mergeReasoning>[],
   ): ReturnType<typeof mergeReasoning> => {
     const [first, ...rest] = members
     if (first === undefined) return undefined
-    const efforts = first.efforts.filter(effort =>
-      rest.every(other => other?.efforts.some(entry => entry.id === effort.id) === true))
+    const efforts = first.efforts.filter((effort) =>
+      rest.every(
+        (other) =>
+          other?.efforts.some((entry) => entry.id === effort.id) === true,
+      ),
+    )
     if (efforts.length === 0) return undefined
-    const keep = first.defaultEffort !== undefined && efforts.some(effort => effort.id === first.defaultEffort)
-    return { efforts, ...keep ? { defaultEffort: first.defaultEffort } : {} }
+    const keep =
+      first.defaultEffort !== undefined &&
+      efforts.some((effort) => effort.id === first.defaultEffort)
+    return { efforts, ...(keep ? { defaultEffort: first.defaultEffort } : {}) }
   }
-  const levels = (ids: string[]) => ({ efforts: ids.map(id => ({ id: ReasoningEffortId(id), name: id })) })
-  const legal = (block: ReturnType<typeof mergeReasoning>): boolean => block === undefined
-    || block.defaultEffort === undefined
-    || block.efforts.some(effort => effort.id === block.defaultEffort)
+  const levels = (ids: string[]) => ({
+    efforts: ids.map((id) => ({ id: ReasoningEffortId(id), name: id })),
+  })
+  const legal = (block: ReturnType<typeof mergeReasoning>): boolean =>
+    block === undefined ||
+    block.defaultEffort === undefined ||
+    block.efforts.some((effort) => effort.id === block.defaultEffort)
 
   for (const configured of [undefined, 'ultra', 'low', 'nonexistent']) {
     for (const first of [['low', 'high', 'ultra'], ['low', 'high'], ['x']]) {
-      for (const second of [['low', 'high', 'ultra'], ['low', 'medium'], ['x']]) {
+      for (const second of [
+        ['low', 'high', 'ultra'],
+        ['low', 'medium'],
+        ['x'],
+      ]) {
         const a = mergeReasoning(configured, levels(first))
         const b = mergeReasoning(configured, levels(second))
-        for (const [label, block] of [['a', a], ['b', b], ['pool', intersect([a, b])], ['rev', intersect([b, a])]] as const) {
-          assert.ok(legal(block), `${label}: configured=${String(configured)} ${first.join('/')} vs ${second.join('/')}`)
+        for (const [label, block] of [
+          ['a', a],
+          ['b', b],
+          ['pool', intersect([a, b])],
+          ['rev', intersect([b, a])],
+        ] as const) {
+          assert.ok(
+            legal(block),
+            `${label}: configured=${String(configured)} ${first.join('/')} vs ${second.join('/')}`,
+          )
         }
       }
     }
@@ -256,14 +339,22 @@ test('mergeReasoning keeps defaultEffort ∈ efforts through the pool intersecti
 
 test('a hostile file cannot pollute Object.prototype or smuggle in a provider', async () => {
   await fresh()
-  writeFileSync(modelDefaultsFilePath(), JSON.stringify({
-    __proto__: { polluted: 'yes' },
-    evil: { x: 'high' },
-    codex: { __proto__: 'high', 'real-model': 'low' },
-  }), 'utf8')
+  writeFileSync(
+    modelDefaultsFilePath(),
+    JSON.stringify({
+      __proto__: { polluted: 'yes' },
+      evil: { x: 'high' },
+      codex: { __proto__: 'high', 'real-model': 'low' },
+    }),
+    'utf8',
+  )
   await resetModelDefaultsForTests()
   await loadModelDefaults()
-  assert.equal((({}) as Record<string, unknown>).polluted, undefined, 'Object.prototype is untouched')
+  assert.equal(
+    ({} as Record<string, unknown>).polluted,
+    undefined,
+    'Object.prototype is untouched',
+  )
   assert.deepEqual(
     plainSnapshot(),
     { codex: { 'real-model': 'low' } },
@@ -286,7 +377,9 @@ test('overlapping saves do not lose either update', async () => {
     claude: { 'model-c': 'max' },
   })
   // And both survive on disk, not just in memory.
-  const onDisk = JSON.parse(readFileSync(modelDefaultsFilePath(), 'utf8')) as Record<string, Record<string, string>>
+  const onDisk = JSON.parse(
+    readFileSync(modelDefaultsFilePath(), 'utf8'),
+  ) as Record<string, Record<string, string>>
   assert.equal(onDisk.codex['model-a'], 'high')
   assert.equal(onDisk.codex['model-b'], 'low')
   assert.equal(onDisk.claude['model-c'], 'max')
@@ -295,8 +388,13 @@ test('overlapping saves do not lose either update', async () => {
 test('a failed save propagates and does not wedge later saves', async () => {
   await fresh()
   const { overridePersistForTests } = await import('../src/model-defaults.js')
-  overridePersistForTests(() => Promise.reject(new Error('injected persist failure')))
-  await assert.rejects(() => setDefaultEffort('codex', 'x', 'high'), /injected persist failure/)
+  overridePersistForTests(() =>
+    Promise.reject(new Error('injected persist failure')),
+  )
+  await assert.rejects(
+    () => setDefaultEffort('codex', 'x', 'high'),
+    /injected persist failure/,
+  )
   // The failed write must not leave the live state ahead of the file.
   assert.equal(defaultEffortOf('codex', 'x'), undefined)
   // fresh() restores the real persist; the chain survives the failure.

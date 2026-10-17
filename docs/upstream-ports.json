@@ -17,9 +17,7 @@
       "subject": "fix(codex): lower a saved \"ultra\" reasoning effort to \"max\" on the wire",
       "status": "ported",
       "area": "codex",
-      "forkCommits": [
-        "bfc4dbe"
-      ],
+      "forkCommits": ["bfc4dbe"],
       "evidence": {
         "test": "test/models.spec.ts"
       },
@@ -58,10 +56,7 @@
       "subject": "fix(claude): offload the oldest images before a request exceeds the 32MB limit (#136)",
       "status": "ported",
       "area": "claude",
-      "forkCommits": [
-        "cf9e0ff",
-        "48a4bd8"
-      ],
+      "forkCommits": ["cf9e0ff", "48a4bd8"],
       "evidence": {
         "test": "test/image-request-limit.spec.ts"
       },
@@ -70,11 +65,7 @@
         "claim": "host mounts the offload executor",
         "package": "@deepseek-ai/dsh-base",
         "symbol": "@deepseek-ai/dsh-compaction-image-offload",
-        "versions": [
-          "0.1.7-rc.2",
-          "0.2.0-rc.1",
-          "0.2.0-rc.2"
-        ],
+        "versions": ["0.1.7-rc.2", "0.2.0-rc.1", "0.2.0-rc.2"],
         "expect": "present"
       }
     },
@@ -83,10 +74,7 @@
       "subject": "feat(codex): add guarded manual reset redemption",
       "status": "ported",
       "area": "codex",
-      "forkCommits": [
-        "bfc4dbe",
-        "bf305fd"
-      ],
+      "forkCommits": ["bfc4dbe", "bf305fd"],
       "evidence": {
         "note": ".agents/notes/implemented/provider/2026-10-04-codex-manual-reset.md",
         "test": "test/reset-redemption.spec.ts"
@@ -98,9 +86,7 @@
       "subject": "fix(settings): polish reset disclosure and remove server diagnostic",
       "status": "ported",
       "area": "codex",
-      "forkCommits": [
-        "bfc4dbe"
-      ],
+      "forkCommits": ["bfc4dbe"],
       "evidence": {
         "test": "test/reset-action.spec.ts"
       },
@@ -111,9 +97,7 @@
       "subject": "fix(settings): use a subtle chevron for reset credits",
       "status": "ported",
       "area": "codex",
-      "forkCommits": [
-        "bfc4dbe"
-      ],
+      "forkCommits": ["bfc4dbe"],
       "evidence": {
         "test": "test/native-ui-alignment.spec.ts"
       },
@@ -124,9 +108,7 @@
       "subject": "feat(settings): make Codex reset credits collapsible",
       "status": "ported",
       "area": "codex",
-      "forkCommits": [
-        "bfc4dbe"
-      ],
+      "forkCommits": ["bfc4dbe"],
       "evidence": {
         "test": "test/reset-action.spec.ts"
       },
@@ -137,9 +119,7 @@
       "subject": "feat(codex): display available reset credits and expirations",
       "status": "ported",
       "area": "codex",
-      "forkCommits": [
-        "bfc4dbe"
-      ],
+      "forkCommits": ["bfc4dbe"],
       "evidence": {
         "test": "test/usage.spec.ts"
       },
@@ -150,9 +130,7 @@
       "subject": "Drop Codex \"ultra\" from discovered reasoning efforts",
       "status": "ported",
       "area": "codex",
-      "forkCommits": [
-        "bfc4dbe"
-      ],
+      "forkCommits": ["bfc4dbe"],
       "evidence": {
         "test": "test/models.spec.ts"
       },
@@ -168,18 +146,14 @@
         "note": "docs/replay-sse-port-verification.md"
       },
       "reason": "Split, not cherry-picked. Ported: SSE readers now cancel the unread body, and signed replay is scoped to the originating account and model. Not ported: lockfile and devDependency floor moves, prepared-call routing, abort hardening, and release mechanics, which belong to a release strategy this fork does not use. Legacy unwrapped replay still passes through when provider and model match the route; that limit is stated in the code and the report rather than papered over.",
-      "forkCommits": [
-        "6aaeac9b"
-      ]
+      "forkCommits": ["6aaeac9b"]
     },
     {
       "upstream": "8a80d4e4",
       "subject": "docs(claude): qualify cache TTL costs and interoperability",
       "status": "ported",
       "area": "claude",
-      "forkCommits": [
-        "e3fcd52"
-      ],
+      "forkCommits": ["e3fcd52"],
       "evidence": {
         "test": "test/claude-cache-ttl.spec.ts"
       },
@@ -197,9 +171,7 @@
       "subject": "feat(claude): make the prompt-cache TTL configurable (5m or 1h)",
       "status": "ported",
       "area": "claude",
-      "forkCommits": [
-        "e3fcd52"
-      ],
+      "forkCommits": ["e3fcd52"],
       "evidence": {
         "test": "test/claude-cache-ttl.spec.ts"
       },
@@ -224,11 +196,7 @@
       "subject": "style: align subscription controls and usage popover with native UI",
       "status": "ported",
       "area": "ui",
-      "forkCommits": [
-        "53a618c",
-        "632c2ae",
-        "a5e41c1"
-      ],
+      "forkCommits": ["53a618c", "632c2ae", "a5e41c1"],
       "evidence": {
         "test": "test/native-ui-alignment.spec.ts"
       },
@@ -274,11 +242,7 @@
       "subject": "fix(catalog-store): retry rename on Windows share-mode errors and cover concurrent saves (#129)",
       "status": "ported",
       "area": "catalog",
-      "forkCommits": [
-        "3987969",
-        "b053a3b",
-        "5268f9b"
-      ],
+      "forkCommits": ["3987969", "b053a3b", "5268f9b"],
       "evidence": {
         "test": "test/catalog-store.spec.ts"
       },
@@ -289,12 +253,7 @@
       "subject": "fix(pool): report the real cause of an exhausted pool instead of a synthetic RATE_LIMIT (#139)",
       "status": "ported",
       "area": "pool",
-      "forkCommits": [
-        "7aee561",
-        "441ff75",
-        "e75b7c6",
-        "85bbfa2"
-      ],
+      "forkCommits": ["7aee561", "441ff75", "e75b7c6", "85bbfa2"],
       "evidence": {
         "test": "test/pool.spec.ts",
         "test:health": "test/pool-health.spec.ts"
@@ -306,11 +265,7 @@
       "subject": "feat(settings): choose the Claude prompt-cache TTL from the manage dialog",
       "status": "ported",
       "area": "claude",
-      "forkCommits": [
-        "e3fcd52",
-        "9045486",
-        "733c682"
-      ],
+      "forkCommits": ["e3fcd52", "9045486", "733c682"],
       "evidence": {
         "test": "test/claude-cache-ttl.spec.ts",
         "test:settings": "test/provider-settings.spec.ts",

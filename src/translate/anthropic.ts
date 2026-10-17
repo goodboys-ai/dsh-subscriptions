@@ -18,14 +18,18 @@ import type {
   ToolSchema,
 } from '@deepseek-ai/dsh-llm'
 import { parseSse } from './sse.js'
-import type { ResolvedToolResultBlock, TranslatableMessage } from './resolved.js'
+import type {
+  ResolvedToolResultBlock,
+  TranslatableMessage,
+} from './resolved.js'
 
 /**
  * The Claude Code identity block. The subscription endpoint rejects requests
  * that do not present as Claude Code, so this block is REQUIRED as the first
  * system entry on every request.
  */
-export const CLAUDE_CODE_IDENTITY = 'You are Claude Code, Anthropic\'s official CLI for Claude.'
+export const CLAUDE_CODE_IDENTITY =
+  "You are Claude Code, Anthropic's official CLI for Claude."
 
 /** Tags wrapping a mid-conversation system message where it sits in the history. */
 export const SYSTEM_REMINDER_OPEN = '<system-reminder>'
@@ -67,7 +71,9 @@ export const DEFAULT_PROMPT_CACHE_TTL: PromptCacheTtl = '5m'
  * @param ttl - cache lifetime; defaults to five minutes.
  * @returns a fresh marker object (callers attach it to one block each).
  */
-export function cacheControl(ttl: PromptCacheTtl = DEFAULT_PROMPT_CACHE_TTL): Record<string, unknown> {
+export function cacheControl(
+  ttl: PromptCacheTtl = DEFAULT_PROMPT_CACHE_TTL,
+): Record<string, unknown> {
   return ttl === '1h' ? { type: 'ephemeral', ttl: '1h' } : { type: 'ephemeral' }
 }
 
@@ -78,15 +84,29 @@ export interface AnthropicMessage {
 }
 
 /** Preserve native image blocks, retaining the existing text-only wire shape. */
-function toolResultContent(block: ResolvedToolResultBlock): string | Record<string, unknown>[] {
-  if (!block.content.some(part => part.type === 'image' && 'dataBase64' in part)) {
-    return block.content.map(part => (part.type === 'text' ? part.text : '')).join('')
+function toolResultContent(
+  block: ResolvedToolResultBlock,
+): string | Record<string, unknown>[] {
+  if (
+    !block.content.some((part) => part.type === 'image' && 'dataBase64' in part)
+  ) {
+    return block.content
+      .map((part) => (part.type === 'text' ? part.text : ''))
+      .join('')
   }
   const content: Record<string, unknown>[] = []
   for (const part of block.content) {
-    if (part.type === 'text' && part.text.length > 0) content.push({ type: 'text', text: part.text })
+    if (part.type === 'text' && part.text.length > 0)
+      content.push({ type: 'text', text: part.text })
     if (part.type === 'image' && 'dataBase64' in part) {
-      content.push({ type: 'image', source: { type: 'base64', media_type: part.mediaType, data: part.dataBase64 } })
+      content.push({
+        type: 'image',
+        source: {
+          type: 'base64',
+          media_type: part.mediaType,
+          data: part.dataBase64,
+        },
+      })
     }
   }
   return content
@@ -96,7 +116,11 @@ function toolResultContent(block: ResolvedToolResultBlock): string | Record<stri
 function parseToolInput(raw: string): Record<string, unknown> {
   try {
     const parsed: unknown = JSON.parse(raw)
-    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+    if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      !Array.isArray(parsed)
+    ) {
       return parsed as Record<string, unknown>
     }
     return {}
@@ -120,12 +144,19 @@ function parseToolInput(raw: string): Record<string, unknown> {
  * @param message - one assembled user message, reordered in place.
  */
 function leadWithToolResults(message: AnthropicMessage): void {
-  const firstOther = message.content.findIndex(block => block.type !== 'tool_result')
+  const firstOther = message.content.findIndex(
+    (block) => block.type !== 'tool_result',
+  )
   if (firstOther === -1) return
-  if (!message.content.slice(firstOther).some(block => block.type === 'tool_result')) return
+  if (
+    !message.content
+      .slice(firstOther)
+      .some((block) => block.type === 'tool_result')
+  )
+    return
   message.content = [
-    ...message.content.filter(block => block.type === 'tool_result'),
-    ...message.content.filter(block => block.type !== 'tool_result'),
+    ...message.content.filter((block) => block.type === 'tool_result'),
+    ...message.content.filter((block) => block.type !== 'tool_result'),
   ]
 }
 
@@ -142,7 +173,7 @@ function leadWithToolResults(message: AnthropicMessage): void {
  * @returns the boundary index separating the two.
  */
 function conversationStart(messages: readonly TranslatableMessage[]): number {
-  const index = messages.findIndex(message => message.role !== 'system')
+  const index = messages.findIndex((message) => message.role !== 'system')
   return index === -1 ? messages.length : index
 }
 
@@ -160,7 +191,9 @@ function conversationStart(messages: readonly TranslatableMessage[]): number {
  * @param messages - ordered conversation messages with resolved images.
  * @returns Anthropic messages in conversation order.
  */
-export function toAnthropicMessages(messages: readonly TranslatableMessage[]): AnthropicMessage[] {
+export function toAnthropicMessages(
+  messages: readonly TranslatableMessage[],
+): AnthropicMessage[] {
   const out: AnthropicMessage[] = []
   const start = conversationStart(messages)
   for (const [index, message] of messages.entries()) {
@@ -171,14 +204,23 @@ export function toAnthropicMessages(messages: readonly TranslatableMessage[]): A
     const role = message.role === 'assistant' ? 'assistant' : 'user'
     const blocks: Record<string, unknown>[] = []
     if (message.role === 'tool') {
-      const id = message.toolCallId ?? message.tool_call_id
-        ?? (message.source?.kind === 'tool' ? String(message.source.callId) : undefined)
-      if (id === undefined) throw new LlmError('tool result has no call id', 'INVALID_REQUEST')
+      const id =
+        message.toolCallId ??
+        message.tool_call_id ??
+        (message.source?.kind === 'tool'
+          ? String(message.source.callId)
+          : undefined)
+      if (id === undefined)
+        throw new LlmError('tool result has no call id', 'INVALID_REQUEST')
       blocks.push({
         type: 'tool_result',
         tool_use_id: id,
-        content: toolResultContent({ type: 'tool-result', toolCallId: ToolCallId(id), content: message.content }),
-        ...message.isError === true ? { is_error: true } : {},
+        content: toolResultContent({
+          type: 'tool-result',
+          toolCallId: ToolCallId(id),
+          content: message.content,
+        }),
+        ...(message.isError === true ? { is_error: true } : {}),
       })
       const last = out[out.length - 1]
       if (last?.role === 'user') last.content.push(...blocks)
@@ -190,9 +232,10 @@ export function toAnthropicMessages(messages: readonly TranslatableMessage[]): A
         case 'text':
           blocks.push({
             type: 'text',
-            text: message.role === 'system'
-              ? `${SYSTEM_REMINDER_OPEN}${block.text}${SYSTEM_REMINDER_CLOSE}`
-              : block.text,
+            text:
+              message.role === 'system'
+                ? `${SYSTEM_REMINDER_OPEN}${block.text}${SYSTEM_REMINDER_CLOSE}`
+                : block.text,
           })
           break
         case 'tool-call':
@@ -202,28 +245,37 @@ export function toAnthropicMessages(messages: readonly TranslatableMessage[]): A
           // spliced into the parent as a user-role notice carries the calls it
           // died holding, which no result will ever answer — so it rides as
           // descriptive text instead of a call the API would reject.
-          blocks.push(role === 'assistant'
-            ? {
-                type: 'tool_use',
-                id: String(block.id),
-                name: block.name,
-                input: parseToolInput(block.arguments),
-              }
-            : { type: 'text', text: `[tool call ${block.name}: ${block.arguments}]` })
+          blocks.push(
+            role === 'assistant'
+              ? {
+                  type: 'tool_use',
+                  id: String(block.id),
+                  name: block.name,
+                  input: parseToolInput(block.arguments),
+                }
+              : {
+                  type: 'text',
+                  text: `[tool call ${block.name}: ${block.arguments}]`,
+                },
+          )
           break
         case 'tool-result':
           blocks.push({
             type: 'tool_result',
             tool_use_id: String(block.toolCallId),
             content: toolResultContent(block),
-            ...block.isError === true ? { is_error: true } : {},
+            ...(block.isError === true ? { is_error: true } : {}),
           })
           break
         case 'image':
           if ('dataBase64' in block) {
             blocks.push({
               type: 'image',
-              source: { type: 'base64', media_type: block.mediaType, data: block.dataBase64 },
+              source: {
+                type: 'base64',
+                media_type: block.mediaType,
+                data: block.dataBase64,
+              },
             })
           }
           // An unresolved ImageBlock carries only an attachment reference; the
@@ -257,8 +309,11 @@ export function toAnthropicMessages(messages: readonly TranslatableMessage[]): A
  * @param messages - assembled Anthropic messages, marked in place.
  * @param ttl - cache lifetime for every mark; defaults to five minutes.
  */
-export function markMessageCache(messages: readonly AnthropicMessage[], ttl?: PromptCacheTtl): void {
-  const blocks = messages.flatMap(message => message.content)
+export function markMessageCache(
+  messages: readonly AnthropicMessage[],
+  ttl?: PromptCacheTtl,
+): void {
+  const blocks = messages.flatMap((message) => message.content)
   for (let mark = 0; mark < MESSAGE_CACHE_BREAKPOINTS; mark++) {
     const at = blocks.length - 1 - mark * CACHE_BLOCK_STRIDE
     if (at < 0) return
@@ -280,8 +335,11 @@ export function toAnthropicSystem(
   messages?: readonly TranslatableMessage[],
   ttl?: PromptCacheTtl,
 ): Record<string, unknown>[] {
-  const blocks: Record<string, unknown>[] = [{ type: 'text', text: CLAUDE_CODE_IDENTITY }]
-  if (system !== undefined && system.length > 0) blocks.push({ type: 'text', text: system })
+  const blocks: Record<string, unknown>[] = [
+    { type: 'text', text: CLAUDE_CODE_IDENTITY },
+  ]
+  if (system !== undefined && system.length > 0)
+    blocks.push({ type: 'text', text: system })
   const history = messages ?? []
   for (const message of history.slice(0, conversationStart(history))) {
     for (const block of message.content) {
@@ -310,10 +368,14 @@ export function toAnthropicSystem(
  * @param tools - tool schemas from the request.
  * @returns Anthropic `tools` array entries, ordered by tool name.
  */
-export function toAnthropicTools(tools: readonly ToolSchema[]): Record<string, unknown>[] {
+export function toAnthropicTools(
+  tools: readonly ToolSchema[],
+): Record<string, unknown>[] {
   return [...tools]
-    .sort((left, right) => (left.name < right.name ? -1 : left.name > right.name ? 1 : 0))
-    .map(tool => ({
+    .sort((left, right) =>
+      left.name < right.name ? -1 : left.name > right.name ? 1 : 0,
+    )
+    .map((tool) => ({
       name: tool.name,
       description: tool.description,
       input_schema: tool.parameters,
@@ -379,7 +441,9 @@ function closeBlock(block: OpenBlock): ContentBlock {
  * @param error - the wire error object.
  * @returns the mapped error.
  */
-export function anthropicFailure(error: { type?: string; message?: string } | undefined): LlmError {
+export function anthropicFailure(
+  error: { type?: string; message?: string } | undefined,
+): LlmError {
   // Safe here means this diagnostic path carries no provider-controlled free text,
   // not that no secret can exist anywhere. Raw values remain local classification inputs.
   const type = error?.type ?? 'unknown_error'
@@ -392,7 +456,10 @@ export function anthropicFailure(error: { type?: string; message?: string } | un
   } else if (type === 'authentication_error') {
     classification = 'AUTH'
   }
-  return new LlmError(`Anthropic failure (${classification}): [provider response body omitted]`, classification)
+  return new LlmError(
+    `Anthropic failure (${classification}): [provider response body omitted]`,
+    classification,
+  )
 }
 
 /**
@@ -406,20 +473,32 @@ export class AnthropicStreamTranslator {
   private blocks = new Map<number, OpenBlock>()
   private nextIndex = 0
   private sawAnyBlock = false
-  private pendingUsage: { inputTokens: number; cacheReadTokens?: number; cacheWriteTokens?: number } | undefined
+  private pendingUsage:
+    | {
+        inputTokens: number
+        cacheReadTokens?: number
+        cacheWriteTokens?: number
+      }
+    | undefined
   private outputTokens: number | undefined
   private stopReason: 'stop' | 'tool-calls' | 'max-tokens' = 'stop'
   private usageEmitted = false
   /** Set once `message_stop` produced the terminal finish chunk. */
   terminated = false
 
-  private open(wireIndex: number, kind: OpenBlock['kind'], chunks: StreamChunk[], callId = '', name?: string): OpenBlock {
+  private open(
+    wireIndex: number,
+    kind: OpenBlock['kind'],
+    chunks: StreamChunk[],
+    callId = '',
+    name?: string,
+  ): OpenBlock {
     const block: OpenBlock = {
       index: this.nextIndex++,
       kind,
       text: '',
       callId,
-      ...name === undefined ? {} : { name },
+      ...(name === undefined ? {} : { name }),
     }
     this.blocks.set(wireIndex, block)
     this.sawAnyBlock = true
@@ -433,12 +512,12 @@ export class AnthropicStreamTranslator {
     const usage: TokenUsage = {
       inputTokens: this.pendingUsage?.inputTokens ?? 0,
       outputTokens: this.outputTokens ?? 0,
-      ...this.pendingUsage?.cacheReadTokens !== undefined
+      ...(this.pendingUsage?.cacheReadTokens !== undefined
         ? { cacheReadTokens: this.pendingUsage.cacheReadTokens }
-        : {},
-      ...this.pendingUsage?.cacheWriteTokens !== undefined
+        : {}),
+      ...(this.pendingUsage?.cacheWriteTokens !== undefined
         ? { cacheWriteTokens: this.pendingUsage.cacheWriteTokens }
-        : {},
+        : {}),
     }
     chunks.push({ type: 'usage', usage })
   }
@@ -457,12 +536,12 @@ export class AnthropicStreamTranslator {
         if (usage !== undefined) {
           this.pendingUsage = {
             inputTokens: usage.input_tokens ?? 0,
-            ...usage.cache_read_input_tokens !== undefined
+            ...(usage.cache_read_input_tokens !== undefined
               ? { cacheReadTokens: usage.cache_read_input_tokens }
-              : {},
-            ...usage.cache_creation_input_tokens !== undefined
+              : {}),
+            ...(usage.cache_creation_input_tokens !== undefined
               ? { cacheWriteTokens: usage.cache_creation_input_tokens }
-              : {},
+              : {}),
           }
           this.outputTokens = usage.output_tokens ?? this.outputTokens
         }
@@ -479,12 +558,18 @@ export class AnthropicStreamTranslator {
             this.open(wireIndex, 'reasoning', chunks)
             break
           case 'tool_use': {
-            const opened = this.open(wireIndex, 'tool-call', chunks, block.id ?? '', block.name)
+            const opened = this.open(
+              wireIndex,
+              'tool-call',
+              chunks,
+              block.id ?? '',
+              block.name,
+            )
             chunks.push({
               type: 'tool-call-delta',
               index: opened.index,
               id: ToolCallId(opened.callId),
-              ...block.name === undefined ? {} : { name: block.name },
+              ...(block.name === undefined ? {} : { name: block.name }),
               argumentsDelta: '',
             })
             break
@@ -502,11 +587,19 @@ export class AnthropicStreamTranslator {
         switch (delta.type) {
           case 'text_delta':
             block.text += delta.text ?? ''
-            chunks.push({ type: 'text-delta', index: block.index, text: delta.text ?? '' })
+            chunks.push({
+              type: 'text-delta',
+              index: block.index,
+              text: delta.text ?? '',
+            })
             break
           case 'thinking_delta':
             block.text += delta.thinking ?? ''
-            chunks.push({ type: 'reasoning-delta', index: block.index, text: delta.thinking ?? '' })
+            chunks.push({
+              type: 'reasoning-delta',
+              index: block.index,
+              text: delta.thinking ?? '',
+            })
             break
           case 'input_json_delta':
             block.text += delta.partial_json ?? ''
@@ -514,7 +607,7 @@ export class AnthropicStreamTranslator {
               type: 'tool-call-delta',
               index: block.index,
               id: ToolCallId(block.callId),
-              ...block.name === undefined ? {} : { name: block.name },
+              ...(block.name === undefined ? {} : { name: block.name }),
               argumentsDelta: delta.partial_json ?? '',
             })
             break
@@ -529,11 +622,16 @@ export class AnthropicStreamTranslator {
         const block = this.blocks.get(wireIndex)
         if (block === undefined) return chunks
         this.blocks.delete(wireIndex)
-        chunks.push({ type: 'block-end', index: block.index, block: closeBlock(block) })
+        chunks.push({
+          type: 'block-end',
+          index: block.index,
+          block: closeBlock(block),
+        })
         return chunks
       }
       case 'message_delta': {
-        if (event.usage?.output_tokens !== undefined) this.outputTokens = event.usage.output_tokens
+        if (event.usage?.output_tokens !== undefined)
+          this.outputTokens = event.usage.output_tokens
         switch (event.delta?.stop_reason) {
           case 'end_turn':
           case 'stop_sequence':
@@ -554,7 +652,11 @@ export class AnthropicStreamTranslator {
         this.terminated = true
         for (const [wireIndex, block] of [...this.blocks]) {
           this.blocks.delete(wireIndex)
-          chunks.push({ type: 'block-end', index: block.index, block: closeBlock(block) })
+          chunks.push({
+            type: 'block-end',
+            index: block.index,
+            block: closeBlock(block),
+          })
         }
         this.emitUsage(chunks)
         if (this.stopReason === 'stop' && !this.sawAnyBlock) {
@@ -562,7 +664,10 @@ export class AnthropicStreamTranslator {
             type: 'finish',
             reason: {
               kind: 'error',
-              failure: { message: 'model returned a completed response with no content', code: EMPTY_RESPONSE_CODE },
+              failure: {
+                message: 'model returned a completed response with no content',
+                code: EMPTY_RESPONSE_CODE,
+              },
             },
           })
         } else {
@@ -595,10 +700,16 @@ export async function* streamAnthropic(
     try {
       event = JSON.parse(sseEvent.data) as AnthropicStreamEvent
     } catch {
-      throw new LlmError('malformed SSE payload (MALFORMED_RESPONSE): [provider response body omitted]', 'MALFORMED_RESPONSE')
+      throw new LlmError(
+        'malformed SSE payload (MALFORMED_RESPONSE): [provider response body omitted]',
+        'MALFORMED_RESPONSE',
+      )
     }
     yield* translator.push(event)
     if (translator.terminated) return
   }
-  throw new LlmError('Anthropic SSE stream ended before message_stop', 'STREAM_CLOSED')
+  throw new LlmError(
+    'Anthropic SSE stream ended before message_stop',
+    'STREAM_CLOSED',
+  )
 }

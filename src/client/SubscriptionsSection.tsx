@@ -22,21 +22,29 @@ import { ExternalUsageCards } from './ExternalUsageCards.js'
 import { CursorCard } from './CursorCard.js'
 import { OllamaCard } from './OllamaCard.js'
 import { UsageMeter } from './UsageMeter.js'
-import { ResetCreditsDisclosure, ResetCreditsErrorLine, showsResetCredits } from './reset-credits-view.js'
+import {
+  ResetCreditsDisclosure,
+  ResetCreditsErrorLine,
+  showsResetCredits,
+} from './reset-credits-view.js'
 import { displayUsedPercent } from './usage-pace.js'
 import { UsageBadgeDisplaySetting } from './UsageBadgeDisplaySetting.js'
 import { USAGE_BADGE_REFRESH_EVENT } from './usage-badge-preferences.js'
 import { subscriptionCardStyles as cardStyles } from './subscription-card-styles.js'
 import type { SubscriptionsKey } from './locales.js'
 
-import { callSubscriptionsAuth, SubscriptionsAuthError } from './subscriptions-rpc.js'
+import {
+  callSubscriptionsAuth,
+  SubscriptionsAuthError,
+} from './subscriptions-rpc.js'
 export { callSubscriptionsAuth } from './subscriptions-rpc.js'
 
 /** Poll cadence while a provider login attempt is busy. */
 const POLL_INTERVAL_MS = 2000
 
 /** Subscription provider ids, fixed by the node half's OAuth adapters. */
-export type SubscriptionProvider = 'codex' | 'claude' | 'grok' | 'copilot' | 'antigravity'
+export type SubscriptionProvider =
+  'codex' | 'claude' | 'grok' | 'copilot' | 'antigravity'
 
 /** One logged-in account as answered by the `status` endpoint. */
 export interface AccountStatus {
@@ -152,8 +160,11 @@ function messageOf(error: unknown): string {
 }
 
 /** Copy a keyed map without the entries whose key is not in `live`. */
-function dropStale<T>(map: Record<string, T>, live: ReadonlySet<string>): Record<string, T> {
-  const stale = Object.keys(map).filter(key => !live.has(key))
+function dropStale<T>(
+  map: Record<string, T>,
+  live: ReadonlySet<string>,
+): Record<string, T> {
+  const stale = Object.keys(map).filter((key) => !live.has(key))
   if (stale.length === 0) return map
   const next = { ...map }
   for (const key of stale) delete next[key]
@@ -167,7 +178,10 @@ function dropStale<T>(map: Record<string, T>, live: ReadonlySet<string>): Record
  * @param params - `{name}` template params.
  * @returns the template with params substituted.
  */
-function fallbackTranslate(key: SubscriptionsKey, params?: Record<string, unknown>): string {
+function fallbackTranslate(
+  key: SubscriptionsKey,
+  params?: Record<string, unknown>,
+): string {
   let text: string = en[key]
   for (const [name, value] of Object.entries(params ?? {})) {
     text = text.replaceAll(`{${name}}`, String(value))
@@ -177,79 +191,138 @@ function fallbackTranslate(key: SubscriptionsKey, params?: Record<string, unknow
 
 const styles: Record<string, CSSProperties> = {
   section: {
-    display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 560,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 12,
+    maxWidth: 560,
     color: 'var(--dsw-alias-label-primary)',
   },
-  intro: { margin: 0, color: 'var(--dsw-alias-label-tertiary)', fontSize: 14, lineHeight: '22px' },
-  card: { ...cardStyles.card,
-    border: '0.5px solid var(--dsw-alias-settings-card-stroke, var(--dsw-alias-border-l4))',
-    borderRadius: 'var(--dsw-radius-xl, 20px)', background: 'var(--dsw-alias-settings-card-fill, var(--dsw-alias-bg-layer-2))',
+  intro: {
+    margin: 0,
+    color: 'var(--dsw-alias-label-tertiary)',
+    fontSize: 14,
+    lineHeight: '22px',
+  },
+  card: {
+    ...cardStyles.card,
+    border:
+      '0.5px solid var(--dsw-alias-settings-card-stroke, var(--dsw-alias-border-l4))',
+    borderRadius: 'var(--dsw-radius-xl, 20px)',
+    background:
+      'var(--dsw-alias-settings-card-fill, var(--dsw-alias-bg-layer-2))',
   },
   cardHeader: cardStyles.header,
   dot: cardStyles.dot,
   name: cardStyles.name,
   statusLine: cardStyles.status,
-  clientVersion: { fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary)', fontVariantNumeric: 'tabular-nums' },
+  clientVersion: {
+    fontSize: 12,
+    lineHeight: '18px',
+    color: 'var(--dsw-alias-label-tertiary)',
+    fontVariantNumeric: 'tabular-nums',
+  },
   errorLine: cardStyles.error,
   actions: cardStyles.actions,
-  usage: { ...cardStyles.usage, borderTop: '0.5px solid var(--dsw-alias-border-l2)' },
+  usage: {
+    ...cardStyles.usage,
+    borderTop: '0.5px solid var(--dsw-alias-border-l2)',
+  },
   usageHeader: cardStyles.usageHeader,
   usageTitle: cardStyles.usageTitle,
   usagePlan: cardStyles.usagePlan,
-  usageRefresh: { minHeight: 22, height: 22, padding: '0 8px', marginLeft: 'auto' },
+  usageRefresh: {
+    minHeight: 22,
+    height: 22,
+    padding: '0 8px',
+    marginLeft: 'auto',
+  },
   usageRow: cardStyles.usageRow,
   usageMeta: cardStyles.usageMeta,
-  accountRow: { ...cardStyles.account, border: '0.5px solid var(--dsw-alias-border-l2)', borderRadius: 'var(--dsw-radius-lg, 16px)' },
+  accountRow: {
+    ...cardStyles.account,
+    border: '0.5px solid var(--dsw-alias-border-l2)',
+    borderRadius: 'var(--dsw-radius-lg, 16px)',
+  },
   accountHeader: cardStyles.accountHeader,
   accountName: cardStyles.accountName,
   starButton: {
-    border: 'none', padding: 0, width: 28,
-    font: 'inherit', fontSize: 14, lineHeight: '20px', cursor: 'pointer',
+    border: 'none',
+    padding: 0,
+    width: 28,
+    font: 'inherit',
+    fontSize: 14,
+    lineHeight: '20px',
+    cursor: 'pointer',
     color: 'var(--dsw-alias-state-warn-label)',
   },
   deviceCode: {
-    marginTop: 4, display: 'flex', flexDirection: 'column', gap: 6,
-    border: '0.5px solid var(--dsw-alias-border-l2)', borderRadius: 'var(--dsw-radius-lg, 16px)',
-    padding: '10px 12px', background: 'var(--dsw-alias-bg-layer-1)',
+    marginTop: 4,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+    border: '0.5px solid var(--dsw-alias-border-l2)',
+    borderRadius: 'var(--dsw-radius-lg, 16px)',
+    padding: '10px 12px',
+    background: 'var(--dsw-alias-bg-layer-1)',
   },
   deviceCodeText: {
-    fontFamily: 'monospace', fontSize: 18, lineHeight: '24px', letterSpacing: 2,
-    color: 'var(--dsw-alias-label-primary)', userSelect: 'all',
+    fontFamily: 'monospace',
+    fontSize: 18,
+    lineHeight: '24px',
+    letterSpacing: 2,
+    color: 'var(--dsw-alias-label-primary)',
+    userSelect: 'all',
   },
   manual: { fontSize: 13, lineHeight: '20px' },
-  manualRow: { display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginTop: 8 },
+  manualRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: 8,
+    alignItems: 'center',
+    marginTop: 8,
+  },
   manualInput: { flex: '1 1 200px', minWidth: 0 },
   modalOverlay: {
-    position: 'fixed', inset: 0, zIndex: 1000,
-    display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
-    background: 'var(--dsw-alias-bg-mask-1, #0006)', backdropFilter: 'var(--dsw-mask-blur, none)',
+    position: 'fixed',
+    inset: 0,
+    zIndex: 1000,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    background: 'var(--dsw-alias-bg-mask-1, #0006)',
+    backdropFilter: 'var(--dsw-mask-blur, none)',
   },
   modal: {
-    width: 460, maxWidth: '100%', maxHeight: '90vh', overflowY: 'auto',
-    boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: 12,
-    padding: '16px 18px', borderRadius: 'var(--dsw-radius-panel, 28px)',
-    background: 'var(--dsw-alias-bg-layer-2)', border: 0, boxShadow: 'var(--dsw-elevation-prominent)',
+    width: 460,
+    maxWidth: '100%',
+    maxHeight: '90vh',
+    overflowY: 'auto',
+    boxSizing: 'border-box',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 12,
+    padding: '16px 18px',
+    borderRadius: 'var(--dsw-radius-panel, 28px)',
+    background: 'var(--dsw-alias-bg-layer-2)',
+    border: 0,
+    boxShadow: 'var(--dsw-elevation-prominent)',
   },
   modalHeader: { display: 'flex', alignItems: 'center', gap: 8 },
-  modalTitle: { fontWeight: 500, fontSize: 16, lineHeight: '24px', color: 'var(--dsw-alias-label-primary)' },
+  modalTitle: {
+    fontWeight: 500,
+    fontSize: 16,
+    lineHeight: '24px',
+    color: 'var(--dsw-alias-label-primary)',
+  },
 }
 
 /** Status dot color for one provider state. */
 function dotColor(status: ProviderStatus | undefined): string {
   if (status?.busy === true) return 'var(--dsw-alias-state-warn-label)'
-  if ((status?.accounts.length ?? 0) > 0) return 'var(--dsw-alias-state-success-primary)'
+  if ((status?.accounts.length ?? 0) > 0)
+    return 'var(--dsw-alias-state-success-primary)'
   return 'var(--dsw-alias-label-dimmed)'
-}
-
-/**
- * Whether a provider has at least one connected account. Multi-account made
- * "logged in" a property of the account list rather than a flag, so every
- * logged-in test goes through this one predicate.
- * @param status - the provider's last reported state, possibly absent.
- * @returns true when the provider serves at least one account.
- */
-function hasAccount(status: ProviderStatus | undefined): boolean {
-  return (status?.accounts.length ?? 0) > 0
 }
 
 /**
@@ -258,10 +331,14 @@ function hasAccount(status: ProviderStatus | undefined): boolean {
  * @param status - the provider's last reported state.
  * @returns the localized status line.
  */
-function statusText(t: SubscriptionsSectionInjected['t'], status: ProviderStatus | undefined): string {
+function statusText(
+  t: SubscriptionsSectionInjected['t'],
+  status: ProviderStatus | undefined,
+): string {
   if (status === undefined) return t('checking')
   if (status.busy) return t('loginInProgress')
-  if (status.accounts.length > 0) return t('loggedInCount', { count: status.accounts.length })
+  if (status.accounts.length > 0)
+    return t('loggedInCount', { count: status.accounts.length })
   return t('notLoggedIn')
 }
 
@@ -276,7 +353,10 @@ export function clientVersionText(
   clientVersion: ProviderStatus['clientVersion'],
 ): string {
   if (clientVersion === undefined) return ''
-  return t('clientVersion', { version: clientVersion.version, source: t(CLIENT_VERSION_SOURCES[clientVersion.source]) })
+  return t('clientVersion', {
+    version: clientVersion.version,
+    source: t(CLIENT_VERSION_SOURCES[clientVersion.source]),
+  })
 }
 
 /**
@@ -285,11 +365,19 @@ export function clientVersionText(
  * @param window - the reported window.
  * @returns e.g. "5-hour window" or "Weekly · Opus".
  */
-function usageWindowLabel(t: SubscriptionsSectionInjected['t'], window: UsageWindow): string {
-  const base = window.kind === 'session'
-    ? t('usageSession')
-    : window.kind === 'weekly' ? t('usageWeekly') : t('usageWindow')
-  return window.scope !== undefined && window.scope !== '' ? `${base} · ${window.scope}` : base
+function usageWindowLabel(
+  t: SubscriptionsSectionInjected['t'],
+  window: UsageWindow,
+): string {
+  const base =
+    window.kind === 'session'
+      ? t('usageSession')
+      : window.kind === 'weekly'
+        ? t('usageWeekly')
+        : t('usageWindow')
+  return window.scope !== undefined && window.scope !== ''
+    ? `${base} · ${window.scope}`
+    : base
 }
 
 /** Meter fill color lives with the pace logic: fresh 90%+ is red, pace presets add a yellow lead threshold. */
@@ -303,20 +391,45 @@ export { usageBarColor } from './usage-pace.js'
 export function SubscriptionsSection(props: SubscriptionsSectionProps) {
   const { rpc } = props
   const t = props.t ?? fallbackTranslate
-  const [statuses, setStatuses] = useState<Partial<Record<SubscriptionProvider, ProviderStatus>>>({})
-  const [errors, setErrors] = useState<Partial<Record<SubscriptionProvider, string>>>({})
-  const [manualDrafts, setManualDrafts] = useState<Record<SubscriptionProvider, string>>({
-    codex: '', claude: '', grok: '', copilot: '', antigravity: '',
+  const [statuses, setStatuses] = useState<
+    Partial<Record<SubscriptionProvider, ProviderStatus>>
+  >({})
+  const [errors, setErrors] = useState<
+    Partial<Record<SubscriptionProvider, string>>
+  >({})
+  const [manualDrafts, setManualDrafts] = useState<
+    Record<SubscriptionProvider, string>
+  >({
+    codex: '',
+    claude: '',
+    grok: '',
+    copilot: '',
+    antigravity: '',
   })
   /** Pending device-flow codes (copilot), shown while the attempt polls. */
-  const [deviceCodes, setDeviceCodes] = useState<Partial<Record<SubscriptionProvider, { userCode: string; verificationUrl: string }>>>({})
-  const [copiedCode, setCopiedCode] = useState<SubscriptionProvider | undefined>(undefined)
+  const [deviceCodes, setDeviceCodes] = useState<
+    Partial<
+      Record<
+        SubscriptionProvider,
+        { userCode: string; verificationUrl: string }
+      >
+    >
+  >({})
+  const [copiedCode, setCopiedCode] = useState<
+    SubscriptionProvider | undefined
+  >(undefined)
   /** Usage snapshots keyed `${provider}:${accountKey}` — every account tracks its own windows. */
   const [usages, setUsages] = useState<Record<string, ProviderUsage>>({})
   const [observedAt, setObservedAt] = useState<Record<string, number>>({})
   const [usageErrors, setUsageErrors] = useState<Record<string, string>>({})
   const [usageLoading, setUsageLoading] = useState<Record<string, boolean>>({})
-  const [resetConfirmation, setResetConfirmation] = useState<{ account: string; ticket: string; expiresAt: number; creditExpiresAt?: number; weeklyUsedPercent: number }>()
+  const [resetConfirmation, setResetConfirmation] = useState<{
+    account: string
+    ticket: string
+    expiresAt: number
+    creditExpiresAt?: number
+    weeklyUsedPercent: number
+  }>()
   const [resetBusy, setResetBusy] = useState(false)
   const [resetAcknowledged, setResetAcknowledged] = useState(false)
   const [resetMessage, setResetMessage] = useState('')
@@ -328,21 +441,29 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
   }, [resetConfirmation])
   const resetInflight = useRef(false)
   const mountedRef = useRef(true)
-  const pollersRef = useRef(new Map<SubscriptionProvider, ReturnType<typeof setInterval>>())
+  const pollersRef = useRef(
+    new Map<SubscriptionProvider, ReturnType<typeof setInterval>>(),
+  )
   /** Accounts with a `usage` call in flight; guards the auto-fetch effect against re-entry. */
   /** In-flight usage reads per key, holding the promise so a forced read can wait one out. */
   const usageInflightRef = useRef(new Map<string, Promise<void>>())
   const usageRosterSignatureRef = useRef<string>()
-  const [managedProvider, setManagedProvider] = useState<{ id: SubscriptionProvider; name: string }>()
-  const setProviderError = useCallback((provider: SubscriptionProvider, message: string | undefined): void => {
-    if (!mountedRef.current) return
-    setErrors((prev) => {
-      const next = { ...prev }
-      if (message === undefined) delete next[provider]
-      else next[provider] = message
-      return next
-    })
-  }, [])
+  const [managedProvider, setManagedProvider] = useState<{
+    id: SubscriptionProvider
+    name: string
+  }>()
+  const setProviderError = useCallback(
+    (provider: SubscriptionProvider, message: string | undefined): void => {
+      if (!mountedRef.current) return
+      setErrors((prev) => {
+        const next = { ...prev }
+        if (message === undefined) delete next[provider]
+        else next[provider] = message
+        return next
+      })
+    },
+    [],
+  )
 
   const stopPolling = useCallback((provider: SubscriptionProvider): void => {
     const poller = pollersRef.current.get(provider)
@@ -368,8 +489,12 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
     }
     if (!mountedRef.current) return
     setStatuses(response.providers)
-    const signature = PROVIDERS.map(({ id }) => `${id}:${response.providers[id].accounts
-      .map(account => `${account.key}:${account.isDefault}`).join(',')}`).join(';')
+    const signature = PROVIDERS.map(
+      ({ id }) =>
+        `${id}:${response.providers[id].accounts
+          .map((account) => `${account.key}:${account.isDefault}`)
+          .join(',')}`,
+    ).join(';')
     if (signature !== usageRosterSignatureRef.current) {
       usageRosterSignatureRef.current = signature
       window.dispatchEvent(new Event(USAGE_BADGE_REFRESH_EVENT))
@@ -391,10 +516,18 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
     }
   }, [rpc, stopPolling, setProviderError])
 
-  const startPolling = useCallback((provider: SubscriptionProvider): void => {
-    if (pollersRef.current.has(provider)) return
-    pollersRef.current.set(provider, setInterval(() => { void refresh() }, POLL_INTERVAL_MS))
-  }, [refresh])
+  const startPolling = useCallback(
+    (provider: SubscriptionProvider): void => {
+      if (pollersRef.current.has(provider)) return
+      pollersRef.current.set(
+        provider,
+        setInterval(() => {
+          void refresh()
+        }, POLL_INTERVAL_MS),
+      )
+    },
+    [refresh],
+  )
 
   // Initial load; every busy provider (e.g. an attempt started before a page
   // reload) resumes polling. Teardown clears pollers and the mounted guard.
@@ -411,48 +544,67 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
     })
     return () => {
       mountedRef.current = false
+      // The ref holds pollers started after this effect began. Copying .current
+      // at setup would clear an empty set and leave those intervals running.
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- read the live set at unmount
       for (const poller of pollersRef.current.values()) clearInterval(poller)
       pollersRef.current.clear()
     }
   }, [refresh, startPolling])
 
-  const loadUsage = useCallback(async (provider: SubscriptionProvider, account: string, force = false): Promise<void> => {
-    if (rpc === undefined) return
-    const key = `${provider}:${account}`
-    const pending = usageInflightRef.current.get(key)
-    // A forced read must never be dropped behind a poll that started before the
-    // state changed. The refresh after a credit redemption is the only thing
-    // that picks up the new numbers, and the next automatic poll is minutes
-    // away, so waiting the earlier read out is cheaper than showing a stale
-    // percentage next to a success message.
-    if (pending !== undefined) {
-      if (!force) return
-      await pending
-    }
-    if (rpc === undefined || usageInflightRef.current.has(key)) return
-    const read = (async () => {
-      setUsageLoading(prev => ({ ...prev, [key]: true }))
-      try {
-        const usage = await callSubscriptionsAuth<ProviderUsage>(rpc, 'usage', { provider, account, ...force ? { force: true } : {} })
-        if (!mountedRef.current) return
-        setUsages(prev => ({ ...prev, [key]: usage }))
-        setObservedAt(prev => ({ ...prev, [key]: usage.observedAt ?? Date.now() }))
-        window.dispatchEvent(new Event(USAGE_BADGE_REFRESH_EVENT))
-        setUsageErrors((prev) => {
-          const next = { ...prev }
-          delete next[key]
-          return next
-        })
-      } catch (error) {
-        if (mountedRef.current) setUsageErrors(prev => ({ ...prev, [key]: messageOf(error) }))
-      } finally {
-        usageInflightRef.current.delete(key)
-        if (mountedRef.current) setUsageLoading(prev => ({ ...prev, [key]: false }))
+  const loadUsage = useCallback(
+    async (
+      provider: SubscriptionProvider,
+      account: string,
+      force = false,
+    ): Promise<void> => {
+      if (rpc === undefined) return
+      const key = `${provider}:${account}`
+      const pending = usageInflightRef.current.get(key)
+      // A forced read must never be dropped behind a poll that started before the
+      // state changed. The refresh after a credit redemption is the only thing
+      // that picks up the new numbers, and the next automatic poll is minutes
+      // away, so waiting the earlier read out is cheaper than showing a stale
+      // percentage next to a success message.
+      if (pending !== undefined) {
+        if (!force) return
+        await pending
       }
-    })()
-    usageInflightRef.current.set(key, read)
-    await read
-  }, [rpc])
+      if (rpc === undefined || usageInflightRef.current.has(key)) return
+      const read = (async () => {
+        setUsageLoading((prev) => ({ ...prev, [key]: true }))
+        try {
+          const usage = await callSubscriptionsAuth<ProviderUsage>(
+            rpc,
+            'usage',
+            { provider, account, ...(force ? { force: true } : {}) },
+          )
+          if (!mountedRef.current) return
+          setUsages((prev) => ({ ...prev, [key]: usage }))
+          setObservedAt((prev) => ({
+            ...prev,
+            [key]: usage.observedAt ?? Date.now(),
+          }))
+          window.dispatchEvent(new Event(USAGE_BADGE_REFRESH_EVENT))
+          setUsageErrors((prev) => {
+            const next = { ...prev }
+            delete next[key]
+            return next
+          })
+        } catch (error) {
+          if (mountedRef.current)
+            setUsageErrors((prev) => ({ ...prev, [key]: messageOf(error) }))
+        } finally {
+          usageInflightRef.current.delete(key)
+          if (mountedRef.current)
+            setUsageLoading((prev) => ({ ...prev, [key]: false }))
+        }
+      })()
+      usageInflightRef.current.set(key, read)
+      await read
+    },
+    [rpc],
+  )
 
   async function prepareReset(account: string): Promise<void> {
     if (!rpc || resetInflight.current) return
@@ -462,15 +614,27 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
     setResetConfirmation(undefined)
     setResetMessage('')
     try {
-      const result = await callSubscriptionsAuth<Omit<NonNullable<typeof resetConfirmation>, 'account'>>(rpc, 'prepareReset', { account })
+      const result = await callSubscriptionsAuth<
+        Omit<NonNullable<typeof resetConfirmation>, 'account'>
+      >(rpc, 'prepareReset', { account })
       setResetAcknowledged(false)
       setResetConfirmation({ ...result, account })
-    } catch (error) { setResetMessage(messageOf(error)) }
-    finally { resetInflight.current = false; setResetBusy(false) }
+    } catch (error) {
+      setResetMessage(messageOf(error))
+    } finally {
+      resetInflight.current = false
+      setResetBusy(false)
+    }
   }
 
   async function consumeReset(): Promise<void> {
-    if (!rpc || !resetConfirmation || !resetAcknowledged || resetInflight.current) return
+    if (
+      !rpc ||
+      !resetConfirmation ||
+      !resetAcknowledged ||
+      resetInflight.current
+    )
+      return
     const { account, ticket } = resetConfirmation
     resetInflight.current = true
     setResetBusy(true)
@@ -478,10 +642,12 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
     try {
       await callSubscriptionsAuth(rpc, 'consumeReset', { account, ticket })
       setResetMessage(t('resetUseSuccess'))
-    } catch (error) { setResetMessage(messageOf(error)) }
-    finally {
+    } catch (error) {
+      setResetMessage(messageOf(error))
+    } finally {
       await loadUsage('codex', account, true)
-      resetInflight.current = false; setResetBusy(false)
+      resetInflight.current = false
+      setResetBusy(false)
     }
   }
 
@@ -494,107 +660,174 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
       for (const account of statuses[id]?.accounts ?? []) {
         const key = `${id}:${account.key}`
         live.add(key)
-        if (usages[key] === undefined && usageErrors[key] === undefined) void loadUsage(id, account.key)
+        if (usages[key] === undefined && usageErrors[key] === undefined)
+          void loadUsage(id, account.key)
       }
     }
-    setUsages(prev => dropStale(prev, live))
-    setUsageErrors(prev => dropStale(prev, live))
+    setUsages((prev) => dropStale(prev, live))
+    setUsageErrors((prev) => dropStale(prev, live))
   }, [statuses, usages, usageErrors, loadUsage])
 
-  const login = useCallback(async (provider: SubscriptionProvider, method?: 'oauth' | 'keychain'): Promise<void> => {
-    if (rpc === undefined) return
-    setProviderError(provider, undefined)
-    try {
-      const response = await callSubscriptionsAuth<LoginResponse>(rpc, 'login', {
-        provider,
-        ...method === undefined ? {} : { method },
-      })
-      if (typeof response.authorizeUrl === 'string' && response.authorizeUrl === '') {
-        // Instant login (e.g. imported from Claude Code credentials)
-        await refresh()
-        return
-      }
-      if (typeof response.authorizeUrl !== 'string') {
-        throw new SubscriptionsAuthError(t('loginMissingUrl'))
-      }
-      if (!mountedRef.current) return
-      // Optimistic busy so Cancel and the manual fallback appear before the first poll tick.
-      setStatuses(prev => ({
-        ...prev,
-        [provider]: { accounts: prev[provider]?.accounts ?? [], ...prev[provider], busy: true },
-      }))
-      if (typeof response.userCode === 'string' && response.userCode.length > 0) {
-        // Device flow: show the code card instead of opening the page blind —
-        // the user copies the code first, then opens the verification page.
-        setDeviceCodes(prev => ({ ...prev, [provider]: { userCode: response.userCode as string, verificationUrl: response.authorizeUrl } }))
-      } else {
-        window.open(response.authorizeUrl, '_blank', 'noopener')
-      }
-      startPolling(provider)
-    } catch (error) {
-      setProviderError(provider, messageOf(error))
-    }
-  }, [rpc, t, setProviderError, startPolling])
-
-  const cancel = useCallback(async (provider: SubscriptionProvider): Promise<void> => {
-    if (rpc === undefined) return
-    stopPolling(provider)
-    try {
-      await callSubscriptionsAuth<{ ok: true }>(rpc, 'cancel', { provider })
-    } catch (error) {
-      setProviderError(provider, messageOf(error))
-    }
-    await refresh()
-  }, [rpc, stopPolling, setProviderError, refresh])
-
-  const submitManual = useCallback(async (provider: SubscriptionProvider): Promise<void> => {
-    if (rpc === undefined) return
-    const input = manualDrafts[provider].trim()
-    if (input === '') return
-    setProviderError(provider, undefined)
-    try {
-      await callSubscriptionsAuth<{ ok: true }>(rpc, 'manual', { provider, input })
-      if (mountedRef.current) setManualDrafts(prev => ({ ...prev, [provider]: '' }))
-    } catch (error) {
-      setProviderError(provider, messageOf(error))
-    }
-    await refresh()
-  }, [rpc, manualDrafts, setProviderError, refresh])
-
-  const logout = useCallback(async (provider: SubscriptionProvider, account: string, display: string, name: string): Promise<void> => {
-    if (rpc === undefined) return
-    if (!window.confirm(t('logoutAccountConfirm', { provider: name, account: display }))) return
-    setProviderError(provider, undefined)
-    try {
-      await callSubscriptionsAuth<{ ok: true }>(rpc, 'logout', { provider, account })
-    } catch (error) {
-      setProviderError(provider, messageOf(error))
-    }
-    await refresh()
-  }, [rpc, t, setProviderError, refresh])
-
-  const setDefault = useCallback(async (provider: SubscriptionProvider, account: string): Promise<void> => {
-    if (rpc === undefined) return
-    setProviderError(provider, undefined)
-    try {
-      await callSubscriptionsAuth<{ ok: true }>(rpc, 'setDefault', { provider, account })
-    } catch (error) {
-      setProviderError(provider, messageOf(error))
-    }
-    await refresh()
-  }, [rpc, setProviderError, refresh])
-
-  const copyDeviceCode = useCallback((provider: SubscriptionProvider, userCode: string): void => {
-    void navigator.clipboard?.writeText(userCode).then(() => {
-      if (!mountedRef.current) return
-      setCopiedCode(provider)
-      setTimeout(() => {
-        if (mountedRef.current) {
-          setCopiedCode(current => current === provider ? undefined : current)
+  const login = useCallback(
+    async (
+      provider: SubscriptionProvider,
+      method?: 'oauth' | 'keychain',
+    ): Promise<void> => {
+      if (rpc === undefined) return
+      setProviderError(provider, undefined)
+      try {
+        const response = await callSubscriptionsAuth<LoginResponse>(
+          rpc,
+          'login',
+          {
+            provider,
+            ...(method === undefined ? {} : { method }),
+          },
+        )
+        if (
+          typeof response.authorizeUrl === 'string' &&
+          response.authorizeUrl === ''
+        ) {
+          // Instant login (e.g. imported from Claude Code credentials)
+          await refresh()
+          return
         }
-      }, 1500)
-    }).catch(() => undefined)
-  }, [])
+        if (typeof response.authorizeUrl !== 'string') {
+          throw new SubscriptionsAuthError(t('loginMissingUrl'))
+        }
+        if (!mountedRef.current) return
+        // Optimistic busy so Cancel and the manual fallback appear before the first poll tick.
+        setStatuses((prev) => ({
+          ...prev,
+          [provider]: {
+            accounts: prev[provider]?.accounts ?? [],
+            ...prev[provider],
+            busy: true,
+          },
+        }))
+        if (
+          typeof response.userCode === 'string' &&
+          response.userCode.length > 0
+        ) {
+          // Device flow: show the code card instead of opening the page blind —
+          // the user copies the code first, then opens the verification page.
+          setDeviceCodes((prev) => ({
+            ...prev,
+            [provider]: {
+              userCode: response.userCode as string,
+              verificationUrl: response.authorizeUrl,
+            },
+          }))
+        } else {
+          window.open(response.authorizeUrl, '_blank', 'noopener')
+        }
+        startPolling(provider)
+      } catch (error) {
+        setProviderError(provider, messageOf(error))
+      }
+    },
+    [rpc, t, setProviderError, startPolling, refresh],
+  )
+
+  const cancel = useCallback(
+    async (provider: SubscriptionProvider): Promise<void> => {
+      if (rpc === undefined) return
+      stopPolling(provider)
+      try {
+        await callSubscriptionsAuth<{ ok: true }>(rpc, 'cancel', { provider })
+      } catch (error) {
+        setProviderError(provider, messageOf(error))
+      }
+      await refresh()
+    },
+    [rpc, stopPolling, setProviderError, refresh],
+  )
+
+  const submitManual = useCallback(
+    async (provider: SubscriptionProvider): Promise<void> => {
+      if (rpc === undefined) return
+      const input = manualDrafts[provider].trim()
+      if (input === '') return
+      setProviderError(provider, undefined)
+      try {
+        await callSubscriptionsAuth<{ ok: true }>(rpc, 'manual', {
+          provider,
+          input,
+        })
+        if (mountedRef.current)
+          setManualDrafts((prev) => ({ ...prev, [provider]: '' }))
+      } catch (error) {
+        setProviderError(provider, messageOf(error))
+      }
+      await refresh()
+    },
+    [rpc, manualDrafts, setProviderError, refresh],
+  )
+
+  const logout = useCallback(
+    async (
+      provider: SubscriptionProvider,
+      account: string,
+      display: string,
+      name: string,
+    ): Promise<void> => {
+      if (rpc === undefined) return
+      if (
+        !window.confirm(
+          t('logoutAccountConfirm', { provider: name, account: display }),
+        )
+      )
+        return
+      setProviderError(provider, undefined)
+      try {
+        await callSubscriptionsAuth<{ ok: true }>(rpc, 'logout', {
+          provider,
+          account,
+        })
+      } catch (error) {
+        setProviderError(provider, messageOf(error))
+      }
+      await refresh()
+    },
+    [rpc, t, setProviderError, refresh],
+  )
+
+  const setDefault = useCallback(
+    async (provider: SubscriptionProvider, account: string): Promise<void> => {
+      if (rpc === undefined) return
+      setProviderError(provider, undefined)
+      try {
+        await callSubscriptionsAuth<{ ok: true }>(rpc, 'setDefault', {
+          provider,
+          account,
+        })
+      } catch (error) {
+        setProviderError(provider, messageOf(error))
+      }
+      await refresh()
+    },
+    [rpc, setProviderError, refresh],
+  )
+
+  const copyDeviceCode = useCallback(
+    (provider: SubscriptionProvider, userCode: string): void => {
+      void navigator.clipboard
+        ?.writeText(userCode)
+        .then(() => {
+          if (!mountedRef.current) return
+          setCopiedCode(provider)
+          setTimeout(() => {
+            if (mountedRef.current) {
+              setCopiedCode((current) =>
+                current === provider ? undefined : current,
+              )
+            }
+          }, 1500)
+        })
+        .catch(() => undefined)
+    },
+    [],
+  )
 
   if (rpc === undefined) {
     return <p style={styles.intro}>{t('unavailable')}</p>
@@ -616,7 +849,10 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
               <span style={{ ...styles.dot, background: dotColor(status) }} />
               <span style={styles.name}>{name}</span>
               {status?.clientVersion !== undefined && (
-                <span style={styles.clientVersion} title={t('clientVersionHint')}>
+                <span
+                  style={styles.clientVersion}
+                  title={t('clientVersionHint')}
+                >
                   {clientVersionText(t, status.clientVersion)}
                 </span>
               )}
@@ -625,26 +861,39 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
             {status?.detail !== undefined && status.detail !== '' && (
               <p style={styles.statusLine}>{status.detail}</p>
             )}
-            {errors[id] !== undefined && <p style={styles.errorLine}>{errors[id]}</p>}
+            {errors[id] !== undefined && (
+              <p style={styles.errorLine}>{errors[id]}</p>
+            )}
             {accounts.map((account) => {
               const usageKey = `${id}:${account.key}`
               const usage = usages[usageKey]
               const usageError = usageErrors[usageKey]
               const display = account.account ?? account.key
-              const sortedCredits = [...(usage?.resetCredits ?? [])].sort((a, b) => (a.expiresAt ?? Infinity) - (b.expiresAt ?? Infinity))
-              const nextReset = sortedCredits.find(c => c.expiresAt === undefined || c.expiresAt > Date.now())
-              const resetBlock = usage ? resetActionBlock(usage) : 'resetUseRefresh'
+              const sortedCredits = [...(usage?.resetCredits ?? [])].sort(
+                (a, b) => (a.expiresAt ?? Infinity) - (b.expiresAt ?? Infinity),
+              )
+              const nextReset = sortedCredits.find(
+                (c) => c.expiresAt === undefined || c.expiresAt > Date.now(),
+              )
+              const resetBlock = usage
+                ? resetActionBlock(usage)
+                : 'resetUseRefresh'
               const resetDisabled = resetBusy || resetBlock !== undefined
               // Providers without a usage endpoint answer supported:false — no block.
-              const showUsage = usage?.supported !== false
-                && (usage !== undefined || usageError !== undefined || usageLoading[usageKey] === true)
+              const showUsage =
+                usage?.supported !== false &&
+                (usage !== undefined ||
+                  usageError !== undefined ||
+                  usageLoading[usageKey] === true)
               return (
                 <div key={account.key} style={styles.accountRow}>
                   <div style={styles.accountHeader}>
                     <button
                       type="button"
                       style={styles.starButton}
-                      title={account.isDefault ? t('defaultBadge') : t('setDefault')}
+                      title={
+                        account.isDefault ? t('defaultBadge') : t('setDefault')
+                      }
                       onClick={() => {
                         if (!account.isDefault) void setDefault(id, account.key)
                       }}
@@ -657,13 +906,17 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
                     )}
                     {account.expiresAt !== undefined && (
                       <span style={styles.statusLine}>
-                        {t('accountExpires', { date: new Date(account.expiresAt).toLocaleString() })}
+                        {t('accountExpires', {
+                          date: new Date(account.expiresAt).toLocaleString(),
+                        })}
                       </span>
                     )}
                     <button
                       type="button"
                       style={{ marginLeft: 'auto', flexShrink: 0 }}
-                      onClick={() => { void logout(id, account.key, display, name) }}
+                      onClick={() => {
+                        void logout(id, account.key, display, name)
+                      }}
                     >
                       {t('logout')}
                     </button>
@@ -673,13 +926,17 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
                       <div style={styles.usageHeader}>
                         <span style={styles.usageTitle}>{t('usageTitle')}</span>
                         {usage?.plan !== undefined && (
-                          <span style={styles.usagePlan}>{t('usagePlan', { plan: usage.plan })}</span>
+                          <span style={styles.usagePlan}>
+                            {t('usagePlan', { plan: usage.plan })}
+                          </span>
                         )}
                         <button
                           type="button"
                           style={styles.usageRefresh}
                           disabled={usageLoading[usageKey] === true}
-                          onClick={() => { void loadUsage(id, account.key, true) }}
+                          onClick={() => {
+                            void loadUsage(id, account.key, true)
+                          }}
                         >
                           {t('usageRefresh')}
                         </button>
@@ -688,11 +945,14 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
                         <p style={styles.statusLine}>{t('usageLoading')}</p>
                       )}
                       {usageError !== undefined && (
-                        <p style={styles.errorLine}>{t('usageError', { message: usageError })}</p>
+                        <p style={styles.errorLine}>
+                          {t('usageError', { message: usageError })}
+                        </p>
                       )}
-                      {usage?.windows !== undefined && usage.windows.length === 0 && (
-                        <p style={styles.statusLine}>{t('usageEmpty')}</p>
-                      )}
+                      {usage?.windows !== undefined &&
+                        usage.windows.length === 0 && (
+                          <p style={styles.statusLine}>{t('usageEmpty')}</p>
+                        )}
                       {(usage?.windows ?? []).map((window, index) => {
                         const percent = displayUsedPercent(window.usedPercent)
                         return (
@@ -700,35 +960,67 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
                             <div style={styles.usageMeta}>
                               <span>{usageWindowLabel(t, window)}</span>
                               <span>
-                                {percent === undefined ? t('usageMeterInvalid') : `${percent}%`}
-                                {window.resetsAt !== undefined
-                                  && ` · ${t('usageResets', { date: new Date(window.resetsAt).toLocaleString() })}`}
+                                {percent === undefined
+                                  ? t('usageMeterInvalid')
+                                  : `${percent}%`}
+                                {window.resetsAt !== undefined &&
+                                  ` · ${t('usageResets', { date: new Date(window.resetsAt).toLocaleString() })}`}
                               </span>
                             </div>
-                            <UsageMeter window={window} t={t} observedAt={observedAt[usageKey]} stale={usageError !== undefined || usage.stale === true} />
+                            <UsageMeter
+                              window={window}
+                              t={t}
+                              observedAt={observedAt[usageKey]}
+                              stale={
+                                usageError !== undefined || usage.stale === true
+                              }
+                            />
                           </div>
                         )
                       })}
-                      {(id === 'codex' || id === 'claude') && usage?.resetCreditsError !== undefined && (
-                        <ResetCreditsErrorLine provider={id} message={usage.resetCreditsError} t={t} />
-                      )}
-                      {(id === 'codex' || id === 'claude') && showsResetCredits(id, usage?.resetCredits) && (
-                        <ResetCreditsDisclosure
-                          mode={id === 'claude' ? 'grants' : 'credits'}
-                          credits={sortedCredits}
-                          t={t}
-                          {...nextReset !== undefined ? { nextCredit: nextReset } : {}}
-                          {...id === 'codex' ? { useAction: {
-                            accountKey: account.key,
-                            busy: resetBusy && resetAccount === account.key,
-                            disabled: resetDisabled,
-                            title: t(resetBusy ? 'resetUseChecking' : resetBlock ?? 'resetUseReady'),
-                            label: t('resetUseButton'),
-                            onUse: () => { if (!resetDisabled) void prepareReset(account.key) },
-                          } } : {}}
-                          {...resetAccount === account.key && resetMessage !== '' ? { statusMessage: resetMessage } : {}}
-                        />
-                      )}
+                      {(id === 'codex' || id === 'claude') &&
+                        usage?.resetCreditsError !== undefined && (
+                          <ResetCreditsErrorLine
+                            provider={id}
+                            message={usage.resetCreditsError}
+                            t={t}
+                          />
+                        )}
+                      {(id === 'codex' || id === 'claude') &&
+                        showsResetCredits(id, usage?.resetCredits) && (
+                          <ResetCreditsDisclosure
+                            mode={id === 'claude' ? 'grants' : 'credits'}
+                            credits={sortedCredits}
+                            t={t}
+                            {...(nextReset !== undefined
+                              ? { nextCredit: nextReset }
+                              : {})}
+                            {...(id === 'codex'
+                              ? {
+                                  useAction: {
+                                    accountKey: account.key,
+                                    busy:
+                                      resetBusy && resetAccount === account.key,
+                                    disabled: resetDisabled,
+                                    title: t(
+                                      resetBusy
+                                        ? 'resetUseChecking'
+                                        : (resetBlock ?? 'resetUseReady'),
+                                    ),
+                                    label: t('resetUseButton'),
+                                    onUse: () => {
+                                      if (!resetDisabled)
+                                        void prepareReset(account.key)
+                                    },
+                                  },
+                                }
+                              : {})}
+                            {...(resetAccount === account.key &&
+                            resetMessage !== ''
+                              ? { statusMessage: resetMessage }
+                              : {})}
+                          />
+                        )}
                     </div>
                   )}
                 </div>
@@ -736,31 +1028,59 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
             })}
             <div style={styles.actions}>
               {!busy && accounts.length === 0 && (
-                <button type="button" onClick={() => { void login(id) }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void login(id)
+                  }}
+                >
                   {t('login')}
                 </button>
               )}
               {!busy && accounts.length > 0 && id === 'claude' && (
                 <>
-                  <button type="button" onClick={() => { void login(id, 'oauth') }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void login(id, 'oauth')
+                    }}
+                  >
                     {t('addAccountOAuth')}
                   </button>
-                  <button type="button" onClick={() => { void login(id, 'keychain') }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void login(id, 'keychain')
+                    }}
+                  >
                     {t('addAccountKeychain')}
                   </button>
                 </>
               )}
               {!busy && accounts.length > 0 && id !== 'claude' && (
-                <button type="button" onClick={() => { void login(id) }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void login(id)
+                  }}
+                >
                   {t('addAccount')}
                 </button>
               )}
-              <button type="button" aria-haspopup="dialog"
-                onClick={() => setManagedProvider({ id, name })}>
+              <button
+                type="button"
+                aria-haspopup="dialog"
+                onClick={() => setManagedProvider({ id, name })}
+              >
                 {t('accountsManage')}
               </button>
               {busy && (
-                <button type="button" onClick={() => { void cancel(id) }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void cancel(id)
+                  }}
+                >
                   {t('cancel')}
                 </button>
               )}
@@ -774,12 +1094,25 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
                 <span style={styles.statusLine}>{t('deviceCodePrompt')}</span>
                 <span style={styles.deviceCodeText}>{deviceCode.userCode}</span>
                 <div style={styles.actions}>
-                  <button type="button" onClick={() => { copyDeviceCode(id, deviceCode.userCode) }}>
-                    {copiedCode === id ? t('deviceCodeCopied') : t('deviceCodeCopy')}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      copyDeviceCode(id, deviceCode.userCode)
+                    }}
+                  >
+                    {copiedCode === id
+                      ? t('deviceCodeCopied')
+                      : t('deviceCodeCopy')}
                   </button>
                   <button
                     type="button"
-                    onClick={() => { window.open(deviceCode.verificationUrl, '_blank', 'noopener') }}
+                    onClick={() => {
+                      window.open(
+                        deviceCode.verificationUrl,
+                        '_blank',
+                        'noopener',
+                      )
+                    }}
                   >
                     {t('deviceCodeOpenPage')}
                   </button>
@@ -794,9 +1127,19 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
                     style={styles.manualInput}
                     value={manualDrafts[id]}
                     placeholder={t('manualPlaceholder')}
-                    onChange={event => setManualDrafts(prev => ({ ...prev, [id]: event.target.value }))}
+                    onChange={(event) =>
+                      setManualDrafts((prev) => ({
+                        ...prev,
+                        [id]: event.target.value,
+                      }))
+                    }
                   />
-                  <button type="button" onClick={() => { void submitManual(id) }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void submitManual(id)
+                    }}
+                  >
                     {t('submit')}
                   </button>
                 </div>
@@ -808,33 +1151,109 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
       <CursorCard rpc={rpc} t={t} />
       <OllamaCard rpc={rpc} t={t} />
       <ExternalUsageCards rpc={rpc} t={t} />
-      {managedProvider && <ProviderAccountManager provider={managedProvider.id} name={managedProvider.name}
-        rpc={rpc} t={t} onClose={() => setManagedProvider(undefined)} />}
-      <style>{'.subscriptions-reset-dialog::backdrop { background: var(--dsw-alias-bg-mask-1, #0006); backdrop-filter: var(--dsw-mask-blur, none); }'}</style>
-      <dialog ref={resetDialogRef} className="subscriptions-reset-dialog"
-        aria-labelledby="subscriptions-reset-title" onCancel={() => setResetConfirmation(undefined)}
+      {managedProvider && (
+        <ProviderAccountManager
+          provider={managedProvider.id}
+          name={managedProvider.name}
+          rpc={rpc}
+          t={t}
+          onClose={() => setManagedProvider(undefined)}
+        />
+      )}
+      <style>
+        {
+          '.subscriptions-reset-dialog::backdrop { background: var(--dsw-alias-bg-mask-1, #0006); backdrop-filter: var(--dsw-mask-blur, none); }'
+        }
+      </style>
+      <dialog
+        ref={resetDialogRef}
+        className="subscriptions-reset-dialog"
+        aria-labelledby="subscriptions-reset-title"
+        onCancel={() => setResetConfirmation(undefined)}
         onClose={() => setResetConfirmation(undefined)}
-        style={{ ...styles.modal, display: resetConfirmation ? 'flex' : 'none', margin: 'auto', color: 'var(--dsw-alias-label-primary)' }}>
-        {resetConfirmation && <>
-          <h3 id="subscriptions-reset-title" style={{ ...styles.modalTitle, margin: 0 }}>{t('resetUseConfirmTitle')}</h3>
-          <p style={{ ...styles.statusLine, overflowWrap: 'anywhere' }}>{statuses.codex?.accounts.find(a => a.key === resetConfirmation.account)?.account ?? resetConfirmation.account}</p>
-          <div style={{ ...styles.usageMeta, gap: 12 }}>
-            <span>{t('usageWeekly')}</span><strong>{Math.round(resetConfirmation.weeklyUsedPercent)}%</strong>
-          </div>
-          <div style={styles.usageMeta}>
-            <span>{resetConfirmation.creditExpiresAt === undefined ? t('resetCreditExpiryUnknown') : t('resetCreditExpires', { date: new Date(resetConfirmation.creditExpiresAt).toLocaleString() })}</span>
-          </div>
-          <p style={{ ...styles.statusLine, margin: '4px 0' }}>{t('resetUseWarning')}</p>
-          <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 12 }}>
-            <input type="checkbox" checked={resetAcknowledged} onChange={e => setResetAcknowledged(e.target.checked)} />
-            {t('resetUseAcknowledge')}
-          </label>
-          <div className="dsh-subscription-dialog-actions" style={{ ...styles.actions, justifyContent: 'flex-end', marginTop: 8 }}>
-            <button type="button" autoFocus onClick={() => setResetConfirmation(undefined)}>{t('cancel')}</button>
-            <button type="button" className="dsh-subscription-primary" disabled={!resetAcknowledged || resetBusy}
-              onClick={() => { void consumeReset() }}>{t('resetUseConfirm')}</button>
-          </div>
-        </>}
+        style={{
+          ...styles.modal,
+          display: resetConfirmation ? 'flex' : 'none',
+          margin: 'auto',
+          color: 'var(--dsw-alias-label-primary)',
+        }}
+      >
+        {resetConfirmation && (
+          <>
+            <h3
+              id="subscriptions-reset-title"
+              style={{ ...styles.modalTitle, margin: 0 }}
+            >
+              {t('resetUseConfirmTitle')}
+            </h3>
+            <p style={{ ...styles.statusLine, overflowWrap: 'anywhere' }}>
+              {statuses.codex?.accounts.find(
+                (a) => a.key === resetConfirmation.account,
+              )?.account ?? resetConfirmation.account}
+            </p>
+            <div style={{ ...styles.usageMeta, gap: 12 }}>
+              <span>{t('usageWeekly')}</span>
+              <strong>
+                {Math.round(resetConfirmation.weeklyUsedPercent)}%
+              </strong>
+            </div>
+            <div style={styles.usageMeta}>
+              <span>
+                {resetConfirmation.creditExpiresAt === undefined
+                  ? t('resetCreditExpiryUnknown')
+                  : t('resetCreditExpires', {
+                      date: new Date(
+                        resetConfirmation.creditExpiresAt,
+                      ).toLocaleString(),
+                    })}
+              </span>
+            </div>
+            <p style={{ ...styles.statusLine, margin: '4px 0' }}>
+              {t('resetUseWarning')}
+            </p>
+            <label
+              style={{
+                display: 'flex',
+                gap: 8,
+                alignItems: 'flex-start',
+                fontSize: 12,
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={resetAcknowledged}
+                onChange={(e) => setResetAcknowledged(e.target.checked)}
+              />
+              {t('resetUseAcknowledge')}
+            </label>
+            <div
+              className="dsh-subscription-dialog-actions"
+              style={{
+                ...styles.actions,
+                justifyContent: 'flex-end',
+                marginTop: 8,
+              }}
+            >
+              <button
+                type="button"
+                autoFocus
+                onClick={() => setResetConfirmation(undefined)}
+              >
+                {t('cancel')}
+              </button>
+              <button
+                type="button"
+                className="dsh-subscription-primary"
+                disabled={!resetAcknowledged || resetBusy}
+                onClick={() => {
+                  void consumeReset()
+                }}
+              >
+                {t('resetUseConfirm')}
+              </button>
+            </div>
+          </>
+        )}
       </dialog>
     </div>
   )

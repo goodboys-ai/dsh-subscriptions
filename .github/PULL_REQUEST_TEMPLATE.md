@@ -1,8 +1,8 @@
 <!-- Write this body one line per paragraph. GitHub renders a single
 newline inside a paragraph as a hard line break, so an 80-column wrap
 reads as broken sentences on the PR page. This applies only to PR
-descriptions and comments; repository markdown keeps its 80-column wrap
-and must not be reflowed. The title starts with a topic and a colon
+descriptions and comments. Repository markdown is wrapped at 80 columns
+by Prettier. The title starts with a topic and a colon
 (`fix: ...` or `fix(scope): ...`). Topics are feat, fix, docs, test,
 chore, refactor, ci, build, and style. -->
 

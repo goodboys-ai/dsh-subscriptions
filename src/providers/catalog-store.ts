@@ -17,7 +17,11 @@ import { dirname, resolve } from 'node:path'
 import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type { ProviderId } from '../auth/store.js'
-import type { CatalogPersistence, CatalogSnapshot, DiscoveredModel } from './common.js'
+import type {
+  CatalogPersistence,
+  CatalogSnapshot,
+  DiscoveredModel,
+} from './common.js'
 
 /**
  * Absolute path of the catalog store file.
@@ -34,16 +38,27 @@ export function modelsFilePath(): string {
 type CatalogFile = Partial<Record<ProviderId, unknown>> & { accounts?: unknown }
 
 /** The per-account section of the file, or undefined when absent or malformed. */
-function accountSection(store: CatalogFile, provider: ProviderId): Record<string, unknown> | undefined {
+function accountSection(
+  store: CatalogFile,
+  provider: ProviderId,
+): Record<string, unknown> | undefined {
   const accounts = store.accounts
-  if (typeof accounts !== 'object' || accounts === null || Array.isArray(accounts)) return undefined
+  if (
+    typeof accounts !== 'object' ||
+    accounts === null ||
+    Array.isArray(accounts)
+  )
+    return undefined
   const section = (accounts as Record<string, unknown>)[provider]
-  if (typeof section !== 'object' || section === null || Array.isArray(section)) return undefined
+  if (typeof section !== 'object' || section === null || Array.isArray(section))
+    return undefined
   return section as Record<string, unknown>
 }
 
 /** Validate one persisted reasoning block, or undefined when malformed. */
-function sanitizeReasoning(value: unknown): NonNullable<DiscoveredModel['reasoning']> | undefined {
+function sanitizeReasoning(
+  value: unknown,
+): NonNullable<DiscoveredModel['reasoning']> | undefined {
   if (typeof value !== 'object' || value === null) return undefined
   const raw = value as { efforts?: unknown; defaultEffort?: unknown }
   if (!Array.isArray(raw.efforts) || raw.efforts.length === 0) return undefined
@@ -52,22 +67,35 @@ function sanitizeReasoning(value: unknown): NonNullable<DiscoveredModel['reasoni
   for (const entry of raw.efforts) {
     if (typeof entry !== 'object' || entry === null) return undefined
     const effort = entry as Record<string, unknown>
-    if (typeof effort.id !== 'string' || effort.id.length === 0
-      || typeof effort.name !== 'string' || effort.name.length === 0
-      || (effort.description !== undefined && typeof effort.description !== 'string')
-      || seen.has(effort.id)) return undefined
+    if (
+      typeof effort.id !== 'string' ||
+      effort.id.length === 0 ||
+      typeof effort.name !== 'string' ||
+      effort.name.length === 0 ||
+      (effort.description !== undefined &&
+        typeof effort.description !== 'string') ||
+      seen.has(effort.id)
+    )
+      return undefined
     seen.add(effort.id)
     efforts.push({
       id: ReasoningEffortId(effort.id),
       name: effort.name,
-      ...effort.description === undefined ? {} : { description: effort.description },
+      ...(effort.description === undefined
+        ? {}
+        : { description: effort.description }),
     })
   }
-  if (raw.defaultEffort !== undefined
-    && (typeof raw.defaultEffort !== 'string' || !seen.has(raw.defaultEffort))) return undefined
+  if (
+    raw.defaultEffort !== undefined &&
+    (typeof raw.defaultEffort !== 'string' || !seen.has(raw.defaultEffort))
+  )
+    return undefined
   return {
     efforts,
-    ...raw.defaultEffort === undefined ? {} : { defaultEffort: ReasoningEffortId(raw.defaultEffort as string) },
+    ...(raw.defaultEffort === undefined
+      ? {}
+      : { defaultEffort: ReasoningEffortId(raw.defaultEffort as string) }),
   }
 }
 
@@ -75,47 +103,89 @@ function sanitizeReasoning(value: unknown): NonNullable<DiscoveredModel['reasoni
 function sanitizeModel(value: unknown): DiscoveredModel | undefined {
   if (typeof value !== 'object' || value === null) return undefined
   const raw = value as Record<string, unknown>
-  if (typeof raw.id !== 'string' || raw.id.length === 0
-    || typeof raw.name !== 'string' || raw.name.length === 0
-    || (raw.description !== undefined && typeof raw.description !== 'string')
-    || (raw.contextWindow !== undefined
-      && (typeof raw.contextWindow !== 'number' || !Number.isInteger(raw.contextWindow) || raw.contextWindow <= 0))
-    || (raw.maxContextWindow !== undefined
-      && (typeof raw.maxContextWindow !== 'number' || !Number.isSafeInteger(raw.maxContextWindow) || raw.maxContextWindow <= 0))
-    || (raw.maxOutputTokens !== undefined
-      && (typeof raw.maxOutputTokens !== 'number' || !Number.isSafeInteger(raw.maxOutputTokens) || raw.maxOutputTokens <= 0))
-    || (raw.priority !== undefined
-      && (typeof raw.priority !== 'number' || !Number.isFinite(raw.priority)))) return undefined
-  const reasoning = raw.reasoning === undefined ? undefined : sanitizeReasoning(raw.reasoning)
+  if (
+    typeof raw.id !== 'string' ||
+    raw.id.length === 0 ||
+    typeof raw.name !== 'string' ||
+    raw.name.length === 0 ||
+    (raw.description !== undefined && typeof raw.description !== 'string') ||
+    (raw.contextWindow !== undefined &&
+      (typeof raw.contextWindow !== 'number' ||
+        !Number.isInteger(raw.contextWindow) ||
+        raw.contextWindow <= 0)) ||
+    (raw.maxContextWindow !== undefined &&
+      (typeof raw.maxContextWindow !== 'number' ||
+        !Number.isSafeInteger(raw.maxContextWindow) ||
+        raw.maxContextWindow <= 0)) ||
+    (raw.maxOutputTokens !== undefined &&
+      (typeof raw.maxOutputTokens !== 'number' ||
+        !Number.isSafeInteger(raw.maxOutputTokens) ||
+        raw.maxOutputTokens <= 0)) ||
+    (raw.priority !== undefined &&
+      (typeof raw.priority !== 'number' || !Number.isFinite(raw.priority)))
+  )
+    return undefined
+  const reasoning =
+    raw.reasoning === undefined ? undefined : sanitizeReasoning(raw.reasoning)
   if (raw.reasoning !== undefined && reasoning === undefined) return undefined
   const thinkingType = raw.thinkingType
-  if (thinkingType !== undefined && thinkingType !== 'enabled' && thinkingType !== 'adaptive') return undefined
+  if (
+    thinkingType !== undefined &&
+    thinkingType !== 'enabled' &&
+    thinkingType !== 'adaptive'
+  )
+    return undefined
   const fastTier = raw.fastTier
   if (fastTier !== undefined && typeof fastTier !== 'boolean') return undefined
   const copilotWire = raw.copilotWire
-  if (copilotWire !== undefined && copilotWire !== 'chat-completions' && copilotWire !== 'responses') {
+  if (
+    copilotWire !== undefined &&
+    copilotWire !== 'chat-completions' &&
+    copilotWire !== 'responses'
+  ) {
     return undefined
   }
   const copilotResponses = raw.copilotResponses
-  if (copilotResponses !== undefined && typeof copilotResponses !== 'boolean') return undefined
+  if (copilotResponses !== undefined && typeof copilotResponses !== 'boolean')
+    return undefined
   const inputModalities = raw.inputModalities
-  if (inputModalities !== undefined
-    && (!Array.isArray(inputModalities) || inputModalities.length === 0
-      || inputModalities.some(modality => modality !== 'text' && modality !== 'image'))) return undefined
+  if (
+    inputModalities !== undefined &&
+    (!Array.isArray(inputModalities) ||
+      inputModalities.length === 0 ||
+      inputModalities.some(
+        (modality) => modality !== 'text' && modality !== 'image',
+      ))
+  )
+    return undefined
   return {
     id: raw.id,
     name: raw.name,
-    ...raw.description === undefined ? {} : { description: raw.description as string },
-    ...raw.contextWindow === undefined ? {} : { contextWindow: raw.contextWindow as number },
-    ...raw.maxContextWindow === undefined ? {} : { maxContextWindow: raw.maxContextWindow as number },
-    ...raw.maxOutputTokens === undefined ? {} : { maxOutputTokens: raw.maxOutputTokens as number },
-    ...raw.priority === undefined ? {} : { priority: raw.priority as number },
-    ...reasoning === undefined ? {} : { reasoning },
-    ...thinkingType === undefined ? {} : { thinkingType: thinkingType as 'enabled' | 'adaptive' },
-    ...fastTier === undefined ? {} : { fastTier },
-    ...copilotWire === undefined ? {} : { copilotWire: copilotWire as 'chat-completions' | 'responses' },
-    ...copilotResponses === undefined ? {} : { copilotResponses },
-    ...inputModalities === undefined ? {} : { inputModalities: [...inputModalities] as ('text' | 'image')[] },
+    ...(raw.description === undefined
+      ? {}
+      : { description: raw.description as string }),
+    ...(raw.contextWindow === undefined
+      ? {}
+      : { contextWindow: raw.contextWindow as number }),
+    ...(raw.maxContextWindow === undefined
+      ? {}
+      : { maxContextWindow: raw.maxContextWindow as number }),
+    ...(raw.maxOutputTokens === undefined
+      ? {}
+      : { maxOutputTokens: raw.maxOutputTokens as number }),
+    ...(raw.priority === undefined ? {} : { priority: raw.priority as number }),
+    ...(reasoning === undefined ? {} : { reasoning }),
+    ...(thinkingType === undefined
+      ? {}
+      : { thinkingType: thinkingType as 'enabled' | 'adaptive' }),
+    ...(fastTier === undefined ? {} : { fastTier }),
+    ...(copilotWire === undefined
+      ? {}
+      : { copilotWire: copilotWire as 'chat-completions' | 'responses' }),
+    ...(copilotResponses === undefined ? {} : { copilotResponses }),
+    ...(inputModalities === undefined
+      ? {}
+      : { inputModalities: [...inputModalities] as ('text' | 'image')[] }),
   }
 }
 
@@ -152,7 +222,8 @@ async function readCatalogFile(path: string): Promise<CatalogFile> {
   }
   try {
     const parsed: unknown = JSON.parse(text)
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {}
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed))
+      return {}
     return parsed as CatalogFile
   } catch {
     return {}
@@ -167,7 +238,11 @@ async function readCatalogFile(path: string): Promise<CatalogFile> {
  * briefly before giving the write up: on POSIX those codes are real
  * failures, so retrying would only delay surfacing them.
  */
-const RENAME_RETRY_CODES: ReadonlySet<string> = new Set(['EPERM', 'EBUSY', 'EACCES'])
+const RENAME_RETRY_CODES: ReadonlySet<string> = new Set([
+  'EPERM',
+  'EBUSY',
+  'EACCES',
+])
 const RENAME_RETRIES = 5
 const RENAME_RETRY_DELAY_MS = 20
 
@@ -179,17 +254,25 @@ async function renameWithRetry(from: string, to: string): Promise<void> {
       return
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code
-      if (process.platform !== 'win32'
-        || attempt >= RENAME_RETRIES
-        || code === undefined
-        || !RENAME_RETRY_CODES.has(code)) throw error
-      await new Promise(resolve => setTimeout(resolve, RENAME_RETRY_DELAY_MS * (attempt + 1)))
+      if (
+        process.platform !== 'win32' ||
+        attempt >= RENAME_RETRIES ||
+        code === undefined ||
+        !RENAME_RETRY_CODES.has(code)
+      )
+        throw error
+      await new Promise((resolve) =>
+        setTimeout(resolve, RENAME_RETRY_DELAY_MS * (attempt + 1)),
+      )
     }
   }
 }
 
 /** Persist the whole file atomically (tmp file + rename). */
-async function writeCatalogFile(store: CatalogFile, path: string): Promise<void> {
+async function writeCatalogFile(
+  store: CatalogFile,
+  path: string,
+): Promise<void> {
   await mkdir(dirname(path), { recursive: true })
   const tmp = `${path}.tmp-${process.pid}-${Math.random().toString(36).slice(2)}`
   try {
@@ -210,11 +293,17 @@ async function writeCatalogFile(store: CatalogFile, path: string): Promise<void>
  */
 const writeChains = new Map<string, Promise<unknown>>()
 
-async function serialize<T>(path: string, action: () => Promise<T>): Promise<T> {
+async function serialize<T>(
+  path: string,
+  action: () => Promise<T>,
+): Promise<T> {
   const key = resolve(path)
   const previous = writeChains.get(key) ?? Promise.resolve()
   const next = previous.then(action, action)
-  const tail = next.then(() => undefined, () => undefined)
+  const tail = next.then(
+    () => undefined,
+    () => undefined,
+  )
   writeChains.set(key, tail)
   try {
     return await next
@@ -231,7 +320,10 @@ async function serialize<T>(path: string, action: () => Promise<T>): Promise<T> 
  * @param path - store file path; defaults to {@link modelsFilePath}.
  * @returns the persistence hooks for {@link ModelCatalogCache}.
  */
-export function catalogStore(provider: ProviderId, path = modelsFilePath()): CatalogPersistence {
+export function catalogStore(
+  provider: ProviderId,
+  path = modelsFilePath(),
+): CatalogPersistence {
   return {
     async load() {
       return sanitizeSnapshot((await readCatalogFile(path))[provider])
@@ -265,19 +357,31 @@ export function catalogStore(provider: ProviderId, path = modelsFilePath()): Cat
  * @param path - store file path; defaults to {@link modelsFilePath}.
  * @returns the persistence hooks for {@link ModelCatalogCache}.
  */
-export function accountCatalogStore(provider: ProviderId, account: string, path = modelsFilePath()): CatalogPersistence {
+export function accountCatalogStore(
+  provider: ProviderId,
+  account: string,
+  path = modelsFilePath(),
+): CatalogPersistence {
   return {
     async load() {
       const section = accountSection(await readCatalogFile(path), provider)
-      return section !== undefined && Object.hasOwn(section, account) ? sanitizeSnapshot(section[account]) : undefined
+      return section !== undefined && Object.hasOwn(section, account)
+        ? sanitizeSnapshot(section[account])
+        : undefined
     },
     async save(snapshot) {
       return serialize(path, async () => {
         const store = await readCatalogFile(path)
-        const accounts = typeof store.accounts === 'object' && store.accounts !== null && !Array.isArray(store.accounts)
-          ? store.accounts as Record<string, unknown>
-          : {}
-        const section = { ...accountSection(store, provider) ?? {}, [account]: snapshot }
+        const accounts =
+          typeof store.accounts === 'object' &&
+          store.accounts !== null &&
+          !Array.isArray(store.accounts)
+            ? (store.accounts as Record<string, unknown>)
+            : {}
+        const section = {
+          ...(accountSection(store, provider) ?? {}),
+          [account]: snapshot,
+        }
         store.accounts = { ...accounts, [provider]: section }
         await writeCatalogFile(store, path)
       })
@@ -289,7 +393,10 @@ export function accountCatalogStore(provider: ProviderId, account: string, path 
         if (section === undefined || !Object.hasOwn(section, account)) return
         const rest = { ...section }
         delete rest[account]
-        store.accounts = { ...store.accounts as Record<string, unknown>, [provider]: rest }
+        store.accounts = {
+          ...(store.accounts as Record<string, unknown>),
+          [provider]: rest,
+        }
         await writeCatalogFile(store, path)
       })
     },

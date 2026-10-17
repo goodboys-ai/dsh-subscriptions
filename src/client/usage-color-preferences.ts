@@ -12,17 +12,21 @@ export function readUsageColorPreset(): UsageColorPreset {
     const value = window.localStorage.getItem(KEY)
     return isUsageColorPreset(value) ? value : 'standard'
   } catch (error) {
-    if (!(error instanceof DOMException) || error.name !== 'SecurityError') throw error
+    if (!(error instanceof DOMException) || error.name !== 'SecurityError')
+      throw error
     return 'standard'
   }
 }
 export function setUsageColorPreset(value: UsageColorPreset): void {
-  if (!isUsageColorPreset(value)) throw new TypeError('Invalid usage coloring preset')
+  if (!isUsageColorPreset(value))
+    throw new TypeError('Invalid usage coloring preset')
   window.localStorage.setItem(KEY, value)
   window.dispatchEvent(new Event(EVENT))
 }
 export function subscribeUsageColorPreset(notify: () => void): () => void {
-  const storage = (event: StorageEvent) => { if (event.key === KEY || event.key === null) notify() }
+  const storage = (event: StorageEvent) => {
+    if (event.key === KEY || event.key === null) notify()
+  }
   window.addEventListener(EVENT, notify)
   window.addEventListener('storage', storage)
   return () => {
@@ -31,5 +35,9 @@ export function subscribeUsageColorPreset(notify: () => void): () => void {
   }
 }
 export function useUsageColorPreset(): UsageColorPreset {
-  return useSyncExternalStore(subscribeUsageColorPreset, readUsageColorPreset, () => 'standard')
+  return useSyncExternalStore(
+    subscribeUsageColorPreset,
+    readUsageColorPreset,
+    () => 'standard',
+  )
 }

@@ -24,7 +24,9 @@ import { PROVIDER_IDS, type ProviderId } from './auth/store.js'
 /** One model id → its configured default reasoning effort id. */
 export type ModelDefaultMap = Readonly<Record<string, string>>
 /** Provider route → model defaults. */
-export type ModelDefaults = Readonly<Partial<Record<ProviderId, ModelDefaultMap>>>
+export type ModelDefaults = Readonly<
+  Partial<Record<ProviderId, ModelDefaultMap>>
+>
 
 /** Absolute path of the defaults file. */
 export function modelDefaultsFilePath(): string {
@@ -53,8 +55,12 @@ let writeChain: Promise<void> = Promise.resolve()
  * that provider. Dropped model ids are recorded in a test-only load warning;
  * production callers do not surface this warning.
  */
-function sanitizeProvider(value: unknown, dropped: string[]): ModelDefaultMap | undefined {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined
+function sanitizeProvider(
+  value: unknown,
+  dropped: string[],
+): ModelDefaultMap | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value))
+    return undefined
   const entries: Record<string, string> = {}
   for (const [model, effort] of Object.entries(value)) {
     if (typeof effort !== 'string' || effort.length === 0) {
@@ -68,8 +74,12 @@ function sanitizeProvider(value: unknown, dropped: string[]): ModelDefaultMap | 
 }
 
 /** Validate the raw document: only known providers, malformed sections dropped. */
-function sanitizeDefaults(value: unknown): { defaults: ModelDefaults; dropped: string[] } {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return { defaults: EMPTY, dropped: [] }
+function sanitizeDefaults(value: unknown): {
+  defaults: ModelDefaults
+  dropped: string[]
+} {
+  if (typeof value !== 'object' || value === null || Array.isArray(value))
+    return { defaults: EMPTY, dropped: [] }
   const record = value as Record<string, unknown>
   const result: Partial<Record<ProviderId, ModelDefaultMap>> = {}
   const dropped: string[] = []
@@ -91,12 +101,15 @@ async function loadFile(path: string): Promise<ModelDefaults> {
   }
   try {
     const { defaults, dropped } = sanitizeDefaults(JSON.parse(text))
-    if (dropped.length > 0) loadError = new Error(
-      `subscriptions model defaults: ${dropped.length} malformed entr${dropped.length === 1 ? 'y' : 'ies'} skipped (${dropped.join(', ')}); fix or delete the file`,
-    )
+    if (dropped.length > 0)
+      loadError = new Error(
+        `subscriptions model defaults: ${dropped.length} malformed entr${dropped.length === 1 ? 'y' : 'ies'} skipped (${dropped.join(', ')}); fix or delete the file`,
+      )
     return defaults
   } catch {
-    throw new Error(`subscriptions model defaults at ${path} are not valid JSON; fix or delete the file`)
+    throw new Error(
+      `subscriptions model defaults at ${path} are not valid JSON; fix or delete the file`,
+    )
   }
 }
 
@@ -116,7 +129,10 @@ async function ensureReady(): Promise<void> {
 }
 
 /** Persist a snapshot atomically with owner-only permissions. */
-async function atomicPersist(defaults: ModelDefaults, path: string): Promise<void> {
+async function atomicPersist(
+  defaults: ModelDefaults,
+  path: string,
+): Promise<void> {
   await mkdir(dirname(path), { recursive: true })
   const tmp = `${path}.tmp-${process.pid}-${Math.random().toString(36).slice(2)}`
   try {
@@ -129,7 +145,8 @@ async function atomicPersist(defaults: ModelDefaults, path: string): Promise<voi
   }
 }
 
-let persistDefaults: (defaults: ModelDefaults, path: string) => Promise<void> = atomicPersist
+let persistDefaults: (defaults: ModelDefaults, path: string) => Promise<void> =
+  atomicPersist
 
 /**
  * Clone one provider section, or undefined when nothing is configured for it.
@@ -138,7 +155,10 @@ let persistDefaults: (defaults: ModelDefaults, path: string) => Promise<void> = 
  * catalog in index.ts does), so an id like `toString` would otherwise yield an
  * inherited *function* where a string is declared.
  */
-function sectionOf(defaults: ModelDefaults, provider: ProviderId): ModelDefaultMap | undefined {
+function sectionOf(
+  defaults: ModelDefaults,
+  provider: ProviderId,
+): ModelDefaultMap | undefined {
   const section = defaults[provider]
   if (section === undefined) return undefined
   return Object.assign(Object.create(null) as ModelDefaultMap, section)
@@ -167,14 +187,19 @@ export function modelDefaultsLoadError(): unknown {
  * picker then follows the provider's own default).
  * @internal Exported for the adapters' `defaultEffortOf` options.
  */
-export function defaultEffortOf(provider: ProviderId, model: string): string | undefined {
+export function defaultEffortOf(
+  provider: ProviderId,
+  model: string,
+): string | undefined {
   const section = current[provider]
   if (section === undefined) return undefined
   // Own-property lookup: a model id is provider-supplied catalog data, and a
   // plain index would inherit from Object.prototype for names like
   // `toString`, handing a *function* to mergeReasoning (which then throws and
   // breaks that model's resolution).
-  return Object.prototype.hasOwnProperty.call(section, model) ? section[model] : undefined
+  return Object.prototype.hasOwnProperty.call(section, model)
+    ? section[model]
+    : undefined
 }
 
 /**
@@ -209,7 +234,7 @@ export function setDefaultEffort(
   // shared chain.
   const run = writeChain.then(async () => {
     await ensureReady()
-    const section = { ...sectionOf(current, provider) ?? {} }
+    const section = { ...(sectionOf(current, provider) ?? {}) }
     if (effort === undefined) {
       delete section[model]
     } else {

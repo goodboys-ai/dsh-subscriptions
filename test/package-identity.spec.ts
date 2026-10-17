@@ -46,7 +46,11 @@ test('npm name, plugin name, client bundle id, and cordis insert name agree', ()
     ['tsdown client banner id', bannerId],
     ['cordis.patch.yml insert name', insertName],
   ] as const) {
-    assert.equal(value, packageName, `${label} (${value}) !== package.json name (${packageName})`)
+    assert.equal(
+      value,
+      packageName,
+      `${label} (${value}) !== package.json name (${packageName})`,
+    )
   }
 })
 
@@ -61,7 +65,10 @@ test('npm name, plugin name, client bundle id, and cordis insert name agree', ()
 
 function nonEmptyString(value: unknown, file: string, field: string): string {
   assert.equal(typeof value, 'string', `${file} meta.${field} must be a string`)
-  assert.ok((value as string).trim().length > 0, `${file} meta.${field} must be non-empty`)
+  assert.ok(
+    (value as string).trim().length > 0,
+    `${file} meta.${field} must be non-empty`,
+  )
   return value as string
 }
 
@@ -73,15 +80,28 @@ test('locale display metadata and package inclusion declarations are valid', () 
   for (const locale of ['en', 'zh']) {
     const rel = `locale/${locale}.json`
     const meta = JSON.parse(readFileSync(join(repoRoot, rel), 'utf8')).meta
-    assert.ok(meta && typeof meta === 'object', `${rel} must define a meta object`)
+    assert.ok(
+      meta && typeof meta === 'object',
+      `${rel} must define a meta object`,
+    )
     const title = nonEmptyString(meta.title, rel, 'title')
     const description = nonEmptyString(meta.description, rel, 'description')
     assert.equal(title, locale === 'en' ? 'DSH Subscriptions' : '订阅中心')
     // Guard against a copy-paste locale that ships one language twice.
     if (locale === 'zh') {
-      const enMeta = JSON.parse(readFileSync(join(repoRoot, 'locale/en.json'), 'utf8')).meta
-      assert.notEqual(title, enMeta.title, 'locale/zh.json title must not duplicate en.json')
-      assert.notEqual(description, enMeta.description, 'locale/zh.json description must not duplicate en.json')
+      const enMeta = JSON.parse(
+        readFileSync(join(repoRoot, 'locale/en.json'), 'utf8'),
+      ).meta
+      assert.notEqual(
+        title,
+        enMeta.title,
+        'locale/zh.json title must not duplicate en.json',
+      )
+      assert.notEqual(
+        description,
+        enMeta.description,
+        'locale/zh.json description must not duplicate en.json',
+      )
     }
   }
 
@@ -100,10 +120,24 @@ test('locale display metadata and package inclusion declarations are valid', () 
   // Check the declared local icon's path, type, and size. These assertions
   // do not validate SVG contents or the host's rendered image.
   const icon = pkg.icon
-  assert.equal(typeof icon, 'string', 'package.json must declare a top-level icon')
-  assert.ok(icon.startsWith('./'), `icon path must be relative to the package root (got ${icon})`)
-  assert.ok(!normalize(icon).startsWith('..'), `icon path must not escape the package directory`)
-  assert.match(icon, /\.(svg|png|jpe?g|webp)$/i, 'icon must be a host-supported image type')
+  assert.equal(
+    typeof icon,
+    'string',
+    'package.json must declare a top-level icon',
+  )
+  assert.ok(
+    icon.startsWith('./'),
+    `icon path must be relative to the package root (got ${icon})`,
+  )
+  assert.ok(
+    !normalize(icon).startsWith('..'),
+    `icon path must not escape the package directory`,
+  )
+  assert.match(
+    icon,
+    /\.(svg|png|jpe?g|webp)$/i,
+    'icon must be a host-supported image type',
+  )
   const iconAbs = join(repoRoot, icon)
   assert.ok(existsSync(iconAbs), `declared icon does not exist: ${icon}`)
   assert.ok(

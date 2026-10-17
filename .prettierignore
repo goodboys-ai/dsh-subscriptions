@@ -1,0 +1,13 @@
+node_modules
+lib
+lib-test
+vendor
+pnpm-lock.yaml
+*.tgz
+.stryker-tmp
+reports
+coverage
+docs/upstream-README.md
+docs/upstream-README.zh.md
+# Archived notes are a frozen historical record. Do not reflow them.
+.agents/notes/archived/**

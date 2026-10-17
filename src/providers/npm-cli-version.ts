@@ -63,12 +63,17 @@ export class NpmCliVersionCache {
   }
 
   /** A manual catalog refresh also checks for a newly released CLI. */
-  invalidate(): void { this.expiresAt = 0 }
+  invalidate(): void {
+    this.expiresAt = 0
+  }
 
   resolve(): Promise<string> {
     if (this.pending !== undefined) return this.pending
-    if (this.presented !== undefined && this.now() < this.expiresAt) return Promise.resolve(this.presented.version)
-    this.pending = this.refresh().finally(() => { this.pending = undefined })
+    if (this.presented !== undefined && this.now() < this.expiresAt)
+      return Promise.resolve(this.presented.version)
+    this.pending = this.refresh().finally(() => {
+      this.pending = undefined
+    })
     return this.pending
   }
 
@@ -100,7 +105,8 @@ export class NpmCliVersionCache {
         if (typeof version !== 'string' || !STABLE_VERSION.test(version)) {
           throw new Error(`Invalid stable ${label} version`)
         }
-        if (compareVersions(version, current) < 0) throw new Error(`Older ${label} version`)
+        if (compareVersions(version, current) < 0)
+          throw new Error(`Older ${label} version`)
         return version
       }
       const timeout = new Promise<never>((_, reject) => {
@@ -110,7 +116,10 @@ export class NpmCliVersionCache {
         }, this.timeoutMs)
       })
       // Also bounded when an injected transport ignores cancellation.
-      this.presented = { version: await Promise.race([lookup(), timeout]), source: 'npm' }
+      this.presented = {
+        version: await Promise.race([lookup(), timeout]),
+        source: 'npm',
+      }
       this.expiresAt = this.now() + 6 * 60 * 60_000
     } catch {
       // Retain last-known good; on first use this is the floor.

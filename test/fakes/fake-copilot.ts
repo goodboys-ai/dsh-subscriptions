@@ -48,7 +48,8 @@ const COPILOT_DEVICE_TOKEN_URL = 'https://github.com/login/oauth/access_token'
 const COPILOT_MODELS_URL = 'https://api.githubcopilot.com/models'
 const COPILOT_TOKEN_URL = 'https://api.github.com/copilot_internal/v2/token'
 const GITHUB_USER_URL = 'https://api.github.com/user'
-const VSCODE_RELEASES_URL = 'https://update.code.visualstudio.com/api/releases/stable'
+const VSCODE_RELEASES_URL =
+  'https://update.code.visualstudio.com/api/releases/stable'
 
 export const FAKE_COPILOT_IDENTITY = {
   login: 'virtual-tester',
@@ -71,11 +72,32 @@ export interface FakeCopilot {
 
 function chatSseBody(): string {
   const events = [
-    { id: 'chatcmpl-1', choices: [{ index: 0, delta: { role: 'assistant', content: 'Hello, ' }, finish_reason: null }] },
-    { id: 'chatcmpl-1', choices: [{ index: 0, delta: { content: 'world!' }, finish_reason: null }] },
-    { id: 'chatcmpl-1', choices: [{ index: 0, delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } },
+    {
+      id: 'chatcmpl-1',
+      choices: [
+        {
+          index: 0,
+          delta: { role: 'assistant', content: 'Hello, ' },
+          finish_reason: null,
+        },
+      ],
+    },
+    {
+      id: 'chatcmpl-1',
+      choices: [
+        { index: 0, delta: { content: 'world!' }, finish_reason: null },
+      ],
+    },
+    {
+      id: 'chatcmpl-1',
+      choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+      usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+    },
   ]
-  return events.map(event => `data: ${JSON.stringify(event)}\n\n`).join('') + 'data: [DONE]\n\n'
+  return (
+    events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join('') +
+    'data: [DONE]\n\n'
+  )
 }
 
 /**
@@ -88,13 +110,20 @@ export function installFakeCopilot(t: TestContext): FakeCopilot {
   let pollsBeforeApproval = 1
   let tokenSerial = 0
 
-  const router = async (input: unknown, init?: RequestInit): Promise<Response> => {
+  const router = async (
+    input: unknown,
+    init?: RequestInit,
+  ): Promise<Response> => {
     const url = input instanceof Request ? input.url : String(input)
-    const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase()
+    const method = (
+      init?.method ?? (input instanceof Request ? input.method : 'GET')
+    ).toUpperCase()
     const headers: Record<string, string> = {}
     const rawHeaders = init?.headers
     if (rawHeaders !== undefined) {
-      new Headers(rawHeaders).forEach((v, k) => { headers[k.toLowerCase()] = v })
+      new Headers(rawHeaders).forEach((v, k) => {
+        headers[k.toLowerCase()] = v
+      })
     }
     let bodyText = ''
     if (init?.body !== undefined) {
@@ -128,7 +157,11 @@ export function installFakeCopilot(t: TestContext): FakeCopilot {
         pollsBeforeApproval -= 1
         return Response.json({ error: 'authorization_pending' })
       }
-      return Response.json({ access_token: 'fake-github-token', token_type: 'bearer', scope: 'read:user' })
+      return Response.json({
+        access_token: 'fake-github-token',
+        token_type: 'bearer',
+        scope: 'read:user',
+      })
     }
 
     // --- Copilot API token exchange: Bearer <redacted> GitHub token. ---
@@ -181,9 +214,14 @@ export function installFakeCopilot(t: TestContext): FakeCopilot {
     }
 
     if (url === COPILOT_API_URL && method === 'POST') {
-      return new Response(chatSseBody(), { headers: { 'content-type': 'text/event-stream' } })
+      return new Response(chatSseBody(), {
+        headers: { 'content-type': 'text/event-stream' },
+      })
     }
-    return new Response(`virtual copilot provider has no route for ${method} ${url}`, { status: 404 })
+    return new Response(
+      `virtual copilot provider has no route for ${method} ${url}`,
+      { status: 404 },
+    )
   }
 
   t.mock.method(globalThis, 'fetch', router)

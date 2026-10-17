@@ -10,18 +10,18 @@ from its official CLI, and MiniMax subscription usage was absent.
 
 ## Decision
 
-Keep absolute green/red fills when timing is unknown or readings are stale.
-Only fresh reliable intervals enable yellow warnings. Elapsed markers need
-only the window's own timing; see the
-[cursor note](2026-10-06-usage-cursor-timing-only.md).
-Invalid percentages never receive a fabricated fill.
+Keep absolute green/red fills when timing is unknown or readings are stale. Only
+fresh reliable intervals enable yellow warnings. Elapsed markers need only the
+window's own timing; see the
+[cursor note](2026-10-06-usage-cursor-timing-only.md). Invalid percentages never
+receive a fabricated fill.
 
 Codex uses its reported duration with reset. Claude session and weekly buckets
 supply five-hour and seven-day durations in both supported response shapes.
 OpenCode Go's five-hour counter is first-use anchored; weekly resets at UTC
 Monday. Its monthly window is a subscription-anchored calendar month, so reset
-alone does not establish the start. Pace and verified timing never treat it
-as thirty days; a display-only marker later assumed that span (see the
+alone does not establish the start. Pace and verified timing never treat it as
+thirty days; a display-only marker later assumed that span (see the
 [display-start note](2026-10-12-display-only-assumed-window-start.md)).
 
 Kimi reads the official CLI's `usage` and `limits[].detail/window` count schema
@@ -38,14 +38,14 @@ subscription key in the host model settings therefore requires no second key.
 Usage-only integrations reuse the host's credential references rather than
 introducing a parallel configuration. Key presence means configured, not that
 subscription quota is available; key type and the quota response determine
-support. Finite quotas preserve model scope and API millisecond bounds.
-Explicit remaining percentages win and need no counts; absent percentages use
-the official CLI's legacy remaining-count convention, which does need a
-positive total (see the
+support. Finite quotas preserve model scope and API millisecond bounds. Explicit
+remaining percentages win and need no counts; absent percentages use the
+official CLI's legacy remaining-count convention, which does need a positive
+total (see the
 [percentage-only note](../provider/2026-10-06-minimax-percentage-only-windows.md)).
-Unlimited and boosted-above-100% pools
-are omitted rather than forced into finite bars. HTTP and business errors fail
-without exposing keys. Pay-as-you-go keys are not subscription credentials.
+Unlimited and boosted-above-100% pools are omitted rather than forced into
+finite bars. HTTP and business errors fail without exposing keys. Pay-as-you-go
+keys are not subscription credentials.
 
 ## Sources
 
@@ -63,9 +63,9 @@ Adapter tests exercise fixed-window metadata through elapsed percentage and
 color classification, not only object shape. Kimi tests cover official counts,
 remaining values and uncertain summary timing. MiniMax tests cover millisecond
 bounds, explicit percentages with and without counts, legacy counts, region
-routing and error states.
-No real account credentials or live quota responses were used. Official source
-fixtures prove parsing, not deployment parity or each account's plan semantics.
+routing and error states. No real account credentials or live quota responses
+were used. Official source fixtures prove parsing, not deployment parity or each
+account's plan semantics.
 
 ## Alternatives considered
 
@@ -88,6 +88,6 @@ routes pay-as-you-go keys to balance queries, not subscription quota endpoints.
 The UI remains visible without guessing calendar-month boundaries. MiniMax is
 usage-only and does not register models or add an OAuth login. Unsupported
 unlimited or boosted pools need a richer non-percentage UI before they can be
-shown accurately. Where Kimi's span is only assumed (the summary row, the
-legacy monthly pool), the marker is display-only, not evidence; a declared
-7 DAY window keeps its fixed-window claim.
+shown accurately. Where Kimi's span is only assumed (the summary row, the legacy
+monthly pool), the marker is display-only, not evidence; a declared 7 DAY window
+keeps its fixed-window claim.

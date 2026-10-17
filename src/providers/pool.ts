@@ -22,9 +22,18 @@ import type {
 } from '@deepseek-ai/dsh-llm'
 import type { ProviderId } from '../auth/store.js'
 import type { AccountAwareAdapter } from './accounts.js'
-import type { ConcretePoolMember, PoolDefinition, PoolMemberRef } from './pool-family.js'
+import type {
+  ConcretePoolMember,
+  PoolDefinition,
+  PoolMemberRef,
+} from './pool-family.js'
 import { poolKey } from './pool-family.js'
-import { accountKey, classifyPoolFailure, memberKey, PoolHealthRegistry } from './pool-health.js'
+import {
+  accountKey,
+  classifyPoolFailure,
+  memberKey,
+  PoolHealthRegistry,
+} from './pool-health.js'
 import type { MemberQuota, PoolUsageTracker } from './pool-usage.js'
 import { streamAccountWithReplay } from './replay.js'
 
@@ -74,7 +83,8 @@ export class PoolAdapter extends LlmAdapter {
    * provider's catalog and account store, so recompute at most this often.
    * Auth changes bump {@link generation} so a stale snapshot cannot land.
    */
-  private poolsCache: { at: number; pools: Map<string, PoolDefinition> } | undefined
+  private poolsCache:
+    { at: number; pools: Map<string, PoolDefinition> } | undefined
   private poolsInflight: Promise<Map<string, PoolDefinition>> | undefined
   private generation = 0
 
@@ -97,25 +107,33 @@ export class PoolAdapter extends LlmAdapter {
   }
 
   /** Drop members whose adapter is not registered (copy — caller state is shared). */
-  private usable(pools: Map<string, PoolDefinition>): Map<string, PoolDefinition> {
+  private usable(
+    pools: Map<string, PoolDefinition>,
+  ): Map<string, PoolDefinition> {
     const result = new Map<string, PoolDefinition>(pools)
     for (const [id, definition] of [...result]) {
-      const kept = definition.members.filter(member => this.options.adapters[member.provider] !== undefined)
+      const kept = definition.members.filter(
+        (member) => this.options.adapters[member.provider] !== undefined,
+      )
       if (kept.length === 0) result.delete(id)
-      else if (kept.length < definition.members.length) result.set(id, { ...definition, members: kept })
+      else if (kept.length < definition.members.length)
+        result.set(id, { ...definition, members: kept })
     }
     return result
   }
 
   /** Account pools (auto-aggregated plus config overrides) with usable members. */
   private async familyPools(): Promise<Map<string, PoolDefinition>> {
-    return this.usable(new Map<string, PoolDefinition>(await this.options.families()))
+    return this.usable(
+      new Map<string, PoolDefinition>(await this.options.families()),
+    )
   }
 
   /** All pools (account pools merged with extra tiers) with usable members. */
   private async pools(): Promise<Map<string, PoolDefinition>> {
     const cached = this.poolsCache
-    if (cached !== undefined && Date.now() - cached.at < POOLS_CACHE_TTL_MS) return cached.pools
+    if (cached !== undefined && Date.now() - cached.at < POOLS_CACHE_TTL_MS)
+      return cached.pools
     const gen = this.generation
     this.poolsInflight ??= this.assemblePools()
       .then((pools) => {
@@ -135,7 +153,10 @@ export class PoolAdapter extends LlmAdapter {
       if (members.length === 0) continue
       const owner = members[0].provider
       const key = poolKey(owner, id)
-      if (pools.has(key)) this.warnOnce(`tier pool "${id}" overrides the account pool of the same id under ${owner}`)
+      if (pools.has(key))
+        this.warnOnce(
+          `tier pool "${id}" overrides the account pool of the same id under ${owner}`,
+        )
       pools.set(key, { members, extra: true })
     }
     return this.usable(pools)
@@ -157,7 +178,9 @@ export class PoolAdapter extends LlmAdapter {
         provider,
         id,
         name: definition.name ?? id,
-        ...definition.description === undefined ? {} : { description: definition.description },
+        ...(definition.description === undefined
+          ? {}
+          : { description: definition.description }),
       })
     }
     return models
@@ -176,13 +199,19 @@ export class PoolAdapter extends LlmAdapter {
    * default account") and drop members with no resolvable login. Duplicates
    * collapse — an explicitly pinned account and the default may coincide.
    */
-  private async concrete(members: readonly PoolMemberRef[]): Promise<ConcretePoolMember[]> {
+  private async concrete(
+    members: readonly PoolMemberRef[],
+  ): Promise<ConcretePoolMember[]> {
     const seen = new Set<string>()
     const resolved: ConcretePoolMember[] = []
     for (const member of members) {
-      const requested = member.account ?? await this.options.defaultAccount(member.provider)
+      const requested =
+        member.account ?? (await this.options.defaultAccount(member.provider))
       if (requested === undefined) continue
-      const account = await (this.options.resolveAccount?.(member.provider, requested) ?? Promise.resolve(requested))
+      const account = await (this.options.resolveAccount?.(
+        member.provider,
+        requested,
+      ) ?? Promise.resolve(requested))
       const key = memberKey(member.provider, account, member.model)
       if (seen.has(key)) continue
       seen.add(key)
@@ -198,9 +227,13 @@ export class PoolAdapter extends LlmAdapter {
    * so a request valid for the pool stays valid after a failover. Capability
    * metadata is account-specific, so every distinct member is resolved.
    */
-  override async resolveModel(provider: string, model: string): Promise<LlmResolvedModelInfo> {
+  override async resolveModel(
+    provider: string,
+    model: string,
+  ): Promise<LlmResolvedModelInfo> {
     const definition = (await this.pools()).get(poolKey(provider, model))
-    if (definition === undefined) throw new LlmError(`unknown pool model "${model}"`, 'NO_ADAPTER')
+    if (definition === undefined)
+      throw new LlmError(`unknown pool model "${model}"`, 'NO_ADAPTER')
     const resolved: LlmResolvedModelInfo[] = []
     let lastFailure: unknown
     const members = await this.concrete(definition.members)
@@ -211,33 +244,49 @@ export class PoolAdapter extends LlmAdapter {
       // logged-out provider throwing AUTH): the pool serves as long as ONE
       // member resolves, mirroring stream()'s failover semantics.
       try {
-        resolved.push(await adapter.resolveOwnModel(member.provider, member.model, member.account))
+        resolved.push(
+          await adapter.resolveOwnModel(
+            member.provider,
+            member.model,
+            member.account,
+          ),
+        )
       } catch (error: unknown) {
         lastFailure = error
         this.warnOnce(
-          `pool "${model}": member ${memberLabel(member)} failed to resolve`
-          + ` (${error instanceof Error ? error.message : String(error)}); excluding it`,
+          `pool "${model}": member ${memberLabel(member)} failed to resolve` +
+            ` (${error instanceof Error ? error.message : String(error)}); excluding it`,
         )
       }
     }
     if (resolved.length === 0) {
       throw new LlmError(`pool "${model}" has no usable member`, 'NO_ADAPTER', {
-        ...lastFailure === undefined ? {} : { cause: lastFailure },
+        ...(lastFailure === undefined ? {} : { cause: lastFailure }),
       })
     }
-    const contextWindows = resolved.map(info => info.context?.contextWindow).filter(isNumber)
-    const maxTokens = resolved.map(info => info.defaultMaxTokens).filter(isNumber)
+    const contextWindows = resolved
+      .map((info) => info.context?.contextWindow)
+      .filter(isNumber)
+    const maxTokens = resolved
+      .map((info) => info.defaultMaxTokens)
+      .filter(isNumber)
     const reasoning = intersectReasoning(resolved)
     const modalities = intersectModalities(resolved)
     return {
       provider,
       id: model,
       name: definition.name ?? model,
-      ...definition.description === undefined ? {} : { description: definition.description },
-      ...contextWindows.length > 0 ? { context: { contextWindow: Math.min(...contextWindows) } } : {},
-      ...maxTokens.length > 0 ? { defaultMaxTokens: Math.min(...maxTokens) } : {},
-      ...reasoning === undefined ? {} : { reasoning },
-      ...modalities === undefined ? {} : { inputModalities: modalities },
+      ...(definition.description === undefined
+        ? {}
+        : { description: definition.description }),
+      ...(contextWindows.length > 0
+        ? { context: { contextWindow: Math.min(...contextWindows) } }
+        : {}),
+      ...(maxTokens.length > 0
+        ? { defaultMaxTokens: Math.min(...maxTokens) }
+        : {}),
+      ...(reasoning === undefined ? {} : { reasoning }),
+      ...(modalities === undefined ? {} : { inputModalities: modalities }),
     }
   }
 
@@ -248,28 +297,42 @@ export class PoolAdapter extends LlmAdapter {
    * Pure quota/rate exhaustion retains RATE_LIMIT and this pool's earliest recovery hint.
    */
   async *stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
-    const definition = (await this.pools()).get(poolKey(options.provider, options.model))
-    if (definition === undefined) throw new LlmError(`unknown pool model "${options.model}"`, 'NO_ADAPTER')
+    const definition = (await this.pools()).get(
+      poolKey(options.provider, options.model),
+    )
+    if (definition === undefined)
+      throw new LlmError(`unknown pool model "${options.model}"`, 'NO_ADAPTER')
     const members = await this.concrete(definition.members)
-    const candidates = await this.select(options.model, members, options.sessionId)
-    if (candidates.length === 0) throw this.exhaustedWithWarn(options.model, members)
+    const candidates = await this.select(
+      options.model,
+      members,
+      options.sessionId,
+    )
+    if (candidates.length === 0)
+      throw this.exhaustedWithWarn(options.model, members)
     const failures: LlmError[] = []
     for (const member of candidates) {
       const adapter = this.options.adapters[member.provider]
       if (adapter === undefined) continue
       const iterator = streamAccountWithReplay(
-        adapter, { ...options, provider: member.provider },
-        member.account, member.model,
+        adapter,
+        { ...options, provider: member.provider },
+        member.account,
+        member.model,
       )[Symbol.asyncIterator]()
       let first: IteratorResult<StreamChunk>
       try {
         first = await iterator.next()
         if (first.done === true) {
-          throw new LlmError(`${memberLabel(member)} returned an empty stream`, EMPTY_RESPONSE_CODE)
+          throw new LlmError(
+            `${memberLabel(member)} returned an empty stream`,
+            EMPTY_RESPONSE_CODE,
+          )
         }
       } catch (error: unknown) {
         const classification = classifyPoolFailure(error, member.provider)
-        if (classification.action === 'throw' || !(error instanceof LlmError)) throw error
+        if (classification.action === 'throw' || !(error instanceof LlmError))
+          throw error
         if ('cooldownMs' in classification) {
           this.options.health.markUnavailable(
             classification.scope === 'account'
@@ -281,13 +344,16 @@ export class PoolAdapter extends LlmAdapter {
           // A quota failure invalidates the cached usage snapshot so the NEXT
           // selection re-polls instead of trusting minutes-old percentages.
           // Transient/auth failures say nothing about quota — keep the cache.
-          if (classification.reason === QUOTA_EXCEEDED_CODE || classification.reason === 'RATE_LIMIT') {
+          if (
+            classification.reason === QUOTA_EXCEEDED_CODE ||
+            classification.reason === 'RATE_LIMIT'
+          ) {
             this.options.usage.invalidate(member.provider, member.account)
           }
         }
         this.options.onWarn(
-          `pool "${options.model}": ${memberLabel(member)} failed before any output`
-          + ` (${error instanceof Error ? error.message : String(error)}); trying the next member`,
+          `pool "${options.model}": ${memberLabel(member)} failed before any output` +
+            ` (${error instanceof Error ? error.message : String(error)}); trying the next member`,
         )
         failures.push(error)
         continue
@@ -301,7 +367,11 @@ export class PoolAdapter extends LlmAdapter {
       // must not linger holding its connection.
       try {
         yield first.value
-        for (let next = await iterator.next(); next.done !== true; next = await iterator.next()) {
+        for (
+          let next = await iterator.next();
+          next.done !== true;
+          next = await iterator.next()
+        ) {
           yield next.value
         }
       } finally {
@@ -329,30 +399,54 @@ export class PoolAdapter extends LlmAdapter {
     members: ConcretePoolMember[],
     sessionId: GenerateOptions['sessionId'],
   ): Promise<ConcretePoolMember[]> {
-    const usable = members.filter(member =>
-      this.options.adapters[member.provider] !== undefined
-      && this.options.health.isMemberAvailable(member.provider, member.account, member.model))
+    const usable = members.filter(
+      (member) =>
+        this.options.adapters[member.provider] !== undefined &&
+        this.options.health.isMemberAvailable(
+          member.provider,
+          member.account,
+          member.model,
+        ),
+    )
     if (usable.length === 0) return []
-    const stickyMember = sessionId === undefined
-      ? undefined
-      : usable.find(member =>
-        memberKey(member.provider, member.account, member.model) === this.sticky.get(stickyKey(poolId, sessionId)))
+    const stickyMember =
+      sessionId === undefined
+        ? undefined
+        : usable.find(
+            (member) =>
+              memberKey(member.provider, member.account, member.model) ===
+              this.sticky.get(stickyKey(poolId, sessionId)),
+          )
     if (this.options.strategy === 'priority') {
       return stickyMember === undefined
         ? usable
-        : [stickyMember, ...usable.filter(member => member !== stickyMember)]
+        : [stickyMember, ...usable.filter((member) => member !== stickyMember)]
     }
     const quotas = new Map<ConcretePoolMember, MemberQuota>(
-      await Promise.all(usable.map(async member => [member, await this.options.usage.quotaFor(member)] as const)),
+      await Promise.all(
+        usable.map(
+          async (member) =>
+            [member, await this.options.usage.quotaFor(member)] as const,
+        ),
+      ),
     )
-    const scored = usable.filter(member => quotas.get(member)?.available === true)
-    const quotaFull = usable.filter(member => quotas.get(member)?.available === false)
-    scored.sort((a, b) => (quotas.get(b)?.urgency ?? 0) - (quotas.get(a)?.urgency ?? 0))
+    const scored = usable.filter(
+      (member) => quotas.get(member)?.available === true,
+    )
+    const quotaFull = usable.filter(
+      (member) => quotas.get(member)?.available === false,
+    )
+    scored.sort(
+      (a, b) => (quotas.get(b)?.urgency ?? 0) - (quotas.get(a)?.urgency ?? 0),
+    )
     if (stickyMember !== undefined && scored.includes(stickyMember)) {
       const best = scored[0]
       const stickyUrgency = quotas.get(stickyMember)?.urgency ?? 0
       const bestUrgency = quotas.get(best)?.urgency ?? 0
-      if (best === stickyMember || bestUrgency <= stickyUrgency * this.options.switchMargin) {
+      if (
+        best === stickyMember ||
+        bestUrgency <= stickyUrgency * this.options.switchMargin
+      ) {
         // Sticky holds (no challenger beats it by the margin): lead with it.
         scored.splice(scored.indexOf(stickyMember), 1)
         scored.unshift(stickyMember)
@@ -362,7 +456,11 @@ export class PoolAdapter extends LlmAdapter {
   }
 
   /** Pin the serving member to the session (with bounded memory). */
-  private remember(poolId: string, sessionId: GenerateOptions['sessionId'], member: ConcretePoolMember): void {
+  private remember(
+    poolId: string,
+    sessionId: GenerateOptions['sessionId'],
+    member: ConcretePoolMember,
+  ): void {
     if (sessionId === undefined) return
     const key = stickyKey(poolId, sessionId)
     this.sticky.delete(key)
@@ -370,7 +468,10 @@ export class PoolAdapter extends LlmAdapter {
       const oldest = this.sticky.keys().next()
       if (oldest.done !== true) this.sticky.delete(oldest.value)
     }
-    this.sticky.set(key, memberKey(member.provider, member.account, member.model))
+    this.sticky.set(
+      key,
+      memberKey(member.provider, member.account, member.model),
+    )
   }
 
   /**
@@ -380,16 +481,29 @@ export class PoolAdapter extends LlmAdapter {
    * LlmError's own sanitized text and code — raw provider payloads never
    * reach here (see the note in {@link exhausted}).
    */
-  private exhaustedWithWarn(model: string, pool: ConcretePoolMember[], failures: readonly LlmError[] = []): LlmError {
+  private exhaustedWithWarn(
+    model: string,
+    pool: ConcretePoolMember[],
+    failures: readonly LlmError[] = [],
+  ): LlmError {
     const error = this.exhausted(model, pool, failures)
-    this.options.onWarn(`pool "${model}": exhausted (${error.code}: ${error.message})`)
+    this.options.onWarn(
+      `pool "${model}": exhausted (${error.code}: ${error.message})`,
+    )
     return error
   }
 
   /** Report attempt failures or this pool's active cooldowns, never unrelated health records. */
-  private exhausted(model: string, pool: ConcretePoolMember[], failures: readonly LlmError[] = []): LlmError {
+  private exhausted(
+    model: string,
+    pool: ConcretePoolMember[],
+    failures: readonly LlmError[] = [],
+  ): LlmError {
     if (pool.length === 0) {
-      return new LlmError(`pool "${model}" has no usable member: no account could be resolved`, 'NO_ADAPTER')
+      return new LlmError(
+        `pool "${model}" has no usable member: no account could be resolved`,
+        'NO_ADAPTER',
+      )
     }
     const keys = new Set<string>()
     for (const member of pool) {
@@ -397,10 +511,12 @@ export class PoolAdapter extends LlmAdapter {
       keys.add(accountKey(member.provider, member.account))
     }
     const recovery = this.options.health.earliestRecovery(keys)
-    const retryAfterMs = recovery === undefined ? undefined : Math.max(recovery - Date.now(), 1)
+    const retryAfterMs =
+      recovery === undefined ? undefined : Math.max(recovery - Date.now(), 1)
     const coolingReasons = this.options.health.unavailableReasons(keys)
-    const codes = [...failures.map(error => error.code), ...coolingReasons]
-    if (codes.length === 0) return new LlmError(`pool "${model}" has no usable member`, 'NO_ADAPTER')
+    const codes = [...failures.map((error) => error.code), ...coolingReasons]
+    if (codes.length === 0)
+      return new LlmError(`pool "${model}" has no usable member`, 'NO_ADAPTER')
     const quotaOnly = codes.every(isQuotaFailure)
     if (failures.length === 1 && !isQuotaFailure(failures[0]!.code)) {
       const failure = failures[0]!
@@ -414,21 +530,34 @@ export class PoolAdapter extends LlmAdapter {
       // Keep the error object itself. LlmError freezes its facts snapshot, so
       // replace that snapshot to correct only providerRetryAfterMs for pool
       // routing; this is not permission to rewrite other frozen failure facts.
-      if (retryAfterMs !== undefined && retryAfterMs !== failure.failure.providerRetryAfterMs) {
+      if (
+        retryAfterMs !== undefined &&
+        retryAfterMs !== failure.failure.providerRetryAfterMs
+      ) {
         Object.defineProperty(failure, 'failure', {
-          value: Object.freeze({ ...failure.failure, providerRetryAfterMs: retryAfterMs }),
+          value: Object.freeze({
+            ...failure.failure,
+            providerRetryAfterMs: retryAfterMs,
+          }),
         })
       }
       return failure
     }
-    const attemptedCodes = failures.map(error => error.code)
-    const details = [...attemptedCodes, ...coolingReasons.filter(code => !attemptedCodes.includes(code))]
+    const attemptedCodes = failures.map((error) => error.code)
+    const details = [
+      ...attemptedCodes,
+      ...coolingReasons.filter((code) => !attemptedCodes.includes(code)),
+    ]
     const summary = failureSummary(details)
-    const cause = failures.length === 0
-      ? undefined
-      : failures.length === 1
-        ? failures[0]
-        : new AggregateError(failures, `${failures.length} pool members failed: ${summary}`)
+    const cause =
+      failures.length === 0
+        ? undefined
+        : failures.length === 1
+          ? failures[0]
+          : new AggregateError(
+              failures,
+              `${failures.length} pool members failed: ${summary}`,
+            )
     // Subscription quotas reopen: preserve the existing retry classification and text.
     const message = quotaOnly
       ? `pool "${model}" exhausted: every member is unavailable or failed`
@@ -439,11 +568,13 @@ export class PoolAdapter extends LlmAdapter {
     // merely because the last member hit its quota. No new aggregate error code.
     const code = quotaOnly
       ? 'RATE_LIMIT'
-      : attemptedCodes.filter(code => !isQuotaFailure(code)).at(-1)
-        ?? coolingReasons.filter(code => !isQuotaFailure(code)).at(-1)!
+      : (attemptedCodes.filter((code) => !isQuotaFailure(code)).at(-1) ??
+        coolingReasons.filter((code) => !isQuotaFailure(code)).at(-1)!)
     return new LlmError(message, code, {
-      ...retryAfterMs === undefined ? {} : { providerRetryAfterMs: retryAfterMs },
-      ...cause === undefined ? {} : { cause },
+      ...(retryAfterMs === undefined
+        ? {}
+        : { providerRetryAfterMs: retryAfterMs }),
+      ...(cause === undefined ? {} : { cause }),
     })
   }
 }
@@ -468,15 +599,20 @@ function failureSummary(codes: readonly string[]): string {
     RATE_LIMIT: 'provider rate limit reached',
   }
   const limit = 5
-  const shown = codes.slice(0, limit).map(code => {
+  const shown = codes.slice(0, limit).map((code) => {
     const description = descriptions[code]
-    return description === undefined ? 'member unavailable' : `${code}: ${description}`
+    return description === undefined
+      ? 'member unavailable'
+      : `${code}: ${description}`
   })
   if (codes.length > limit) shown.push(`${codes.length - limit} more`)
   return shown.join('; ')
 }
 
-function stickyKey(poolId: string, sessionId: NonNullable<GenerateOptions['sessionId']>): string {
+function stickyKey(
+  poolId: string,
+  sessionId: NonNullable<GenerateOptions['sessionId']>,
+): string {
   return `${String(sessionId)}|${poolId}`
 }
 
@@ -490,14 +626,20 @@ function intersectReasoning(
 ): LlmResolvedModelInfo['reasoning'] | undefined {
   const [first, ...rest] = resolved
   if (first?.reasoning === undefined) return undefined
-  const efforts = first.reasoning.efforts.filter(effort =>
-    rest.every(info => info.reasoning?.efforts.some(other => other.id === effort.id) === true))
+  const efforts = first.reasoning.efforts.filter((effort) =>
+    rest.every(
+      (info) =>
+        info.reasoning?.efforts.some((other) => other.id === effort.id) ===
+        true,
+    ),
+  )
   if (efforts.length === 0) return undefined
-  const defaultEffort = first.reasoning.defaultEffort !== undefined
-    && efforts.some(effort => effort.id === first.reasoning?.defaultEffort)
-    ? first.reasoning.defaultEffort
-    : undefined
-  return { efforts, ...defaultEffort === undefined ? {} : { defaultEffort } }
+  const defaultEffort =
+    first.reasoning.defaultEffort !== undefined &&
+    efforts.some((effort) => effort.id === first.reasoning?.defaultEffort)
+      ? first.reasoning.defaultEffort
+      : undefined
+  return { efforts, ...(defaultEffort === undefined ? {} : { defaultEffort }) }
 }
 
 /** Modalities all members accept; undefined when any member leaves it unknown. */
@@ -506,8 +648,9 @@ function intersectModalities(
 ): LlmResolvedModelInfo['inputModalities'] | undefined {
   const [first, ...rest] = resolved
   if (first?.inputModalities === undefined) return undefined
-  const modalities = first.inputModalities.filter(modality =>
-    rest.every(info => info.inputModalities?.includes(modality) === true))
+  const modalities = first.inputModalities.filter((modality) =>
+    rest.every((info) => info.inputModalities?.includes(modality) === true),
+  )
   // An empty intersection would declare negative capability ("accepts
   // nothing"); report unknown instead — the serving member enforces its own
   // limits at request time.

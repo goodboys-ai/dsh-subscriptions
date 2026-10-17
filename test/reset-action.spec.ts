@@ -4,7 +4,10 @@ import { resetActionBlock } from '../src/client/reset-action.js'
 
 const now = 1000
 function usage(percent: number, id: string | undefined = 'credit') {
-  return { windows: [{ kind: 'weekly', usedPercent: percent, resetsAt: 2000 }], resetCredits: [{ ...(id ? { id } : {}), expiresAt: 3000 }] }
+  return {
+    windows: [{ kind: 'weekly', usedPercent: percent, resetsAt: 2000 }],
+    resetCredits: [{ ...(id ? { id } : {}), expiresAt: 3000 }],
+  }
 }
 test('reset action allows 80% and 92%, explains disabled lower usage', () => {
   assert.equal(resetActionBlock(usage(54), now), 'resetUseGuard')

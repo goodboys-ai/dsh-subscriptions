@@ -13,7 +13,11 @@ import { syncBuiltinESMExports } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
-import { accountCatalogStore, catalogStore, sanitizeSnapshot } from '../src/providers/catalog-store.js'
+import {
+  accountCatalogStore,
+  catalogStore,
+  sanitizeSnapshot,
+} from '../src/providers/catalog-store.js'
 
 async function tempStorePath(t: TestContext): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'dsh-models-'))
@@ -28,17 +32,30 @@ test('catalog store round-trips per-provider snapshots in one file', async (t) =
   const codex = catalogStore('codex', path)
   await grok.save({
     at: 123,
-    models: [{
-      id: 'grok-4.6',
-      name: 'Grok 4.6',
-      contextWindow: 500_000,
-      reasoning: {
-        efforts: [{ id: ReasoningEffortId('high'), name: 'High Effort', description: 'extensive' }],
-        defaultEffort: ReasoningEffortId('high'),
+    models: [
+      {
+        id: 'grok-4.6',
+        name: 'Grok 4.6',
+        contextWindow: 500_000,
+        reasoning: {
+          efforts: [
+            {
+              id: ReasoningEffortId('high'),
+              name: 'High Effort',
+              description: 'extensive',
+            },
+          ],
+          defaultEffort: ReasoningEffortId('high'),
+        },
       },
-    }],
+    ],
   })
-  await codex.save({ at: 456, models: [{ id: 'gpt-5.2-codex', name: 'GPT-5.2 Codex', maxContextWindow: 872000 }] })
+  await codex.save({
+    at: 456,
+    models: [
+      { id: 'gpt-5.2-codex', name: 'GPT-5.2 Codex', maxContextWindow: 872000 },
+    ],
+  })
 
   const loaded = await grok.load()
   assert.equal(loaded?.at, 123)
@@ -72,7 +89,10 @@ test('catalog store round-trips output token limits', async (t) => {
 
 test('catalog store accepts old caches without output token limits', async (t) => {
   const path = await tempStorePath(t)
-  const snapshot = { at: 123, models: [{ id: 'g', name: 'G', contextWindow: 500_000 }] }
+  const snapshot = {
+    at: 123,
+    models: [{ id: 'g', name: 'G', contextWindow: 500_000 }],
+  }
   await writeFile(path, JSON.stringify({ grok: snapshot }))
   const loaded = await catalogStore('grok', path).load()
   assert.deepEqual(loaded, snapshot)
@@ -81,16 +101,30 @@ test('catalog store accepts old caches without output token limits', async (t) =
 
 test('sanitizeSnapshot rejects invalid output token limits', () => {
   for (const maxOutputTokens of [
-    0, -1, 1.5, '32768', null, Number.MAX_SAFE_INTEGER + 1,
-    NaN, Infinity, -Infinity, true, {}, [],
+    0,
+    -1,
+    1.5,
+    '32768',
+    null,
+    Number.MAX_SAFE_INTEGER + 1,
+    NaN,
+    Infinity,
+    -Infinity,
+    true,
+    {},
+    [],
   ]) {
-    assert.equal(sanitizeSnapshot({
-      at: 123,
-      models: [
-        { id: 'valid', name: 'Valid' },
-        { id: 'invalid', name: 'Invalid', maxOutputTokens },
-      ],
-    }), undefined, `Invalid maxOutputTokens: ${String(maxOutputTokens)}`)
+    assert.equal(
+      sanitizeSnapshot({
+        at: 123,
+        models: [
+          { id: 'valid', name: 'Valid' },
+          { id: 'invalid', name: 'Invalid', maxOutputTokens },
+        ],
+      }),
+      undefined,
+      `Invalid maxOutputTokens: ${String(maxOutputTokens)}`,
+    )
   }
 })
 
@@ -114,22 +148,41 @@ test('sanitizeSnapshot drops malformed snapshots wholesale', () => {
   // A valid snapshot passes through.
   assert.notEqual(sanitizeSnapshot({ at: 1, models: [model] }), undefined)
   assert.notEqual(
-    sanitizeSnapshot({ at: 1, models: [{ ...model, reasoning: { efforts, defaultEffort: 'high' } }] }),
+    sanitizeSnapshot({
+      at: 1,
+      models: [{ ...model, reasoning: { efforts, defaultEffort: 'high' } }],
+    }),
     undefined,
   )
   // The codex fast-tier flag round-trips; a non-boolean one drops the snapshot.
   assert.equal(
-    sanitizeSnapshot({ at: 1, models: [{ ...model, fastTier: true }] })?.models[0].fastTier,
+    sanitizeSnapshot({ at: 1, models: [{ ...model, fastTier: true }] })
+      ?.models[0].fastTier,
     true,
   )
-  assert.equal(sanitizeSnapshot({ at: 1, models: [{ ...model, fastTier: 'yes' }] }), undefined)
+  assert.equal(
+    sanitizeSnapshot({ at: 1, models: [{ ...model, fastTier: 'yes' }] }),
+    undefined,
+  )
   // Copilot per-model modalities round-trip; malformed ones drop the snapshot.
   assert.deepEqual(
-    sanitizeSnapshot({ at: 1, models: [{ ...model, inputModalities: ['text', 'image'] }] })?.models[0].inputModalities,
+    sanitizeSnapshot({
+      at: 1,
+      models: [{ ...model, inputModalities: ['text', 'image'] }],
+    })?.models[0].inputModalities,
     ['text', 'image'],
   )
-  assert.equal(sanitizeSnapshot({ at: 1, models: [{ ...model, inputModalities: [] }] }), undefined)
-  assert.equal(sanitizeSnapshot({ at: 1, models: [{ ...model, inputModalities: ['video'] }] }), undefined)
+  assert.equal(
+    sanitizeSnapshot({ at: 1, models: [{ ...model, inputModalities: [] }] }),
+    undefined,
+  )
+  assert.equal(
+    sanitizeSnapshot({
+      at: 1,
+      models: [{ ...model, inputModalities: ['video'] }],
+    }),
+    undefined,
+  )
   // The Copilot wire choice and dual-protocol flag round-trip (a snapshot
   // losing them would route every restarted model to the chat wire); a
   // malformed value drops the snapshot.
@@ -139,8 +192,17 @@ test('sanitizeSnapshot drops malformed snapshots wholesale', () => {
   })?.models[0]
   assert.equal(copilot?.copilotWire, 'responses')
   assert.equal(copilot?.copilotResponses, true)
-  assert.equal(sanitizeSnapshot({ at: 1, models: [{ ...model, copilotWire: 'grpc' }] }), undefined)
-  assert.equal(sanitizeSnapshot({ at: 1, models: [{ ...model, copilotResponses: 'yes' }] }), undefined)
+  assert.equal(
+    sanitizeSnapshot({ at: 1, models: [{ ...model, copilotWire: 'grpc' }] }),
+    undefined,
+  )
+  assert.equal(
+    sanitizeSnapshot({
+      at: 1,
+      models: [{ ...model, copilotResponses: 'yes' }],
+    }),
+    undefined,
+  )
   for (const malformed of [
     undefined,
     null,
@@ -153,12 +215,32 @@ test('sanitizeSnapshot drops malformed snapshots wholesale', () => {
     { at: 1, models: [{ ...model, contextWindow: -5 }] },
     { at: 1, models: [{ ...model, description: 42 }] },
     { at: 1, models: [{ ...model, reasoning: { efforts: [] } }] },
-    { at: 1, models: [{ ...model, reasoning: { efforts: [{ id: 'high', name: '' }] } }] },
-    { at: 1, models: [{ ...model, reasoning: { efforts: [{ id: '', name: 'High' }] } }] },
-    { at: 1, models: [{ ...model, reasoning: { efforts, defaultEffort: 'unknown' } }] },
-    { at: 1, models: [{ ...model, reasoning: { efforts: [...efforts, ...efforts] } }] }, // duplicate efforts
+    {
+      at: 1,
+      models: [
+        { ...model, reasoning: { efforts: [{ id: 'high', name: '' }] } },
+      ],
+    },
+    {
+      at: 1,
+      models: [
+        { ...model, reasoning: { efforts: [{ id: '', name: 'High' }] } },
+      ],
+    },
+    {
+      at: 1,
+      models: [{ ...model, reasoning: { efforts, defaultEffort: 'unknown' } }],
+    },
+    {
+      at: 1,
+      models: [{ ...model, reasoning: { efforts: [...efforts, ...efforts] } }],
+    }, // duplicate efforts
   ]) {
-    assert.equal(sanitizeSnapshot(malformed), undefined, JSON.stringify(malformed))
+    assert.equal(
+      sanitizeSnapshot(malformed),
+      undefined,
+      JSON.stringify(malformed),
+    )
   }
 })
 
@@ -169,25 +251,50 @@ test('account catalog store keeps per-account snapshots apart from the provider 
   const account = accountCatalogStore('codex', key, path)
   const other = accountCatalogStore('codex', 'other', path)
   await provider.save({ at: 1, models: [{ id: 'gpt-5.1', name: 'GPT-5.1' }] })
-  await account.save({ at: 2, models: [{ id: 'gpt-6-astra', name: 'GPT-6 Astra', priority: 1 }] })
+  await account.save({
+    at: 2,
+    models: [{ id: 'gpt-6-astra', name: 'GPT-6 Astra', priority: 1 }],
+  })
   await other.save({ at: 3, models: [{ id: 'gpt-5.5', name: 'GPT-5.5' }] })
 
-  assert.deepEqual((await provider.load())?.models.map(model => model.id), ['gpt-5.1'])
-  assert.deepEqual((await account.load())?.models.map(model => model.id), ['gpt-6-astra'])
-  assert.deepEqual((await other.load())?.models.map(model => model.id), ['gpt-5.5'])
+  assert.deepEqual(
+    (await provider.load())?.models.map((model) => model.id),
+    ['gpt-5.1'],
+  )
+  assert.deepEqual(
+    (await account.load())?.models.map((model) => model.id),
+    ['gpt-6-astra'],
+  )
+  assert.deepEqual(
+    (await other.load())?.models.map((model) => model.id),
+    ['gpt-5.5'],
+  )
   assert.equal(await accountCatalogStore('grok', key, path).load(), undefined)
 
   await account.clear()
   assert.equal(await account.load(), undefined)
-  assert.deepEqual((await other.load())?.models.map(model => model.id), ['gpt-5.5'], 'clearing one account keeps its siblings')
-  assert.deepEqual((await provider.load())?.models.map(model => model.id), ['gpt-5.1'])
+  assert.deepEqual(
+    (await other.load())?.models.map((model) => model.id),
+    ['gpt-5.5'],
+    'clearing one account keeps its siblings',
+  )
+  assert.deepEqual(
+    (await provider.load())?.models.map((model) => model.id),
+    ['gpt-5.1'],
+  )
   await provider.clear()
-  assert.deepEqual((await other.load())?.models.map(model => model.id), ['gpt-5.5'], 'clearing the provider entry keeps account snapshots')
+  assert.deepEqual(
+    (await other.load())?.models.map((model) => model.id),
+    ['gpt-5.5'],
+    'clearing the provider entry keeps account snapshots',
+  )
 })
 
 function deferred() {
   let resolve!: () => void
-  const promise = new Promise<void>((done) => { resolve = done })
+  const promise = new Promise<void>((done) => {
+    resolve = done
+  })
   return { promise, resolve }
 }
 
@@ -204,7 +311,8 @@ function forcePlatform(t: TestContext, platform: string): void {
   const original = Object.getOwnPropertyDescriptor(process, 'platform')
   Object.defineProperty(process, 'platform', { value: platform })
   t.after(() => {
-    if (original !== undefined) Object.defineProperty(process, 'platform', original)
+    if (original !== undefined)
+      Object.defineProperty(process, 'platform', original)
   })
 }
 
@@ -220,13 +328,22 @@ test('concurrent saves for different accounts both survive on disk', async (t) =
   restoreFsMocks(t)
   // Immediate read results force overlapping unqueued writers to share a base;
   // successful renames refresh that base from the real file, without timing waits.
-  t.mock.method(fs, 'readFile', (...[file, ...args]: Parameters<typeof fs.readFile>) => file === path
-    ? Promise.resolve(diskText)
-    : originalReadFile(file, ...args))
-  t.mock.method(fs, 'rename', async (...[source, destination]: Parameters<typeof fs.rename>) => {
-    await originalRename(source, destination)
-    diskText = await originalReadFile(path, 'utf8')
-  })
+  t.mock.method(
+    fs,
+    'readFile',
+    (...[file, ...args]: Parameters<typeof fs.readFile>) =>
+      file === path
+        ? Promise.resolve(diskText)
+        : originalReadFile(file, ...args),
+  )
+  t.mock.method(
+    fs,
+    'rename',
+    async (...[source, destination]: Parameters<typeof fs.rename>) => {
+      await originalRename(source, destination)
+      diskText = await originalReadFile(path, 'utf8')
+    },
+  )
   syncBuiltinESMExports()
 
   await Promise.all([
@@ -234,8 +351,11 @@ test('concurrent saves for different accounts both survive on disk', async (t) =
     accountCatalogStore('codex', 'second', path).save(secondSnapshot),
   ])
   const file = JSON.parse(await originalReadFile(path, 'utf8'))
-  assert.deepEqual(file.accounts.codex, { first: firstSnapshot, second: secondSnapshot },
-    'both concurrently saved accounts must survive on disk')
+  assert.deepEqual(
+    file.accounts.codex,
+    { first: firstSnapshot, second: secondSnapshot },
+    'both concurrently saved accounts must survive on disk',
+  )
 })
 
 test('a queued save reads the state committed by the preceding save', async (t) => {
@@ -247,31 +367,46 @@ test('a queued save reads the state committed by the preceding save', async (t) 
   let reads = 0
   let renames = 0
   restoreFsMocks(t)
-  t.mock.method(fs, 'readFile', (...[file, ...args]: Parameters<typeof fs.readFile>) => {
-    if (file === path) reads++
-    return originalReadFile(file, ...args)
-  })
-  t.mock.method(fs, 'rename', async (...[source, destination]: Parameters<typeof fs.rename>) => {
-    if (++renames === 1) {
-      atRename.resolve()
-      await releaseRename.promise
-    }
-    await originalRename(source, destination)
-  })
+  t.mock.method(
+    fs,
+    'readFile',
+    (...[file, ...args]: Parameters<typeof fs.readFile>) => {
+      if (file === path) reads++
+      return originalReadFile(file, ...args)
+    },
+  )
+  t.mock.method(
+    fs,
+    'rename',
+    async (...[source, destination]: Parameters<typeof fs.rename>) => {
+      if (++renames === 1) {
+        atRename.resolve()
+        await releaseRename.promise
+      }
+      await originalRename(source, destination)
+    },
+  )
   syncBuiltinESMExports()
 
   const first = catalogStore('codex', path).save(firstSnapshot)
   await atRename.promise
-  const second = accountCatalogStore('codex', 'second', path).save(secondSnapshot)
+  const second = accountCatalogStore('codex', 'second', path).save(
+    secondSnapshot,
+  )
   try {
-    assert.equal(reads, 1, 'a queued save must not read before the preceding rename completes')
+    assert.equal(
+      reads,
+      1,
+      'a queued save must not read before the preceding rename completes',
+    )
   } finally {
     releaseRename.resolve()
     await Promise.allSettled([first, second])
   }
   await Promise.all([first, second])
   assert.deepEqual(JSON.parse(await originalReadFile(path, 'utf8')), {
-    codex: firstSnapshot, accounts: { codex: { second: secondSnapshot } },
+    codex: firstSnapshot,
+    accounts: { codex: { second: secondSnapshot } },
   })
 })
 
@@ -291,24 +426,36 @@ test('provider and account clears preserve a preceding concurrent save', async (
       let reads = 0
       let renames = 0
       restoreFsMocks(t)
-      t.mock.method(fs, 'readFile', (...[file, ...args]: Parameters<typeof fs.readFile>) => {
-        if (file === path) reads++
-        return originalReadFile(file, ...args)
-      })
-      t.mock.method(fs, 'rename', async (...[source, destination]: Parameters<typeof fs.rename>) => {
-        if (++renames === 1) {
-          atRename.resolve()
-          await releaseRename.promise
-        }
-        await originalRename(source, destination)
-      })
+      t.mock.method(
+        fs,
+        'readFile',
+        (...[file, ...args]: Parameters<typeof fs.readFile>) => {
+          if (file === path) reads++
+          return originalReadFile(file, ...args)
+        },
+      )
+      t.mock.method(
+        fs,
+        'rename',
+        async (...[source, destination]: Parameters<typeof fs.rename>) => {
+          if (++renames === 1) {
+            atRename.resolve()
+            await releaseRename.promise
+          }
+          await originalRename(source, destination)
+        },
+      )
       syncBuiltinESMExports()
 
       const saving = keeping.save(secondSnapshot)
       await atRename.promise
       const clearing = removing.clear()
       try {
-        assert.equal(reads, 1, 'a queued clear must not read before the preceding rename completes')
+        assert.equal(
+          reads,
+          1,
+          'a queued clear must not read before the preceding rename completes',
+        )
       } finally {
         releaseRename.resolve()
         await Promise.allSettled([saving, clearing])
@@ -331,26 +478,40 @@ test('a failed write preserves the previous file and does not block a queued sav
       const originalRename = fs.rename
       const atFailure = deferred()
       const releaseFailure = deferred()
-      const error = Object.assign(new Error(`injected ${failure} failure`), { code: 'EIO' })
+      const error = Object.assign(new Error(`injected ${failure} failure`), {
+        code: 'EIO',
+      })
       let attempts = 0
       restoreFsMocks(t)
       const fail = async (temp: string) => {
-        assert.notEqual(temp, path, 'a failed write must only modify a temporary file')
+        assert.notEqual(
+          temp,
+          path,
+          'a failed write must only modify a temporary file',
+        )
         await originalWriteFile(temp, '{"partial":')
         atFailure.resolve()
         await releaseFailure.promise
         throw error
       }
       if (failure === 'writeFile') {
-        t.mock.method(fs, 'writeFile', async (...[file, ...args]: Parameters<typeof fs.writeFile>) => {
-          if (++attempts === 1) return fail(String(file))
-          return originalWriteFile(file, ...args)
-        })
+        t.mock.method(
+          fs,
+          'writeFile',
+          async (...[file, ...args]: Parameters<typeof fs.writeFile>) => {
+            if (++attempts === 1) return fail(String(file))
+            return originalWriteFile(file, ...args)
+          },
+        )
       } else {
-        t.mock.method(fs, 'rename', async (...[source, destination]: Parameters<typeof fs.rename>) => {
-          if (++attempts === 1) return fail(String(source))
-          return originalRename(source, destination)
-        })
+        t.mock.method(
+          fs,
+          'rename',
+          async (...[source, destination]: Parameters<typeof fs.rename>) => {
+            if (++attempts === 1) return fail(String(source))
+            return originalRename(source, destination)
+          },
+        )
       }
       syncBuiltinESMExports()
 
@@ -366,16 +527,25 @@ test('a failed write preserves the previous file and does not block a queued sav
       }
       assert.equal(await readFile(path, 'utf8'), previousText)
       assert.deepEqual(await provider.load(), firstSnapshot)
-      assert.deepEqual(await readdir(dirname(path)), ['models.json'], 'failed temporary files are removed')
+      assert.deepEqual(
+        await readdir(dirname(path)),
+        ['models.json'],
+        'failed temporary files are removed',
+      )
 
       // Queue recovery is tested with another failure and an already waiting save.
       attempts = 0
       const nextFailure = provider.save(secondSnapshot)
       const nextRejected = assert.rejects(nextFailure, error)
-      const queued = accountCatalogStore('codex', 'second', path).save(secondSnapshot)
+      const queued = accountCatalogStore('codex', 'second', path).save(
+        secondSnapshot,
+      )
       await Promise.all([nextRejected, queued])
       assert.deepEqual(await provider.load(), firstSnapshot)
-      assert.deepEqual(await accountCatalogStore('codex', 'second', path).load(), secondSnapshot)
+      assert.deepEqual(
+        await accountCatalogStore('codex', 'second', path).load(),
+        secondSnapshot,
+      )
     })
   }
 })
@@ -390,17 +560,32 @@ test('rename retries on transient share-mode errors and then succeeds', async (t
   restoreFsMocks(t)
   // Windows surfaces a destination held without FILE_SHARE_DELETE as EBUSY;
   // the retry must ride through two transient failures, not just one.
-  t.mock.method(fs, 'rename', async (...[source, destination]: Parameters<typeof fs.rename>) => {
-    attempts++
-    if (attempts <= 2) throw Object.assign(new Error('injected share-mode error'), { code: 'EBUSY' })
-    return originalRename(source, destination)
-  })
+  t.mock.method(
+    fs,
+    'rename',
+    async (...[source, destination]: Parameters<typeof fs.rename>) => {
+      attempts++
+      if (attempts <= 2)
+        throw Object.assign(new Error('injected share-mode error'), {
+          code: 'EBUSY',
+        })
+      return originalRename(source, destination)
+    },
+  )
   syncBuiltinESMExports()
 
   await provider.save(secondSnapshot)
   assert.equal(attempts, 3, 'two transient failures must be retried')
-  assert.deepEqual(await provider.load(), secondSnapshot, 'the final file must hold the saved snapshot')
-  assert.deepEqual(await readdir(dirname(path)), ['models.json'], 'the temporary file must be renamed away')
+  assert.deepEqual(
+    await provider.load(),
+    secondSnapshot,
+    'the final file must hold the saved snapshot',
+  )
+  assert.deepEqual(
+    await readdir(dirname(path)),
+    ['models.json'],
+    'the temporary file must be renamed away',
+  )
 })
 
 test('rename failure with a non-retryable code rejects after one attempt', async (t) => {
@@ -412,14 +597,24 @@ test('rename failure with a non-retryable code rejects after one attempt', async
   restoreFsMocks(t)
   t.mock.method(fs, 'rename', async () => {
     attempts++
-    throw Object.assign(new Error('injected non-retryable error'), { code: 'ENOENT' })
+    throw Object.assign(new Error('injected non-retryable error'), {
+      code: 'ENOENT',
+    })
   })
   syncBuiltinESMExports()
 
   await assert.rejects(provider.save(secondSnapshot), { code: 'ENOENT' })
   assert.equal(attempts, 1, 'a non-retryable code must not be retried')
-  assert.deepEqual(await provider.load(), firstSnapshot, 'the previous file must survive')
-  assert.deepEqual(await readdir(dirname(path)), ['models.json'], 'the temporary file must be removed')
+  assert.deepEqual(
+    await provider.load(),
+    firstSnapshot,
+    'the previous file must survive',
+  )
+  assert.deepEqual(
+    await readdir(dirname(path)),
+    ['models.json'],
+    'the temporary file must be removed',
+  )
 })
 
 test('rename keeps failing with EPERM rejects after the bounded attempts', async (t) => {
@@ -433,14 +628,28 @@ test('rename keeps failing with EPERM rejects after the bounded attempts', async
   restoreFsMocks(t)
   t.mock.method(fs, 'rename', async () => {
     attempts++
-    throw Object.assign(new Error('injected persistent share-mode error'), { code: 'EPERM' })
+    throw Object.assign(new Error('injected persistent share-mode error'), {
+      code: 'EPERM',
+    })
   })
   syncBuiltinESMExports()
 
   await assert.rejects(provider.save(secondSnapshot), { code: 'EPERM' })
-  assert.equal(attempts, expectedAttempts, 'retries are bounded at 5 after the initial attempt')
-  assert.deepEqual(await provider.load(), firstSnapshot, 'the previous file must survive')
-  assert.deepEqual(await readdir(dirname(path)), ['models.json'], 'the temporary file must be removed')
+  assert.equal(
+    attempts,
+    expectedAttempts,
+    'retries are bounded at 5 after the initial attempt',
+  )
+  assert.deepEqual(
+    await provider.load(),
+    firstSnapshot,
+    'the previous file must survive',
+  )
+  assert.deepEqual(
+    await readdir(dirname(path)),
+    ['models.json'],
+    'the temporary file must be removed',
+  )
 })
 
 test('rename share-mode errors are not retried off Windows', async (t) => {
@@ -454,14 +663,24 @@ test('rename share-mode errors are not retried off Windows', async (t) => {
   // retrying would only delay surfacing it.
   t.mock.method(fs, 'rename', async () => {
     attempts++
-    throw Object.assign(new Error('injected share-mode error'), { code: 'EBUSY' })
+    throw Object.assign(new Error('injected share-mode error'), {
+      code: 'EBUSY',
+    })
   })
   syncBuiltinESMExports()
 
   await assert.rejects(provider.save(secondSnapshot), { code: 'EBUSY' })
   assert.equal(attempts, 1, 'a POSIX rename failure must not be retried')
-  assert.deepEqual(await provider.load(), firstSnapshot, 'the previous file must survive')
-  assert.deepEqual(await readdir(dirname(path)), ['models.json'], 'the temporary file must be removed')
+  assert.deepEqual(
+    await provider.load(),
+    firstSnapshot,
+    'the previous file must survive',
+  )
+  assert.deepEqual(
+    await readdir(dirname(path)),
+    ['models.json'],
+    'the temporary file must be removed',
+  )
 })
 
 test('readers see the previous complete file until a complete temporary file is renamed', async (t) => {
@@ -476,24 +695,39 @@ test('readers see the previous complete file until a complete temporary file is 
   const atRename = deferred()
   const releaseRename = deferred()
   restoreFsMocks(t)
-  t.mock.method(fs, 'writeFile', async (...[file, data, ...args]: Parameters<typeof fs.writeFile>) => {
-    assert.notEqual(file, path, 'catalog writes must target a temporary file')
-    assert.equal(dirname(String(file)), dirname(path), 'rename source must be in the same directory')
-    assert.ok(String(file).startsWith(`${path}.tmp-`))
-    await originalWriteFile(file, '{"partial":')
-    partialWritten.resolve()
-    await finishWrite.promise
-    await originalWriteFile(file, data, ...args)
-  })
-  t.mock.method(fs, 'rename', async (...[source, destination]: Parameters<typeof fs.rename>) => {
-    assert.equal(destination, path)
-    assert.notEqual(source, path)
-    assert.deepEqual(JSON.parse(await readFile(source, 'utf8')), { codex: secondSnapshot },
-      'only a complete catalog may be renamed into place')
-    atRename.resolve()
-    await releaseRename.promise
-    await originalRename(source, destination)
-  })
+  t.mock.method(
+    fs,
+    'writeFile',
+    async (...[file, data, ...args]: Parameters<typeof fs.writeFile>) => {
+      assert.notEqual(file, path, 'catalog writes must target a temporary file')
+      assert.equal(
+        dirname(String(file)),
+        dirname(path),
+        'rename source must be in the same directory',
+      )
+      assert.ok(String(file).startsWith(`${path}.tmp-`))
+      await originalWriteFile(file, '{"partial":')
+      partialWritten.resolve()
+      await finishWrite.promise
+      await originalWriteFile(file, data, ...args)
+    },
+  )
+  t.mock.method(
+    fs,
+    'rename',
+    async (...[source, destination]: Parameters<typeof fs.rename>) => {
+      assert.equal(destination, path)
+      assert.notEqual(source, path)
+      assert.deepEqual(
+        JSON.parse(await readFile(source, 'utf8')),
+        { codex: secondSnapshot },
+        'only a complete catalog may be renamed into place',
+      )
+      atRename.resolve()
+      await releaseRename.promise
+      await originalRename(source, destination)
+    },
+  )
   syncBuiltinESMExports()
 
   const saving = provider.save(secondSnapshot)
@@ -516,12 +750,25 @@ test('readers see the previous complete file until a complete temporary file is 
 
 test('account catalog store treats a malformed accounts section as absent', async (t) => {
   const path = await tempStorePath(t)
-  await writeFile(path, JSON.stringify({ codex: { at: 1, models: [{ id: 'a', name: 'A' }] }, accounts: [] }))
+  await writeFile(
+    path,
+    JSON.stringify({
+      codex: { at: 1, models: [{ id: 'a', name: 'A' }] },
+      accounts: [],
+    }),
+  )
   const account = accountCatalogStore('codex', 'x', path)
   assert.equal(await account.load(), undefined)
   await account.clear()
   await account.save({ at: 2, models: [{ id: 'b', name: 'B' }] })
-  const file = JSON.parse(await readFile(path, 'utf8')) as { codex: unknown; accounts: { codex: Record<string, unknown> } }
+  const file = JSON.parse(await readFile(path, 'utf8')) as {
+    codex: unknown
+    accounts: { codex: Record<string, unknown> }
+  }
   assert.deepEqual(Object.keys(file.accounts.codex), ['x'])
-  assert.notEqual(file.codex, undefined, 'the provider entry survives the rewrite')
+  assert.notEqual(
+    file.codex,
+    undefined,
+    'the provider entry survives the rewrite',
+  )
 })

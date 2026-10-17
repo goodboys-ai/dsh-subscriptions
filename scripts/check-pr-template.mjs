@@ -22,8 +22,19 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const TOPICS = ['feat', 'fix', 'docs', 'test', 'chore', 'refactor', 'ci', 'build', 'style']
-const USAGE = 'usage: check-pr-template.mjs --event <github-event.json> | --title <title> --body-file <path> [--template <path>]'
+const TOPICS = [
+  'feat',
+  'fix',
+  'docs',
+  'test',
+  'chore',
+  'refactor',
+  'ci',
+  'build',
+  'style',
+]
+const USAGE =
+  'usage: check-pr-template.mjs --event <github-event.json> | --title <title> --body-file <path> [--template <path>]'
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -41,12 +52,19 @@ function parseArgs(argv) {
   const args = {}
   for (let index = 0; index < argv.length; index++) {
     const flag = argv[index]
-    if (flag !== '--event' && flag !== '--title' && flag !== '--body-file' && flag !== '--template') {
+    if (
+      flag !== '--event' &&
+      flag !== '--title' &&
+      flag !== '--body-file' &&
+      flag !== '--template'
+    ) {
       throw new Error(USAGE)
     }
     const value = argv[++index]
     if (!value || value.startsWith('--')) throw new Error(USAGE)
-    const key = flag.slice(2).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase())
+    const key = flag
+      .slice(2)
+      .replace(/-([a-z])/g, (_, letter) => letter.toUpperCase())
     args[key] = value
   }
   if (args.event && (args.title || args.bodyFile)) throw new Error(USAGE)
@@ -74,13 +92,13 @@ function splitSections(text) {
 function parseTemplate(text) {
   const { sections } = splitSections(stripComments(normalize(text)))
   if (sections.length === 0) throw new Error('template has no ## sections')
-  const names = sections.map(section => section.name)
+  const names = sections.map((section) => section.name)
   const duplicate = names.find((name, index) => names.indexOf(name) !== index)
   if (duplicate) throw new Error(`template repeats ## ${duplicate}`)
   const labels = (name, pattern) => {
-    const section = sections.find(item => item.name === name)
+    const section = sections.find((item) => item.name === name)
     if (!section) return []
-    return section.lines.flatMap(line => {
+    return section.lines.flatMap((line) => {
       const match = pattern.exec(line)
       return match ? [match[1]] : []
     })
@@ -96,10 +114,16 @@ function checkTitle(title) {
   const oneLine = normalize(title).trim()
   if (oneLine.includes('\n')) return ['title: must be a single line']
   const topic = TOPICS.join('|')
-  const pattern = new RegExp(`^(?:${topic})(?:\\([a-z0-9]+(?:[-,][a-z0-9]+)*\\))?: \\S.*$`)
+  const pattern = new RegExp(
+    `^(?:${topic})(?:\\([a-z0-9]+(?:[-,][a-z0-9]+)*\\))?: \\S.*$`,
+  )
   if (pattern.test(oneLine)) return []
-  const shown = JSON.stringify(oneLine.length > 80 ? `${oneLine.slice(0, 80)}…` : oneLine)
-  return [`title: must start with a topic and a colon (\`fix: ...\` or \`fix(scope): ...\`); topics: ${TOPICS.join(', ')} (received ${shown})`]
+  const shown = JSON.stringify(
+    oneLine.length > 80 ? `${oneLine.slice(0, 80)}…` : oneLine,
+  )
+  return [
+    `title: must start with a topic and a colon (\`fix: ...\` or \`fix(scope): ...\`); topics: ${TOPICS.join(', ')} (received ${shown})`,
+  ]
 }
 
 function wrapFindings(name, text) {
@@ -121,20 +145,23 @@ function wrapFindings(name, text) {
     while (index < lines.length && lines[index].trim() !== '') index++
     const block = lines.slice(start, index)
     if (block.length === 1) continue
-    const list = block.every(line => /^\s*(?:[-*+]|\d+\.)\s+\S/.test(line))
-    const table = block.every(line => /^\s*\|/.test(line))
+    const list = block.every((line) => /^\s*(?:[-*+]|\d+\.)\s+\S/.test(line))
+    const table = block.every((line) => /^\s*\|/.test(line))
     if (list || table) continue
     const sample = block[0].trim().slice(0, 60)
-    findings.push(`${name}: a paragraph wraps across ${block.length} lines ("${sample}"); write one line per paragraph`)
+    findings.push(
+      `${name}: a paragraph wraps across ${block.length} lines ("${sample}"); write one line per paragraph`,
+    )
   }
   return findings
 }
 
 function labeledLine(lines, kind, label) {
   const escaped = escapeRegExp(label)
-  const pattern = kind === 'list'
-    ? new RegExp(`^\\s*[-*+]\\s+${escaped}(?:\\s+(\\S.*))?\\s*$`)
-    : new RegExp(`^\\s*\\*\\*${escaped}\\*\\*(?:\\s+(\\S.*))?\\s*$`)
+  const pattern =
+    kind === 'list'
+      ? new RegExp(`^\\s*[-*+]\\s+${escaped}(?:\\s+(\\S.*))?\\s*$`)
+      : new RegExp(`^\\s*\\*\\*${escaped}\\*\\*(?:\\s+(\\S.*))?\\s*$`)
   for (let index = 0; index < lines.length; index++) {
     const match = pattern.exec(lines[index])
     if (match) return { index, answer: match[1] ?? '' }
@@ -151,8 +178,10 @@ function labelFindings(section, lines, labels, kind) {
       findings.push(`${section}: missing \`${label}\``)
       continue
     }
-    if (!found.answer.trim()) findings.push(`${section}: \`${label}\` needs an answer on the same line`)
-    if (found.index < last) findings.push(`${section}: \`${label}\` is out of order`)
+    if (!found.answer.trim())
+      findings.push(`${section}: \`${label}\` needs an answer on the same line`)
+    if (found.index < last)
+      findings.push(`${section}: \`${label}\` is out of order`)
     else last = found.index
   }
   return findings
@@ -192,8 +221,16 @@ function structureFindings(actual, expected) {
 function checkBody(body, template) {
   const findings = []
   const { preamble, sections } = splitSections(stripComments(normalize(body)))
-  if (preamble.join('\n').trim()) findings.push('preamble: text before the first section; use the template headings')
-  findings.push(...structureFindings(sections.map(section => section.name), template.names))
+  if (preamble.join('\n').trim())
+    findings.push(
+      'preamble: text before the first section; use the template headings',
+    )
+  findings.push(
+    ...structureFindings(
+      sections.map((section) => section.name),
+      template.names,
+    ),
+  )
   const firstByName = new Map()
   for (const section of sections) {
     if (!firstByName.has(section.name)) firstByName.set(section.name, section)
@@ -207,11 +244,24 @@ function checkBody(body, template) {
       continue
     }
     if (name === 'Related issue' && !relatedIssueOk(text)) {
-      findings.push('Related issue: write `None` or link an issue (`Closes #123`)')
+      findings.push(
+        'Related issue: write `None` or link an issue (`Closes #123`)',
+      )
     }
     findings.push(...wrapFindings(name, text))
-    if (name === 'Verification') findings.push(...labelFindings(name, section.lines, template.verificationLabels, 'list'))
-    if (name === 'AI disclosure') findings.push(...labelFindings(name, section.lines, template.aiLabels, 'field'))
+    if (name === 'Verification')
+      findings.push(
+        ...labelFindings(
+          name,
+          section.lines,
+          template.verificationLabels,
+          'list',
+        ),
+      )
+    if (name === 'AI disclosure')
+      findings.push(
+        ...labelFindings(name, section.lines, template.aiLabels, 'field'),
+      )
   }
   return findings
 }
@@ -222,9 +272,15 @@ function readEvent(path) {
     payload = JSON.parse(readFileSync(path, 'utf8'))
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error)
+    // The replacement is the message the check prints. The original is inside it.
+    // eslint-disable-next-line preserve-caught-error -- message already includes the read failure
     throw new Error(`cannot read event ${path}: ${detail}`)
   }
-  if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) {
+  if (
+    payload === null ||
+    typeof payload !== 'object' ||
+    Array.isArray(payload)
+  ) {
     throw new Error(`event ${path} is not a JSON object`)
   }
   return payload
@@ -232,12 +288,20 @@ function readEvent(path) {
 
 function main() {
   const args = parseArgs(process.argv.slice(2))
-  const templatePath = args.template ?? join(dirname(fileURLToPath(import.meta.url)), '..', '.github', 'PULL_REQUEST_TEMPLATE.md')
+  const templatePath =
+    args.template ??
+    join(
+      dirname(fileURLToPath(import.meta.url)),
+      '..',
+      '.github',
+      'PULL_REQUEST_TEMPLATE.md',
+    )
   let templateText
   try {
     templateText = readFileSync(templatePath, 'utf8')
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error)
+    // eslint-disable-next-line preserve-caught-error -- message already includes the read failure
     throw new Error(`cannot read template ${templatePath}: ${detail}`)
   }
   const template = parseTemplate(templateText)
@@ -247,9 +311,16 @@ function main() {
       console.log('check-pr-template: skipped — event has no pull request.')
       return 0
     }
-    if (typeof payload.pull_request !== 'object') throw new Error('pull_request is not an object')
-    const title = typeof payload.pull_request.title === 'string' ? payload.pull_request.title : ''
-    const body = typeof payload.pull_request.body === 'string' ? payload.pull_request.body : ''
+    if (typeof payload.pull_request !== 'object')
+      throw new Error('pull_request is not an object')
+    const title =
+      typeof payload.pull_request.title === 'string'
+        ? payload.pull_request.title
+        : ''
+    const body =
+      typeof payload.pull_request.body === 'string'
+        ? payload.pull_request.body
+        : ''
     return report(checkTitle(title), checkBody(body, template))
   }
   const body = readFileSync(args.bodyFile, 'utf8')
@@ -270,6 +341,8 @@ function report(titleFindings, bodyFindings) {
 try {
   process.exitCode = main()
 } catch (error) {
-  console.error(`check-pr-template: ${error instanceof Error ? error.message : String(error)}; the check did not run`)
+  console.error(
+    `check-pr-template: ${error instanceof Error ? error.message : String(error)}; the check did not run`,
+  )
   process.exitCode = 2
 }

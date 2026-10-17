@@ -44,37 +44,67 @@ export interface ModelEntry {
  * @param label - diagnostic prefix naming the provider.
  * @returns the validated entries.
  */
-export function validateModels(models: readonly ModelEntry[], label: string): ModelEntry[] {
+export function validateModels(
+  models: readonly ModelEntry[],
+  label: string,
+): ModelEntry[] {
   const seen = new Set<string>()
   return models.map((model) => {
-    if (model.id.length === 0) throw new Error(`${label}: catalog model ids must be non-empty`)
+    if (model.id.length === 0)
+      throw new Error(`${label}: catalog model ids must be non-empty`)
     if (model.name !== undefined && model.name.length === 0) {
       throw new Error(`${label}: catalog model "${model.id}" has an empty name`)
     }
-    if (model.contextWindow !== undefined
-      && (!Number.isInteger(model.contextWindow) || model.contextWindow <= 0)) {
-      throw new Error(`${label}: catalog model "${model.id}" contextWindow must be a positive integer`)
+    if (
+      model.contextWindow !== undefined &&
+      (!Number.isInteger(model.contextWindow) || model.contextWindow <= 0)
+    ) {
+      throw new Error(
+        `${label}: catalog model "${model.id}" contextWindow must be a positive integer`,
+      )
     }
-    if (model.maxTokens !== undefined && (!Number.isInteger(model.maxTokens) || model.maxTokens <= 0)) {
-      throw new Error(`${label}: catalog model "${model.id}" maxTokens must be a positive integer`)
+    if (
+      model.maxTokens !== undefined &&
+      (!Number.isInteger(model.maxTokens) || model.maxTokens <= 0)
+    ) {
+      throw new Error(
+        `${label}: catalog model "${model.id}" maxTokens must be a positive integer`,
+      )
     }
-    if (model.inputModalities !== undefined
-      && (model.inputModalities.length === 0
-        || model.inputModalities.some(modality => modality !== 'text' && modality !== 'image'))) {
-      throw new Error(`${label}: catalog model "${model.id}" inputModalities must be a non-empty list of "text"/"image"`)
+    if (
+      model.inputModalities !== undefined &&
+      (model.inputModalities.length === 0 ||
+        model.inputModalities.some(
+          (modality) => modality !== 'text' && modality !== 'image',
+        ))
+    ) {
+      throw new Error(
+        `${label}: catalog model "${model.id}" inputModalities must be a non-empty list of "text"/"image"`,
+      )
     }
-    if (model.wire !== undefined && model.wire !== 'chat-completions' && model.wire !== 'responses') {
-      throw new Error(`${label}: catalog model "${model.id}" wire must be "chat-completions" or "responses"`)
+    if (
+      model.wire !== undefined &&
+      model.wire !== 'chat-completions' &&
+      model.wire !== 'responses'
+    ) {
+      throw new Error(
+        `${label}: catalog model "${model.id}" wire must be "chat-completions" or "responses"`,
+      )
     }
-    if (seen.has(model.id)) throw new Error(`${label}: duplicate catalog model "${model.id}"`)
+    if (seen.has(model.id))
+      throw new Error(`${label}: duplicate catalog model "${model.id}"`)
     seen.add(model.id)
     return {
       id: model.id,
-      ...model.name === undefined ? {} : { name: model.name },
-      ...model.contextWindow === undefined ? {} : { contextWindow: model.contextWindow },
-      ...model.maxTokens === undefined ? {} : { maxTokens: model.maxTokens },
-      ...model.inputModalities === undefined ? {} : { inputModalities: [...model.inputModalities] },
-      ...model.wire === undefined ? {} : { wire: model.wire },
+      ...(model.name === undefined ? {} : { name: model.name }),
+      ...(model.contextWindow === undefined
+        ? {}
+        : { contextWindow: model.contextWindow }),
+      ...(model.maxTokens === undefined ? {} : { maxTokens: model.maxTokens }),
+      ...(model.inputModalities === undefined
+        ? {}
+        : { inputModalities: [...model.inputModalities] }),
+      ...(model.wire === undefined ? {} : { wire: model.wire }),
     }
   })
 }
@@ -103,11 +133,18 @@ function providerDiagnostic(summary: string, hasBody: boolean): string {
  * @returns the parsed value, without validation or credential filtering.
  * @throws SyntaxError with the local origin and a fixed omission marker.
  */
-export async function parseProviderJson<T = unknown>(input: Response | string, origin: string): Promise<T> {
+export async function parseProviderJson<T = unknown>(
+  input: Response | string,
+  origin: string,
+): Promise<T> {
   try {
-    return (typeof input === 'string' ? JSON.parse(input) : await input.json()) as T
+    return (
+      typeof input === 'string' ? JSON.parse(input) : await input.json()
+    ) as T
   } catch (error: unknown) {
     if (!(error instanceof SyntaxError)) throw error
+    // Do not attach the original SyntaxError: Node's message quotes the input, and the host renders cause.
+    // eslint-disable-next-line preserve-caught-error -- the replacement omits the provider excerpt on purpose
     throw new SyntaxError(providerDiagnostic(`${origin}: invalid JSON`, true))
   }
 }
@@ -118,7 +155,11 @@ export async function parseProviderJson<T = unknown>(input: Response | string, o
  * the bound limits memory even when the body has no end; a declared
  * over-cap `content-length` fails before the first read.
  */
-export async function readBoundedJson(response: Response, label: string, maxBytes: number): Promise<unknown> {
+export async function readBoundedJson(
+  response: Response,
+  label: string,
+  maxBytes: number,
+): Promise<unknown> {
   const declared = Number(response.headers.get('content-length'))
   if (Number.isFinite(declared) && declared > maxBytes) {
     // Stop the socket too: the headers arrived, but the body must never flow.
@@ -145,7 +186,11 @@ export async function readBoundedJson(response: Response, label: string, maxByte
     }
     text += decoder.decode()
   } finally {
-    try { reader.releaseLock() } catch { /* best effort */ }
+    try {
+      reader.releaseLock()
+    } catch {
+      /* best effort */
+    }
   }
   try {
     return JSON.parse(text) as unknown
@@ -199,7 +244,8 @@ export async function httpLlmError(
   if (response.status === 401 || response.status === 403) code = 'AUTH'
   else if (response.status === 429) code = 'RATE_LIMIT'
   else if (isQuotaExceededError(shown)) code = QUOTA_EXCEEDED_CODE
-  else if (response.status === 400 && isContextWindowExceededError(shown)) code = CONTEXT_WINDOW_EXCEEDED_CODE
+  else if (response.status === 400 && isContextWindowExceededError(shown))
+    code = CONTEXT_WINDOW_EXCEEDED_CODE
   else if (response.status === 408 || response.status === 504) code = 'TIMEOUT'
   else if (response.status >= 500) code = 'SERVER'
   else code = `HTTP_${String(response.status)}`
@@ -222,18 +268,24 @@ export async function httpLlmError(
   // re-hitting the same closed window.
   const rateLimited = response.status === 429
   const reset = rateLimited
-    ? options.rateLimitReset?.(response, body, now) ?? googleQuotaReset(body, now) ?? retryAfterInstant(response, now)
+    ? (options.rateLimitReset?.(response, body, now) ??
+      googleQuotaReset(body, now) ??
+      retryAfterInstant(response, now))
     : retryAfterInstant(response, now)
   if (reset === undefined && rateLimited) {
     // Header names and values are provider-controlled too; none are displayed.
-    options.onWarn?.(providerDiagnostic(
-      `${label}: 429 disclosed no reset time; [provider response headers omitted]`,
-      body.length > 0,
-    ))
+    options.onWarn?.(
+      providerDiagnostic(
+        `${label}: 429 disclosed no reset time; [provider response headers omitted]`,
+        body.length > 0,
+      ),
+    )
   }
   return new LlmError(message, code, {
     status: response.status,
-    ...reset === undefined ? {} : { providerRetryAfterMs: waitFromReset(reset, now) },
+    ...(reset === undefined
+      ? {}
+      : { providerRetryAfterMs: waitFromReset(reset, now) }),
   })
 }
 
@@ -292,7 +344,10 @@ export interface IdleWatchdog {
  * @param timeoutMs - maximum idle interval while a stream read is outstanding.
  * @returns the watchdog; always {@link IdleWatchdog.stop} it when the stream ends.
  */
-export function idleWatchdog(caller: AbortSignal | undefined, timeoutMs: number): IdleWatchdog {
+export function idleWatchdog(
+  caller: AbortSignal | undefined,
+  timeoutMs: number,
+): IdleWatchdog {
   const controller = new AbortController()
   let expired = false
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -300,7 +355,9 @@ export function idleWatchdog(caller: AbortSignal | undefined, timeoutMs: number)
     if (timer !== undefined) clearTimeout(timer)
     timer = setTimeout(() => {
       expired = true
-      controller.abort(new Error(`stream idle timeout after ${String(timeoutMs)}ms`))
+      controller.abort(
+        new Error(`stream idle timeout after ${String(timeoutMs)}ms`),
+      )
     }, timeoutMs)
     timer.unref()
   }
@@ -335,8 +392,14 @@ export function mapFetchFailure(
   watchdog: IdleWatchdog,
   caller: AbortSignal | undefined,
 ): LlmError {
-  if (watchdog.timedOut()) return new LlmError(`${label} stream idle timeout`, 'TIMEOUT', { cause: error })
-  if (caller?.aborted === true) return new LlmError(`${label} request aborted by caller`, 'ABORTED', { cause: error })
+  if (watchdog.timedOut())
+    return new LlmError(`${label} stream idle timeout`, 'TIMEOUT', {
+      cause: error,
+    })
+  if (caller?.aborted === true)
+    return new LlmError(`${label} request aborted by caller`, 'ABORTED', {
+      cause: error,
+    })
   if (error instanceof LlmError) return error
   return new LlmError(`${label} request failed`, 'TRANSPORT', { cause: error })
 }
@@ -356,7 +419,12 @@ export class OAuthEndpointError extends Error {
    */
   readonly retryAfterMs: number | undefined
 
-  constructor(message: string, status: number, oauthCode?: string, retryAfterMs?: number) {
+  constructor(
+    message: string,
+    status: number,
+    oauthCode?: string,
+    retryAfterMs?: number,
+  ) {
     super(message)
     this.name = 'OAuthEndpointError'
     this.status = status
@@ -376,7 +444,10 @@ export class OAuthEndpointError extends Error {
  * @param label - diagnostic prefix naming the provider.
  * @returns the error to throw.
  */
-export async function oauthEndpointError(response: Response, label: string): Promise<OAuthEndpointError> {
+export async function oauthEndpointError(
+  response: Response,
+  label: string,
+): Promise<OAuthEndpointError> {
   let oauthCode: string | undefined
   let body = ''
   try {
@@ -386,7 +457,8 @@ export async function oauthEndpointError(response: Response, label: string): Pro
       oauthCode = parsed.error
     } else if (typeof parsed.error === 'object' && parsed.error !== null) {
       const nested = parsed.error as { code?: unknown }
-      if (typeof nested.code === 'string' && nested.code.length > 0) oauthCode = nested.code
+      if (typeof nested.code === 'string' && nested.code.length > 0)
+        oauthCode = nested.code
     }
   } catch {
     // Only swallow error-body reading/parsing: HTTP status still identifies the failure.
@@ -396,7 +468,12 @@ export async function oauthEndpointError(response: Response, label: string): Pro
     `${label} token endpoint error (HTTP ${String(response.status)})`,
     body.length > 0,
   )
-  return new OAuthEndpointError(message, response.status, oauthCode, parseRetryAfterMs(response))
+  return new OAuthEndpointError(
+    message,
+    response.status,
+    oauthCode,
+    parseRetryAfterMs(response),
+  )
 }
 
 /** A session fresh enough to serve a request without a refresh. */
@@ -467,12 +544,15 @@ export class TokenManager<S extends TimedSession> {
     const session = await this.options.load()
     if (session === undefined) {
       throw new LlmError(
-        `dsh-subscriptions: not logged in to ${this.options.displayName}; `
-        + 'log in via Settings → Subscriptions in the dsh web app',
+        `dsh-subscriptions: not logged in to ${this.options.displayName}; ` +
+          'log in via Settings → Subscriptions in the dsh web app',
         'MISSING_CREDENTIAL',
       )
     }
-    if (!forceRefresh && session.expiresAt - Date.now() > this.options.preemptMs) {
+    if (
+      !forceRefresh &&
+      session.expiresAt - Date.now() > this.options.preemptMs
+    ) {
       return session
     }
     this.inflight ??= this.doRefresh(session).finally(() => {
@@ -487,7 +567,11 @@ export class TokenManager<S extends TimedSession> {
         // log out an account that just signed in. Serve it instead.
         const attempted = this.attempted
         const stored = await this.options.load()
-        if (stored !== undefined && attempted !== undefined && stored.refreshToken !== attempted.refreshToken) {
+        if (
+          stored !== undefined &&
+          attempted !== undefined &&
+          stored.refreshToken !== attempted.refreshToken
+        ) {
           return stored
         }
         await this.options.remove()
@@ -504,7 +588,11 @@ export class TokenManager<S extends TimedSession> {
       }
       throw error instanceof LlmError
         ? error
-        : new LlmError(`${this.options.displayName} token refresh failed`, 'AUTH', { cause: error })
+        : new LlmError(
+            `${this.options.displayName} token refresh failed`,
+            'AUTH',
+            { cause: error },
+          )
     }
   }
 
@@ -512,9 +600,11 @@ export class TokenManager<S extends TimedSession> {
     // A concurrent caller may have refreshed while this one waited: re-read
     // the store and skip the round trip when the stored session is fresh.
     const current = await this.options.load()
-    if (current !== undefined
-      && current.accessToken !== session.accessToken
-      && current.expiresAt - Date.now() > this.options.preemptMs) {
+    if (
+      current !== undefined &&
+      current.accessToken !== session.accessToken &&
+      current.expiresAt - Date.now() > this.options.preemptMs
+    ) {
       return current
     }
     const attempted = current ?? session
@@ -540,13 +630,14 @@ export function withTimeout<T>(
   timeoutMs: number,
 ): Promise<T | undefined> {
   const signal = AbortSignal.timeout(timeoutMs)
-  const aborted = new Promise<undefined>(resolve => {
+  const aborted = new Promise<undefined>((resolve) => {
     if (signal.aborted) resolve(undefined)
-    else signal.addEventListener('abort', () => resolve(undefined), { once: true })
+    else
+      signal.addEventListener('abort', () => resolve(undefined), { once: true })
   })
   return Promise.race([
     work(signal).then(
-      value => (signal.aborted ? undefined : value),
+      (value) => (signal.aborted ? undefined : value),
       (error: unknown) => {
         if (signal.aborted) return undefined
         throw error
@@ -659,12 +750,18 @@ export interface DiscoveredModel {
 
 /** Display name for a wire reasoning-effort identifier. */
 export function effortDisplayName(effort: string): string {
-  return effort === 'xhigh' ? 'Extra High' : effort.charAt(0).toUpperCase() + effort.slice(1)
+  return effort === 'xhigh'
+    ? 'Extra High'
+    : effort.charAt(0).toUpperCase() + effort.slice(1)
 }
 
 /** The reasoning-block shape every caller passes to {@link mergeReasoning}. */
 export interface ReasoningBlock {
-  efforts: readonly { id: ReasoningEffortId; name: string; description?: string }[]
+  efforts: readonly {
+    id: ReasoningEffortId
+    name: string
+    description?: string
+  }[]
   defaultEffort?: ReasoningEffortId
 }
 
@@ -695,12 +792,15 @@ export function mergeReasoning(
   base: ReasoningBlock | undefined,
   options?: { extendable?: boolean },
 ): DiscoveredModel['reasoning'] | undefined {
-  const detached = base === undefined
-    ? undefined
-    : {
-      efforts: [...base.efforts],
-      ...(base.defaultEffort === undefined ? {} : { defaultEffort: base.defaultEffort }),
-    }
+  const detached =
+    base === undefined
+      ? undefined
+      : {
+          efforts: [...base.efforts],
+          ...(base.defaultEffort === undefined
+            ? {}
+            : { defaultEffort: base.defaultEffort }),
+        }
   if (configuredDefault === undefined) return detached
   const effort = ReasoningEffortId(configuredDefault)
   if (base === undefined) {
@@ -708,10 +808,13 @@ export function mergeReasoning(
     // catalog does not cover). Inventing a reasoning block here would claim a
     // capability nobody advertised; only a fallback-based provider may.
     return options?.extendable === true
-      ? { efforts: [{ id: effort, name: effortDisplayName(effort) }], defaultEffort: effort }
+      ? {
+          efforts: [{ id: effort, name: effortDisplayName(effort) }],
+          defaultEffort: effort,
+        }
       : undefined
   }
-  if (base.efforts.some(entry => entry.id === effort)) {
+  if (base.efforts.some((entry) => entry.id === effort)) {
     return { efforts: [...base.efforts], defaultEffort: effort }
   }
   if (options?.extendable !== true) return detached
@@ -793,7 +896,8 @@ export class ModelCatalogCache {
    * @returns the cached models, or `undefined` when absent or stale.
    */
   cached(): readonly DiscoveredModel[] | undefined {
-    if (this.entry === undefined || Date.now() - this.entry.at >= this.ttlMs) return undefined
+    if (this.entry === undefined || Date.now() - this.entry.at >= this.ttlMs)
+      return undefined
     return this.entry.models
   }
 
@@ -811,7 +915,11 @@ export class ModelCatalogCache {
     if (this.persistence === undefined) return Promise.resolve()
     this.seeded ??= this.persistence.load().then(
       (snapshot) => {
-        if (snapshot !== undefined && this.entry === undefined && !this.seedDisabled) {
+        if (
+          snapshot !== undefined &&
+          this.entry === undefined &&
+          !this.seedDisabled
+        ) {
           this.entry = snapshot
         }
       },
@@ -821,7 +929,9 @@ export class ModelCatalogCache {
   }
 
   /** Run (or join) the single in-flight fetch, updating memory and disk on success. */
-  private refresh(fetcher: () => Promise<DiscoveredModel[]>): Promise<DiscoveredModel[]> {
+  private refresh(
+    fetcher: () => Promise<DiscoveredModel[]>,
+  ): Promise<DiscoveredModel[]> {
     if (this.inflight !== undefined) return this.inflight
     const gen = this.generation
     const pending = fetcher()
@@ -846,7 +956,9 @@ export class ModelCatalogCache {
    * @returns the discovered models.
    * @throws the fetcher's failure (the `listModels` caller warns and falls back).
    */
-  async get(fetcher: () => Promise<DiscoveredModel[]>): Promise<readonly DiscoveredModel[]> {
+  async get(
+    fetcher: () => Promise<DiscoveredModel[]>,
+  ): Promise<readonly DiscoveredModel[]> {
     await this.ensureSeeded()
     return this.cached() ?? this.refresh(fetcher)
   }
@@ -860,7 +972,9 @@ export class ModelCatalogCache {
    * @returns the models, or `undefined` when nothing is known (the caller
    *   falls back to its static metadata). Never throws.
    */
-  async resolve(fetcher: () => Promise<DiscoveredModel[]>): Promise<readonly DiscoveredModel[] | undefined> {
+  async resolve(
+    fetcher: () => Promise<DiscoveredModel[]>,
+  ): Promise<readonly DiscoveredModel[] | undefined> {
     await this.ensureSeeded()
     const fresh = this.cached()
     if (fresh !== undefined) return fresh
@@ -889,18 +1003,25 @@ export class ModelCatalogCache {
 
 /** Whether discovery failed because the stored login is gone. */
 export function isMissingOrInvalidCredential(error: unknown): boolean {
-  return error instanceof LlmError
-    && (error.code === 'MISSING_CREDENTIAL' || error.code === 'INVALID_CREDENTIAL')
+  return (
+    error instanceof LlmError &&
+    (error.code === 'MISSING_CREDENTIAL' || error.code === 'INVALID_CREDENTIAL')
+  )
 }
 
 /** Whether discovery stopped because the caller cancelled or the timeout fired. */
-export function isDiscoveryAborted(error: unknown, signal?: AbortSignal): boolean {
+export function isDiscoveryAborted(
+  error: unknown,
+  signal?: AbortSignal,
+): boolean {
   if (signal?.aborted === true) return true
   // Only treat abort-shaped errors as cancellation when this call had a signal;
   // a refresh TimeoutError must not fail the whole picker union.
-  return signal !== undefined
-    && error instanceof Error
-    && (error.name === 'AbortError' || error.name === 'TimeoutError')
+  return (
+    signal !== undefined &&
+    error instanceof Error &&
+    (error.name === 'AbortError' || error.name === 'TimeoutError')
+  )
 }
 
 /**
@@ -910,8 +1031,10 @@ export function isDiscoveryAborted(error: unknown, signal?: AbortSignal): boolea
  * the refresh grant still answers, so the store keeps the session.
  */
 export function isDiscoveryAuthFailure(error: unknown): boolean {
-  return (error instanceof OAuthEndpointError && error.status === 401)
-    || (error instanceof LlmError && error.code === 'AUTH')
+  return (
+    (error instanceof OAuthEndpointError && error.status === 401) ||
+    (error instanceof LlmError && error.code === 'AUTH')
+  )
 }
 
 /**
@@ -928,12 +1051,16 @@ export async function discoverOrRetryAuth<T>(
   try {
     return await run()
   } catch (error: unknown) {
-    if (isMissingOrInvalidCredential(error) || !isDiscoveryAuthFailure(error)) throw error
+    if (isMissingOrInvalidCredential(error) || !isDiscoveryAuthFailure(error))
+      throw error
     try {
       await session(true)
       return await run()
     } catch (retryError: unknown) {
-      if (!isMissingOrInvalidCredential(retryError) && isDiscoveryAuthFailure(retryError)) {
+      if (
+        !isMissingOrInvalidCredential(retryError) &&
+        isDiscoveryAuthFailure(retryError)
+      ) {
         catalog.invalidate()
       }
       throw retryError
@@ -951,7 +1078,11 @@ export async function discoverOrRetryAuth<T>(
 export function deterministicSessionId(sessionId?: string): string {
   if (sessionId === undefined || sessionId.length === 0) return randomUUID()
   const str = String(sessionId)
-  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(str)) {
+  if (
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      str,
+    )
+  ) {
     return str
   }
   const bytes = createHash('sha256').update(str).digest().subarray(0, 16)

@@ -10,7 +10,11 @@
 import type { RpcResult } from '../src/compat.js'
 
 /** Test caller for the plugin's exact Fetch routes; no Connection peer is involved. */
-export type FakeConnectionHandler = (endpoint: string, payload: unknown, signal: AbortSignal) => Promise<RpcResult<unknown>>
+export type FakeConnectionHandler = (
+  endpoint: string,
+  payload: unknown,
+  signal: AbortSignal,
+) => Promise<RpcResult<unknown>>
 
 interface FakeRoute {
   path: string
@@ -33,9 +37,12 @@ export function createFakeConnection(): FakeConnection {
   const connection = {
     fetch: {
       register: (route: FakeRoute) => {
-        if (routes.has(route.path)) throw new Error(`duplicate fake route ${route.path}`)
+        if (routes.has(route.path))
+          throw new Error(`duplicate fake route ${route.path}`)
         routes.set(route.path, route)
-        return async () => { routes.delete(route.path) }
+        return async () => {
+          routes.delete(route.path)
+        }
       },
     },
   }
@@ -44,22 +51,37 @@ export function createFakeConnection(): FakeConnection {
     const path = `/api/${method}`
     const route = routes.get(path)
     if (route === undefined) throw new Error(`no route registered for ${path}`)
-    if (!route.methods.includes('POST')) throw new Error(`${path} does not accept POST`)
+    if (!route.methods.includes('POST'))
+      throw new Error(`${path} does not accept POST`)
     const request = new Request(`http://127.0.0.1${path}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ type: 'client-request', rpcId: 'rpc-1', method, payload }),
+      body: JSON.stringify({
+        type: 'client-request',
+        rpcId: 'rpc-1',
+        method,
+        payload,
+      }),
       signal,
     })
     const response = await route.fetch(request)
-    if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`)
-    const body = await response.json() as { type: string; rpcId: string; result: RpcResult<unknown> }
-    if (body.type !== 'server-response' || body.rpcId !== 'rpc-1') throw new Error('invalid server-response envelope')
+    if (!response.ok)
+      throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+    const body = (await response.json()) as {
+      type: string
+      rpcId: string
+      result: RpcResult<unknown>
+    }
+    if (body.type !== 'server-response' || body.rpcId !== 'rpc-1')
+      throw new Error('invalid server-response envelope')
     return body.result
   }
   return {
     connection,
-    registered: () => [...routes.keys()].some(path => path.startsWith('/api/subscriptions-auth.')),
+    registered: () =>
+      [...routes.keys()].some((path) =>
+        path.startsWith('/api/subscriptions-auth.'),
+      ),
     handler,
   }
 }

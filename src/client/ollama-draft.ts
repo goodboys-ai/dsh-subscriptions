@@ -96,7 +96,7 @@ export function adoptCandidates(
   selectedIds: readonly string[],
 ): OllamaModelDraft[] {
   const models = [...(current ?? [])]
-  const present = new Set(models.map(model => model.id))
+  const present = new Set(models.map((model) => model.id))
   const selected = new Set(selectedIds)
   for (const candidate of candidates) {
     if (!selected.has(candidate.id) || present.has(candidate.id)) continue
@@ -104,7 +104,9 @@ export function adoptCandidates(
     models.push({
       id: candidate.id,
       name: candidate.name,
-      ...(candidate.contextWindow === undefined ? {} : { contextWindow: candidate.contextWindow }),
+      ...(candidate.contextWindow === undefined
+        ? {}
+        : { contextWindow: candidate.contextWindow }),
       ...(candidate.vision ? { vision: true } : {}),
       ...(candidate.thinking ? { thinking: true } : {}),
       // The vendor's default is not copied: defaultEffort in the store is
@@ -125,9 +127,13 @@ export function adoptCandidates(
  * @param delta - `-1` moves up, `1` moves down.
  * @returns a new list; the input array is not mutated.
  */
-export function moveModel(models: readonly OllamaModelDraft[], id: string, delta: -1 | 1): OllamaModelDraft[] {
+export function moveModel(
+  models: readonly OllamaModelDraft[],
+  id: string,
+  delta: -1 | 1,
+): OllamaModelDraft[] {
   const next = [...models]
-  const index = next.findIndex(model => model.id === id)
+  const index = next.findIndex((model) => model.id === id)
   const target = index + delta
   if (index === -1 || target < 0 || target >= next.length) return next
   const moved = next[index]
@@ -142,8 +148,11 @@ export function moveModel(models: readonly OllamaModelDraft[], id: string, delta
  * @param id - the row to drop; an unknown id leaves the list unchanged.
  * @returns a new list; the input array is not mutated.
  */
-export function removeModel(models: readonly OllamaModelDraft[], id: string): OllamaModelDraft[] {
-  return models.filter(model => model.id !== id)
+export function removeModel(
+  models: readonly OllamaModelDraft[],
+  id: string,
+): OllamaModelDraft[] {
+  return models.filter((model) => model.id !== id)
 }
 
 /**
@@ -151,7 +160,9 @@ export function removeModel(models: readonly OllamaModelDraft[], id: string): Ol
  * @param contextWindow - the advertised window in tokens.
  * @returns `'1M'`, `'262K'`, the bare number below 1000, or `undefined` when unknown.
  */
-export function contextLabel(contextWindow: number | undefined): string | undefined {
+export function contextLabel(
+  contextWindow: number | undefined,
+): string | undefined {
   if (contextWindow === undefined) return undefined
   if (contextWindow < 1000) return String(contextWindow)
   if (contextWindow >= 1_000_000) {
@@ -169,8 +180,12 @@ export function contextLabel(contextWindow: number | undefined): string | undefi
  * @param name - the new display name; whitespace trims before storing.
  * @returns a new list; the input array is not mutated.
  */
-export function renameModel(models: readonly OllamaModelDraft[], id: string, name: string): OllamaModelDraft[] {
-  return models.map(model => {
+export function renameModel(
+  models: readonly OllamaModelDraft[],
+  id: string,
+  name: string,
+): OllamaModelDraft[] {
+  return models.map((model) => {
     if (model.id !== id) return model
     const next = { ...model }
     if (name === '') delete next.name
@@ -188,8 +203,12 @@ export function renameModel(models: readonly OllamaModelDraft[], id: string, nam
  * @param effort - the chosen level, or `''` to clear.
  * @returns a new list; the input array is not mutated.
  */
-export function setModelEffort(models: readonly OllamaModelDraft[], id: string, effort: string): OllamaModelDraft[] {
-  return models.map(model => {
+export function setModelEffort(
+  models: readonly OllamaModelDraft[],
+  id: string,
+  effort: string,
+): OllamaModelDraft[] {
+  return models.map((model) => {
     if (model.id !== id) return model
     if (effort === '') {
       const next = { ...model }
@@ -214,7 +233,7 @@ export function setModelContext(
   id: string,
   tokens: number | undefined,
 ): OllamaModelDraft[] {
-  return models.map(model => {
+  return models.map((model) => {
     if (model.id !== id) return model
     const next = { ...model }
     if (tokens === undefined) delete next.contextOverride
@@ -254,7 +273,7 @@ export function untickModel(
   stash: OllamaStash,
   id: string,
 ): { models: OllamaModelDraft[]; stash: OllamaStash } {
-  const row = models.find(model => model.id === id)
+  const row = models.find((model) => model.id === id)
   if (row === undefined) return { models: [...models], stash }
   return { models: removeModel(models, id), stash: new Map(stash).set(id, row) }
 }
@@ -276,9 +295,11 @@ export function tickModel(
   candidates: readonly OllamaCloudCandidate[],
   id: string,
 ): { models: OllamaModelDraft[]; stash: OllamaStash } {
-  if (models.some(model => model.id === id)) return { models: [...models], stash }
+  if (models.some((model) => model.id === id))
+    return { models: [...models], stash }
   const stashed = stash.get(id)
-  if (stashed === undefined) return { models: adoptCandidates(models, candidates, [id]), stash }
+  if (stashed === undefined)
+    return { models: adoptCandidates(models, candidates, [id]), stash }
   const next = new Map(stash)
   next.delete(id)
   return { models: [...models, stashed], stash: next }
@@ -300,7 +321,8 @@ export function tickModels(
   ids: readonly string[],
 ): { models: OllamaModelDraft[]; stash: OllamaStash } {
   let state = { models: [...models], stash }
-  for (const id of ids) state = tickModel(state.models, state.stash, candidates, id)
+  for (const id of ids)
+    state = tickModel(state.models, state.stash, candidates, id)
   return state
 }
 
@@ -323,7 +345,11 @@ export function untickModels(
 }
 
 /** One effort choice shown in a row's selector. */
-export interface EffortOption { id: string; name: string; unavailable?: boolean }
+export interface EffortOption {
+  id: string
+  name: string
+  unavailable?: boolean
+}
 
 /**
  * The effort choices for one ticked row. The row's own `efforts` decide the
@@ -342,10 +368,17 @@ export function effortOptions(
   fetched: readonly string[] | undefined,
   labels: readonly { id: string; name: string }[] | undefined,
 ): EffortOption[] {
-  const ids = row.efforts ?? fetched ?? labels?.map(entry => entry.id) ?? []
-  const options: EffortOption[] = ids.map(id => ({ id, name: labels?.find(entry => entry.id === id)?.name ?? id }))
+  const ids = row.efforts ?? fetched ?? labels?.map((entry) => entry.id) ?? []
+  const options: EffortOption[] = ids.map((id) => ({
+    id,
+    name: labels?.find((entry) => entry.id === id)?.name ?? id,
+  }))
   if (row.defaultEffort !== undefined && !ids.includes(row.defaultEffort)) {
-    options.push({ id: row.defaultEffort, name: row.defaultEffort, unavailable: true })
+    options.push({
+      id: row.defaultEffort,
+      name: row.defaultEffort,
+      unavailable: true,
+    })
   }
   return options
 }

@@ -21,10 +21,13 @@ const clearCodexCatalog = CodexAdapter.prototype.clearAccountCatalog
 
 const HOME = mkdtempSync(join(tmpdir(), 'model-defaults-rpc-test-'))
 // Suite-level hook: the mkdtemp is top-level, so there is no test context to hang t.after on.
-after(() => { rmSync(HOME, { recursive: true, force: true }) })
+after(() => {
+  rmSync(HOME, { recursive: true, force: true })
+})
 
 const plugin = await import('../src/index.js')
-const { modelDefaultsFilePath, resetModelDefaultsForTests } = await import('../src/model-defaults.js')
+const { modelDefaultsFilePath, resetModelDefaultsForTests } =
+  await import('../src/model-defaults.js')
 
 interface FakeLlm {
   registered: string[]
@@ -41,20 +44,31 @@ interface FakeLlm {
  * of them. Each mount also resets the store and deletes the file, so the cases
  * below are independent — they used to pass only in their written order.
  */
-async function mount(options: { tier?: string } = {}): Promise<{ handler: FakeConnectionHandler; fake: FakeLlm }> {
+async function mount(
+  options: { tier?: string } = {},
+): Promise<{ handler: FakeConnectionHandler; fake: FakeLlm }> {
   process.env.DSH_HOME = HOME
-  assert.ok(modelDefaultsFilePath().startsWith(HOME), 'the store resolves inside this spec\'s temp home')
+  assert.ok(
+    modelDefaultsFilePath().startsWith(HOME),
+    "the store resolves inside this spec's temp home",
+  )
   await resetModelDefaultsForTests()
   rmSync(modelDefaultsFilePath(), { force: true })
   const fake: FakeLlm = { registered: [], replaced: [], catalogClears: 0 }
-  CodexAdapter.prototype.clearAccountCatalog = function (account?: string) { fake.catalogClears++; clearCodexCatalog.call(this, account) }
+  CodexAdapter.prototype.clearAccountCatalog = function (account?: string) {
+    fake.catalogClears++
+    clearCodexCatalog.call(this, account)
+  }
   const ctx = new Context()
   const listed = [{ id: 'gpt-5.6-sol', name: 'GPT-5.6-Sol' }]
   // A configured tier appears in the picker catalog the same way the pool
   // contributes it, so the settings catalog has to recognise and skip it.
-  if (options.tier !== undefined) listed.push({ id: options.tier, name: options.tier })
+  if (options.tier !== undefined)
+    listed.push({ id: options.tier, name: options.tier })
   const fakeLlm = {
-    listProviders: async (): Promise<{ id: string; name: string }[]> => [{ id: 'codex', name: 'Codex (ChatGPT)' }],
+    listProviders: async (): Promise<{ id: string; name: string }[]> => [
+      { id: 'codex', name: 'Codex (ChatGPT)' },
+    ],
     listModels: async (): Promise<{ id: string; name: string }[]> => listed,
     resolveModelInfo: async (provider: string, model: string) => ({
       provider,
@@ -71,7 +85,9 @@ async function mount(options: { tier?: string } = {}): Promise<{ handler: FakeCo
     registerAdapter: (providers: string[]) => {
       fake.registered.push(...providers)
       return Object.assign(() => {}, {
-        replace: (next: string[]) => { fake.replaced.push(...next) },
+        replace: (next: string[]) => {
+          fake.replaced.push(...next)
+        },
       })
     },
   }
@@ -80,12 +96,21 @@ async function mount(options: { tier?: string } = {}): Promise<{ handler: FakeCo
   ctx.provide('connection', connection.connection)
   ctx.plugin(plugin, {
     providers: ['codex'],
-    ...options.tier === undefined ? {} : {
-      pool: { tiers: { [options.tier]: [{ provider: 'codex', model: 'gpt-5.6-sol' }] } },
-    },
+    ...(options.tier === undefined
+      ? {}
+      : {
+          pool: {
+            tiers: {
+              [options.tier]: [{ provider: 'codex', model: 'gpt-5.6-sol' }],
+            },
+          },
+        }),
   })
-  await new Promise(resolve => setTimeout(resolve, 50))
-  assert.ok(connection.registered(), 'the subscriptions-auth routes were registered')
+  await new Promise((resolve) => setTimeout(resolve, 50))
+  assert.ok(
+    connection.registered(),
+    'the subscriptions-auth routes were registered',
+  )
   return { handler: connection.handler, fake }
 }
 
@@ -102,13 +127,24 @@ test('modelDefaults serves the listed models with their advertised efforts', asy
   const result = await call(handler, 'modelDefaults', {})
   assert.equal(result.ok, true)
   if (!result.ok) return
-  const value = result.value as { provider: string; models: { id: string; name: string; efforts: { id: string }[]; configured?: string }[] }[]
+  const value = result.value as {
+    provider: string
+    models: {
+      id: string
+      name: string
+      efforts: { id: string }[]
+      configured?: string
+    }[]
+  }[]
   assert.equal(value.length, 1)
   assert.equal(value[0]?.provider, 'codex')
   assert.deepEqual(value[0]?.models[0], {
     id: 'gpt-5.6-sol',
     name: 'GPT-5.6-Sol',
-    efforts: [{ id: 'low', name: 'Low' }, { id: 'high', name: 'High' }],
+    efforts: [
+      { id: 'low', name: 'Low' },
+      { id: 'high', name: 'High' },
+    ],
   })
 })
 
@@ -118,7 +154,10 @@ test('modelDefaults refresh validates force and re-announces the picker only on 
   await call(handler, 'modelDefaults', { force: false })
   assert.deepEqual(fake.replaced, [])
   assert.equal(fake.catalogClears, 0)
-  assert.equal((await call(handler, 'modelDefaults', { force: 'true' })).ok, false)
+  assert.equal(
+    (await call(handler, 'modelDefaults', { force: 'true' })).ok,
+    false,
+  )
   assert.deepEqual(fake.replaced, [])
   assert.equal((await call(handler, 'modelDefaults', { force: true })).ok, true)
   assert.deepEqual(fake.replaced, ['codex'])
@@ -138,18 +177,29 @@ test('setModelDefault persists and the next modelDefaults reports it', async () 
   const view = await call(handler, 'modelDefaults', {})
   assert.equal(view.ok, true)
   if (!view.ok) return
-  const model = (view.value as { provider: string; models: { configured?: string }[] }[])[0]?.models[0]
+  const model = (
+    view.value as { provider: string; models: { configured?: string }[] }[]
+  )[0]?.models[0]
   assert.equal(model?.configured, 'high')
 })
 
 test('setModelDefault without effort clears the override', async () => {
   const { handler } = await mount()
-  await call(handler, 'setModelDefault', { provider: 'codex', model: 'gpt-5.6-sol', effort: 'high' })
-  await call(handler, 'setModelDefault', { provider: 'codex', model: 'gpt-5.6-sol' })
+  await call(handler, 'setModelDefault', {
+    provider: 'codex',
+    model: 'gpt-5.6-sol',
+    effort: 'high',
+  })
+  await call(handler, 'setModelDefault', {
+    provider: 'codex',
+    model: 'gpt-5.6-sol',
+  })
   const view = await call(handler, 'modelDefaults', {})
   assert.equal(view.ok, true)
   if (!view.ok) return
-  const model = (view.value as { provider: string; models: { configured?: string }[] }[])[0]?.models[0]
+  const model = (
+    view.value as { provider: string; models: { configured?: string }[] }[]
+  )[0]?.models[0]
   assert.equal(model?.configured, undefined)
 })
 
@@ -161,14 +211,19 @@ test('setModelDefault rejects unknown providers and empty efforts', async () => 
     effort: 'high',
   })
   assert.equal(badProvider.ok, false)
-  if (!badProvider.ok) assert.match(badProvider.error.message, /payload.provider must be one of/)
+  if (!badProvider.ok)
+    assert.match(badProvider.error.message, /payload.provider must be one of/)
   const badEffort = await call(handler, 'setModelDefault', {
     provider: 'codex',
     model: 'gpt-5.6-sol',
     effort: '',
   })
   assert.equal(badEffort.ok, false)
-  if (!badEffort.ok) assert.match(badEffort.error.message, /payload.effort must be a non-empty string/)
+  if (!badEffort.ok)
+    assert.match(
+      badEffort.error.message,
+      /payload.effort must be a non-empty string/,
+    )
 })
 
 test('setModelDefault rejects an effort the model catalog does not advertise', async () => {
@@ -180,20 +235,33 @@ test('setModelDefault rejects an effort the model catalog does not advertise', a
     effort: 'max',
   })
   assert.equal(result.ok, false)
-  if (!result.ok) assert.match(result.error.message, /does not advertise a "max" reasoning effort/)
+  if (!result.ok)
+    assert.match(
+      result.error.message,
+      /does not advertise a "max" reasoning effort/,
+    )
   // And nothing was persisted.
   const view = await call(handler, 'modelDefaults', {})
   assert.equal(view.ok, true)
   if (!view.ok) return
-  const model = (view.value as { provider: string; models: { configured?: string }[] }[])[0]?.models[0]
+  const model = (
+    view.value as { provider: string; models: { configured?: string }[] }[]
+  )[0]?.models[0]
   assert.equal(model?.configured, undefined)
 })
 
 test('setModelDefault accepts an advertised effort and clears with no effort', async () => {
   const { handler } = await mount()
-  const ok = await call(handler, 'setModelDefault', { provider: 'codex', model: 'gpt-5.6-sol', effort: 'low' })
+  const ok = await call(handler, 'setModelDefault', {
+    provider: 'codex',
+    model: 'gpt-5.6-sol',
+    effort: 'low',
+  })
   assert.equal(ok.ok, true)
-  const cleared = await call(handler, 'setModelDefault', { provider: 'codex', model: 'gpt-5.6-sol' })
+  const cleared = await call(handler, 'setModelDefault', {
+    provider: 'codex',
+    model: 'gpt-5.6-sol',
+  })
   assert.equal(cleared.ok, true, 'clearing always passes the whitelist')
 })
 
@@ -206,6 +274,10 @@ test('modelDefaults leaves out configured tier rows', async () => {
   assert.equal(result.ok, true)
   if (!result.ok) return
   const value = result.value as { provider: string; models: { id: string }[] }[]
-  const ids = value[0]?.models.map(model => model.id) ?? []
-  assert.deepEqual(ids, ['gpt-5.6-sol'], 'the tier row is skipped, the real model stays')
+  const ids = value[0]?.models.map((model) => model.id) ?? []
+  assert.deepEqual(
+    ids,
+    ['gpt-5.6-sol'],
+    'the tier row is skipped, the real model stays',
+  )
 })

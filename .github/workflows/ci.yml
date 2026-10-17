@@ -1,7 +1,12 @@
 name: CI
 
 on:
+  # A push to an open pull request would otherwise run this matrix twice on
+  # the same commit. pull_request is the run for topic branches, including
+  # the merge with the base. Push stays on main so the merge commit still
+  # has a CI gate check-run; release.yml requires that check on the tagged SHA.
   push:
+    branches: [main]
   pull_request:
 
 permissions:
@@ -29,6 +34,8 @@ jobs:
     #    and the compatibility table) against dsh-versions.txt;
     #  - PR evidence bitmap sizes and the recording ban, protecting every
     #    clone and CI fetch from oversized committed media;
+    #  - markdown table rows, at most 120 characters. The upstream README
+    #    snapshots are skipped. Fenced code is not a table;
     #  - the pull request title topic and template sections, when the event
     #    is a pull request. A push still parses the template file.
     runs-on: ubuntu-latest
@@ -45,6 +52,8 @@ jobs:
       - run: node scripts/verify-agent-notes.mjs
       - name: Check Agent Note and CHANGELOG prose wrapping
         run: npx --yes markdownlint-cli2@0.22.0
+      - name: Check markdown table width
+        run: node scripts/check-markdown-tables.mjs
       # Version-independent, so it runs here once instead of in every
       # build-and-test matrix leg: it reads dsh-versions.txt and the repo,
       # never a host, and would return the same verdict on each DSH version.
@@ -235,13 +244,31 @@ jobs:
           path: dsh-versions.txt
           overwrite: true
 
+  lint:
+    # Formatting and static checks that do not depend on a DSH version, so
+    # they run once. repo-checks stays free of a pnpm install.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10.33.2
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+      - run: pnpm lint
+
   ci-gate:
     # Stable required check for branch protection. A successful matrix job
     # uploads a version-named marker; missing markers keep this gate red even
     # when GitHub reports a skipped dependent job as successful.
     name: CI gate
     if: ${{ always() }}
-    needs: [versions, pack, build-and-test, boot-smoke, host-e2e, repo-checks]
+    needs:
+      [versions, pack, build-and-test, boot-smoke, host-e2e, repo-checks, lint]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -256,9 +283,10 @@ jobs:
           BOOT_RESULT: ${{ needs.boot-smoke.result }}
           E2E_RESULT: ${{ needs.host-e2e.result }}
           REPO_RESULT: ${{ needs.repo-checks.result }}
+          LINT_RESULT: ${{ needs.lint.result }}
         run: |
           failed=0
-          for result in "$VERSIONS_RESULT" "$PACK_RESULT" "$BUILD_RESULT" "$BOOT_RESULT" "$E2E_RESULT" "$REPO_RESULT"; do
+          for result in "$VERSIONS_RESULT" "$PACK_RESULT" "$BUILD_RESULT" "$BOOT_RESULT" "$E2E_RESULT" "$REPO_RESULT" "$LINT_RESULT"; do
             [[ "$result" == success ]] || failed=1
           done
           mapfile -t versions < <(grep -Ev '^#|^[[:space:]]*$' dsh-versions.txt)

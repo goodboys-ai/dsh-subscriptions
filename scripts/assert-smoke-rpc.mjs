@@ -23,16 +23,29 @@ function setupFail(message) {
   process.exit(2)
 }
 
-const EXPECTATIONS = ['status', 'external-status', 'cursor-status', 'external-usage']
-if (file === undefined || endpoint === undefined || !EXPECTATIONS.includes(expect)) {
-  setupFail(`usage: assert-smoke-rpc.mjs <file> <endpoint> <${EXPECTATIONS.join(' | ')}>`)
+const EXPECTATIONS = [
+  'status',
+  'external-status',
+  'cursor-status',
+  'external-usage',
+]
+if (
+  file === undefined ||
+  endpoint === undefined ||
+  !EXPECTATIONS.includes(expect)
+) {
+  setupFail(
+    `usage: assert-smoke-rpc.mjs <file> <endpoint> <${EXPECTATIONS.join(' | ')}>`,
+  )
 }
 
 let text
 try {
   text = readFileSync(file, 'utf8')
 } catch (error) {
-  setupFail(`cannot read the saved subscriptions-auth.${endpoint} body: ${error.message}`)
+  setupFail(
+    `cannot read the saved subscriptions-auth.${endpoint} body: ${error.message}`,
+  )
 }
 let body
 try {
@@ -53,14 +66,22 @@ if (/"accessToken"|"refreshToken"|Bearer /.test(serialized)) {
 const result = body.result
 if (expect === 'external-usage') {
   const message = result?.error?.message ?? ''
-  if (result?.ok !== false || result?.error?.code !== 'internal' || !message.includes('API key is not configured')) {
-    fail(`subscriptions-auth.${endpoint} did not refuse an unconfigured key (${JSON.stringify(result?.error ?? result)})`)
+  if (
+    result?.ok !== false ||
+    result?.error?.code !== 'internal' ||
+    !message.includes('API key is not configured')
+  ) {
+    fail(
+      `subscriptions-auth.${endpoint} did not refuse an unconfigured key (${JSON.stringify(result?.error ?? result)})`,
+    )
   }
   process.exit(0)
 }
 
 if (result?.ok !== true) {
-  fail(`subscriptions-auth.${endpoint} result was not ok (${JSON.stringify(result)})`)
+  fail(
+    `subscriptions-auth.${endpoint} result was not ok (${JSON.stringify(result)})`,
+  )
 }
 
 const value = result.value
@@ -80,8 +101,11 @@ if (expect === 'status') {
     }
   }
 } else if (expect === 'external-status') {
-  if (value?.['opencode-go']?.configured !== false || value?.['kimi-code']?.configured !== false
-    || value?.['ollama-cloud']?.configured !== false) {
+  if (
+    value?.['opencode-go']?.configured !== false ||
+    value?.['kimi-code']?.configured !== false ||
+    value?.['ollama-cloud']?.configured !== false
+  ) {
     fail(`externalStatus was ${JSON.stringify(value)}`)
   }
 } else if (expect === 'cursor-status') {

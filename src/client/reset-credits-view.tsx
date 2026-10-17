@@ -9,12 +9,16 @@
  */
 import type { SubscriptionsKey } from './locales.js'
 import { subscriptionCardStyles as cardStyles } from './subscription-card-styles.js'
-import type { ResetCreditView, SubscriptionsSectionInjected } from './SubscriptionsSection.js'
+import type {
+  ResetCreditView,
+  SubscriptionsSectionInjected,
+} from './SubscriptionsSection.js'
 
 type Translate = SubscriptionsSectionInjected['t']
 
 /** How one grant reads. Color is not the only carrier; the state word is in the row name. */
-export type ResetCreditState = 'available' | 'notUsable' | 'paused' | 'exhausted' | 'expired'
+export type ResetCreditState =
+  'available' | 'notUsable' | 'paused' | 'exhausted' | 'expired'
 
 const STATE_KEYS: Record<ResetCreditState, SubscriptionsKey> = {
   available: 'resetCreditAvailable',
@@ -29,11 +33,19 @@ const STATE_KEYS: Record<ResetCreditState, SubscriptionsKey> = {
  * `cooldownUntil` or `usableNow: false` is not usable even when `claimable`
  * is true. `claimable` does not change the word: it is not an action.
  */
-export function resetCreditState(credit: ResetCreditView, now: number): ResetCreditState {
-  if (credit.expiresAt !== undefined && credit.expiresAt <= now) return 'expired'
+export function resetCreditState(
+  credit: ResetCreditView,
+  now: number,
+): ResetCreditState {
+  if (credit.expiresAt !== undefined && credit.expiresAt <= now)
+    return 'expired'
   if (credit.paused === true) return 'paused'
   if (credit.resetsLeft === 0) return 'exhausted'
-  if ((credit.cooldownUntil !== undefined && credit.cooldownUntil > now) || credit.usableNow === false) return 'notUsable'
+  if (
+    (credit.cooldownUntil !== undefined && credit.cooldownUntil > now) ||
+    credit.usableNow === false
+  )
+    return 'notUsable'
   return 'available'
 }
 
@@ -53,7 +65,11 @@ export function resetCreditsAvailableCount(
   for (const credit of credits) {
     const state = resetCreditState(credit, now)
     if (state === 'expired' || state === 'paused') continue
-    if (typeof credit.resetsLeft === 'number' && Number.isFinite(credit.resetsLeft) && credit.resetsLeft > 0) {
+    if (
+      typeof credit.resetsLeft === 'number' &&
+      Number.isFinite(credit.resetsLeft) &&
+      credit.resetsLeft > 0
+    ) {
       sum += credit.resetsLeft
     }
   }
@@ -73,7 +89,9 @@ export interface ResetCreditUseAction {
 function expiryText(t: Translate, credit: ResetCreditView): string {
   return credit.expiresAt === undefined
     ? t('resetCreditExpiryUnknown')
-    : t('resetCreditExpires', { date: new Date(credit.expiresAt).toLocaleString() })
+    : t('resetCreditExpires', {
+        date: new Date(credit.expiresAt).toLocaleString(),
+      })
 }
 
 function remainingText(t: Translate, credit: ResetCreditView): string {
@@ -87,11 +105,28 @@ function remainingText(t: Translate, credit: ResetCreditView): string {
 }
 
 /** Accessible name of one Claude grant row: state, remaining, and expiry, not a control name. */
-export function resetCreditRowName(t: Translate, credit: ResetCreditView, now: number): string {
+export function resetCreditRowName(
+  t: Translate,
+  credit: ResetCreditView,
+  now: number,
+): string {
   const state = resetCreditState(credit, now)
-  const parts = [t('resetCreditFull'), t(STATE_KEYS[state]), remainingText(t, credit), expiryText(t, credit)]
-  if (state === 'notUsable' && credit.cooldownUntil !== undefined && credit.cooldownUntil > now) {
-    parts.push(t('resetCreditCooldownUntil', { date: new Date(credit.cooldownUntil).toLocaleString() }))
+  const parts = [
+    t('resetCreditFull'),
+    t(STATE_KEYS[state]),
+    remainingText(t, credit),
+    expiryText(t, credit),
+  ]
+  if (
+    state === 'notUsable' &&
+    credit.cooldownUntil !== undefined &&
+    credit.cooldownUntil > now
+  ) {
+    parts.push(
+      t('resetCreditCooldownUntil', {
+        date: new Date(credit.cooldownUntil).toLocaleString(),
+      }),
+    )
   }
   return parts.join(', ')
 }
@@ -106,12 +141,20 @@ export function showsResetCredits(
 }
 
 /** The error line the settings card mounts. Claude never interpolates provider text. */
-export function ResetCreditsErrorLine({ provider, message, t }: {
+export function ResetCreditsErrorLine({
+  provider,
+  message,
+  t,
+}: {
   provider: 'codex' | 'claude'
   message: string
   t: Translate
 }) {
-  return <p style={cardStyles.error}>{resetCreditsErrorText(provider, message, t)}</p>
+  return (
+    <p style={cardStyles.error}>
+      {resetCreditsErrorText(provider, message, t)}
+    </p>
+  )
 }
 
 /** Fixed sentence for Claude. Codex may include the lookup message; Claude must not. */
@@ -120,11 +163,17 @@ export function resetCreditsErrorText(
   message: string,
   t: Translate,
 ): string {
-  return provider === 'claude' ? t('resetCreditsErrorFixed') : t('resetCreditsError', { message })
+  return provider === 'claude'
+    ? t('resetCreditsErrorFixed')
+    : t('resetCreditsError', { message })
 }
 
 const summaryStyle = {
-  ...cardStyles.usageMeta, cursor: 'pointer', listStyle: 'none', justifyContent: 'flex-start', gap: 6,
+  ...cardStyles.usageMeta,
+  cursor: 'pointer',
+  listStyle: 'none',
+  justifyContent: 'flex-start',
+  gap: 6,
 } as const
 
 /**
@@ -151,59 +200,131 @@ export function ResetCreditsDisclosure({
 }) {
   const count = resetCreditsAvailableCount(credits, now, mode)
   return (
-    <details className="subscriptions-reset-credits" style={cardStyles.usageRow}>
+    <details
+      className="subscriptions-reset-credits"
+      style={cardStyles.usageRow}
+    >
       <summary style={summaryStyle}>
-        <svg aria-hidden="true" width="12" height="12" viewBox="0 0 16 16" style={{ flexShrink: 0 }}>
-          <path d="m6 3 5 5-5 5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        <svg
+          aria-hidden="true"
+          width="12"
+          height="12"
+          viewBox="0 0 16 16"
+          style={{ flexShrink: 0 }}
+        >
+          <path
+            d="m6 3 5 5-5 5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </svg>
         <span>{t('resetCreditsTitle')}</span>
         {mode === 'grants' && <span>{t('resetCreditReadOnlyLabel')}</span>}
-        <span style={{ marginLeft: 'auto' }}>{t('resetCreditsAvailable', { count })}</span>
+        <span style={{ marginLeft: 'auto' }}>
+          {t('resetCreditsAvailable', { count })}
+        </span>
       </summary>
-      <style>{
-        '.subscriptions-reset-credits > summary::-webkit-details-marker { display: none; }'
-        + '.subscriptions-reset-credits[open] > summary > svg { transform: rotate(90deg); }'
-      }</style>
+      <style>
+        {'.subscriptions-reset-credits > summary::-webkit-details-marker { display: none; }' +
+          '.subscriptions-reset-credits[open] > summary > svg { transform: rotate(90deg); }'}
+      </style>
       <div style={{ paddingLeft: 18, marginTop: 6 }}>
-        {mode === 'grants' && <p style={cardStyles.status}>{t('resetCreditReadOnly')}</p>}
+        {mode === 'grants' && (
+          <p style={cardStyles.status}>{t('resetCreditReadOnly')}</p>
+        )}
         {credits.map((credit, index) => {
           const state = resetCreditState(credit, now)
-          const showUse = mode === 'credits' && useAction !== undefined && credit === nextCredit
+          const showUse =
+            mode === 'credits' &&
+            useAction !== undefined &&
+            credit === nextCredit
           return (
             <div
               key={credit.id ?? index}
               data-reset-state={mode === 'grants' ? state : undefined}
-              data-reset-claimable={mode === 'grants' && credit.claimable === true ? 'true' : undefined}
+              data-reset-claimable={
+                mode === 'grants' && credit.claimable === true
+                  ? 'true'
+                  : undefined
+              }
               role={mode === 'grants' ? 'group' : undefined}
-              aria-label={mode === 'grants' ? resetCreditRowName(t, credit, now) : undefined}
-              style={{ ...cardStyles.usageMeta, minHeight: 28, gap: 12, cursor: mode === 'grants' ? 'default' : undefined }}
+              aria-label={
+                mode === 'grants'
+                  ? resetCreditRowName(t, credit, now)
+                  : undefined
+              }
+              style={{
+                ...cardStyles.usageMeta,
+                minHeight: 28,
+                gap: 12,
+                cursor: mode === 'grants' ? 'default' : undefined,
+              }}
             >
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  flexShrink: 0,
+                }}
+              >
                 {t('resetCreditFull')}
                 {mode === 'grants' && (
-                  <span aria-hidden="true" data-reset-state-word={state}>{t(STATE_KEYS[state])}</span>
+                  <span aria-hidden="true" data-reset-state-word={state}>
+                    {t(STATE_KEYS[state])}
+                  </span>
                 )}
                 {showUse && (
-                  <button type="button" aria-disabled={useAction.disabled}
+                  <button
+                    type="button"
+                    aria-disabled={useAction.disabled}
                     title={useAction.title}
-                    style={{ minHeight: 22, height: 22, padding: '0 7px', borderRadius: 6,
-                      opacity: useAction.disabled ? 0.35 : 1, cursor: useAction.disabled ? 'not-allowed' : 'pointer' }}
-                    onClick={() => { if (!useAction.disabled) useAction.onUse() }}>
+                    style={{
+                      minHeight: 22,
+                      height: 22,
+                      padding: '0 7px',
+                      borderRadius: 6,
+                      opacity: useAction.disabled ? 0.35 : 1,
+                      cursor: useAction.disabled ? 'not-allowed' : 'pointer',
+                    }}
+                    onClick={() => {
+                      if (!useAction.disabled) useAction.onUse()
+                    }}
+                  >
                     {useAction.busy ? t('resetUseChecking') : useAction.label}
                   </button>
                 )}
               </span>
               <span style={{ textAlign: 'right' }}>
-                {mode === 'grants' && <span aria-hidden="true">{remainingText(t, credit)} · </span>}
-                {mode === 'grants' && state === 'notUsable' && credit.cooldownUntil !== undefined && credit.cooldownUntil > now && (
-                  <span aria-hidden="true">{t('resetCreditCooldownUntil', { date: new Date(credit.cooldownUntil).toLocaleString() })} · </span>
+                {mode === 'grants' && (
+                  <span aria-hidden="true">{remainingText(t, credit)} · </span>
                 )}
-                <span aria-hidden={mode === 'grants' ? true : undefined}>{expiryText(t, credit)}</span>
+                {mode === 'grants' &&
+                  state === 'notUsable' &&
+                  credit.cooldownUntil !== undefined &&
+                  credit.cooldownUntil > now && (
+                    <span aria-hidden="true">
+                      {t('resetCreditCooldownUntil', {
+                        date: new Date(credit.cooldownUntil).toLocaleString(),
+                      })}{' '}
+                      ·{' '}
+                    </span>
+                  )}
+                <span aria-hidden={mode === 'grants' ? true : undefined}>
+                  {expiryText(t, credit)}
+                </span>
               </span>
             </div>
           )
         })}
-        {statusMessage !== undefined && statusMessage !== '' && <p role="status" style={cardStyles.status}>{statusMessage}</p>}
+        {statusMessage !== undefined && statusMessage !== '' && (
+          <p role="status" style={cardStyles.status}>
+            {statusMessage}
+          </p>
+        )}
       </div>
     </details>
   )

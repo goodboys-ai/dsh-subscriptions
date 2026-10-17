@@ -13,7 +13,10 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
-import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type {
+  PropsLocale,
+  PropsRuntime,
+} from '@deepseek-ai/dsh-client-ui-slots'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-api-remotes/client'
 import { callSubscriptionsAuth } from './SubscriptionsSection.js'
 import { subscriptionChromeCss } from './provider-settings-styles.js'
@@ -63,9 +66,9 @@ export interface SpeedSelectInjected {
  * owner share (unused — everything arrives session-bound through the inject
  * face), the injected callbacks, and the locale seat.
  */
-export type SpeedSelectProps = PropsRuntime<'conversation.input.right'>
-  & Partial<SpeedSelectInjected>
-  & Partial<PropsLocale<'settings.subscriptions'>>
+export type SpeedSelectProps = PropsRuntime<'conversation.input.right'> &
+  Partial<SpeedSelectInjected> &
+  Partial<PropsLocale<'settings.subscriptions'>>
 
 /**
  * The `loadSpeed` half of the inject face: the plugin's own speed state plus
@@ -86,12 +89,18 @@ export function createSpeedLoader(
   sessionId: string,
 ): SpeedSelectInjected['loadSpeed'] {
   return async () => {
-    const state = await callSubscriptionsAuth<SpeedState>(connection.rpc, 'speed', { sessionId })
+    const state = await callSubscriptionsAuth<SpeedState>(
+      connection.rpc,
+      'speed',
+      { sessionId },
+    )
     const directories = models()
     if (directories === undefined) return { visible: false, tier: state.tier }
     const { current } = await directories.directoryFor(sessionId).load()
-    const visible = current !== null && current.provider === 'codex'
-      && state.fastModels.includes(current.model)
+    const visible =
+      current !== null &&
+      current.provider === 'codex' &&
+      state.fastModels.includes(current.model)
     return { visible, tier: state.tier }
   }
 }
@@ -101,8 +110,11 @@ export function createSpeedSetter(
   connection: ConnectionHandle,
   sessionId: string,
 ): SpeedSelectInjected['setSpeed'] {
-  return tier => callSubscriptionsAuth(connection.rpc, 'setSpeed', { sessionId, tier })
-    .then(() => true, () => false)
+  return (tier) =>
+    callSubscriptionsAuth(connection.rpc, 'setSpeed', { sessionId, tier }).then(
+      () => true,
+      () => false,
+    )
 }
 
 /** English-dictionary fallback for a missing inject `t` (standalone renders). */
@@ -149,10 +161,18 @@ export function SpeedSelect({ loadSpeed, setSpeed, t }: SpeedSelectProps) {
       const load = loadRef.current
       if (load === undefined || inflight) return
       inflight = true
-      void load().then(
-        (loaded) => { if (!cancelled) setState(loaded) },
-        () => { /* keep the last known state; the next tick retries */ },
-      ).finally(() => { inflight = false })
+      void load()
+        .then(
+          (loaded) => {
+            if (!cancelled) setState(loaded)
+          },
+          () => {
+            /* keep the last known state; the next tick retries */
+          },
+        )
+        .finally(() => {
+          inflight = false
+        })
     }
     reload()
     const timer = setInterval(reload, POLL_INTERVAL_MS)
@@ -168,10 +188,17 @@ export function SpeedSelect({ loadSpeed, setSpeed, t }: SpeedSelectProps) {
       if (!rootRef.current?.contains(event.target as Node)) setOpen(false)
     }
     document.addEventListener('mousedown', closeOutside)
-    return () => { document.removeEventListener('mousedown', closeOutside) }
+    return () => {
+      document.removeEventListener('mousedown', closeOutside)
+    }
   }, [open])
 
-  if (loadSpeed === undefined || setSpeed === undefined || state === null || !state.visible) {
+  if (
+    loadSpeed === undefined ||
+    setSpeed === undefined ||
+    state === null ||
+    !state.visible
+  ) {
     return null
   }
 
@@ -195,13 +222,17 @@ export function SpeedSelect({ loadSpeed, setSpeed, t }: SpeedSelectProps) {
     setOpen(true)
     const load = loadRef.current
     if (load === undefined) return
-    void load().then(setState, () => { /* keep showing the last good state */ })
+    void load().then(setState, () => {
+      /* keep showing the last good state */
+    })
   }
 
   const tierName = (tier: SpeedTier): string =>
     translate(tier === 'fast' ? 'speedFast' : 'speedStandard')
   const tierDescription = (tier: SpeedTier): string =>
-    translate(tier === 'fast' ? 'speedFastDescription' : 'speedStandardDescription')
+    translate(
+      tier === 'fast' ? 'speedFastDescription' : 'speedStandardDescription',
+    )
   const triggerLabel = `${translate('speed')} · ${tierName(state.tier)}`
 
   return (
@@ -219,7 +250,7 @@ export function SpeedSelect({ loadSpeed, setSpeed, t }: SpeedSelectProps) {
       <style>{subscriptionChromeCss}</style>
       {open && (
         <div style={styles.menu} role="menu" aria-label={translate('speed')}>
-          {TIERS.map(tier => (
+          {TIERS.map((tier) => (
             <button
               key={tier}
               type="button"
@@ -227,12 +258,18 @@ export function SpeedSelect({ loadSpeed, setSpeed, t }: SpeedSelectProps) {
               aria-checked={tier === state.tier}
               style={styles.item}
               disabled={busy}
-              onClick={() => { choose(tier) }}
+              onClick={() => {
+                choose(tier)
+              }}
             >
-              <span style={styles.itemCheck}>{tier === state.tier ? '✓' : ''}</span>
+              <span style={styles.itemCheck}>
+                {tier === state.tier ? '✓' : ''}
+              </span>
               <span style={styles.itemText}>
                 <span style={styles.itemName}>{tierName(tier)}</span>
-                <span style={styles.itemDescription}>{tierDescription(tier)}</span>
+                <span style={styles.itemDescription}>
+                  {tierDescription(tier)}
+                </span>
               </span>
             </button>
           ))}
@@ -259,27 +296,62 @@ export function SpeedSelect({ loadSpeed, setSpeed, t }: SpeedSelectProps) {
 const styles: Record<string, CSSProperties> = {
   root: { position: 'relative', display: 'inline-flex' },
   trigger: {
-    border: '0.5px solid var(--dsw-alias-border-l3)', borderRadius: 'var(--dsw-radius-sm, 8px)',
-    background: 'var(--dsh-subscription-speed-hover, transparent)', color: 'var(--dsw-alias-label-secondary)',
-    font: 'inherit', fontSize: 12, lineHeight: '18px',
-    padding: '2px 8px', cursor: 'pointer', whiteSpace: 'nowrap',
+    border: '0.5px solid var(--dsw-alias-border-l3)',
+    borderRadius: 'var(--dsw-radius-sm, 8px)',
+    background: 'var(--dsh-subscription-speed-hover, transparent)',
+    color: 'var(--dsw-alias-label-secondary)',
+    font: 'inherit',
+    fontSize: 12,
+    lineHeight: '18px',
+    padding: '2px 8px',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
   },
   menu: {
-    position: 'absolute', bottom: '100%', right: 0, marginBottom: 4,
-    minWidth: 180, padding: 4, zIndex: 20,
-    background: 'var(--dsw-specific-menu, var(--dsw-alias-bg-layer-2))', border: 0,
-    boxShadow: 'var(--dsw-elevation-prominent)', borderRadius: 'var(--dsw-radius-lg, 16px)', display: 'flex', flexDirection: 'column', gap: 2,
+    position: 'absolute',
+    bottom: '100%',
+    right: 0,
+    marginBottom: 4,
+    minWidth: 180,
+    padding: 4,
+    zIndex: 20,
+    background: 'var(--dsw-specific-menu, var(--dsw-alias-bg-layer-2))',
+    border: 0,
+    boxShadow: 'var(--dsw-elevation-prominent)',
+    borderRadius: 'var(--dsw-radius-lg, 16px)',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 2,
   },
   item: {
-    display: 'flex', alignItems: 'flex-start', gap: 6, width: '100%',
-    border: 'none', borderRadius: 'var(--dsw-radius-sm, 8px)', background: 'var(--dsh-subscription-speed-hover, transparent)',
-    padding: '6px 8px', cursor: 'pointer', font: 'inherit', textAlign: 'left',
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: 6,
+    width: '100%',
+    border: 'none',
+    borderRadius: 'var(--dsw-radius-sm, 8px)',
+    background: 'var(--dsh-subscription-speed-hover, transparent)',
+    padding: '6px 8px',
+    cursor: 'pointer',
+    font: 'inherit',
+    textAlign: 'left',
   },
   itemCheck: {
-    width: 14, flexShrink: 0, fontSize: 12, lineHeight: '18px',
+    width: 14,
+    flexShrink: 0,
+    fontSize: 12,
+    lineHeight: '18px',
     color: 'var(--dsw-alias-label-primary)',
   },
   itemText: { display: 'flex', flexDirection: 'column' },
-  itemName: { fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-primary)' },
-  itemDescription: { fontSize: 11, lineHeight: '16px', color: 'var(--dsw-alias-label-tertiary)' },
+  itemName: {
+    fontSize: 12,
+    lineHeight: '18px',
+    color: 'var(--dsw-alias-label-primary)',
+  },
+  itemDescription: {
+    fontSize: 11,
+    lineHeight: '16px',
+    color: 'var(--dsw-alias-label-tertiary)',
+  },
 }

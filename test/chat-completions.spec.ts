@@ -9,7 +9,11 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { LlmError } from '@deepseek-ai/dsh-llm'
 import { ToolCallId } from '../src/compat.js'
-import type { ContentBlock, MessageSource, StreamChunk } from '@deepseek-ai/dsh-llm'
+import type {
+  ContentBlock,
+  MessageSource,
+  StreamChunk,
+} from '@deepseek-ai/dsh-llm'
 import {
   ChatCompletionsStreamTranslator,
   mapChatCompletionsUsage,
@@ -18,7 +22,11 @@ import {
   toChatTools,
 } from '../src/translate/chat-completions.js'
 import type { ChatCompletionsStreamEvent } from '../src/translate/chat-completions.js'
-import type { ResolvedToolResultBlock, TranslatableBlock, TranslatableMessage } from '../src/translate/resolved.js'
+import type {
+  ResolvedToolResultBlock,
+  TranslatableBlock,
+  TranslatableMessage,
+} from '../src/translate/resolved.js'
 
 /** Build a bare message without touching the frozen constructors. */
 function message(
@@ -26,9 +34,11 @@ function message(
   content: TranslatableBlock[],
   source?: MessageSource,
 ): TranslatableMessage {
-  const resolvedSource = source ?? (role === 'assistant'
-    ? { kind: 'model' as const, provider: 'copilot', model: 'gpt-4.1' }
-    : { kind: 'user' as const })
+  const resolvedSource =
+    source ??
+    (role === 'assistant'
+      ? { kind: 'model' as const, provider: 'copilot', model: 'gpt-4.1' }
+      : { kind: 'user' as const })
   return { role, content, source: resolvedSource }
 }
 
@@ -45,19 +55,28 @@ function toolResult(callId: string, text: string): ResolvedToolResultBlock {
 }
 
 /** Feed every event through a translator and flatten the chunks. */
-function drain(translator: ChatCompletionsStreamTranslator, events: ChatCompletionsStreamEvent[]): StreamChunk[] {
-  return events.flatMap(event => translator.push(event))
+function drain(
+  translator: ChatCompletionsStreamTranslator,
+  events: ChatCompletionsStreamEvent[],
+): StreamChunk[] {
+  return events.flatMap((event) => translator.push(event))
 }
 
 test('toChatMessages: text, tool call, and tool result round trip', () => {
-  const messages = toChatMessages([
-    message('user', [{ type: 'text', text: 'list files' }]),
-    message('assistant', [
-      { type: 'text', text: 'running ls' },
-      toolCall('call-1', 'bash', '{"cmd":"ls"}'),
-    ]),
-    message('user', [toolResult('call-1', 'file-a\nfile-b')], { kind: 'tool', callId: ToolCallId('call-1') }),
-  ], 'be helpful')
+  const messages = toChatMessages(
+    [
+      message('user', [{ type: 'text', text: 'list files' }]),
+      message('assistant', [
+        { type: 'text', text: 'running ls' },
+        toolCall('call-1', 'bash', '{"cmd":"ls"}'),
+      ]),
+      message('user', [toolResult('call-1', 'file-a\nfile-b')], {
+        kind: 'tool',
+        callId: ToolCallId('call-1'),
+      }),
+    ],
+    'be helpful',
+  )
 
   assert.deepEqual(messages, [
     { role: 'system', content: 'be helpful' },
@@ -65,14 +84,22 @@ test('toChatMessages: text, tool call, and tool result round trip', () => {
     {
       role: 'assistant',
       content: 'running ls',
-      tool_calls: [{ id: 'call-1', type: 'function', function: { name: 'bash', arguments: '{"cmd":"ls"}' } }],
+      tool_calls: [
+        {
+          id: 'call-1',
+          type: 'function',
+          function: { name: 'bash', arguments: '{"cmd":"ls"}' },
+        },
+      ],
     },
     { role: 'tool', tool_call_id: 'call-1', content: 'file-a\nfile-b' },
   ])
 })
 
 test('toChatMessages: system-role messages become a system message unless options.system wins', () => {
-  const systemMessage = message('system', [{ type: 'text', text: 'from history' }])
+  const systemMessage = message('system', [
+    { type: 'text', text: 'from history' },
+  ])
   const fromMessages = toChatMessages([systemMessage])
   assert.deepEqual(fromMessages, [{ role: 'system', content: 'from history' }])
   const fromOptions = toChatMessages([systemMessage], 'explicit')
@@ -82,57 +109,84 @@ test('toChatMessages: system-role messages become a system message unless option
 test('toChatMessages: resolved images become image_url parts, text first', () => {
   // The adapter resolves attachment refs to inline base64 BEFORE translation,
   // so the translator sees ResolvedImageParts (not harness ImageBlocks).
-  const resolved: TranslatableMessage[] = [{
-    role: 'user',
-    content: [
-      { type: 'text', text: 'what is this' },
-      { type: 'image', mediaType: 'image/png', dataBase64: 'aGVsbG8=' },
-    ],
-  }]
+  const resolved: TranslatableMessage[] = [
+    {
+      role: 'user',
+      content: [
+        { type: 'text', text: 'what is this' },
+        { type: 'image', mediaType: 'image/png', dataBase64: 'aGVsbG8=' },
+      ],
+    },
+  ]
   const messages = toChatMessages(resolved)
-  assert.deepEqual(messages, [{
-    role: 'user',
-    content: [
-      { type: 'text', text: 'what is this' },
-      { type: 'image_url', image_url: { url: 'data:image/png;base64,aGVsbG8=' } },
-    ],
-  }])
+  assert.deepEqual(messages, [
+    {
+      role: 'user',
+      content: [
+        { type: 'text', text: 'what is this' },
+        {
+          type: 'image_url',
+          image_url: { url: 'data:image/png;base64,aGVsbG8=' },
+        },
+      ],
+    },
+  ])
 })
 
 test('toChatMessages: an assistant message with only tool calls keeps empty content', () => {
   const messages = toChatMessages([
     message('assistant', [toolCall('call-9', 'bash', '{}')]),
   ])
-  assert.deepEqual(messages, [{
-    role: 'assistant',
-    content: '',
-    tool_calls: [{ id: 'call-9', type: 'function', function: { name: 'bash', arguments: '{}' } }],
-  }])
+  assert.deepEqual(messages, [
+    {
+      role: 'assistant',
+      content: '',
+      tool_calls: [
+        {
+          id: 'call-9',
+          type: 'function',
+          function: { name: 'bash', arguments: '{}' },
+        },
+      ],
+    },
+  ])
 })
 
 test('toChatTools maps schemas to function tools', () => {
-  const tools = toChatTools([{
-    name: 'bash',
-    description: 'run a command',
-    parameters: { type: 'object', properties: { cmd: { type: 'string' } } },
-  }])
-  assert.deepEqual(tools, [{
-    type: 'function',
-    function: {
+  const tools = toChatTools([
+    {
       name: 'bash',
       description: 'run a command',
       parameters: { type: 'object', properties: { cmd: { type: 'string' } } },
     },
-  }])
+  ])
+  assert.deepEqual(tools, [
+    {
+      type: 'function',
+      function: {
+        name: 'bash',
+        description: 'run a command',
+        parameters: { type: 'object', properties: { cmd: { type: 'string' } } },
+      },
+    },
+  ])
 })
 
 test('mapChatCompletionsUsage subtracts cached input and reports reasoning output', () => {
-  assert.deepEqual(mapChatCompletionsUsage({
-    prompt_tokens: 100,
-    completion_tokens: 40,
-    prompt_tokens_details: { cached_tokens: 30 },
-    completion_tokens_details: { reasoning_tokens: 10 },
-  }), { inputTokens: 70, outputTokens: 40, cacheReadTokens: 30, reasoningTokens: 10 })
+  assert.deepEqual(
+    mapChatCompletionsUsage({
+      prompt_tokens: 100,
+      completion_tokens: 40,
+      prompt_tokens_details: { cached_tokens: 30 },
+      completion_tokens_details: { reasoning_tokens: 10 },
+    }),
+    {
+      inputTokens: 70,
+      outputTokens: 40,
+      cacheReadTokens: 30,
+      reasoningTokens: 10,
+    },
+  )
 })
 
 test('translator: text deltas, finish armed, usage chunk emits usage then finish', () => {
@@ -164,20 +218,77 @@ test('translator: text deltas, finish armed, usage chunk emits usage then finish
 test('translator: tool call fragments assemble into one tool-call block', () => {
   const translator = new ChatCompletionsStreamTranslator()
   const chunks = drain(translator, [
-    { choices: [{ delta: { tool_calls: [{ index: 0, id: 'call-1', function: { name: 'bash', arguments: '' } }] } }] },
-    { choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: '{"cmd"' } }] } }] },
-    { choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: ':"ls"}' } }] } }] },
+    {
+      choices: [
+        {
+          delta: {
+            tool_calls: [
+              {
+                index: 0,
+                id: 'call-1',
+                function: { name: 'bash', arguments: '' },
+              },
+            ],
+          },
+        },
+      ],
+    },
+    {
+      choices: [
+        {
+          delta: {
+            tool_calls: [{ index: 0, function: { arguments: '{"cmd"' } }],
+          },
+        },
+      ],
+    },
+    {
+      choices: [
+        {
+          delta: {
+            tool_calls: [{ index: 0, function: { arguments: ':"ls"}' } }],
+          },
+        },
+      ],
+    },
     { choices: [{ delta: {}, finish_reason: 'tool_calls' }] },
   ])
   const terminal = translator.flush()
   assert.deepEqual(chunks, [
     { type: 'block-start', index: 0, blockType: 'tool-call' },
-    { type: 'tool-call-delta', index: 0, id: ToolCallId('call-1'), name: 'bash', argumentsDelta: '' },
-    { type: 'tool-call-delta', index: 0, id: ToolCallId('call-1'), argumentsDelta: '{"cmd"' },
-    { type: 'tool-call-delta', index: 0, id: ToolCallId('call-1'), argumentsDelta: ':"ls"}' },
-    { type: 'block-end', index: 0, block: { type: 'tool-call', id: ToolCallId('call-1'), name: 'bash', arguments: '{"cmd":"ls"}' } },
+    {
+      type: 'tool-call-delta',
+      index: 0,
+      id: ToolCallId('call-1'),
+      name: 'bash',
+      argumentsDelta: '',
+    },
+    {
+      type: 'tool-call-delta',
+      index: 0,
+      id: ToolCallId('call-1'),
+      argumentsDelta: '{"cmd"',
+    },
+    {
+      type: 'tool-call-delta',
+      index: 0,
+      id: ToolCallId('call-1'),
+      argumentsDelta: ':"ls"}',
+    },
+    {
+      type: 'block-end',
+      index: 0,
+      block: {
+        type: 'tool-call',
+        id: ToolCallId('call-1'),
+        name: 'bash',
+        arguments: '{"cmd":"ls"}',
+      },
+    },
   ])
-  assert.deepEqual(terminal, [{ type: 'finish', reason: { kind: 'tool-calls' } }])
+  assert.deepEqual(terminal, [
+    { type: 'finish', reason: { kind: 'tool-calls' } },
+  ])
 })
 
 test('translator: reasoning_content becomes a reasoning block', () => {
@@ -189,7 +300,11 @@ test('translator: reasoning_content becomes a reasoning block', () => {
   assert.deepEqual(chunks, [
     { type: 'block-start', index: 0, blockType: 'reasoning' },
     { type: 'reasoning-delta', index: 0, text: 'thinking…' },
-    { type: 'block-end', index: 0, block: { type: 'reasoning', text: 'thinking…' } },
+    {
+      type: 'block-end',
+      index: 0,
+      block: { type: 'reasoning', text: 'thinking…' },
+    },
   ])
 })
 
@@ -201,11 +316,25 @@ test('translator: Copilot Gemini streams (usage on every chunk) keep their delta
   const translator = new ChatCompletionsStreamTranslator()
   const mid = drain(translator, [
     {
-      choices: [{ index: 0, delta: { content: null, role: 'assistant', reasoning_text: 'greeting…' } }],
+      choices: [
+        {
+          index: 0,
+          delta: {
+            content: null,
+            role: 'assistant',
+            reasoning_text: 'greeting…',
+          },
+        },
+      ],
       usage: { prompt_tokens: 0, completion_tokens: 0 },
     },
     {
-      choices: [{ index: 0, delta: { content: 'Hello, how are you today?', role: 'assistant' } }],
+      choices: [
+        {
+          index: 0,
+          delta: { content: 'Hello, how are you today?', role: 'assistant' },
+        },
+      ],
       usage: { prompt_tokens: 0, completion_tokens: 0 },
     },
   ])
@@ -219,7 +348,13 @@ test('translator: Copilot Gemini streams (usage on every chunk) keep their delta
   assert.equal(translator.terminated, false)
   // The finish chunk carries finish_reason AND the real usage together.
   const terminal = translator.push({
-    choices: [{ index: 0, delta: { content: null, role: 'assistant' }, finish_reason: 'stop' }],
+    choices: [
+      {
+        index: 0,
+        delta: { content: null, role: 'assistant' },
+        finish_reason: 'stop',
+      },
+    ],
     usage: {
       prompt_tokens: 8,
       completion_tokens: 7,
@@ -228,9 +363,25 @@ test('translator: Copilot Gemini streams (usage on every chunk) keep their delta
     },
   })
   assert.deepEqual(terminal, [
-    { type: 'block-end', index: 0, block: { type: 'reasoning', text: 'greeting…' } },
-    { type: 'block-end', index: 1, block: { type: 'text', text: 'Hello, how are you today?' } },
-    { type: 'usage', usage: { inputTokens: 8, outputTokens: 7, cacheReadTokens: 0, reasoningTokens: 4 } },
+    {
+      type: 'block-end',
+      index: 0,
+      block: { type: 'reasoning', text: 'greeting…' },
+    },
+    {
+      type: 'block-end',
+      index: 1,
+      block: { type: 'text', text: 'Hello, how are you today?' },
+    },
+    {
+      type: 'usage',
+      usage: {
+        inputTokens: 8,
+        outputTokens: 7,
+        cacheReadTokens: 0,
+        reasoningTokens: 4,
+      },
+    },
     { type: 'finish', reason: { kind: 'stop' } },
   ])
   assert.equal(translator.terminated, true)
@@ -243,7 +394,9 @@ test('translator: a finish chunk without usage still arms until flush', () => {
     { choices: [{ delta: {}, finish_reason: 'stop' }] },
   ])
   // No usage anywhere: [DONE] (flush) releases the finish alone.
-  assert.deepEqual(translator.flush(), [{ type: 'finish', reason: { kind: 'stop' } }])
+  assert.deepEqual(translator.flush(), [
+    { type: 'finish', reason: { kind: 'stop' } },
+  ])
 })
 
 test('translator: finish reasons map to harness kinds', () => {
@@ -252,20 +405,27 @@ test('translator: finish reasons map to harness kinds', () => {
     { choices: [{ delta: { content: 'x' } }] },
     { choices: [{ delta: {}, finish_reason: 'length' }] },
   ])
-  assert.deepEqual(length.flush(), [{ type: 'finish', reason: { kind: 'max-tokens' } }])
+  assert.deepEqual(length.flush(), [
+    { type: 'finish', reason: { kind: 'max-tokens' } },
+  ])
 
   const filtered = new ChatCompletionsStreamTranslator()
   drain(filtered, [
     { choices: [{ delta: { content: 'x' } }] },
     { choices: [{ delta: {}, finish_reason: 'content_filter' }] },
   ])
-  assert.deepEqual(filtered.flush(), [{
-    type: 'finish',
-    reason: {
-      kind: 'error',
-      failure: { message: 'the response was blocked by the provider content filter', code: 'CONTENT_FILTER' },
+  assert.deepEqual(filtered.flush(), [
+    {
+      type: 'finish',
+      reason: {
+        kind: 'error',
+        failure: {
+          message: 'the response was blocked by the provider content filter',
+          code: 'CONTENT_FILTER',
+        },
+      },
     },
-  }])
+  ])
 })
 
 test('translator: an empty completion finishes with an error', () => {
@@ -301,9 +461,10 @@ test('streamChatCompletions consumes an SSE stream through [DONE]', async () => 
   ])
   const chunks: StreamChunk[] = []
   for await (const chunk of streamChatCompletions(stream)) chunks.push(chunk)
-  assert.deepEqual(chunks.map(chunk => chunk.type), [
-    'block-start', 'text-delta', 'block-end', 'usage', 'finish',
-  ])
+  assert.deepEqual(
+    chunks.map((chunk) => chunk.type),
+    ['block-start', 'text-delta', 'block-end', 'usage', 'finish'],
+  )
 })
 
 test('streamChatCompletions: a Copilot Gemini SSE stream yields text and terminates', async () => {
@@ -312,47 +473,93 @@ test('streamChatCompletions: a Copilot Gemini SSE stream yields text and termina
   // the real usage into the finish chunk; [DONE] follows.
   const stream = byteStream([
     frame({
-      choices: [{ index: 0, delta: { content: null, role: 'assistant', reasoning_text: 'greeting…' } }],
+      choices: [
+        {
+          index: 0,
+          delta: {
+            content: null,
+            role: 'assistant',
+            reasoning_text: 'greeting…',
+          },
+        },
+      ],
       usage: { prompt_tokens: 0, completion_tokens: 0 },
     }),
     frame({
-      choices: [{ index: 0, delta: { content: 'Hello, how are you today?', role: 'assistant' } }],
+      choices: [
+        {
+          index: 0,
+          delta: { content: 'Hello, how are you today?', role: 'assistant' },
+        },
+      ],
       usage: { prompt_tokens: 0, completion_tokens: 0 },
     }),
     frame({
-      choices: [{ index: 0, delta: { content: null, role: 'assistant' }, finish_reason: 'stop' }],
+      choices: [
+        {
+          index: 0,
+          delta: { content: null, role: 'assistant' },
+          finish_reason: 'stop',
+        },
+      ],
       usage: { prompt_tokens: 8, completion_tokens: 7 },
     }),
     'data: [DONE]\n\n',
   ])
   const chunks: StreamChunk[] = []
   for await (const chunk of streamChatCompletions(stream)) chunks.push(chunk)
-  assert.deepEqual(chunks.map(chunk => chunk.type), [
-    'block-start', 'reasoning-delta', 'block-start', 'text-delta',
-    'block-end', 'block-end', 'usage', 'finish',
-  ])
-  const text = chunks.find(chunk => chunk.type === 'text-delta')
-  assert.equal(text?.type === 'text-delta' ? text.text : undefined, 'Hello, how are you today?')
+  assert.deepEqual(
+    chunks.map((chunk) => chunk.type),
+    [
+      'block-start',
+      'reasoning-delta',
+      'block-start',
+      'text-delta',
+      'block-end',
+      'block-end',
+      'usage',
+      'finish',
+    ],
+  )
+  const text = chunks.find((chunk) => chunk.type === 'text-delta')
+  assert.equal(
+    text?.type === 'text-delta' ? text.text : undefined,
+    'Hello, how are you today?',
+  )
 })
 
 test('streamChatCompletions: a stream without a finish chunk throws STREAM_CLOSED', async () => {
-  const stream = byteStream([frame({ choices: [{ delta: { content: 'hi' } }] })])
-  await assert.rejects(async () => {
-    for await (const chunk of streamChatCompletions(stream)) void chunk
-  }, (error: unknown) => error instanceof LlmError && error.code === 'STREAM_CLOSED')
+  const stream = byteStream([
+    frame({ choices: [{ delta: { content: 'hi' } }] }),
+  ])
+  await assert.rejects(
+    async () => {
+      for await (const chunk of streamChatCompletions(stream)) void chunk
+    },
+    (error: unknown) =>
+      error instanceof LlmError && error.code === 'STREAM_CLOSED',
+  )
 })
 
 test('streamChatCompletions: malformed payload throws MALFORMED_RESPONSE without provider text', async () => {
   const marker = 'customer-input SHORT_SECRET!'
-  const stream = byteStream([`data: {"error":{"message":"${marker}"}} trailing\n\n`])
-  await assert.rejects(async () => {
-    for await (const chunk of streamChatCompletions(stream)) void chunk
-  }, (error: unknown) => {
-    assert.ok(error instanceof LlmError)
-    assert.equal(error.code, 'MALFORMED_RESPONSE')
-    assert.ok(!error.message.includes(marker), `provider text leaked: ${error.message}`)
-    assert.ok(error.message.includes('[provider response body omitted]'))
-    assert.ok(error.message.includes('MALFORMED_RESPONSE'))
-    return true
-  })
+  const stream = byteStream([
+    `data: {"error":{"message":"${marker}"}} trailing\n\n`,
+  ])
+  await assert.rejects(
+    async () => {
+      for await (const chunk of streamChatCompletions(stream)) void chunk
+    },
+    (error: unknown) => {
+      assert.ok(error instanceof LlmError)
+      assert.equal(error.code, 'MALFORMED_RESPONSE')
+      assert.ok(
+        !error.message.includes(marker),
+        `provider text leaked: ${error.message}`,
+      )
+      assert.ok(error.message.includes('[provider response body omitted]'))
+      assert.ok(error.message.includes('MALFORMED_RESPONSE'))
+      return true
+    },
+  )
 })

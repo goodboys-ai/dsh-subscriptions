@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto'
 import type {
-  GenerateOptions, ReplayEnvelope, StreamChunk,
+  GenerateOptions,
+  ReplayEnvelope,
+  StreamChunk,
 } from '@deepseek-ai/dsh-llm'
 import type { AccountAwareAdapter } from './accounts.js'
 
@@ -14,23 +16,45 @@ export async function* streamAccountWithReplay(
   model = options.model,
 ): AsyncIterable<StreamChunk> {
   const key = createHash('sha256')
-    .update(JSON.stringify([options.provider, account, model])).digest('hex')
-  const messages = options.messages.map(message => {
-    if (message.role !== 'assistant'
-      || message.source?.replayState === undefined) return message
+    .update(JSON.stringify([options.provider, account, model]))
+    .digest('hex')
+  const messages = options.messages.map((message) => {
+    if (
+      message.role !== 'assistant' ||
+      message.source?.replayState === undefined
+    )
+      return message
     const source = message.source
-    if (source.replayState === null || typeof source.replayState !== 'object'
-      || !('response' in source.replayState)) return message
+    if (
+      source.replayState === null ||
+      typeof source.replayState !== 'object' ||
+      !('response' in source.replayState)
+    )
+      return message
     const replay = source.replayState as ReplayEnvelope
     const response = replay.response
-    if (response !== null && typeof response === 'object'
-      && 'kind' in response && response.kind === REPLAY_KIND) {
-      if ('version' in response && response.version === 1
-        && 'key' in response && response.key === key && 'state' in response) {
-        return { ...message, source: {
-          ...source, provider: options.provider, model,
-          replayState: { ...replay, response: response.state },
-        } }
+    if (
+      response !== null &&
+      typeof response === 'object' &&
+      'kind' in response &&
+      response.kind === REPLAY_KIND
+    ) {
+      if (
+        'version' in response &&
+        response.version === 1 &&
+        'key' in response &&
+        response.key === key &&
+        'state' in response
+      ) {
+        return {
+          ...message,
+          source: {
+            ...source,
+            provider: options.provider,
+            model,
+            replayState: { ...replay, response: response.state },
+          },
+        }
       }
       const { replayState: _discarded, ...withoutReplay } = source
       return { ...message, source: withoutReplay }
@@ -45,13 +69,27 @@ export async function* streamAccountWithReplay(
     const { replayState: _discarded, ...withoutReplay } = source
     return { ...message, source: withoutReplay }
   })
-  for await (const chunk of adapter.streamAccount({
-    ...options, model, messages,
-  }, account)) {
+  for await (const chunk of adapter.streamAccount(
+    {
+      ...options,
+      model,
+      messages,
+    },
+    account,
+  )) {
     if (chunk.type === 'finish' && chunk.replayState !== undefined) {
-      yield { ...chunk, replayState: { ...chunk.replayState, response: {
-        kind: REPLAY_KIND, version: 1, key, state: chunk.replayState.response,
-      } } }
+      yield {
+        ...chunk,
+        replayState: {
+          ...chunk.replayState,
+          response: {
+            kind: REPLAY_KIND,
+            version: 1,
+            key,
+            state: chunk.replayState.response,
+          },
+        },
+      }
     } else yield chunk
   }
 }

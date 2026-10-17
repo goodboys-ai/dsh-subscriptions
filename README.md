@@ -11,46 +11,45 @@ reported quota in **Settings → Subscriptions**.
 ## What it adds
 
 - **Six subscription model sources:** Connect ChatGPT/Codex, Claude, Grok,
-  GitHub Copilot, Google Antigravity, or Cursor and choose their models in
-  DSH's picker. These routes use account sign-in, without provider API keys.
+  GitHub Copilot, Google Antigravity, or Cursor and choose their models in DSH's
+  picker. These routes use account sign-in, without provider API keys.
 - **Ollama Cloud key route:** Add the `ollama-cloud` route with an
-  `OLLAMA_API_KEY` credential. The route ships no model catalog:
-  configure it on the Settings → Subscriptions card, which fetches the
-  cloud list, ticks the models to keep, and edits each one's display
-  name, order, default reasoning effort, and local context window.
-  The picker shows exactly the ticked list, so an unconfigured route
-  offers no model. The card also edits the base URL, the credential
-  reference, and the web search/fetch switch, and persists them under
-  the DSH home directory. No OAuth sign-in. A hand-written `llm-pi-ai`
-  route with the same id collides with this one: delete the manual
-  block when enabling the plugin route. Stop sequences are unsupported
-  on this route, consistent with the other adapters. Web search/fetch
-  stay off until the card's switch is on (or a profile sets
-  `ollama.web`), so untouched installs keep their existing web
-  provider; a profile still pins them to `ollama-cloud`. Not ported
-  from the standalone plugin: its transient-error reclassification,
-  per-image request quotas, and per-model usage counts. See the
+  `OLLAMA_API_KEY` credential. The route ships no model catalog: configure it on
+  the Settings → Subscriptions card, which fetches the cloud list, ticks the
+  models to keep, and edits each one's display name, order, default reasoning
+  effort, and local context window. The picker shows exactly the ticked list, so
+  an unconfigured route offers no model. The card also edits the base URL, the
+  credential reference, and the web search/fetch switch, and persists them under
+  the DSH home directory. No OAuth sign-in. A hand-written `llm-pi-ai` route
+  with the same id collides with this one: delete the manual block when enabling
+  the plugin route. Stop sequences are unsupported on this route, consistent
+  with the other adapters. Web search/fetch stay off until the card's switch is
+  on (or a profile sets `ollama.web`), so untouched installs keep their existing
+  web provider; a profile still pins them to `ollama-cloud`. Not ported from the
+  standalone plugin: its transient-error reclassification, per-image request
+  quotas, and per-model usage counts. See the
   [key-route note](.agents/notes/implemented/provider/2026-10-10-ollama-cloud-key-route.md).
-- **Account and model control:** Refresh catalogs and choose visible models.
-  For Codex, Claude, Grok, Copilot, and Antigravity, manage multiple accounts
-  and same-provider pools. Pools can use available quota to select an account
-  and fail over before a reply starts. See [account management](docs/account-management.md).
+- **Account and model control:** Refresh catalogs and choose visible models. For
+  Codex, Claude, Grok, Copilot, and Antigravity, manage multiple accounts and
+  same-provider pools. Pools can use available quota to select an account and
+  fail over before a reply starts. See
+  [account management](docs/account-management.md).
 - **Quota while you work:** See reported usage windows and reset times on
   provider cards and in an optional session-footer pill. The same view reads
-  OpenCode Go and Kimi Code usage through keys already configured in
-  **Settings → Models** (their model routes remain built into DSH), and
-  Ollama Cloud usage through its `OLLAMA_API_KEY` credential (its route
-  ships in this plugin). GitHub Copilot has no usage endpoint.
-- **Provider tools:** Use Codex web search, Grok X search, ChatGPT or Grok
-  image generation and editing, and Grok video generation when the matching
-  provider is enabled.
+  OpenCode Go and Kimi Code usage through keys already configured in **Settings
+  → Models** (their model routes remain built into DSH), and Ollama Cloud usage
+  through its `OLLAMA_API_KEY` credential (its route ships in this plugin).
+  GitHub Copilot has no usage endpoint.
+- **Provider tools:** Use Codex web search, Grok X search, ChatGPT or Grok image
+  generation and editing, and Grok video generation when the matching provider
+  is enabled.
 
 ## Screenshots
 
-Captured against DSH 0.2.0-rc.2 in the web UI with a local stub serving
-frozen provider responses, so each image shows a product state rather than
-a real account. Identities in the images are fabricated, and the quota
-percentages, catalogs, and reset countdowns are sample data.
+Captured against DSH 0.2.0-rc.2 in the web UI with a local stub serving frozen
+provider responses, so each image shows a product state rather than a real
+account. Identities in the images are fabricated, and the quota percentages,
+catalogs, and reset countdowns are sample data.
 
 ### Subscriptions
 
@@ -65,23 +64,23 @@ Logged-in providers join the session model picker with their live catalogs.
 
 ![Model picker with subscription models](docs/images/model-picker.png)
 
-Models that advertise reasoning levels get an **Effort** selector in the
-same menu. Levels and defaults come from the provider's live catalog;
-without discovery Codex falls back to a built-in list, and a configured
-default overrides either.
+Models that advertise reasoning levels get an **Effort** selector in the same
+menu. Levels and defaults come from the provider's live catalog; without
+discovery Codex falls back to a built-in list, and a configured default
+overrides either.
 
 ![Reasoning effort selector](docs/images/model-effort.png)
 
-Codex models whose catalog advertises the fast tier get a **Speed** toggle
-in the composer's tool row: Standard or Fast, per session.
+Codex models whose catalog advertises the fast tier get a **Speed** toggle in
+the composer's tool row: Standard or Fast, per session.
 
 ![Speed toggle with the Standard/Fast menu open](docs/images/speed-toggle.png)
 
-**Settings → Subscriptions → provider → Manage** edits account aliases,
-pool participation, model allowlists, and the per-model effort, context,
-and tool settings. A context value only lowers the window a session plans
-against, never above what the provider advertises; Codex and Claude support
-it, and it does not enlarge the API's capacity.
+**Settings → Subscriptions → provider → Manage** edits account aliases, pool
+participation, model allowlists, and the per-model effort, context, and tool
+settings. A context value only lowers the window a session plans against, never
+above what the provider advertises; Codex and Claude support it, and it does not
+enlarge the API's capacity.
 
 ![Model settings](docs/images/model-settings.png)
 
@@ -89,85 +88,81 @@ it, and it does not enlarge the API's capacity.
 
 ### Quota while you work
 
-The composer's stats row gains a **provider usage** pill showing the
-used percentage and reset window for the provider of the session's current
-model. It shows at most one provider; switching to a non-subscription model
-keeps the most recent subscription selected in the mounted conversation
-view, or stays hidden if there is none. **Always show** instead rotates
-through the providers that report usage every 10 seconds while the current
-model has no quota source, so the pill never disappears.
+The composer's stats row gains a **provider usage** pill showing the used
+percentage and reset window for the provider of the session's current model. It
+shows at most one provider; switching to a non-subscription model keeps the most
+recent subscription selected in the mounted conversation view, or stays hidden
+if there is none. **Always show** instead rotates through the providers that
+report usage every 10 seconds while the current model has no quota source, so
+the pill never disappears.
 
 ![Provider usage pill in the stats row](docs/images/usage-pill.png)
 
-Click the pill to expand every provider and account that reports usage —
-the default account is starred, and the current provider is listed first.
-A provider with no usage endpoint, such as GitHub Copilot, has no row, and
-neither do accounts without a usage window. Antigravity previews only the
-current model's windows; the other model windows stay in a closed
-disclosure.
+Click the pill to expand every provider and account that reports usage — the
+default account is starred, and the current provider is listed first. A provider
+with no usage endpoint, such as GitHub Copilot, has no row, and neither do
+accounts without a usage window. Antigravity previews only the current model's
+windows; the other model windows stay in a closed disclosure.
 
-Quota bars include a dark elapsed-time cursor whenever the provider's
-timing places the window in time, including at 0% used and for stale or old
-readings. Compare the colored fill (quota used) with the cursor (time
-elapsed); hover for the percentages and reset countdown. Standard coloring
-turns the fill orange when a fresh reading leads elapsed time by 10 points,
-and Relaxed uses 15; 90% used turns it red and takes priority. Windows
-without known timing omit the cursor, and a stale or old reading keeps its
-cursor without a pace warning. Choose Standard, Relaxed, or Remaining colors
-in **Settings → Subscriptions**.
+Quota bars include a dark elapsed-time cursor whenever the provider's timing
+places the window in time, including at 0% used and for stale or old readings.
+Compare the colored fill (quota used) with the cursor (time elapsed); hover for
+the percentages and reset countdown. Standard coloring turns the fill orange
+when a fresh reading leads elapsed time by 10 points, and Relaxed uses 15; 90%
+used turns it red and takes priority. Windows without known timing omit the
+cursor, and a stale or old reading keeps its cursor without a pace warning.
+Choose Standard, Relaxed, or Remaining colors in **Settings → Subscriptions**.
 
 ![Usage dialog with elapsed-time cursors](docs/images/usage-badge.png)
 
 #### Codex usage limit resets
 
-The Codex account card shows banked full-reset credits and their expirations
-in a closed disclosure. A failed optional lookup reports an error without
-hiding ordinary quota windows. **Use…** selects the earliest-expiring available
-credit and requires a fresh unscoped weekly reading of at least 80%, then an
-explicit confirmation and acknowledgment. Confirmation expires after 60
-seconds; the server rechecks usage and credit availability before submission.
+The Codex account card shows banked full-reset credits and their expirations in
+a closed disclosure. A failed optional lookup reports an error without hiding
+ordinary quota windows. **Use…** selects the earliest-expiring available credit
+and requires a fresh unscoped weekly reading of at least 80%, then an explicit
+confirmation and acknowledgment. Confirmation expires after 60 seconds; the
+server rechecks usage and credit availability before submission.
 
 One reset consumes one credit and resets weekly and 5-hour limits. This
-interface cannot undo it. An unconfirmed outcome blocks further redemption
-for that account in the current host process. Restarting clears that block,
-but must not be used to bypass it: check credits and limits in Codex before
-retrying, because the first submission may already have spent a credit.
-The private endpoint is covered by offline fakes, not live-account checks.
-See the [manual reset decision](.agents/notes/implemented/provider/2026-10-04-codex-manual-reset.md)
+interface cannot undo it. An unconfirmed outcome blocks further redemption for
+that account in the current host process. Restarting clears that block, but must
+not be used to bypass it: check credits and limits in Codex before retrying,
+because the first submission may already have spent a credit. The private
+endpoint is covered by offline fakes, not live-account checks. See the
+[manual reset decision](.agents/notes/implemented/provider/2026-10-04-codex-manual-reset.md)
 for the retry boundary and verification limits.
 
 #### Claude usage limit resets
 
-The Claude account card shows banked limit resets from Anthropic's
-`cedar_ember` program, in the same closed disclosure Codex uses. It lists one
-row per grant, not one per credit, and the summary counts remaining resets by
-summing `resetsLeft` over grants that are neither expired nor paused. Each row
-states whether that grant is available, not yet usable, paused, exhausted, or
-expired, with its remaining count and when it lapses. That time is the grant's
-expiry: it is not a window reset and does not move the elapsed-time cursor.
+The Claude account card shows banked limit resets from Anthropic's `cedar_ember`
+program, in the same closed disclosure Codex uses. It lists one row per grant,
+not one per credit, and the summary counts remaining resets by summing
+`resetsLeft` over grants that are neither expired nor paused. Each row states
+whether that grant is available, not yet usable, paused, exhausted, or expired,
+with its remaining count and when it lapses. That time is the grant's expiry: it
+is not a window reset and does not move the elapsed-time cursor.
 
 This is **display only**. `claimable` is shown as data on a text row, and the
 page has no control that spends a Claude reset, because the response shape is
 not an Anthropic contract. An ineligible account, a grant-less block, or a
-rejected optional query leaves ordinary session and weekly windows untouched
-and shows no list; a failed lookup shows a fixed sentence rather than the
-provider's text. No live account was used to verify what Anthropic returns. See
+rejected optional query leaves ordinary session and weekly windows untouched and
+shows no list; a failed lookup shows a fixed sentence rather than the provider's
+text. No live account was used to verify what Anthropic returns. See
 [the evidence and limits](docs/claude-banked-resets.md) and the
 [display decision](.agents/notes/implemented/provider/2026-10-08-claude-banked-reset-display.md).
 
 ## Install
 
-Current source is tested with DSH `0.1.7-rc.2`, `0.2.0-rc.2`, and
-`0.2.1-rc.2`. The package's peers admit `>=0.1.7-rc.2 <0.3.0-0`: untested
-versions inside that range install but are unsupported, and versions
-outside it need an explicit `dsh plugin allow-version` exemption.
-`dsh plugin add` checks those ranges with `includePrerelease` semantics, so
-the admitted set covers every host build from `0.1.7-rc.2` through the
-whole `0.2.x` line, prereleases included, and blocks the `0.3.0` line. See
-[docs/compatibility.md](docs/compatibility.md)
-for the support window and [docs/testing.md](docs/testing.md) for the test
-layers. With `dsh` available, install the plugin into the web profile from
-npm:
+Current source is tested with DSH `0.1.7-rc.2`, `0.2.0-rc.2`, and `0.2.1-rc.2`.
+The package's peers admit `>=0.1.7-rc.2 <0.3.0-0`: untested versions inside that
+range install but are unsupported, and versions outside it need an explicit
+`dsh plugin allow-version` exemption. `dsh plugin add` checks those ranges with
+`includePrerelease` semantics, so the admitted set covers every host build from
+`0.1.7-rc.2` through the whole `0.2.x` line, prereleases included, and blocks
+the `0.3.0` line. See [docs/compatibility.md](docs/compatibility.md) for the
+support window and [docs/testing.md](docs/testing.md) for the test layers. With
+`dsh` available, install the plugin into the web profile from npm:
 
 ```sh
 dsh plugin --profile web add dsh-subscriptions
@@ -180,47 +175,47 @@ dsh plugin --profile web add github:goodboys-ai/dsh-subscriptions
 ```
 
 Git installs run this package's `prepare` script to build the host and browser
-bundles. If a Git install stops with `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED`
-(DSH `0.1.7-rc.2` does this by default), add this package to the web
-profile's `pnpm-workspace.yaml` (`~/.dsh/profiles/web/` unless `DSH_HOME` is
-set) and repeat the command:
+bundles. If a Git install stops with `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED` (DSH
+`0.1.7-rc.2` does this by default), add this package to the web profile's
+`pnpm-workspace.yaml` (`~/.dsh/profiles/web/` unless `DSH_HOME` is set) and
+repeat the command:
 
 ```yaml
 allowBuilds:
   'dsh-subscriptions': true
 ```
 
-(If a previous Git install used the old scoped name, replace its
-`allowBuilds` key with the one above.)
+(If a previous Git install used the old scoped name, replace its `allowBuilds`
+key with the one above.)
 
 Restart `dsh web` after installation. Open **Settings → Subscriptions** to
-connect providers, manage accounts and model lists, and inspect available
-quota. The session footer quota pill can be shown or hidden there for the
-current browser. OpenCode Go, Kimi Code, and Ollama Cloud cards show
-usage when their API keys are configured.
+connect providers, manage accounts and model lists, and inspect available quota.
+The session footer quota pill can be shown or hidden there for the current
+browser. OpenCode Go, Kimi Code, and Ollama Cloud cards show usage when their
+API keys are configured.
 
-To update an installation, run the same `dsh plugin --profile web add` command again and restart `dsh web`.
+To update an installation, run the same `dsh plugin --profile web add` command
+again and restart `dsh web`.
 
-Without a version suffix, the npm command installs the `latest` dist-tag and
-the GitHub command installs the current default branch at install time. Pin
-a release by appending `@<version>` to the npm spec or the tag to the GitHub
-spec (`#vX.Y.Z`); see the
-[release policy](docs/compatibility.md#plugin-versioning).
+Without a version suffix, the npm command installs the `latest` dist-tag and the
+GitHub command installs the current default branch at install time. Pin a
+release by appending `@<version>` to the npm spec or the tag to the GitHub spec
+(`#vX.Y.Z`); see the [release policy](docs/compatibility.md#plugin-versioning).
 
 ## Verification and limits
 
-CI builds, tests, and boots a packed tarball on all supported DSH versions;
-it does not run the GitHub source install's `prepare` step. Offline
-provider tests check recorded API responses, so a passing CI run cannot prove
-that a provider still accepts live sign-in or model requests. See
-[testing](docs/testing.md) for the checks and their limits.
+CI builds, tests, and boots a packed tarball on all supported DSH versions; it
+does not run the GitHub source install's `prepare` step. Offline provider tests
+check recorded API responses, so a passing CI run cannot prove that a provider
+still accepts live sign-in or model requests. See [testing](docs/testing.md) for
+the checks and their limits.
 
-- **ChatGPT/Codex, Claude, Grok, GitHub Copilot, and Google Antigravity:**
-  The port includes the tool-message and icon fixes tracked in
+- **ChatGPT/Codex, Claude, Grok, GitHub Copilot, and Google Antigravity:** The
+  port includes the tool-message and icon fixes tracked in
   [upstream issue #117](https://github.com/V1ki/dsh-plugin-subscriptions/issues/117).
-  A manual check in an isolated `0.1.7-rc.2` web profile found the client
-  bundle served and the auth and usage-status RPCs answering. Live sign-in
-  and model requests on the supported DSH lines remain to be checked.
+  A manual check in an isolated `0.1.7-rc.2` web profile found the client bundle
+  served and the auth and usage-status RPCs answering. Live sign-in and model
+  requests on the supported DSH lines remain to be checked.
 - **Cursor:** Browser sign-in and live model discovery were verified in an
   isolated `0.1.7-rc.2` profile. A successful live model request remains to be
   verified. Its transport comes from
@@ -230,37 +225,36 @@ that a provider still accepts live sign-in or model requests. See
 - **OpenCode Go and Kimi Code:** Live usage responses were verified. Their API
   keys stay on the DSH host; the browser receives configured status and quota
   windows, not the keys.
-- **Ollama Cloud:** Unit and fixture coverage only (chat wire, discovery
-  mapping and wire-id normalization, the settings store and its RPC
-  endpoints, usage parsing, web providers, host E2E fixtures). The card's
-  rendering has no browser test. Live chat, listing, usage, and web calls
-  against `ollama.com` remain to be verified with a real key.
+- **Ollama Cloud:** Unit and fixture coverage only (chat wire, discovery mapping
+  and wire-id normalization, the settings store and its RPC endpoints, usage
+  parsing, web providers, host E2E fixtures). The card's rendering has no
+  browser test. Live chat, listing, usage, and web calls against `ollama.com`
+  remain to be verified with a real key.
 
-Cursor uses one connected account and a live model catalog. Its model
-visibility selection persists under the DSH home directory, and automatic
-display follows newly discovered models. It ships no fallback model list and
-does not import the local `cursor-agent` credential cache. Individual usage
-comes from Cursor dashboard endpoints; the documented Admin API covers team
-usage.
+Cursor uses one connected account and a live model catalog. Its model visibility
+selection persists under the DSH home directory, and automatic display follows
+newly discovered models. It ships no fallback model list and does not import the
+local `cursor-agent` credential cache. Individual usage comes from Cursor
+dashboard endpoints; the documented Admin API covers team usage.
 
-The plugin follows DSH network settings. Its former proxy configuration and
-UI have been retired; an old plugin proxy config file is ignored.
+The plugin follows DSH network settings. Its former proxy configuration and UI
+have been retired; an old plugin proxy config file is ignored.
 
 ## Claude prompt-cache TTL
 
 Set `claudePromptCacheTtl: '5m'` (default) or `'1h'` in the plugin config and
 restart DSH. The Claude **Manage** dialog can override this for the Claude
-route: its "Prompt cache lifetime" picker offers Follow config, 5 minutes, or
-1 hour, and a saved choice applies from the next request without a restart.
-Follow config leaves the config value in charge. This affects Claude only;
-other providers keep their own caching.
-Five minutes omits the wire `ttl` field, preserving the existing request. One
-hour adds `ttl: "1h"` to the tools+system prefix and up to three conversation
-breakpoints. All marks share one TTL: Anthropic rejects a one-hour mark after
-a five-minute mark. Requests classified with `purpose` as compaction or
-session-title keep five minutes. Unclassified calls, including subagents and
-calls from hosts that do not supply `purpose`, follow the configured TTL.
-The TTL setting does not require a newer host capability or dependency.
+route: its "Prompt cache lifetime" picker offers Follow config, 5 minutes, or 1
+hour, and a saved choice applies from the next request without a restart. Follow
+config leaves the config value in charge. This affects Claude only; other
+providers keep their own caching. Five minutes omits the wire `ttl` field,
+preserving the existing request. One hour adds `ttl: "1h"` to the tools+system
+prefix and up to three conversation breakpoints. All marks share one TTL:
+Anthropic rejects a one-hour mark after a five-minute mark. Requests classified
+with `purpose` as compaction or session-title keep five minutes. Unclassified
+calls, including subagents and calls from hosts that do not supply `purpose`,
+follow the configured TTL. The TTL setting does not require a newer host
+capability or dependency.
 
 Cache reads have the same API price for either TTL. One-hour writes are priced
 at 2× base input instead of 1.25×. They may pay off with reusable prefixes and
@@ -281,35 +275,58 @@ live-account verification of this fork.
 
 **Settings → Subscriptions → Usage coloring** offers one browser-local dropdown:
 
-- **Standard** (default): yellow when used quota leads elapsed time by at least 10 percentage points.
+- **Standard** (default): yellow when used quota leads elapsed time by at least
+  10 percentage points.
 - **Relaxed**: yellow at a lead of at least 15 points.
 - **Remaining quota only**: no yellow pace warnings.
 
-Every preset shows reported usage of 90% or more in red, before considering pace. For example, 40% used after 25% of a window is a 15-point lead, not a consumption forecast. Preferences apply to all meters, survive reloads and synchronize across tabs of the same origin. They change display only, never account routing or quota enforcement.
+Every preset shows reported usage of 90% or more in red, before considering
+pace. For example, 40% used after 25% of a window is a 15-point lead, not a
+consumption forecast. Preferences apply to all meters, survive reloads and
+synchronize across tabs of the same origin. They change display only, never
+account routing or quota enforcement.
 
-A vertical marker shows elapsed time only for an explicit valid start/end interval or a provider-verified fixed duration. A session/weekly label alone does not establish a fixed window; rolling or unknown intervals have no marker. Claude's recognized five-hour/seven-day buckets and Codex's reported quota durations supply fixed-window metadata. Unknown timing falls back to green below 90%, without a marker or yellow warning.
+A vertical marker shows elapsed time only for an explicit valid start/end
+interval or a provider-verified fixed duration. A session/weekly label alone
+does not establish a fixed window; rolling or unknown intervals have no marker.
+Claude's recognized five-hour/seven-day buckets and Codex's reported quota
+durations supply fixed-window metadata. Unknown timing falls back to green below
+90%, without a marker or yellow warning.
 
-The marker depends on the window's timing alone, not on the reading: it stays at 0% used, for an invalid percentage, and when a refresh failed or the reading is more than five minutes old. Such a reading is not set against the current time, so it gets no yellow pace warning and its tooltip omits the ahead/behind comparison. It retains the last reported green/red color with an accessible stale label; refresh to confirm it. Once the reset time has passed the window has no position and the marker disappears. Invalid percentages show an unavailable state without a fabricated fill. Tooltips explain remaining quota, time progress and reset countdown where available. See the [decision record](.agents/notes/implemented/architecture/2026-10-01-usage-pace-colors.md) and the [cursor note](.agents/notes/implemented/architecture/2026-10-06-usage-cursor-timing-only.md) for rationale and verification limits.
+The marker depends on the window's timing alone, not on the reading: it stays at
+0% used, for an invalid percentage, and when a refresh failed or the reading is
+more than five minutes old. Such a reading is not set against the current time,
+so it gets no yellow pace warning and its tooltip omits the ahead/behind
+comparison. It retains the last reported green/red color with an accessible
+stale label; refresh to confirm it. Once the reset time has passed the window
+has no position and the marker disappears. Invalid percentages show an
+unavailable state without a fabricated fill. Tooltips explain remaining quota,
+time progress and reset countdown where available. See the
+[decision record](.agents/notes/implemented/architecture/2026-10-01-usage-pace-colors.md)
+and the
+[cursor note](.agents/notes/implemented/architecture/2026-10-06-usage-cursor-timing-only.md)
+for rationale and verification limits.
 
 ### MiniMax subscription usage
 
-Configure `MINIMAX_API_KEY` for the global service or
-`MINIMAX_CN_API_KEY` for China, using DSH's standard model-key configuration.
-The plugin reuses those credential references; no separate subscription ref is
-required. Quota reads require subscription keys, not `sk-api-*` pay-as-you-go keys. The plugin reads the
-region's `/v1/token_plan/remains` endpoint and displays finite per-model quotas
-with API-provided start/end times. It does not add model routing or OAuth login.
-Rows are labelled with the model name, and the plugin shows the windows the API
-returns for each model. MiniMax documents a five-hour and a weekly window for
-non-video models and only a weekly one for video. Standard (non-video) models
-on time-based plans report an explicit remaining percentage beside zero counts,
-and that percentage is enough for a row. Unlimited, boosted-above-100% and
-unsupported quotas are omitted (a status-3 row also covers a model the plan
-does not include); if none remain, the card reports unavailable rather than
-inventing a percentage. Explicit remaining percentages take priority; older
-responses follow the official CLI's remaining-count compatibility convention. No
-live-account response was used in verification, so a missing model may still
-come from the account or the plan rather than from this plugin.
+Configure `MINIMAX_API_KEY` for the global service or `MINIMAX_CN_API_KEY` for
+China, using DSH's standard model-key configuration. The plugin reuses those
+credential references; no separate subscription ref is required. Quota reads
+require subscription keys, not `sk-api-*` pay-as-you-go keys. The plugin reads
+the region's `/v1/token_plan/remains` endpoint and displays finite per-model
+quotas with API-provided start/end times. It does not add model routing or OAuth
+login. Rows are labelled with the model name, and the plugin shows the windows
+the API returns for each model. MiniMax documents a five-hour and a weekly
+window for non-video models and only a weekly one for video. Standard
+(non-video) models on time-based plans report an explicit remaining percentage
+beside zero counts, and that percentage is enough for a row. Unlimited,
+boosted-above-100% and unsupported quotas are omitted (a status-3 row also
+covers a model the plan does not include); if none remain, the card reports
+unavailable rather than inventing a percentage. Explicit remaining percentages
+take priority; older responses follow the official CLI's remaining-count
+compatibility convention. No live-account response was used in verification, so
+a missing model may still come from the account or the plan rather than from
+this plugin.
 
 ## Development
 
@@ -319,16 +336,27 @@ pnpm build
 pnpm test
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the PR workflow, test boundaries,
-and isolated DSH checks.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the PR workflow, test boundaries, and
+isolated DSH checks.
 
 The tests and checks (unit and integration tests, the host-export and host
-contract checks, the boot smoke, and the host E2E) are documented in [docs/testing.md](docs/testing.md); the DSH
-support window and release process in
-[docs/compatibility.md](docs/compatibility.md).
+contract checks, the boot smoke, and the host E2E) are documented in
+[docs/testing.md](docs/testing.md); the DSH support window and release process
+in [docs/compatibility.md](docs/compatibility.md).
 
-The package is published to npm as `dsh-subscriptions`, starting with the first release under the new name (GitHub source installation remains supported). The `cordis.patch.yml` bundle entry and browser module ID use the same package name. Earlier releases were published as `@goodboys-ai/dsh-subscription-hub`; that name is deprecated and points here. If the old scoped package is installed, remove it before adding the new one — installing both registers the same adapters twice and breaks plugin load.
+The package is published to npm as `dsh-subscriptions`, starting with the first
+release under the new name (GitHub source installation remains supported). The
+`cordis.patch.yml` bundle entry and browser module ID use the same package name.
+Earlier releases were published as `@goodboys-ai/dsh-subscription-hub`; that
+name is deprecated and points here. If the old scoped package is installed,
+remove it before adding the new one — installing both registers the same
+adapters twice and breaks plugin load.
 
 ## Origins
 
-This project started from [V1ki/dsh-plugin-subscriptions](https://github.com/V1ki/dsh-plugin-subscriptions) at `090d964` under its MIT license and now includes upstream `0.9.5` (`75a8346`). The upstream English and Chinese READMEs are kept in [`docs/upstream-README.md`](docs/upstream-README.md) and [`docs/upstream-README.zh.md`](docs/upstream-README.zh.md).
+This project started from
+[V1ki/dsh-plugin-subscriptions](https://github.com/V1ki/dsh-plugin-subscriptions)
+at `090d964` under its MIT license and now includes upstream `0.9.5`
+(`75a8346`). The upstream English and Chinese READMEs are kept in
+[`docs/upstream-README.md`](docs/upstream-README.md) and
+[`docs/upstream-README.zh.md`](docs/upstream-README.zh.md).

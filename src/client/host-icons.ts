@@ -26,7 +26,10 @@ const NoIcon: ComponentType<IconProps> = () => null
  * @param name - the glyph name without prefix or size, e.g. `Sparkle`.
  * @returns the host's component, or one rendering nothing.
  */
-export function hostIcon(icons: object, name: HostIconName): ComponentType<IconProps> {
+export function hostIcon(
+  icons: object,
+  name: HostIconName,
+): ComponentType<IconProps> {
   const exports = icons as Record<string, ComponentType<IconProps> | undefined>
   const icon = exports[`Icon${name}Regular`] ?? exports[`Icon${name}16`]
   if (icon !== undefined) return icon

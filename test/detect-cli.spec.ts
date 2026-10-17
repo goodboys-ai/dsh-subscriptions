@@ -42,11 +42,18 @@ test('detectClaudeVersion returns the fallback when claude is not in PATH', () =
 
 /** A working CLI must win over the hard-coded fallback version. */
 test('detectClaudeVersion reads a resolvable CLI rather than the fallback', () => {
-  const bin = join(mkdtempSync(join(tmpdir(), 'claude-probe-')), process.platform === 'win32' ? 'claude.cmd' : 'claude')
+  const bin = join(
+    mkdtempSync(join(tmpdir(), 'claude-probe-')),
+    process.platform === 'win32' ? 'claude.cmd' : 'claude',
+  )
   const reported = '9.9.9'
-  writeFileSync(bin, process.platform === 'win32'
-    ? `@echo off\r\necho ${reported} (Claude Code)\r\n`
-    : `#!/bin/sh\necho "${reported} (Claude Code)"\n`, { mode: 0o755 })
+  writeFileSync(
+    bin,
+    process.platform === 'win32'
+      ? `@echo off\r\necho ${reported} (Claude Code)\r\n`
+      : `#!/bin/sh\necho "${reported} (Claude Code)"\n`,
+    { mode: 0o755 },
+  )
   const original = process.env.PATH
   try {
     process.env.PATH = dirname(bin)
@@ -59,8 +66,11 @@ test('detectClaudeVersion reads a resolvable CLI rather than the fallback', () =
 
 /** The fallback must remain above the currently documented model floor. */
 test('detectClaudeVersion fallback is new enough for currently gated models', () => {
-  const [major, minor, patch] = CLAUDE_CLI_FALLBACK_VERSION.split('.').map(Number)
-  assert.ok(major > 2 || (major === 2 && (minor > 1 || (minor === 1 && patch >= 251))))
+  const [major, minor, patch] =
+    CLAUDE_CLI_FALLBACK_VERSION.split('.').map(Number)
+  assert.ok(
+    major > 2 || (major === 2 && (minor > 1 || (minor === 1 && patch >= 251))),
+  )
 })
 
 // ---------------------------------------------------------------------------
@@ -79,10 +89,18 @@ const EXPECTED_FLAGS = [
 
 test('CLAUDE_BETA_FALLBACK is a well-formed comma-separated flag list', () => {
   assert.ok(CLAUDE_BETA_FALLBACK.length > 0, 'must not be empty')
-  assert.ok(!CLAUDE_BETA_FALLBACK.startsWith(',') && !CLAUDE_BETA_FALLBACK.endsWith(','), 'no leading/trailing commas')
+  assert.ok(
+    !CLAUDE_BETA_FALLBACK.startsWith(',') &&
+      !CLAUDE_BETA_FALLBACK.endsWith(','),
+    'no leading/trailing commas',
+  )
   for (const flag of CLAUDE_BETA_FALLBACK.split(',')) {
     // Dates appear both dashed (oauth-2025-04-20) and compact (claude-code-20250219).
-    assert.match(flag, /^[a-z][\w-]+-\d{4}-?\d{2}-?\d{2}$/, `malformed flag: "${flag}"`)
+    assert.match(
+      flag,
+      /^[a-z][\w-]+-\d{4}-?\d{2}-?\d{2}$/,
+      `malformed flag: "${flag}"`,
+    )
   }
 })
 
@@ -91,5 +109,9 @@ test('CLAUDE_BETA_FALLBACK contains exactly the live-verified flag set', () => {
   for (const expected of EXPECTED_FLAGS) {
     assert.ok(flags.includes(expected), `missing expected flag: ${expected}`)
   }
-  assert.equal(flags.length, EXPECTED_FLAGS.length, `expected ${EXPECTED_FLAGS.length} flags, got ${flags.length}`)
+  assert.equal(
+    flags.length,
+    EXPECTED_FLAGS.length,
+    `expected ${EXPECTED_FLAGS.length} flags, got ${flags.length}`,
+  )
 })

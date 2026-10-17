@@ -13,7 +13,10 @@ import { LlmError } from '@deepseek-ai/dsh-llm'
 import type { LlmRuntime, ModelModality } from '@deepseek-ai/dsh-llm'
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools'
 import { AttachmentId } from '@deepseek-ai/dsh-attachment'
-import type { AttachmentStore, ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
+import type {
+  AttachmentStore,
+  ImageAttachmentRef,
+} from '@deepseek-ai/dsh-attachment'
 import { codexProfileClaims } from '../src/providers/codex.js'
 import type { FetchFn } from '../src/providers/common.js'
 import { AccountTokenManager } from '../src/providers/accounts.js'
@@ -40,7 +43,8 @@ import {
 } from '../src/tools/video-generate.js'
 
 /** The tool output renderer's JSON value (dsh-util-values; not a direct dependency here). */
-type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue }
+type JsonValue =
+  null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue }
 
 /** Mint an unsigned JWT carrying the given payload. */
 function unsignedJwt(payload: Record<string, unknown>): string {
@@ -52,20 +56,23 @@ function fakeExec(): ToolRunContext {
   return { signal: new AbortController().signal } as unknown as ToolRunContext
 }
 
-function memoryTokens<S extends { accessToken: string; refreshToken: string; expiresAt: number }>(
-  initial: S | undefined,
-): AccountTokenManager<S> {
+function memoryTokens<
+  S extends { accessToken: string; refreshToken: string; expiresAt: number },
+>(initial: S | undefined): AccountTokenManager<S> {
   let stored = initial
   return new AccountTokenManager<S>({
     provider: 'codex',
     displayName: 'Test',
     makeOptions: () => ({
       preemptMs: 0,
-      refresh: session => Promise.resolve(session),
+      refresh: (session) => Promise.resolve(session),
       isPermanent: () => false,
     }),
     io: {
-      list: () => Promise.resolve(stored === undefined ? [] : [{ key: 'acct', session: stored }]),
+      list: () =>
+        Promise.resolve(
+          stored === undefined ? [] : [{ key: 'acct', session: stored }],
+        ),
       get: () => Promise.resolve(stored),
       save: (_account, session) => {
         stored = session
@@ -79,7 +86,10 @@ function memoryTokens<S extends { accessToken: string; refreshToken: string; exp
   })
 }
 
-function jsonFetch(payload: unknown, status = 200): { fetchFn: FetchFn; lastBody: () => unknown } {
+function jsonFetch(
+  payload: unknown,
+  status = 200,
+): { fetchFn: FetchFn; lastBody: () => unknown } {
   let body: unknown
   const fetchFn: FetchFn = ((_url: string, init?: RequestInit) => {
     body = init?.body === undefined ? undefined : JSON.parse(String(init.body))
@@ -104,16 +114,24 @@ const grokSession: GrokSession = {
 test('codexProfileClaims: top-level email and plan type', () => {
   const token = unsignedJwt({
     email: 'user@example.com',
-    'https://api.openai.com/auth': { chatgpt_plan_type: 'pro', chatgpt_account_id: 'acct-1' },
+    'https://api.openai.com/auth': {
+      chatgpt_plan_type: 'pro',
+      chatgpt_account_id: 'acct-1',
+    },
   })
-  assert.deepEqual(codexProfileClaims(token), { emailAddress: 'user@example.com', planType: 'pro' })
+  assert.deepEqual(codexProfileClaims(token), {
+    emailAddress: 'user@example.com',
+    planType: 'pro',
+  })
 })
 
 test('codexProfileClaims: profile-namespaced email fallback and precedence', () => {
   const namespaced = unsignedJwt({
     'https://api.openai.com/profile': { email: 'profile@example.com' },
   })
-  assert.deepEqual(codexProfileClaims(namespaced), { emailAddress: 'profile@example.com' })
+  assert.deepEqual(codexProfileClaims(namespaced), {
+    emailAddress: 'profile@example.com',
+  })
   const both = unsignedJwt({
     email: 'top@example.com',
     'https://api.openai.com/profile': { email: 'profile@example.com' },
@@ -130,11 +148,20 @@ test('codexProfileClaims: missing or malformed tokens yield no claims', () => {
 test('buildXSearchRequest: validation and normalization', () => {
   assert.throws(() => buildXSearchRequest({ query: '  ' }), /non-empty/)
   assert.throws(
-    () => buildXSearchRequest({ query: 'q', allowed_x_handles: ['a'], excluded_x_handles: ['b'] }),
+    () =>
+      buildXSearchRequest({
+        query: 'q',
+        allowed_x_handles: ['a'],
+        excluded_x_handles: ['b'],
+      }),
     /cannot be used together/,
   )
   assert.throws(
-    () => buildXSearchRequest({ query: 'q', allowed_x_handles: Array.from({ length: 11 }, (_, i) => `h${i}`) }),
+    () =>
+      buildXSearchRequest({
+        query: 'q',
+        allowed_x_handles: Array.from({ length: 11 }, (_, i) => `h${i}`),
+      }),
     /at most 10/,
   )
   const request = buildXSearchRequest({
@@ -154,58 +181,93 @@ test('buildXSearchRequest: validation and normalization', () => {
 
 test('parseXSearchResponse: answer, citations, inline annotations deduped', () => {
   const parsed = parseXSearchResponse({
-    output: [{
-      type: 'message',
-      content: [{
-        type: 'output_text',
-        text: 'the answer',
-        annotations: [
-          { type: 'url_citation', url: 'https://x.com/a/status/1' },
-          { type: 'url_citation', url: 'https://x.com/b/status/2' },
+    output: [
+      {
+        type: 'message',
+        content: [
+          {
+            type: 'output_text',
+            text: 'the answer',
+            annotations: [
+              { type: 'url_citation', url: 'https://x.com/a/status/1' },
+              { type: 'url_citation', url: 'https://x.com/b/status/2' },
+            ],
+          },
         ],
-      }],
-    }],
+      },
+    ],
     citations: ['https://x.com/b/status/2', 'https://x.com/c/status/3'],
   })
   assert.equal(parsed.answer, 'the answer')
-  assert.deepEqual(parsed.citations, ['https://x.com/b/status/2', 'https://x.com/c/status/3', 'https://x.com/a/status/1'])
+  assert.deepEqual(parsed.citations, [
+    'https://x.com/b/status/2',
+    'https://x.com/c/status/3',
+    'https://x.com/a/status/1',
+  ])
 })
 
 test('x_search execute: success, error status, and logged-out', async () => {
-  const { fetchFn, lastBody } = jsonFetch({ output_text: 'hello from X', citations: ['https://x.com/a/1'] })
+  const { fetchFn, lastBody } = jsonFetch({
+    output_text: 'hello from X',
+    citations: ['https://x.com/a/1'],
+  })
   const tool = createXSearchTool({ tokens: memoryTokens(grokSession), fetchFn })
-  const value = await tool.execute({ query: 'OpenAI' }, fakeExec()) as { answer: string; citations: string[] }
-  assert.deepEqual(value, { answer: 'hello from X', citations: ['https://x.com/a/1'] })
-  const body = lastBody() as { model: string; tools: { type: string }[]; store: boolean }
+  const value = (await tool.execute({ query: 'OpenAI' }, fakeExec())) as {
+    answer: string
+    citations: string[]
+  }
+  assert.deepEqual(value, {
+    answer: 'hello from X',
+    citations: ['https://x.com/a/1'],
+  })
+  const body = lastBody() as {
+    model: string
+    tools: { type: string }[]
+    store: boolean
+  }
   assert.equal(body.model, 'grok-4')
   assert.deepEqual(body.tools, [{ type: 'x_search' }])
   assert.equal(body.store, false)
 
-  const failing = createXSearchTool({ tokens: memoryTokens(grokSession), fetchFn: jsonFetch('rate limited', 429).fetchFn })
+  const failing = createXSearchTool({
+    tokens: memoryTokens(grokSession),
+    fetchFn: jsonFetch('rate limited', 429).fetchFn,
+  })
   await assert.rejects(
     () => failing.execute({ query: 'x' }, fakeExec()),
-    (error: unknown) => error instanceof LlmError && error.code === 'RATE_LIMIT',
+    (error: unknown) =>
+      error instanceof LlmError && error.code === 'RATE_LIMIT',
   )
 
-  const loggedOut = createXSearchTool({ tokens: memoryTokens<GrokSession>(undefined), fetchFn })
+  const loggedOut = createXSearchTool({
+    tokens: memoryTokens<GrokSession>(undefined),
+    fetchFn,
+  })
   await assert.rejects(
     () => loggedOut.execute({ query: 'x' }, fakeExec()),
-    (error: unknown) => error instanceof LlmError && error.code === 'MISSING_CREDENTIAL',
+    (error: unknown) =>
+      error instanceof LlmError && error.code === 'MISSING_CREDENTIAL',
   )
 })
 
 test('x_search presentCall/presentResult shapes', async () => {
-  const tool = createXSearchTool({ tokens: memoryTokens(grokSession), fetchFn: jsonFetch({}).fetchFn })
+  const tool = createXSearchTool({
+    tokens: memoryTokens(grokSession),
+    fetchFn: jsonFetch({}).fetchFn,
+  })
   assert.deepEqual(tool.presentCall?.({ query: 'OpenAI' }), {
     card: 'generic',
     title: 'x_search: OpenAI',
     kind: 'search',
   })
-  const view = tool.presentResult?.({ query: 'OpenAI' }, {
-    isError: false,
-    content: [],
-    meta: { answer: 'a', citations: ['https://x.com/a/1'] },
-  })
+  const view = tool.presentResult?.(
+    { query: 'OpenAI' },
+    {
+      isError: false,
+      content: [],
+      meta: { answer: 'a', citations: ['https://x.com/a/1'] },
+    },
+  )
   assert.deepEqual(view, {
     card: 'web',
     kind: 'search',
@@ -217,46 +279,90 @@ test('x_search presentCall/presentResult shapes', async () => {
 
 test('buildImageGenerateBody: validation and pass-through', () => {
   assert.throws(() => buildImageGenerateBody({ prompt: ' ' }), /non-empty/)
-  assert.deepEqual(buildImageGenerateBody({ prompt: 'a square', size: '1024x1024', quality: 'low' }), {
-    prompt: 'a square',
+  assert.deepEqual(
+    buildImageGenerateBody({
+      prompt: 'a square',
+      size: '1024x1024',
+      quality: 'low',
+    }),
+    {
+      prompt: 'a square',
+      model: 'gpt-image-2',
+      size: '1024x1024',
+      quality: 'low',
+    },
+  )
+  assert.deepEqual(buildImageGenerateBody({ prompt: 'p' }), {
+    prompt: 'p',
     model: 'gpt-image-2',
-    size: '1024x1024',
-    quality: 'low',
   })
-  assert.deepEqual(buildImageGenerateBody({ prompt: 'p' }), { prompt: 'p', model: 'gpt-image-2' })
 })
 
 test('buildGrokImageGenerateBody: size→aspect_ratio and quality folding', () => {
   assert.throws(() => buildGrokImageGenerateBody({ prompt: ' ' }), /non-empty/)
-  assert.deepEqual(buildGrokImageGenerateBody({ prompt: 'a square', size: '1024x1536', quality: 'high' }), {
-    prompt: 'a square',
-    model: 'grok-imagine-image-2.0',
-    response_format: 'b64_json',
-    aspect_ratio: '2:3',
-    quality: 'medium',
-  })
-  assert.deepEqual(buildGrokImageGenerateBody({ prompt: 'p', quality: 'auto' }), {
-    prompt: 'p',
-    model: 'grok-imagine-image-2.0',
-    response_format: 'b64_json',
-  })
+  assert.deepEqual(
+    buildGrokImageGenerateBody({
+      prompt: 'a square',
+      size: '1024x1536',
+      quality: 'high',
+    }),
+    {
+      prompt: 'a square',
+      model: 'grok-imagine-image-2.0',
+      response_format: 'b64_json',
+      aspect_ratio: '2:3',
+      quality: 'medium',
+    },
+  )
+  assert.deepEqual(
+    buildGrokImageGenerateBody({ prompt: 'p', quality: 'auto' }),
+    {
+      prompt: 'p',
+      model: 'grok-imagine-image-2.0',
+      response_format: 'b64_json',
+    },
+  )
 })
 
 test('sniffImageMediaType: png, jpeg, webp, and the png default', () => {
-  assert.equal(sniffImageMediaType(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])), 'image/png')
-  assert.equal(sniffImageMediaType(Buffer.from([0xff, 0xd8, 0xff, 0xe0])), 'image/jpeg')
-  assert.equal(sniffImageMediaType(Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(4), Buffer.from('WEBP')])), 'image/webp')
+  assert.equal(
+    sniffImageMediaType(
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    ),
+    'image/png',
+  )
+  assert.equal(
+    sniffImageMediaType(Buffer.from([0xff, 0xd8, 0xff, 0xe0])),
+    'image/jpeg',
+  )
+  assert.equal(
+    sniffImageMediaType(
+      Buffer.concat([
+        Buffer.from('RIFF'),
+        Buffer.alloc(4),
+        Buffer.from('WEBP'),
+      ]),
+    ),
+    'image/webp',
+  )
   assert.equal(sniffImageMediaType(Buffer.from([1, 2, 3])), 'image/png')
 })
 
 test('image_generate: grok fallback when codex is logged out', async (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'router-images-'))
-  t.after(() => { rmSync(dir, { recursive: true, force: true }) })
+  t.after(() => {
+    rmSync(dir, { recursive: true, force: true })
+  })
   const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2])
   const requests: { url: string; body: unknown }[] = []
   const fetchFn: FetchFn = ((url: string, init?: RequestInit) => {
     requests.push({ url: String(url), body: JSON.parse(String(init?.body)) })
-    return Promise.resolve(new Response(JSON.stringify({ data: [{ b64_json: jpeg.toString('base64') }] }), { status: 200 }))
+    return Promise.resolve(
+      new Response(
+        JSON.stringify({ data: [{ b64_json: jpeg.toString('base64') }] }),
+        { status: 200 },
+      ),
+    )
   }) as FetchFn
 
   // Codex configured but logged out, grok logged in → the grok endpoint serves.
@@ -266,7 +372,10 @@ test('image_generate: grok fallback when codex is logged out', async (t) => {
     fetchFn,
     imagesDir: dir,
   })
-  const value = await tool.execute({ prompt: 'a cat', size: '1536x1024' }, fakeExec()) as { paths: string[] }
+  const value = (await tool.execute(
+    { prompt: 'a cat', size: '1536x1024' },
+    fakeExec(),
+  )) as { paths: string[] }
   assert.equal(requests.length, 1)
   assert.equal(requests[0].url, 'https://api.x.ai/v1/images/generations')
   assert.deepEqual(requests[0].body, {
@@ -286,7 +395,10 @@ test('image_generate: grok fallback when codex is logged out', async (t) => {
     imagesDir: dir,
   })
   await codexFirst.execute({ prompt: 'a cat' }, fakeExec())
-  assert.equal(requests[1].url, 'https://chatgpt.com/backend-api/codex/images/generations')
+  assert.equal(
+    requests[1].url,
+    'https://chatgpt.com/backend-api/codex/images/generations',
+  )
 
   // provider: 'grok' → grok preferred even with codex logged in.
   await codexFirst.execute({ prompt: 'a cat', provider: 'grok' }, fakeExec())
@@ -300,7 +412,10 @@ test('image_generate: grok fallback when codex is logged out', async (t) => {
     imagesDir: dir,
   })
   await grokPreferred.execute({ prompt: 'a cat', provider: 'grok' }, fakeExec())
-  assert.equal(requests[3].url, 'https://chatgpt.com/backend-api/codex/images/generations')
+  assert.equal(
+    requests[3].url,
+    'https://chatgpt.com/backend-api/codex/images/generations',
+  )
 
   // Neither logged in → the standard log-in hint.
   const loggedOut = createImageGenerateTool({
@@ -311,14 +426,17 @@ test('image_generate: grok fallback when codex is logged out', async (t) => {
   })
   await assert.rejects(
     () => loggedOut.execute({ prompt: 'x' }, fakeExec()),
-    (error: unknown) => error instanceof LlmError && error.code === 'MISSING_CREDENTIAL',
+    (error: unknown) =>
+      error instanceof LlmError && error.code === 'MISSING_CREDENTIAL',
   )
 })
 
 test('parseImageGenerateResponse: b64 decode, revised prompt, empty data', () => {
   const png = Buffer.from([0x89, 0x50, 0x4e, 0x47])
   const parsed = parseImageGenerateResponse({
-    data: [{ b64_json: png.toString('base64'), revised_prompt: 'better prompt' }],
+    data: [
+      { b64_json: png.toString('base64'), revised_prompt: 'better prompt' },
+    ],
   })
   assert.equal(parsed.length, 1)
   assert.deepEqual(parsed[0].data, png)
@@ -332,40 +450,73 @@ test('image_generate excludes disabled providers from preferred and fallback rou
   const urls: string[] = []
   const fetchFn = (async (url: string | URL | Request) => {
     urls.push(String(url))
-    return new Response(JSON.stringify({ data: [{ b64_json: Buffer.from([0x89, 0x50, 0x4e, 0x47]).toString('base64') }] }))
+    return new Response(
+      JSON.stringify({
+        data: [
+          {
+            b64_json: Buffer.from([0x89, 0x50, 0x4e, 0x47]).toString('base64'),
+          },
+        ],
+      }),
+    )
   }) as FetchFn
   try {
     const tool = createImageGenerateTool({
-      codexTokens: memoryTokens(codexSession), grokTokens: memoryTokens(grokSession),
-      providerEnabled: provider => provider === 'grok', fetchFn, imagesDir: dir,
+      codexTokens: memoryTokens(codexSession),
+      grokTokens: memoryTokens(grokSession),
+      providerEnabled: (provider) => provider === 'grok',
+      fetchFn,
+      imagesDir: dir,
     })
     await tool.execute({ prompt: 'cat', provider: 'gpt' }, fakeExec())
     assert.equal(urls[0], 'https://api.x.ai/v1/images/generations')
     const disabled = createImageGenerateTool({
-      codexTokens: memoryTokens(codexSession), grokTokens: memoryTokens(grokSession),
-      providerEnabled: () => false, fetchFn, imagesDir: dir,
+      codexTokens: memoryTokens(codexSession),
+      grokTokens: memoryTokens(grokSession),
+      providerEnabled: () => false,
+      fetchFn,
+      imagesDir: dir,
     })
-    await assert.rejects(disabled.execute({ prompt: 'cat' }, fakeExec()), /disabled/)
+    await assert.rejects(
+      disabled.execute({ prompt: 'cat' }, fakeExec()),
+      /disabled/,
+    )
     assert.equal(urls.length, 1)
-  } finally { rmSync(dir, { recursive: true, force: true }) }
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })
 
 test('image_generate execute: writes files, error status, and logged-out', async (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'subscriptions-images-'))
-  t.after(() => { rmSync(dir, { recursive: true, force: true }) })
+  t.after(() => {
+    rmSync(dir, { recursive: true, force: true })
+  })
   const png = Buffer.from([1, 2, 3])
-  const { fetchFn, lastBody } = jsonFetch({ created: 1, data: [{ b64_json: png.toString('base64') }] })
-  const tool = createImageGenerateTool({ codexTokens: memoryTokens(codexSession), fetchFn, imagesDir: dir })
-  const value = await tool.execute(
+  const { fetchFn, lastBody } = jsonFetch({
+    created: 1,
+    data: [{ b64_json: png.toString('base64') }],
+  })
+  const tool = createImageGenerateTool({
+    codexTokens: memoryTokens(codexSession),
+    fetchFn,
+    imagesDir: dir,
+  })
+  const value = (await tool.execute(
     { prompt: 'a tiny red square', size: '1024x1024', quality: 'low' },
     fakeExec(),
-  ) as { paths: string[] }
+  )) as { paths: string[] }
   assert.equal(value.paths.length, 1)
   assert.ok(value.paths[0].startsWith(dir))
   assert.deepEqual(readFileSync(value.paths[0]), png)
   assert.equal(readdirSync(dir).length, 1)
   const body = lastBody() as Record<string, unknown>
-  assert.deepEqual(body, { prompt: 'a tiny red square', model: 'gpt-image-2', size: '1024x1024', quality: 'low' })
+  assert.deepEqual(body, {
+    prompt: 'a tiny red square',
+    model: 'gpt-image-2',
+    size: '1024x1024',
+    quality: 'low',
+  })
 
   const failing = createImageGenerateTool({
     codexTokens: memoryTokens(codexSession),
@@ -384,12 +535,16 @@ test('image_generate execute: writes files, error status, and logged-out', async
   })
   await assert.rejects(
     () => loggedOut.execute({ prompt: 'x' }, fakeExec()),
-    (error: unknown) => error instanceof LlmError && error.code === 'MISSING_CREDENTIAL',
+    (error: unknown) =>
+      error instanceof LlmError && error.code === 'MISSING_CREDENTIAL',
   )
 })
 
 test('image_generate presentCall', () => {
-  const tool = createImageGenerateTool({ codexTokens: memoryTokens(codexSession), fetchFn: jsonFetch({}).fetchFn })
+  const tool = createImageGenerateTool({
+    codexTokens: memoryTokens(codexSession),
+    fetchFn: jsonFetch({}).fetchFn,
+  })
   assert.deepEqual(tool.presentCall?.({ prompt: 'a cat' }), {
     card: 'generic',
     title: 'image_generate: a cat',
@@ -397,18 +552,25 @@ test('image_generate presentCall', () => {
 })
 
 /** Fake attachment store: saveImage returns a deterministic ref. */
-function fakeAttachments(): { store: Pick<AttachmentStore, 'saveImage'>; saved: { name?: string }[] } {
+function fakeAttachments(): {
+  store: Pick<AttachmentStore, 'saveImage'>
+  saved: { name?: string }[]
+} {
   const saved: { name?: string }[] = []
   const store = {
-    saveImage: (input: { data: Uint8Array; mediaType: string; name?: string }) => {
-      saved.push({ ...input.name === undefined ? {} : { name: input.name } })
+    saveImage: (input: {
+      data: Uint8Array
+      mediaType: string
+      name?: string
+    }) => {
+      saved.push({ ...(input.name === undefined ? {} : { name: input.name }) })
       return Promise.resolve({
         attachmentId: AttachmentId('att-1'),
         mediaType: 'image/png' as const,
         bytes: input.data.length,
         width: 2,
         height: 3,
-        ...input.name === undefined ? {} : { name: input.name },
+        ...(input.name === undefined ? {} : { name: input.name }),
       })
     },
   }
@@ -416,7 +578,11 @@ function fakeAttachments(): { store: Pick<AttachmentStore, 'saveImage'>; saved: 
 }
 
 /** Fake exec carrying an agent routed at the given provider/model. */
-function routedExec(provider: string, model: string, extra: Record<string, unknown> = {}): ToolRunContext {
+function routedExec(
+  provider: string,
+  model: string,
+  extra: Record<string, unknown> = {},
+): ToolRunContext {
   return {
     signal: new AbortController().signal,
     agent: {
@@ -428,14 +594,17 @@ function routedExec(provider: string, model: string, extra: Record<string, unkno
 }
 
 /** Fake llm service whose resolveModelInfo reports the given modalities. */
-function fakeLlm(inputModalities: ModelModality[] | undefined): Pick<LlmRuntime, 'resolveModelInfo'> {
+function fakeLlm(
+  inputModalities: ModelModality[] | undefined,
+): Pick<LlmRuntime, 'resolveModelInfo'> {
   return {
-    resolveModelInfo: () => Promise.resolve({
-      provider: 'codex',
-      id: 'm',
-      name: 'm',
-      ...inputModalities === undefined ? {} : { inputModalities },
-    }),
+    resolveModelInfo: () =>
+      Promise.resolve({
+        provider: 'codex',
+        id: 'm',
+        name: 'm',
+        ...(inputModalities === undefined ? {} : { inputModalities }),
+      }),
   }
 }
 
@@ -443,9 +612,14 @@ const PNG_BYTES = Buffer.from([1, 2, 3])
 
 test('image_generate: image-capable route commits attachments and returns image refs', async (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'router-images-'))
-  t.after(() => { rmSync(dir, { recursive: true, force: true }) })
+  t.after(() => {
+    rmSync(dir, { recursive: true, force: true })
+  })
   const { store, saved } = fakeAttachments()
-  const { fetchFn } = jsonFetch({ created: 1, data: [{ b64_json: PNG_BYTES.toString('base64') }] })
+  const { fetchFn } = jsonFetch({
+    created: 1,
+    data: [{ b64_json: PNG_BYTES.toString('base64') }],
+  })
   const tool = createImageGenerateTool({
     codexTokens: memoryTokens(codexSession),
     fetchFn,
@@ -453,10 +627,13 @@ test('image_generate: image-capable route commits attachments and returns image 
     resolveAttachments: () => store as AttachmentStore,
     resolveLlm: () => fakeLlm(['text', 'image']) as LlmRuntime,
   })
-  const value = await tool.execute(
+  const value = (await tool.execute(
     { prompt: 'a square' },
     routedExec('codex', 'gpt-5.6-sol'),
-  ) as { paths: string[]; images?: { attachmentId: string; mediaType: string }[] }
+  )) as {
+    paths: string[]
+    images?: { attachmentId: string; mediaType: string }[]
+  }
   assert.equal(saved.length, 1)
   assert.equal(value.images?.length, 1)
   assert.equal(value.images?.[0].attachmentId, 'att-1')
@@ -465,9 +642,14 @@ test('image_generate: image-capable route commits attachments and returns image 
 
 test('image_generate: text-only route degrades to text without saving attachments', async (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'router-images-'))
-  t.after(() => { rmSync(dir, { recursive: true, force: true }) })
+  t.after(() => {
+    rmSync(dir, { recursive: true, force: true })
+  })
   const { store, saved } = fakeAttachments()
-  const { fetchFn } = jsonFetch({ created: 1, data: [{ b64_json: PNG_BYTES.toString('base64') }] })
+  const { fetchFn } = jsonFetch({
+    created: 1,
+    data: [{ b64_json: PNG_BYTES.toString('base64') }],
+  })
   const tool = createImageGenerateTool({
     codexTokens: memoryTokens(codexSession),
     fetchFn,
@@ -475,10 +657,10 @@ test('image_generate: text-only route degrades to text without saving attachment
     resolveAttachments: () => store as AttachmentStore,
     resolveLlm: () => fakeLlm(['text']) as LlmRuntime,
   })
-  const value = await tool.execute(
+  const value = (await tool.execute(
     { prompt: 'a square' },
     routedExec('codex', 'gpt-text-only'),
-  ) as { paths: string[]; images?: unknown[] }
+  )) as { paths: string[]; images?: unknown[] }
   assert.equal(value.paths.length, 1, 'files are still written')
   assert.equal(value.images, undefined)
   assert.equal(saved.length, 0, 'no attachment commit on a text-only route')
@@ -491,23 +673,47 @@ test('image_generate: text-only route degrades to text without saving attachment
     resolveAttachments: () => store as AttachmentStore,
     resolveLlm: () => undefined,
   })
-  const degraded = await noLlm.execute({ prompt: 'a square' }, routedExec('codex', 'gpt-5.6-sol')) as { images?: unknown[] }
+  const degraded = (await noLlm.execute(
+    { prompt: 'a square' },
+    routedExec('codex', 'gpt-5.6-sol'),
+  )) as { images?: unknown[] }
   assert.equal(degraded.images, undefined)
 })
 
 test('image_generate render: image blocks when value.images present, text-only otherwise', () => {
-  const tool = createImageGenerateTool({ codexTokens: memoryTokens(codexSession), fetchFn: jsonFetch({}).fetchFn })
+  const tool = createImageGenerateTool({
+    codexTokens: memoryTokens(codexSession),
+    fetchFn: jsonFetch({}).fetchFn,
+  })
   const withImages = tool.output.render({ prompt: 'p' }, {
     paths: ['/tmp/a.png'],
-    images: [{ attachmentId: 'att-1', mediaType: 'image/png', bytes: 3, width: 2, height: 3, name: 'a.png' }],
+    images: [
+      {
+        attachmentId: 'att-1',
+        mediaType: 'image/png',
+        bytes: 3,
+        width: 2,
+        height: 3,
+        name: 'a.png',
+      },
+    ],
   } satisfies JsonValue)
   assert.equal(withImages.length, 2)
   assert.equal(withImages[0].type, 'text')
   assert.deepEqual(withImages[1], {
     type: 'image',
-    attachment: { attachmentId: 'att-1', mediaType: 'image/png', bytes: 3, width: 2, height: 3, name: 'a.png' },
+    attachment: {
+      attachmentId: 'att-1',
+      mediaType: 'image/png',
+      bytes: 3,
+      width: 2,
+      height: 3,
+      name: 'a.png',
+    },
   })
-  const textOnly = tool.output.render({ prompt: 'p' }, { paths: ['/tmp/a.png'] } satisfies JsonValue)
+  const textOnly = tool.output.render({ prompt: 'p' }, {
+    paths: ['/tmp/a.png'],
+  } satisfies JsonValue)
   assert.equal(textOnly.length, 1)
   assert.equal(textOnly[0].type, 'text')
 })
@@ -523,7 +729,9 @@ function sequenceFetch(responses: Response[]): {
     requests.push({
       url: String(url),
       method: init?.method ?? 'GET',
-      ...init?.body === undefined ? {} : { body: JSON.parse(String(init.body)) },
+      ...(init?.body === undefined
+        ? {}
+        : { body: JSON.parse(String(init.body)) }),
     })
     const next = queue.shift()
     if (next === undefined) throw new Error('sequenceFetch: no responses left')
@@ -534,9 +742,18 @@ function sequenceFetch(responses: Response[]): {
 
 test('buildVideoGenerateBody: validation and pass-through', () => {
   assert.throws(() => buildVideoGenerateBody({ prompt: ' ' }), /non-empty/)
-  assert.throws(() => buildVideoGenerateBody({ prompt: 'p', duration: 0 }), /between 1 and 15/)
-  assert.throws(() => buildVideoGenerateBody({ prompt: 'p', duration: 16 }), /between 1 and 15/)
-  assert.throws(() => buildVideoGenerateBody({ prompt: 'p', duration: 2.5 }), /between 1 and 15/)
+  assert.throws(
+    () => buildVideoGenerateBody({ prompt: 'p', duration: 0 }),
+    /between 1 and 15/,
+  )
+  assert.throws(
+    () => buildVideoGenerateBody({ prompt: 'p', duration: 16 }),
+    /between 1 and 15/,
+  )
+  assert.throws(
+    () => buildVideoGenerateBody({ prompt: 'p', duration: 2.5 }),
+    /between 1 and 15/,
+  )
   assert.deepEqual(
     buildVideoGenerateBody({
       prompt: 'a wave',
@@ -554,38 +771,62 @@ test('buildVideoGenerateBody: validation and pass-through', () => {
       image: { url: 'https://example.com/still.png' },
     },
   )
-  assert.deepEqual(buildVideoGenerateBody({ prompt: 'p' }), { prompt: 'p', model: 'grok-imagine-video-1.5' })
+  assert.deepEqual(buildVideoGenerateBody({ prompt: 'p' }), {
+    prompt: 'p',
+    model: 'grok-imagine-video-1.5',
+  })
 })
 
 test('parseVideoStartResponse / parseVideoStatusResponse', () => {
   assert.equal(parseVideoStartResponse({ request_id: 'req-1' }), 'req-1')
   assert.throws(() => parseVideoStartResponse({}), /no usable request_id/)
 
-  assert.deepEqual(parseVideoStatusResponse({ status: 'pending' }), { status: 'pending' })
+  assert.deepEqual(parseVideoStatusResponse({ status: 'pending' }), {
+    status: 'pending',
+  })
   assert.deepEqual(
-    parseVideoStatusResponse({ status: 'done', video: { url: 'https://vidgen.x.ai/v.mp4', duration: 8 } }),
+    parseVideoStatusResponse({
+      status: 'done',
+      video: { url: 'https://vidgen.x.ai/v.mp4', duration: 8 },
+    }),
     { status: 'done', url: 'https://vidgen.x.ai/v.mp4', duration: 8 },
   )
-  assert.throws(() => parseVideoStatusResponse({ status: 'done', video: {} }), /no video URL/)
+  assert.throws(
+    () => parseVideoStatusResponse({ status: 'done', video: {} }),
+    /no video URL/,
+  )
   assert.deepEqual(
-    parseVideoStatusResponse({ status: 'failed', error: { message: 'moderated' } }),
+    parseVideoStatusResponse({
+      status: 'failed',
+      error: { message: 'moderated' },
+    }),
     { status: 'failed' },
   )
-  assert.deepEqual(parseVideoStatusResponse({ status: 'expired' }), { status: 'expired' })
-  assert.throws(() => parseVideoStatusResponse({ status: 'weird' }), /unexpected status/)
+  assert.deepEqual(parseVideoStatusResponse({ status: 'expired' }), {
+    status: 'expired',
+  })
+  assert.throws(
+    () => parseVideoStatusResponse({ status: 'weird' }),
+    /unexpected status/,
+  )
 })
 
 test('video_generate execute: submit, poll to done, download and save', async (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'subscriptions-videos-'))
-  t.after(() => { rmSync(dir, { recursive: true, force: true }) })
+  t.after(() => {
+    rmSync(dir, { recursive: true, force: true })
+  })
   const mp4 = Buffer.from([0, 0, 0, 24, 0x66, 0x74, 0x79, 0x70])
   const { fetchFn, requests } = sequenceFetch([
     new Response(JSON.stringify({ request_id: 'req-1' }), { status: 200 }),
     new Response(JSON.stringify({ status: 'pending' }), { status: 200 }),
-    new Response(JSON.stringify({
-      status: 'done',
-      video: { url: 'https://vidgen.x.ai/v.mp4', duration: 8 },
-    }), { status: 200 }),
+    new Response(
+      JSON.stringify({
+        status: 'done',
+        video: { url: 'https://vidgen.x.ai/v.mp4', duration: 8 },
+      }),
+      { status: 200 },
+    ),
     new Response(mp4, { status: 200 }),
   ])
   const tool = createVideoGenerateTool({
@@ -594,10 +835,10 @@ test('video_generate execute: submit, poll to done, download and save', async (t
     videosDir: dir,
     pollIntervalMs: 0,
   })
-  const value = await tool.execute(
+  const value = (await tool.execute(
     { prompt: 'a crashing wave', duration: 8, resolution: '720p' },
     fakeExec(),
-  ) as { path: string; url: string; duration?: number }
+  )) as { path: string; url: string; duration?: number }
   assert.ok(value.path.startsWith(dir))
   assert.ok(value.path.endsWith('.mp4'))
   assert.equal(value.url, 'https://vidgen.x.ai/v.mp4')
@@ -620,17 +861,25 @@ test('video_generate execute: submit, poll to done, download and save', async (t
 
 test('video_generate execute: failed status, poll timeout, error status, logged-out', async (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'subscriptions-videos-'))
-  t.after(() => { rmSync(dir, { recursive: true, force: true }) })
+  t.after(() => {
+    rmSync(dir, { recursive: true, force: true })
+  })
   const failed = createVideoGenerateTool({
     tokens: memoryTokens(grokSession),
     fetchFn: sequenceFetch([
       new Response(JSON.stringify({ request_id: 'req-2' }), { status: 200 }),
-      new Response(JSON.stringify({ status: 'failed', error: { message: 'moderated' } }), { status: 200 }),
+      new Response(
+        JSON.stringify({ status: 'failed', error: { message: 'moderated' } }),
+        { status: 200 },
+      ),
     ]).fetchFn,
     videosDir: dir,
     pollIntervalMs: 0,
   })
-  await assert.rejects(() => failed.execute({ prompt: 'x' }, fakeExec()), /failed \(request req-2\): \[provider response body omitted\]/)
+  await assert.rejects(
+    () => failed.execute({ prompt: 'x' }, fakeExec()),
+    /failed \(request req-2\): \[provider response body omitted\]/,
+  )
 
   const timedOut = createVideoGenerateTool({
     tokens: memoryTokens(grokSession),
@@ -642,7 +891,10 @@ test('video_generate execute: failed status, poll timeout, error status, logged-
     pollIntervalMs: 0,
     maxWaitMs: 0,
   })
-  await assert.rejects(() => timedOut.execute({ prompt: 'x' }, fakeExec()), /timed out/)
+  await assert.rejects(
+    () => timedOut.execute({ prompt: 'x' }, fakeExec()),
+    /timed out/,
+  )
 
   const rateLimited = createVideoGenerateTool({
     tokens: memoryTokens(grokSession),
@@ -651,7 +903,8 @@ test('video_generate execute: failed status, poll timeout, error status, logged-
   })
   await assert.rejects(
     () => rateLimited.execute({ prompt: 'x' }, fakeExec()),
-    (error: unknown) => error instanceof LlmError && error.code === 'RATE_LIMIT',
+    (error: unknown) =>
+      error instanceof LlmError && error.code === 'RATE_LIMIT',
   )
 
   const loggedOut = createVideoGenerateTool({
@@ -661,7 +914,8 @@ test('video_generate execute: failed status, poll timeout, error status, logged-
   })
   await assert.rejects(
     () => loggedOut.execute({ prompt: 'x' }, fakeExec()),
-    (error: unknown) => error instanceof LlmError && error.code === 'MISSING_CREDENTIAL',
+    (error: unknown) =>
+      error instanceof LlmError && error.code === 'MISSING_CREDENTIAL',
   )
 })
 
@@ -670,40 +924,74 @@ test('video_generate execute: unexpected status omits the provider value', async
     Response.json({ request_id: 'req-private' }),
     Response.json({ status: 'customer-input SHORT_SECRET!' }),
   ])
-  const tool = createVideoGenerateTool({ tokens: memoryTokens(grokSession), fetchFn, pollIntervalMs: 0 })
-  await assert.rejects(() => tool.execute({ prompt: 'x' }, fakeExec()), (caught: unknown) => {
-    assert.ok(caught instanceof Error)
-    assert.equal(caught.constructor, Error)
-    assert.doesNotMatch(caught.message, /customer-input SHORT_SECRET!/)
-    assert.equal(caught.message, 'video_generate: unexpected status: [provider response body omitted]')
-    return true
+  const tool = createVideoGenerateTool({
+    tokens: memoryTokens(grokSession),
+    fetchFn,
+    pollIntervalMs: 0,
   })
-  assert.equal(requests.length, 2, 'an unexpected status still throws without retrying or downloading')
+  await assert.rejects(
+    () => tool.execute({ prompt: 'x' }, fakeExec()),
+    (caught: unknown) => {
+      assert.ok(caught instanceof Error)
+      assert.equal(caught.constructor, Error)
+      assert.doesNotMatch(caught.message, /customer-input SHORT_SECRET!/)
+      assert.equal(
+        caught.message,
+        'video_generate: unexpected status: [provider response body omitted]',
+      )
+      return true
+    },
+  )
+  assert.equal(
+    requests.length,
+    2,
+    'an unexpected status still throws without retrying or downloading',
+  )
 })
 
 for (const status of ['failed', 'expired'] as const) {
-  for (const error of [{ message: 'customer-input SHORT_SECRET!' }, 'customer-input SHORT_SECRET!', undefined]) {
+  for (const error of [
+    { message: 'customer-input SHORT_SECRET!' },
+    'customer-input SHORT_SECRET!',
+    undefined,
+  ]) {
     test(`video_generate execute: ${status} omits provider text (${typeof error})`, async () => {
       const { fetchFn, requests } = sequenceFetch([
         Response.json({ request_id: 'req-private' }),
         Response.json({ status, error }),
       ])
-      const tool = createVideoGenerateTool({ tokens: memoryTokens(grokSession), fetchFn, pollIntervalMs: 0 })
-      await assert.rejects(() => tool.execute({ prompt: 'x' }, fakeExec()), (caught: unknown) => {
-        assert.ok(caught instanceof Error)
-        assert.equal(caught.constructor, Error)
-        assert.doesNotMatch(caught.message, /customer-input SHORT_SECRET!/)
-        assert.equal(caught.message,
-          `video_generate: generation ${status} (request req-private): [provider response body omitted]`)
-        return true
+      const tool = createVideoGenerateTool({
+        tokens: memoryTokens(grokSession),
+        fetchFn,
+        pollIntervalMs: 0,
       })
-      assert.equal(requests.length, 2, 'a terminal status neither retries nor downloads')
+      await assert.rejects(
+        () => tool.execute({ prompt: 'x' }, fakeExec()),
+        (caught: unknown) => {
+          assert.ok(caught instanceof Error)
+          assert.equal(caught.constructor, Error)
+          assert.doesNotMatch(caught.message, /customer-input SHORT_SECRET!/)
+          assert.equal(
+            caught.message,
+            `video_generate: generation ${status} (request req-private): [provider response body omitted]`,
+          )
+          return true
+        },
+      )
+      assert.equal(
+        requests.length,
+        2,
+        'a terminal status neither retries nor downloads',
+      )
     })
   }
 }
 
 test('video_generate presentCall and render', () => {
-  const tool = createVideoGenerateTool({ tokens: memoryTokens(grokSession), fetchFn: jsonFetch({}).fetchFn })
+  const tool = createVideoGenerateTool({
+    tokens: memoryTokens(grokSession),
+    fetchFn: jsonFetch({}).fetchFn,
+  })
   assert.deepEqual(tool.presentCall?.({ prompt: 'a crashing wave' }), {
     card: 'generic',
     title: 'video_generate: a crashing wave',
@@ -715,7 +1003,10 @@ test('video_generate presentCall and render', () => {
   } satisfies JsonValue)
   assert.equal(rendered.length, 1)
   assert.equal(rendered[0].type, 'text')
-  assert.match((rendered[0] as { text: string }).text, /Saved video to \/tmp\/v\.mp4 \(8s\)/)
+  assert.match(
+    (rendered[0] as { text: string }).text,
+    /Saved video to \/tmp\/v\.mp4 \(8s\)/,
+  )
   const meta = tool.output.presentationMeta?.({ prompt: 'p' }, {
     path: '/tmp/v.mp4',
     url: 'https://vidgen.x.ai/v.mp4',
@@ -726,9 +1017,14 @@ test('video_generate presentCall and render', () => {
 
 test('image_generate: nested dispatch defers no context (code mode injects image results itself)', async (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'router-images-'))
-  t.after(() => { rmSync(dir, { recursive: true, force: true }) })
+  t.after(() => {
+    rmSync(dir, { recursive: true, force: true })
+  })
   const { store } = fakeAttachments()
-  const { fetchFn } = jsonFetch({ created: 1, data: [{ b64_json: PNG_BYTES.toString('base64') }] })
+  const { fetchFn } = jsonFetch({
+    created: 1,
+    data: [{ b64_json: PNG_BYTES.toString('base64') }],
+  })
   const tool = createImageGenerateTool({
     codexTokens: memoryTokens(codexSession),
     fetchFn,
@@ -739,9 +1035,12 @@ test('image_generate: nested dispatch defers no context (code mode injects image
   const deferred: { content: { type: string }[] }[] = []
   const exec = routedExec('codex', 'gpt-5.6-sol', {
     parent: Symbol('parent'),
-    deferContext: (message: { content: { type: string }[] }) => deferred.push(message),
+    deferContext: (message: { content: { type: string }[] }) =>
+      deferred.push(message),
   })
-  const value = await tool.execute({ prompt: 'a square' }, exec) as { images?: unknown[] }
+  const value = (await tool.execute({ prompt: 'a square' }, exec)) as {
+    images?: unknown[]
+  }
   // The render output carries the image block; the harness's code mode defers
   // image-bearing sub-results itself, so the tool must not defer a duplicate.
   assert.equal((value.images ?? []).length, 1)
@@ -749,16 +1048,36 @@ test('image_generate: nested dispatch defers no context (code mode injects image
 })
 
 /** Editing uses stored bytes, preserving source order and the canonical output contract. */
-function editFixture(): { ref: ImageAttachmentRef; reads: string[]; store: Pick<AttachmentStore, 'imageLimits' | 'readImage' | 'saveImage'> } {
-  const ref: ImageAttachmentRef = { attachmentId: AttachmentId(`sha256:${'a'.repeat(64)}`), mediaType: 'image/png' as const, bytes: 3, width: 1, height: 1 }
+function editFixture(): {
+  ref: ImageAttachmentRef
+  reads: string[]
+  store: Pick<AttachmentStore, 'imageLimits' | 'readImage' | 'saveImage'>
+} {
+  const ref: ImageAttachmentRef = {
+    attachmentId: AttachmentId(`sha256:${'a'.repeat(64)}`),
+    mediaType: 'image/png' as const,
+    bytes: 3,
+    width: 1,
+    height: 1,
+  }
   const reads: string[] = []
   const store = {
-    imageLimits: { maxImagesPerMessage: 5, maxImageBytes: 100, maxMessageImageBytes: 500, maxImagePixels: 1000, maxImageDimension: 100, mediaTypes: ['image/png'] as const },
+    imageLimits: {
+      maxImagesPerMessage: 5,
+      maxImageBytes: 100,
+      maxMessageImageBytes: 500,
+      maxImagePixels: 1000,
+      maxImageDimension: 100,
+      mediaTypes: ['image/png'] as const,
+    },
     readImage: async (input: typeof ref, signal: AbortSignal) => {
       signal.throwIfAborted()
       reads.push(input.attachmentId)
       if (input.bytes !== 3) throw new Error('metadata mismatch')
-      return { ref: input, data: Buffer.from(input.attachmentId.includes('bbb') ? 'two' : 'one') }
+      return {
+        ref: input,
+        data: Buffer.from(input.attachmentId.includes('bbb') ? 'two' : 'one'),
+      }
     },
     saveImage: async () => ref,
   }
@@ -771,27 +1090,79 @@ for (const provider of ['gpt', 'grok'] as const) {
       const dir = mkdtempSync(join(tmpdir(), 'subscriptions-edit-'))
       try {
         const { ref, reads, store } = editFixture()
-        const references = Array.from({ length: count }, (_, i) => ({ ...ref, attachmentId: `sha256:${String.fromCharCode(97 + i).repeat(64)}`, originalDimensions: { width: 2, height: 2 } }))
-        const wire = sequenceFetch(Array.from({ length: 2 }, () => new Response(JSON.stringify({ data: [{ b64_json: 'b25l' }] }))))
-        const tool = createImageGenerateTool({ codexTokens: memoryTokens(codexSession), grokTokens: memoryTokens(grokSession),
-          fetchFn: wire.fetchFn, imagesDir: dir, resolveAttachments: () => store as AttachmentStore,
-          resolveLlm: () => fakeLlm(['text', 'image']) as LlmRuntime })
-        const value = await tool.execute({ prompt: 'change background', provider, referenceImages: references }, routedExec('codex', 'm')) as { paths: string[]; images: typeof ref[] }
-        assert.equal(wire.requests[0].url, provider === 'gpt' ? IMAGE_EDIT_URL : GROK_IMAGE_EDIT_URL)
+        const references = Array.from({ length: count }, (_, i) => ({
+          ...ref,
+          attachmentId: `sha256:${String.fromCharCode(97 + i).repeat(64)}`,
+          originalDimensions: { width: 2, height: 2 },
+        }))
+        const wire = sequenceFetch(
+          Array.from(
+            { length: 2 },
+            () =>
+              new Response(JSON.stringify({ data: [{ b64_json: 'b25l' }] })),
+          ),
+        )
+        const tool = createImageGenerateTool({
+          codexTokens: memoryTokens(codexSession),
+          grokTokens: memoryTokens(grokSession),
+          fetchFn: wire.fetchFn,
+          imagesDir: dir,
+          resolveAttachments: () => store as AttachmentStore,
+          resolveLlm: () => fakeLlm(['text', 'image']) as LlmRuntime,
+        })
+        const value = (await tool.execute(
+          {
+            prompt: 'change background',
+            provider,
+            referenceImages: references,
+          },
+          routedExec('codex', 'm'),
+        )) as { paths: string[]; images: (typeof ref)[] }
+        assert.equal(
+          wire.requests[0].url,
+          provider === 'gpt' ? IMAGE_EDIT_URL : GROK_IMAGE_EDIT_URL,
+        )
         const body = wire.requests[0].body as Record<string, unknown>
-        const urls = references.map((_, i) => `data:image/png;base64,${Buffer.from(i === 1 ? 'two' : 'one').toString('base64')}`)
-        if (provider === 'gpt') assert.deepEqual(body.images, urls.map(image_url => ({ image_url })))
-        else if (count === 1) assert.deepEqual(body.image, { type: 'image_url', url: urls[0] })
-        else assert.deepEqual(body.images, urls.map(url => ({ type: 'image_url', url })))
+        const urls = references.map(
+          (_, i) =>
+            `data:image/png;base64,${Buffer.from(i === 1 ? 'two' : 'one').toString('base64')}`,
+        )
+        if (provider === 'gpt')
+          assert.deepEqual(
+            body.images,
+            urls.map((image_url) => ({ image_url })),
+          )
+        else if (count === 1)
+          assert.deepEqual(body.image, { type: 'image_url', url: urls[0] })
+        else
+          assert.deepEqual(
+            body.images,
+            urls.map((url) => ({ type: 'image_url', url })),
+          )
         assert.equal(body.referenceImages, undefined)
-        assert.deepEqual(reads, references.map(r => r.attachmentId))
+        assert.deepEqual(
+          reads,
+          references.map((r) => r.attachmentId),
+        )
         assert.equal(readFileSync(value.paths[0], 'utf8'), 'one')
-        const rendered = tool.output.render({ prompt: 'change background' }, value as unknown as JsonValue)
+        const rendered = tool.output.render(
+          { prompt: 'change background' },
+          value as unknown as JsonValue,
+        )
         assert.match((rendered[0] as { text: string }).text, /Image references/)
         // Same structured reference is usable immediately inside a nested Code Mode call.
-        await tool.execute({ prompt: 'make it brighter', provider, referenceImages: value.images }, routedExec('codex', 'm', { parent: Symbol('code') }))
+        await tool.execute(
+          {
+            prompt: 'make it brighter',
+            provider,
+            referenceImages: value.images,
+          },
+          routedExec('codex', 'm', { parent: Symbol('code') }),
+        )
         assert.equal(wire.requests.length, 2)
-      } finally { rmSync(dir, { recursive: true, force: true }) }
+      } finally {
+        rmSync(dir, { recursive: true, force: true })
+      }
     })
   }
 }
@@ -799,33 +1170,75 @@ for (const provider of ['gpt', 'grok'] as const) {
 test('image editing: invalid references, missing store, limits, cancellation never generate', async () => {
   const { ref, store } = editFixture()
   let requests = 0
-  const fetchFn = (async () => { requests++; throw new Error('must not fetch') }) as FetchFn
-  const options = { codexTokens: memoryTokens(codexSession), fetchFn, resolveAttachments: () => store as AttachmentStore }
-  const tool = createImageGenerateTool(options)
-  for (const references of [[], Array(6).fill(ref), [ref, ref], [{ ...ref, attachmentId: '/tmp/a.png' }], [{ ...ref, width: 0 }], [{ ...ref, bytes: 4 }]]) {
-    await assert.rejects(() => tool.execute({ prompt: 'edit', referenceImages: references }, fakeExec()))
+  const fetchFn = (async () => {
+    requests++
+    throw new Error('must not fetch')
+  }) as FetchFn
+  const options = {
+    codexTokens: memoryTokens(codexSession),
+    fetchFn,
+    resolveAttachments: () => store as AttachmentStore,
   }
-  await assert.rejects(() => createImageGenerateTool({ ...options, resolveAttachments: () => undefined }).execute({ prompt: 'edit', referenceImages: [ref] }, fakeExec()), /attachment service/)
+  const tool = createImageGenerateTool(options)
+  for (const references of [
+    [],
+    Array(6).fill(ref),
+    [ref, ref],
+    [{ ...ref, attachmentId: '/tmp/a.png' }],
+    [{ ...ref, width: 0 }],
+    [{ ...ref, bytes: 4 }],
+  ]) {
+    await assert.rejects(() =>
+      tool.execute({ prompt: 'edit', referenceImages: references }, fakeExec()),
+    )
+  }
+  await assert.rejects(
+    () =>
+      createImageGenerateTool({
+        ...options,
+        resolveAttachments: () => undefined,
+      }).execute({ prompt: 'edit', referenceImages: [ref] }, fakeExec()),
+    /attachment service/,
+  )
   store.imageLimits.maxMessageImageBytes = 2
-  await assert.rejects(() => tool.execute({ prompt: 'edit', referenceImages: [ref] }, fakeExec()), /limits/)
+  await assert.rejects(
+    () => tool.execute({ prompt: 'edit', referenceImages: [ref] }, fakeExec()),
+    /limits/,
+  )
   const exec = { ...fakeExec(), signal: AbortSignal.abort() }
-  await assert.rejects(() => tool.execute({ prompt: 'edit', referenceImages: [ref] }, exec))
+  await assert.rejects(() =>
+    tool.execute({ prompt: 'edit', referenceImages: [ref] }, exec),
+  )
   assert.equal(requests, 0)
 })
 
 test('image editing: provider policy fallback remains editing; upstream errors do not retry', async () => {
   const { ref, store } = editFixture()
   const wire = sequenceFetch([new Response('bad edit', { status: 400 })])
-  const tool = createImageGenerateTool({ codexTokens: memoryTokens(codexSession), grokTokens: memoryTokens(grokSession),
-    providerEnabled: p => p === 'grok', fetchFn: wire.fetchFn, resolveAttachments: () => store as AttachmentStore })
-  await assert.rejects(() => tool.execute({ prompt: 'edit', provider: 'gpt', referenceImages: [ref] }, fakeExec()), /400/)
+  const tool = createImageGenerateTool({
+    codexTokens: memoryTokens(codexSession),
+    grokTokens: memoryTokens(grokSession),
+    providerEnabled: (p) => p === 'grok',
+    fetchFn: wire.fetchFn,
+    resolveAttachments: () => store as AttachmentStore,
+  })
+  await assert.rejects(
+    () =>
+      tool.execute(
+        { prompt: 'edit', provider: 'gpt', referenceImages: [ref] },
+        fakeExec(),
+      ),
+    /400/,
+  )
   assert.equal(wire.requests.length, 1)
   assert.equal(wire.requests[0].url, GROK_IMAGE_EDIT_URL)
 })
 
 test('video_generate execute: a malformed provider body does not expose its prefix', async (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'subscriptions-videos-'))
-  t.after(() => { rmSync(dir, { recursive: true, force: true }) })
+  t.after(() => {
+    rmSync(dir, { recursive: true, force: true })
+  })
   // Node's Unexpected-token error quotes roughly ten characters of the input, so a
   // body that starts with a credential would leak its leading characters through
   // the raw parse error. The shared reader must replace it before it is thrown.
@@ -839,7 +1252,10 @@ test('video_generate execute: a malformed provider body does not expose its pref
     videosDir: dir,
     pollIntervalMs: 0,
   })
-  const caught = await tool.execute({ prompt: 'x' }, fakeExec()).then(() => undefined, (error: unknown) => error as Error)
+  const caught = await tool.execute({ prompt: 'x' }, fakeExec()).then(
+    () => undefined,
+    (error: unknown) => error as Error,
+  )
   assert.ok(caught !== undefined, 'the malformed body must fail the call')
   assert.equal(caught.message.includes('sk-live'), false)
   assert.equal(caught.message.includes(malformed.slice(0, 10)), false)
@@ -851,12 +1267,24 @@ test('video_generate: a request id that is provider prose is refused, not displa
   // The id reaches a user-visible failure message, so an unchecked value would
   // let the provider speak through it. It must be shaped like an opaque id.
   assert.throws(
-    () => parseVideoStartResponse({ request_id: 'SHORT_SECRET provider-controlled text' }),
+    () =>
+      parseVideoStartResponse({
+        request_id: 'SHORT_SECRET provider-controlled text',
+      }),
     /no usable request_id/,
   )
-  assert.throws(() => parseVideoStartResponse({ request_id: 'has spaces' }), /no usable request_id/)
-  assert.throws(() => parseVideoStartResponse({ request_id: 'x'.repeat(129) }), /no usable request_id/)
-  assert.equal(parseVideoStartResponse({ request_id: 'req-1_abc-XYZ' }), 'req-1_abc-XYZ')
+  assert.throws(
+    () => parseVideoStartResponse({ request_id: 'has spaces' }),
+    /no usable request_id/,
+  )
+  assert.throws(
+    () => parseVideoStartResponse({ request_id: 'x'.repeat(129) }),
+    /no usable request_id/,
+  )
+  assert.equal(
+    parseVideoStartResponse({ request_id: 'req-1_abc-XYZ' }),
+    'req-1_abc-XYZ',
+  )
 })
 
 // A body that starts with a credential: Node's SyntaxError would quote its first
@@ -868,21 +1296,33 @@ function assertSanitisedParseFailure(origin: string) {
   return (caught: unknown): boolean => {
     assert.ok(caught instanceof SyntaxError)
     assert.equal(caught.cause, undefined)
-    assert.equal(caught.message, `${origin}: invalid JSON: [provider response body omitted]`)
+    assert.equal(
+      caught.message,
+      `${origin}: invalid JSON: [provider response body omitted]`,
+    )
     return true
   }
 }
 
 test('image_generate: a malformed provider body does not expose its prefix', async (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'subscriptions-images-'))
-  t.after(() => { rmSync(dir, { recursive: true, force: true }) })
+  t.after(() => {
+    rmSync(dir, { recursive: true, force: true })
+  })
   const tool = createImageGenerateTool({
     codexTokens: memoryTokens(codexSession),
     fetchFn: sequenceFetch([new Response(MALFORMED_CREDENTIAL_BODY)]).fetchFn,
     imagesDir: dir,
   })
-  await assert.rejects(() => tool.execute({ prompt: 'x' }, fakeExec()), assertSanitisedParseFailure('image generate'))
-  assert.equal(readdirSync(dir).length, 0, 'nothing is written for an unparseable response')
+  await assert.rejects(
+    () => tool.execute({ prompt: 'x' }, fakeExec()),
+    assertSanitisedParseFailure('image generate'),
+  )
+  assert.equal(
+    readdirSync(dir).length,
+    0,
+    'nothing is written for an unparseable response',
+  )
 })
 
 test('x_search: a malformed provider body does not expose its prefix', async () => {
@@ -890,12 +1330,24 @@ test('x_search: a malformed provider body does not expose its prefix', async () 
     tokens: memoryTokens(grokSession),
     fetchFn: sequenceFetch([new Response(MALFORMED_CREDENTIAL_BODY)]).fetchFn,
   })
-  await assert.rejects(() => tool.execute({ query: 'x' }, fakeExec()), assertSanitisedParseFailure('x search'))
+  await assert.rejects(
+    () => tool.execute({ query: 'x' }, fakeExec()),
+    assertSanitisedParseFailure('x search'),
+  )
 })
 
 test('video_generate: a malformed submit body does not expose its prefix', async () => {
-  const { fetchFn, requests } = sequenceFetch([new Response(MALFORMED_CREDENTIAL_BODY)])
-  const tool = createVideoGenerateTool({ tokens: memoryTokens(grokSession), fetchFn, pollIntervalMs: 0 })
-  await assert.rejects(() => tool.execute({ prompt: 'x' }, fakeExec()), assertSanitisedParseFailure('video generate start'))
+  const { fetchFn, requests } = sequenceFetch([
+    new Response(MALFORMED_CREDENTIAL_BODY),
+  ])
+  const tool = createVideoGenerateTool({
+    tokens: memoryTokens(grokSession),
+    fetchFn,
+    pollIntervalMs: 0,
+  })
+  await assert.rejects(
+    () => tool.execute({ prompt: 'x' }, fakeExec()),
+    assertSanitisedParseFailure('video generate start'),
+  )
   assert.equal(requests.length, 1, 'a failed submit never polls')
 })

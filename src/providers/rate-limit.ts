@@ -26,7 +26,11 @@ import type { ResolvedRetryPolicy } from '@deepseek-ai/dsh-llm'
  * @param now - the current epoch milliseconds, injected so parsing is testable.
  * @returns epoch milliseconds of the reset, or undefined when the provider said nothing.
  */
-export type RateLimitResetReader = (response: Response, body: string, now: number) => number | undefined
+export type RateLimitResetReader = (
+  response: Response,
+  body: string,
+  now: number,
+) => number | undefined
 
 /**
  * Extra time added to every provider-disclosed wait. Absorbs clock skew
@@ -59,7 +63,10 @@ export const DEFAULT_RATE_LIMIT_MAX_WAIT_MS = 6 * 60 * 60 * 1_000
  * @param now - the current epoch milliseconds.
  * @returns epoch milliseconds of the reset, or undefined when the value is unusable.
  */
-export function resetInstantFromNumber(value: number, now: number): number | undefined {
+export function resetInstantFromNumber(
+  value: number,
+  now: number,
+): number | undefined {
   if (!Number.isFinite(value) || value <= 0) return undefined
   if (value >= EPOCH_MILLIS_FLOOR) return value
   if (value >= EPOCH_SECONDS_FLOOR) return value * 1_000
@@ -82,7 +89,12 @@ export function durationMs(text: string): number | undefined {
   // Sticky: every component must abut the previous one, so trailing or
   // interleaved junk ("6m0s later") fails the length check below.
   const pattern = /(\d+(?:\.\d+)?)(ms|h|m|s)/y
-  const units: Record<string, number> = { h: 3_600_000, m: 60_000, s: 1_000, ms: 1 }
+  const units: Record<string, number> = {
+    h: 3_600_000,
+    m: 60_000,
+    s: 1_000,
+    ms: 1,
+  }
   let total = 0
   let matched = false
   // A failed sticky exec resets `lastIndex` to zero, so the reached offset is
@@ -120,7 +132,10 @@ export function durationMs(text: string): number | undefined {
  * @param now - the current epoch milliseconds.
  * @returns epoch milliseconds of the reset, or undefined when the value is unusable.
  */
-export function resetInstantFromValue(value: unknown, now: number): number | undefined {
+export function resetInstantFromValue(
+  value: unknown,
+  now: number,
+): number | undefined {
   if (typeof value === 'number') return resetInstantFromNumber(value, now)
   if (typeof value !== 'string') return undefined
   const trimmed = value.trim()
@@ -140,7 +155,11 @@ export function resetInstantFromValue(value: unknown, now: number): number | und
  * @param now - the current epoch milliseconds.
  * @returns epoch milliseconds of the reset, or undefined when absent or unusable.
  */
-export function resetInstantFromHeader(response: Response, name: string, now: number): number | undefined {
+export function resetInstantFromHeader(
+  response: Response,
+  name: string,
+  now: number,
+): number | undefined {
   return resetInstantFromValue(response.headers.get(name), now)
 }
 
@@ -151,13 +170,17 @@ export function resetInstantFromHeader(response: Response, name: string, now: nu
  * @param now - the current epoch milliseconds.
  * @returns epoch milliseconds of the reset, or undefined when absent or unusable.
  */
-export function retryAfterInstant(response: Response, now: number): number | undefined {
+export function retryAfterInstant(
+  response: Response,
+  now: number,
+): number | undefined {
   const raw = response.headers.get('retry-after')
   if (raw === null) return undefined
   const trimmed = raw.trim()
   if (trimmed.length === 0) return undefined
   const seconds = Number(trimmed)
-  if (Number.isFinite(seconds)) return seconds > 0 ? now + seconds * 1_000 : undefined
+  if (Number.isFinite(seconds))
+    return seconds > 0 ? now + seconds * 1_000 : undefined
   const parsed = Date.parse(trimmed)
   return Number.isFinite(parsed) ? parsed : undefined
 }
@@ -200,13 +223,19 @@ export function resetFromFields(
   now: number,
   depth = MAX_BODY_DEPTH,
 ): number | undefined {
-  if (depth <= 0 || value === null || typeof value !== 'object') return undefined
+  if (depth <= 0 || value === null || typeof value !== 'object')
+    return undefined
   let earliest: number | undefined
   const consider = (candidate: number | undefined): void => {
-    if (candidate !== undefined && (earliest === undefined || candidate < earliest)) earliest = candidate
+    if (
+      candidate !== undefined &&
+      (earliest === undefined || candidate < earliest)
+    )
+      earliest = candidate
   }
   if (Array.isArray(value)) {
-    for (const item of value) consider(resetFromFields(item, keys, now, depth - 1))
+    for (const item of value)
+      consider(resetFromFields(item, keys, now, depth - 1))
     return earliest
   }
   for (const [key, nested] of Object.entries(value)) {
@@ -223,7 +252,9 @@ export function resetFromFields(
  * @param candidates - reset instants in no particular order.
  * @returns the earliest instant, or undefined when every candidate is absent.
  */
-export function earliestReset(...candidates: (number | undefined)[]): number | undefined {
+export function earliestReset(
+  ...candidates: (number | undefined)[]
+): number | undefined {
   let earliest: number | undefined
   for (const candidate of candidates) {
     if (candidate === undefined) continue
@@ -309,14 +340,21 @@ export const DEFAULT_RATE_LIMIT_WAIT: RateLimitWait = Object.freeze({
  * @param path - diagnostic path naming the config that owns the value.
  * @returns the resolved, immutable behavior.
  */
-export function resolveRateLimitWait(config: RateLimitConfig | undefined, path: string): RateLimitWait {
+export function resolveRateLimitWait(
+  config: RateLimitConfig | undefined,
+  path: string,
+): RateLimitWait {
   const wait = config?.wait ?? true
   const maxWaitMs = config?.maxWaitMs ?? DEFAULT_RATE_LIMIT_MAX_WAIT_MS
   if (!Number.isFinite(maxWaitMs) || maxWaitMs <= 0) {
-    throw new Error(`${path}.maxWaitMs must be a positive finite number of milliseconds`)
+    throw new Error(
+      `${path}.maxWaitMs must be a positive finite number of milliseconds`,
+    )
   }
   if (maxWaitMs > MAX_TIMER_DELAY_MS) {
-    throw new Error(`${path}.maxWaitMs must be no greater than ${String(MAX_TIMER_DELAY_MS)} (the maximum schedulable delay)`)
+    throw new Error(
+      `${path}.maxWaitMs must be no greater than ${String(MAX_TIMER_DELAY_MS)} (the maximum schedulable delay)`,
+    )
   }
   return Object.freeze({ wait, maxWaitMs })
 }
@@ -344,13 +382,16 @@ export function subscriptionRetryPolicy(
   const maxDelayMs = rateLimit.wait
     ? Math.max(defaults.maxDelayMs, rateLimit.maxWaitMs)
     : defaults.maxDelayMs
-  return resolveRetryPolicy({
-    mode: 'normal',
-    maxRetries: defaults.maxRetries,
-    backoff: {
-      initialDelayMs: defaults.initialDelayMs,
-      maxDelayMs,
-      jitterRatio: defaults.jitterRatio,
+  return resolveRetryPolicy(
+    {
+      mode: 'normal',
+      maxRetries: defaults.maxRetries,
+      backoff: {
+        initialDelayMs: defaults.initialDelayMs,
+        maxDelayMs,
+        jitterRatio: defaults.jitterRatio,
+      },
     },
-  }, path)
+    path,
+  )
 }

@@ -18,7 +18,8 @@
 // test/hermetic.spec.ts proves the guard is loaded in every run.
 import net from 'node:net'
 
-const LOOPBACK = /^(localhost|127(?:\.\d{1,3}){3}|::1|::ffff:127(?:\.\d{1,3}){3})$/
+const LOOPBACK =
+  /^(localhost|127(?:\.\d{1,3}){3}|::1|::ffff:127(?:\.\d{1,3}){3})$/
 
 /** Refused destinations in this spec process, as `host:port`. */
 const refused = []
@@ -40,7 +41,9 @@ net.Socket.prototype.connect = function hermeticConnect(...args) {
     if (!LOOPBACK.test(host)) {
       refused.push(`${host}:${options.port}`)
       throw Object.assign(
-        new Error(`hermetic test run: blocked connection to ${host}:${options.port}; mock this request`),
+        new Error(
+          `hermetic test run: blocked connection to ${host}:${options.port}; mock this request`,
+        ),
         { code: 'EHERMETIC' },
       )
     }
@@ -49,8 +52,14 @@ net.Socket.prototype.connect = function hermeticConnect(...args) {
 }
 
 process.on('exit', () => {
-  if (refused.length === 0 || globalThis.__dshHermeticExpectedRefusals === refused.length) return
-  process.stderr.write(`hermetic test run: this spec tried to reach ${[...new Set(refused)].join(', ')}\n`)
+  if (
+    refused.length === 0 ||
+    globalThis.__dshHermeticExpectedRefusals === refused.length
+  )
+    return
+  process.stderr.write(
+    `hermetic test run: this spec tried to reach ${[...new Set(refused)].join(', ')}\n`,
+  )
   process.exitCode = 1
 })
 

@@ -30,7 +30,8 @@ export const USAGE_PERCENT = {
 export const CODEX_PILL = 'Codex '
 
 /** The fixture Cursor access token; its `sub` is `auth0|user_bar`. */
-const CURSOR_ACCESS = 'fake.eyJzdWIiOiJhdXRoMHx1c2VyX2JhciIsImV4cCI6NDEwMjQ0NDgwMH0.sig'
+const CURSOR_ACCESS =
+  'fake.eyJzdWIiOiJhdXRoMHx1c2VyX2JhciIsImV4cCI6NDEwMjQ0NDgwMH0.sig'
 
 /**
  * Every provider request the preload answers, keyed by `<METHOD> <URL>`.
@@ -53,10 +54,34 @@ const periodEnd = new Date(fixtureNow + 18 * 60 * 60_000).toISOString()
  * current at fixtureNow and must stay separate in RPC, badge, and settings.
  */
 export const MINIMAX_WINDOWS = [
-  { kind: 'session', scope: 'general', usedPercent: 0, startsAt: fixtureNow - 60 * 60_000, resetsAt: fixtureNow + 4 * 60 * 60_000 },
-  { kind: 'weekly', scope: 'general', usedPercent: 2, startsAt: fixtureNow - 24 * 60 * 60_000, resetsAt: fixtureNow + 6 * 24 * 60 * 60_000 },
-  { kind: 'other', scope: 'video', usedPercent: 88, startsAt: fixtureNow - 6 * 60 * 60_000, resetsAt: fixtureNow + 18 * 60 * 60_000 },
-  { kind: 'weekly', scope: 'video', usedPercent: 99, startsAt: fixtureNow - 2 * 24 * 60 * 60_000, resetsAt: fixtureNow + 5 * 24 * 60 * 60_000 },
+  {
+    kind: 'session',
+    scope: 'general',
+    usedPercent: 0,
+    startsAt: fixtureNow - 60 * 60_000,
+    resetsAt: fixtureNow + 4 * 60 * 60_000,
+  },
+  {
+    kind: 'weekly',
+    scope: 'general',
+    usedPercent: 2,
+    startsAt: fixtureNow - 24 * 60 * 60_000,
+    resetsAt: fixtureNow + 6 * 24 * 60 * 60_000,
+  },
+  {
+    kind: 'other',
+    scope: 'video',
+    usedPercent: 88,
+    startsAt: fixtureNow - 6 * 60 * 60_000,
+    resetsAt: fixtureNow + 18 * 60 * 60_000,
+  },
+  {
+    kind: 'weekly',
+    scope: 'video',
+    usedPercent: 99,
+    startsAt: fixtureNow - 2 * 24 * 60 * 60_000,
+    resetsAt: fixtureNow + 5 * 24 * 60 * 60_000,
+  },
 ]
 
 export const FIXTURE_REQUESTS = {
@@ -69,7 +94,13 @@ export const FIXTURE_REQUESTS = {
     credential: ['authorization', 'Bearer fake-codex-access'],
     body: {
       plan_type: 'plus',
-      rate_limit: { primary_window: { used_percent: USAGE_PERCENT.codex.percent, limit_window_seconds: 18_000, reset_at: Math.floor((fixtureNow + 4 * 60 * 60_000) / 1000) } },
+      rate_limit: {
+        primary_window: {
+          used_percent: USAGE_PERCENT.codex.percent,
+          limit_window_seconds: 18_000,
+          reset_at: Math.floor((fixtureNow + 4 * 60 * 60_000) / 1000),
+        },
+      },
     },
     required: true,
   },
@@ -77,7 +108,12 @@ export const FIXTURE_REQUESTS = {
     credential: ['authorization', 'Bearer fake-codex-access'],
     body: {
       credits: [
-        { id: 'fake-reset', reset_type: 'codex_rate_limits', status: 'available', expires_at: new Date(fixtureNow + 5 * 86_400_000).toISOString() },
+        {
+          id: 'fake-reset',
+          reset_type: 'codex_rate_limits',
+          status: 'available',
+          expires_at: new Date(fixtureNow + 5 * 86_400_000).toISOString(),
+        },
       ],
     },
     required: true,
@@ -87,14 +123,31 @@ export const FIXTURE_REQUESTS = {
   'GET https://api.anthropic.com/api/oauth/usage?cedar_ember=1': {
     credential: ['authorization', 'Bearer fake-claude-access'],
     body: {
-      five_hour: { utilization: USAGE_PERCENT.claude.percent, resets_at: new Date(fixtureNow + 4 * 60 * 60_000).toISOString() },
+      five_hour: {
+        utilization: USAGE_PERCENT.claude.percent,
+        resets_at: new Date(fixtureNow + 4 * 60 * 60_000).toISOString(),
+      },
       cedar_ember: {
         eligible: true,
         next_grant_id: 'grant-now',
         cooldown_until: null,
         grants: [
-          { id: 'grant-now', resets_total: 2, resets_left: 2, ends_at: new Date(fixtureNow + 3 * 86_400_000).toISOString(), usable_now: true, paused: false },
-          { id: 'grant-later', resets_total: 1, resets_left: 1, ends_at: new Date(fixtureNow + 9 * 86_400_000).toISOString(), usable_now: false, paused: false },
+          {
+            id: 'grant-now',
+            resets_total: 2,
+            resets_left: 2,
+            ends_at: new Date(fixtureNow + 3 * 86_400_000).toISOString(),
+            usable_now: true,
+            paused: false,
+          },
+          {
+            id: 'grant-later',
+            resets_total: 1,
+            resets_left: 1,
+            ends_at: new Date(fixtureNow + 9 * 86_400_000).toISOString(),
+            usable_now: false,
+            paused: false,
+          },
         ],
       },
     },
@@ -102,65 +155,134 @@ export const FIXTURE_REQUESTS = {
   },
   'GET https://api.anthropic.com/api/oauth/usage': {
     credential: ['authorization', 'Bearer fake-claude-access'],
-    body: { five_hour: { utilization: USAGE_PERCENT.claude.percent, resets_at: new Date(fixtureNow + 4 * 60 * 60_000).toISOString() } },
+    body: {
+      five_hour: {
+        utilization: USAGE_PERCENT.claude.percent,
+        resets_at: new Date(fixtureNow + 4 * 60 * 60_000).toISOString(),
+      },
+    },
     required: false,
   },
   'GET https://cli-chat-proxy.grok.com/v1/billing?format=credits': {
     credential: ['authorization', 'Bearer fake-grok-access'],
-    body: { config: { creditUsagePercent: USAGE_PERCENT.grok.percent, subscriptionTier: 'SuperGrok',
-      currentPeriod: { start: periodStart, end: periodEnd } } },
+    body: {
+      config: {
+        creditUsagePercent: USAGE_PERCENT.grok.percent,
+        subscriptionTier: 'SuperGrok',
+        currentPeriod: { start: periodStart, end: periodEnd },
+      },
+    },
     required: true,
   },
-  'POST https://daily-cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels': {
-    credential: ['authorization', 'Bearer fake-antigravity-access'],
-    body: { models: { 'gemini-bar': { quotaInfo: { remainingFraction: (100 - USAGE_PERCENT.antigravity.percent) / 100 } } } },
-    required: true,
-  },
+  'POST https://daily-cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels':
+    {
+      credential: ['authorization', 'Bearer fake-antigravity-access'],
+      body: {
+        models: {
+          'gemini-bar': {
+            quotaInfo: {
+              remainingFraction:
+                (100 - USAGE_PERCENT.antigravity.percent) / 100,
+            },
+          },
+        },
+      },
+      required: true,
+    },
   'POST https://daily-cloudcode-pa.googleapis.com/v1internal:loadCodeAssist': {
     credential: ['authorization', 'Bearer fake-antigravity-access'],
     body: { paidTier: { name: 'Pro' } },
     required: false,
   },
   'GET https://cursor.com/api/usage-summary': {
-    credential: ['cookie', `WorkosCursorSessionToken=user_bar::${CURSOR_ACCESS}`],
-    body: { membershipType: 'pro', billingCycleStart: periodStart, billingCycleEnd: periodEnd,
-      individualUsage: { plan: { totalPercentUsed: USAGE_PERCENT['cursor-subscription'].percent } } },
+    credential: [
+      'cookie',
+      `WorkosCursorSessionToken=user_bar::${CURSOR_ACCESS}`,
+    ],
+    body: {
+      membershipType: 'pro',
+      billingCycleStart: periodStart,
+      billingCycleEnd: periodEnd,
+      individualUsage: {
+        plan: {
+          totalPercentUsed: USAGE_PERCENT['cursor-subscription'].percent,
+        },
+      },
+    },
     required: true,
   },
   'GET https://cursor.com/api/usage?user=user_bar': {
-    credential: ['cookie', `WorkosCursorSessionToken=user_bar::${CURSOR_ACCESS}`],
+    credential: [
+      'cookie',
+      `WorkosCursorSessionToken=user_bar::${CURSOR_ACCESS}`,
+    ],
     body: { 'gpt-4': { numRequests: 0 } },
     required: false,
   },
   'GET https://opencode.ai/zen/go/v1/usage': {
     credential: ['authorization', 'Bearer fake-opencode-key'],
-    body: { usage: { rolling: { percent: USAGE_PERCENT['opencode-go'].percent, resetsAt: new Date(fixtureNow + 4 * 60 * 60_000).toISOString() } } },
+    body: {
+      usage: {
+        rolling: {
+          percent: USAGE_PERCENT['opencode-go'].percent,
+          resetsAt: new Date(fixtureNow + 4 * 60 * 60_000).toISOString(),
+        },
+      },
+    },
     required: true,
   },
   'GET https://api.kimi.com/coding/v1/usages': {
     credential: ['authorization', 'Bearer fake-kimi-key'],
-    body: { usages: { limit_5h: { used_ratio: USAGE_PERCENT['kimi-coding'].percent / 100 } } },
+    body: {
+      usages: {
+        limit_5h: { used_ratio: USAGE_PERCENT['kimi-coding'].percent / 100 },
+      },
+    },
     required: true,
   },
   'GET https://ollama.com/api/balance': {
     credential: ['authorization', 'Bearer fake-ollama-key'],
-    body: { included: { balance_usd: 100 - USAGE_PERCENT['ollama-cloud'].percent, allowance_usd: 100 } },
+    body: {
+      included: {
+        balance_usd: 100 - USAGE_PERCENT['ollama-cloud'].percent,
+        allowance_usd: 100,
+      },
+    },
     required: true,
   },
   'GET https://www.minimax.io/v1/token_plan/remains': {
     credential: ['authorization', 'Bearer fake-minimax-key'],
-    body: { base_resp: { status_code: 0 }, model_remains: [
-      { model_name: 'general',
-        start_time: MINIMAX_WINDOWS[0].startsAt, end_time: MINIMAX_WINDOWS[0].resetsAt,
-        weekly_start_time: MINIMAX_WINDOWS[1].startsAt, weekly_end_time: MINIMAX_WINDOWS[1].resetsAt,
-        current_interval_total_count: 0, current_interval_usage_count: 0, current_interval_remaining_percent: 100, current_interval_status: 1,
-        current_weekly_total_count: 0, current_weekly_usage_count: 0, current_weekly_remaining_percent: 98, current_weekly_status: 1 },
-      { model_name: 'video',
-        start_time: MINIMAX_WINDOWS[2].startsAt, end_time: MINIMAX_WINDOWS[2].resetsAt,
-        weekly_start_time: MINIMAX_WINDOWS[3].startsAt, weekly_end_time: MINIMAX_WINDOWS[3].resetsAt,
-        current_interval_total_count: 100, current_interval_usage_count: 12,
-        current_weekly_total_count: 100, current_weekly_usage_count: 1 },
-    ] },
+    body: {
+      base_resp: { status_code: 0 },
+      model_remains: [
+        {
+          model_name: 'general',
+          start_time: MINIMAX_WINDOWS[0].startsAt,
+          end_time: MINIMAX_WINDOWS[0].resetsAt,
+          weekly_start_time: MINIMAX_WINDOWS[1].startsAt,
+          weekly_end_time: MINIMAX_WINDOWS[1].resetsAt,
+          current_interval_total_count: 0,
+          current_interval_usage_count: 0,
+          current_interval_remaining_percent: 100,
+          current_interval_status: 1,
+          current_weekly_total_count: 0,
+          current_weekly_usage_count: 0,
+          current_weekly_remaining_percent: 98,
+          current_weekly_status: 1,
+        },
+        {
+          model_name: 'video',
+          start_time: MINIMAX_WINDOWS[2].startsAt,
+          end_time: MINIMAX_WINDOWS[2].resetsAt,
+          weekly_start_time: MINIMAX_WINDOWS[3].startsAt,
+          weekly_end_time: MINIMAX_WINDOWS[3].resetsAt,
+          current_interval_total_count: 100,
+          current_interval_usage_count: 12,
+          current_weekly_total_count: 100,
+          current_weekly_usage_count: 1,
+        },
+      ],
+    },
     required: true,
   },
   'GET https://registry.npmjs.org/@anthropic-ai%2fclaude-code/latest': {

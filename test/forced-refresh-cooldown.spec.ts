@@ -21,7 +21,7 @@ import assert from 'node:assert/strict'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { MessageId, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
+import { MessageId } from '@deepseek-ai/dsh-llm'
 import type { GenerateOptions } from '@deepseek-ai/dsh-llm'
 import { Context } from '@deepseek-ai/cordis'
 import type { AccountAwareAdapter } from '../src/providers/accounts.js'
@@ -40,13 +40,23 @@ const OPTIONS: GenerateOptions = {
   provider: 'codex',
   model: MODEL,
   sessionId: SessionId('forced-refresh-session'),
-  messages: [{ id: MessageId('user'), role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text: 'hello' }] }],
+  messages: [
+    {
+      id: MessageId('user'),
+      role: 'user',
+      source: { kind: 'user' },
+      content: [{ type: 'text', text: 'hello' }],
+    },
+  ],
 }
 
 /** Drain a stream, returning the text-delta payload; the error propagates. */
-async function collect(stream: AsyncIterable<{ type: string; text?: string }>): Promise<string> {
+async function collect(
+  stream: AsyncIterable<{ type: string; text?: string }>,
+): Promise<string> {
   let text = ''
-  for await (const chunk of stream) if (chunk.type === 'text-delta') text += chunk.text
+  for await (const chunk of stream)
+    if (chunk.type === 'text-delta') text += chunk.text
   return text
 }
 
@@ -77,15 +87,30 @@ test('a forced usage refresh lifts the pool cooldown; a non-forced one does not'
 
   const original = globalThis.fetch
   let responsesCalls = 0
-  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+  globalThis.fetch = (async (input: RequestInfo | URL, _init?: RequestInit) => {
     const url = String(input)
     if (url.startsWith('https://chatgpt.com/backend-api/codex/models')) {
-      return Response.json({ models: [{ slug: MODEL, display_name: 'GPT-5.3 Codex' }] })
+      return Response.json({
+        models: [{ slug: MODEL, display_name: 'GPT-5.3 Codex' }],
+      })
     }
     if (url.startsWith('https://chatgpt.com/backend-api/wham/usage')) {
-      return Response.json({ plan_type: 'plus', rate_limit: { primary_window: { used_percent: 10, limit_window_seconds: 18_000, reset_after_seconds: 3600 } } })
+      return Response.json({
+        plan_type: 'plus',
+        rate_limit: {
+          primary_window: {
+            used_percent: 10,
+            limit_window_seconds: 18_000,
+            reset_after_seconds: 3600,
+          },
+        },
+      })
     }
-    if (url.startsWith('https://chatgpt.com/backend-api/wham/rate-limit-reset-credits')) {
+    if (
+      url.startsWith(
+        'https://chatgpt.com/backend-api/wham/rate-limit-reset-credits',
+      )
+    ) {
       return Response.json({ credits: [] })
     }
     if (url === 'https://chatgpt.com/backend-api/codex/responses') {
@@ -100,13 +125,20 @@ test('a forced usage refresh lifts the pool cooldown; a non-forced one does not'
     pool: { enabled: true, strategy: 'priority', autoAccounts: true },
   })
   try {
-    await new Promise(resolve => setTimeout(resolve, 50))
-    assert.ok(connection.registered(), 'the subscriptions-auth Fetch routes were registered')
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    assert.ok(
+      connection.registered(),
+      'the subscriptions-auth Fetch routes were registered',
+    )
     await saveAccountSession('codex', ACCOUNT, {
-      accessToken: 'token', refreshToken: 'refresh', expiresAt: Date.now() + 3600_000,
-      accountId: ACCOUNT, idToken: '',
+      accessToken: 'token',
+      refreshToken: 'refresh',
+      expiresAt: Date.now() + 3600_000,
+      accountId: ACCOUNT,
+      idToken: '',
     })
-    const call = (endpoint: string, payload: unknown) => connection.handler(endpoint, payload, new AbortController().signal)
+    const call = (endpoint: string, payload: unknown) =>
+      connection.handler(endpoint, payload, new AbortController().signal)
     const route = adapters.get('codex')!
 
     // The pool route owns the model only once discovery has listed the
@@ -114,10 +146,16 @@ test('a forced usage refresh lifts the pool cooldown; a non-forced one does not'
     // model" and never reach member selection.
     let owns = false
     for (let attempt = 0; attempt < 50 && !owns; attempt += 1) {
-      owns = await route.resolveModel('codex', MODEL).then(() => true, () => false)
-      if (!owns) await new Promise(resolve => setTimeout(resolve, 100))
+      owns = await route.resolveModel('codex', MODEL).then(
+        () => true,
+        () => false,
+      )
+      if (!owns) await new Promise((resolve) => setTimeout(resolve, 100))
     }
-    assert.ok(owns, 'the pool route owns the model once the account catalog is discovered')
+    assert.ok(
+      owns,
+      'the pool route owns the model once the account catalog is discovered',
+    )
 
     // (1) The first request fails and parks the member on a cooldown.
     await assert.rejects(() => collect(route.stream(OPTIONS)))
@@ -127,13 +165,23 @@ test('a forced usage refresh lifts the pool cooldown; a non-forced one does not'
     // the cooling member out, and the exhausted error names the cooldown.
     await assert.rejects(
       () => collect(route.stream(OPTIONS)),
-      (error: unknown) => error instanceof Error && /cooling down|exhausted|no usable member/i.test(error.message),
+      (error: unknown) =>
+        error instanceof Error &&
+        /cooling down|exhausted|no usable member/i.test(error.message),
     )
-    assert.equal(responsesCalls, 1, 'the cooling member was refused without an adapter call')
+    assert.equal(
+      responsesCalls,
+      1,
+      'the cooling member was refused without an adapter call',
+    )
 
     // (3) The Settings "Refresh" button: a forced usage refresh is the
     // user's "retry now" and lifts that account's cooldowns.
-    const usage = await call('usage', { provider: 'codex', account: ACCOUNT, force: true })
+    const usage = await call('usage', {
+      provider: 'codex',
+      account: ACCOUNT,
+      force: true,
+    })
     assert.ok(usage.ok, 'the forced usage refresh answered')
 
     // (4) The member serves again.
@@ -144,15 +192,27 @@ test('a forced usage refresh lifts the pool cooldown; a non-forced one does not'
     // stream is refused again without an adapter call — and a NON-forced
     // usage call (the Settings page opening) must leave it parked.
     await assert.rejects(() => collect(route.stream(OPTIONS)))
-    assert.equal(responsesCalls, 2, 'the cooldown from the (4) failure still refused the member')
-    const unforced = await call('usage', { provider: 'codex', account: ACCOUNT })
+    assert.equal(
+      responsesCalls,
+      2,
+      'the cooldown from the (4) failure still refused the member',
+    )
+    const unforced = await call('usage', {
+      provider: 'codex',
+      account: ACCOUNT,
+    })
     assert.ok(unforced.ok, 'the non-forced usage call answered')
     await assert.rejects(() => collect(route.stream(OPTIONS)))
-    assert.equal(responsesCalls, 2, 'a non-forced usage call left the cooldown in place')
+    assert.equal(
+      responsesCalls,
+      2,
+      'a non-forced usage call left the cooldown in place',
+    )
   } finally {
     globalThis.fetch = original
     await runtime.dispose()
-    if (previous === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = previous
+    if (previous === undefined) delete process.env.DSH_HOME
+    else process.env.DSH_HOME = previous
     await rm(home, { recursive: true, force: true })
   }
 })

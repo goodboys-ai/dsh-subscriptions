@@ -55,33 +55,38 @@ export default defineConfig({
   // tsdown auto-externalizes package dependencies; anything NOT in the
   // loader module table must inline instead. A require() the table cannot
   // answer is a guaranteed runtime throw.
-  noExternal: (id: string) => (CLIENT_EXTERNALS.includes(id) ? undefined : true),
+  noExternal: (id: string) =>
+    CLIENT_EXTERNALS.includes(id) ? undefined : true,
   define: {
     'process.env.NODE_ENV': JSON.stringify('production'),
     'import.meta.env.MODE': JSON.stringify('production'),
     'import.meta.env': JSON.stringify({ MODE: 'production' }),
   },
-  plugins: [{
-    // Bundle purity gate: platform module-table entries stay external,
-    // inline-safe wire layers and vendored libraries inline, and every other
-    // @deepseek-ai value import is a build error — it would either inline a
-    // duplicate runtime instance or require a specifier the frozen module
-    // table cannot answer. Type-only imports are erased and never reach here.
-    name: 'dsh-client-bundle-purity',
-    resolveId(source: string) {
-      if (!source.startsWith('@deepseek-ai/')) return null
-      if (CLIENT_EXTERNALS.includes(source)) return null // platform module: external wins
-      if (VENDORED_LIBRARY.test(source)) return null // vendored library: inline, no shared identity
-      if (INLINE_SAFE.test(source) || GENERATED_REMOTE.test(source)) return null // wire contribution: inline is the point
-      throw new Error(
-        `client bundle purity: "${source}" is not a platform module (CLIENT_EXTERNALS), an inline-safe wire layer, or a generated /remote contribution — `
-        + 'cross-plugin value imports are forbidden; collaborate through cordis services (type-only imports are erased and never reach this gate)',
-      )
+  plugins: [
+    {
+      // Bundle purity gate: platform module-table entries stay external,
+      // inline-safe wire layers and vendored libraries inline, and every other
+      // @deepseek-ai value import is a build error — it would either inline a
+      // duplicate runtime instance or require a specifier the frozen module
+      // table cannot answer. Type-only imports are erased and never reach here.
+      name: 'dsh-client-bundle-purity',
+      resolveId(source: string) {
+        if (!source.startsWith('@deepseek-ai/')) return null
+        if (CLIENT_EXTERNALS.includes(source)) return null // platform module: external wins
+        if (VENDORED_LIBRARY.test(source)) return null // vendored library: inline, no shared identity
+        if (INLINE_SAFE.test(source) || GENERATED_REMOTE.test(source))
+          return null // wire contribution: inline is the point
+        throw new Error(
+          `client bundle purity: "${source}" is not a platform module (CLIENT_EXTERNALS), an inline-safe wire layer, or a generated /remote contribution — ` +
+            'cross-plugin value imports are forbidden; collaborate through cordis services (type-only imports are erased and never reach this gate)',
+        )
+      },
     },
-  }],
+  ],
   outputOptions: {
     entryFileNames: 'client.js',
-    banner: 'window.__ModuleLoader__.load({ id: "dsh-subscriptions", factory: (require) => {',
+    banner:
+      'window.__ModuleLoader__.load({ id: "dsh-subscriptions", factory: (require) => {',
     footer: 'return module.exports; } });',
     intro: 'var module = { exports: {} }; var exports = module.exports;',
   },

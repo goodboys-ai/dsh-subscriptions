@@ -22,7 +22,10 @@ import type {
 } from '@deepseek-ai/dsh-llm'
 import { parseSse } from './sse.js'
 import { withToolResultImages } from './resolved.js'
-import type { ResolvedToolResultBlock, TranslatableMessage } from './resolved.js'
+import type {
+  ResolvedToolResultBlock,
+  TranslatableMessage,
+} from './resolved.js'
 
 /** Assembled `instructions` + `input` pair for one Responses request. */
 export interface ResponsesRequestInput {
@@ -56,7 +59,9 @@ export interface ReasoningReplayItem {
 
 /** Flatten a tool result's content to plain text for `function_call_output`. */
 function toolResultText(block: ResolvedToolResultBlock): string {
-  return block.content.map(part => (part.type === 'text' ? part.text : '')).join('')
+  return block.content
+    .map((part) => (part.type === 'text' ? part.text : ''))
+    .join('')
 }
 
 /**
@@ -99,13 +104,20 @@ export function toResponsesInput(
     // Current harness tool results are first-class role=tool messages.
     // Responses represents their text as function_call_output items.
     if (message.role === 'tool') {
-      const callId = message.toolCallId ?? message.tool_call_id
-        ?? (message.source?.kind === 'tool' ? String(message.source.callId) : undefined)
-      if (callId === undefined) throw new LlmError('tool result has no call id', 'INVALID_REQUEST')
+      const callId =
+        message.toolCallId ??
+        message.tool_call_id ??
+        (message.source?.kind === 'tool'
+          ? String(message.source.callId)
+          : undefined)
+      if (callId === undefined)
+        throw new LlmError('tool result has no call id', 'INVALID_REQUEST')
       input.push({
         type: 'function_call_output',
         call_id: callId,
-        output: message.content.map(block => block.type === 'text' ? block.text : '').join(''),
+        output: message.content
+          .map((block) => (block.type === 'text' ? block.text : ''))
+          .join(''),
       })
       continue
     }
@@ -119,7 +131,10 @@ export function toResponsesInput(
     for (const block of message.content) {
       switch (block.type) {
         case 'text':
-          content.push({ type: role === 'assistant' ? 'output_text' : 'input_text', text: block.text })
+          content.push({
+            type: role === 'assistant' ? 'output_text' : 'input_text',
+            text: block.text,
+          })
           break
         case 'tool-call': {
           flushMessage()
@@ -128,9 +143,11 @@ export function toResponsesInput(
             for (const item of encrypted) {
               input.push({
                 type: 'reasoning',
-                ...item.id === undefined ? {} : { id: item.id },
-                ...item.summary === undefined ? {} : { summary: item.summary },
-                ...item.status === undefined ? {} : { status: item.status },
+                ...(item.id === undefined ? {} : { id: item.id }),
+                ...(item.summary === undefined
+                  ? {}
+                  : { summary: item.summary }),
+                ...(item.status === undefined ? {} : { status: item.status }),
                 encrypted_content: item.encrypted_content,
               })
             }
@@ -170,8 +187,9 @@ export function toResponsesInput(
     }
     flushMessage()
   }
-  const instructions = system ?? (systemTexts.length > 0 ? systemTexts.join('\n\n') : undefined)
-  return { ...instructions === undefined ? {} : { instructions }, input }
+  const instructions =
+    system ?? (systemTexts.length > 0 ? systemTexts.join('\n\n') : undefined)
+  return { ...(instructions === undefined ? {} : { instructions }), input }
 }
 
 /**
@@ -189,12 +207,12 @@ export function toResponsesTools(
   tools: readonly ToolSchema[],
   options: { strict?: false } = {},
 ): Record<string, unknown>[] {
-  return tools.map(tool => ({
+  return tools.map((tool) => ({
     type: 'function',
     name: tool.name,
     description: tool.description,
     parameters: tool.parameters,
-    ...options.strict === undefined ? {} : { strict: options.strict },
+    ...(options.strict === undefined ? {} : { strict: options.strict }),
   }))
 }
 
@@ -255,8 +273,8 @@ export function mapResponsesUsage(usage: ResponsesUsage): TokenUsage {
   return {
     inputTokens: usage.input_tokens - (cached ?? 0),
     outputTokens: usage.output_tokens,
-    ...cached !== undefined ? { cacheReadTokens: cached } : {},
-    ...reasoning !== undefined ? { reasoningTokens: reasoning } : {},
+    ...(cached !== undefined ? { cacheReadTokens: cached } : {}),
+    ...(reasoning !== undefined ? { reasoningTokens: reasoning } : {}),
   }
 }
 
@@ -266,17 +284,29 @@ export function mapResponsesUsage(usage: ResponsesUsage): TokenUsage {
  * @param message - provider error message, when present.
  * @returns the mapped error (context overflow, quota, otherwise SERVER).
  */
-export function responsesFailure(code: string | undefined, message: string | undefined): LlmError {
+export function responsesFailure(
+  code: string | undefined,
+  message: string | undefined,
+): LlmError {
   // Safe here means this diagnostic path carries no provider-controlled free text,
   // not that no secret can exist anywhere. Raw values remain local classification inputs.
   const detail = `${code ?? ''} ${message ?? ''}`
   let classification: LlmError['code'] = 'SERVER'
-  if (code === 'context_window_exceeded' || isContextWindowExceededError(detail)) {
+  if (
+    code === 'context_window_exceeded' ||
+    isContextWindowExceededError(detail)
+  ) {
     classification = CONTEXT_WINDOW_EXCEEDED_CODE
-  } else if ((code !== undefined && /insufficient|quota/i.test(code)) || isQuotaExceededError(detail)) {
+  } else if (
+    (code !== undefined && /insufficient|quota/i.test(code)) ||
+    isQuotaExceededError(detail)
+  ) {
     classification = QUOTA_EXCEEDED_CODE
   }
-  return new LlmError(`Responses failure (${classification}): [provider response body omitted]`, classification)
+  return new LlmError(
+    `Responses failure (${classification}): [provider response body omitted]`,
+    classification,
+  )
 }
 
 /** One open harness block under assembly. */
@@ -320,13 +350,19 @@ export class ResponsesStreamTranslator {
   /** Set once `response.completed` produced the terminal finish chunk. */
   terminated = false
 
-  private open(key: string, kind: OpenBlock['kind'], chunks: StreamChunk[], callId = '', name?: string): OpenBlock {
+  private open(
+    key: string,
+    kind: OpenBlock['kind'],
+    chunks: StreamChunk[],
+    callId = '',
+    name?: string,
+  ): OpenBlock {
     const block: OpenBlock = {
       index: this.nextIndex++,
       kind,
       text: '',
       callId,
-      ...name === undefined ? {} : { name },
+      ...(name === undefined ? {} : { name }),
     }
     this.blocks.set(key, block)
     this.order.push(block)
@@ -346,7 +382,11 @@ export class ResponsesStreamTranslator {
     const block = this.blocks.get(key)
     if (block === undefined) return
     this.blocks.delete(key)
-    chunks.push({ type: 'block-end', index: block.index, block: closeBlock(block) })
+    chunks.push({
+      type: 'block-end',
+      index: block.index,
+      block: closeBlock(block),
+    })
   }
 
   /** Close every still-open block for one output item (prefix match on the key). */
@@ -365,7 +405,11 @@ export class ResponsesStreamTranslator {
     for (const [key, candidate] of this.blocks) {
       if (candidate === block) {
         this.blocks.delete(key)
-        chunks.push({ type: 'block-end', index: block.index, block: closeBlock(block) })
+        chunks.push({
+          type: 'block-end',
+          index: block.index,
+          block: closeBlock(block),
+        })
         return
       }
     }
@@ -385,12 +429,18 @@ export class ResponsesStreamTranslator {
         if (item?.type === 'function_call' && item.id !== undefined) {
           this.sawToolCall = true
           const callId = item.call_id ?? ''
-          const block = this.open(`${item.id}:call`, 'tool-call', chunks, callId, item.name)
+          const block = this.open(
+            `${item.id}:call`,
+            'tool-call',
+            chunks,
+            callId,
+            item.name,
+          )
           chunks.push({
             type: 'tool-call-delta',
             index: block.index,
             id: ToolCallId(callId),
-            ...item.name === undefined ? {} : { name: item.name },
+            ...(item.name === undefined ? {} : { name: item.name }),
             argumentsDelta: '',
           })
         }
@@ -400,7 +450,11 @@ export class ResponsesStreamTranslator {
         const key = `${event.item_id ?? ''}:text:${String(event.content_index ?? 0)}`
         const block = this.textBlock(key, chunks)
         block.text += event.delta ?? ''
-        chunks.push({ type: 'text-delta', index: block.index, text: event.delta ?? '' })
+        chunks.push({
+          type: 'text-delta',
+          index: block.index,
+          text: event.delta ?? '',
+        })
         return chunks
       }
       case 'response.reasoning_summary_text.delta':
@@ -409,7 +463,11 @@ export class ResponsesStreamTranslator {
         const key = `${event.item_id ?? ''}:reason:${String(sub)}`
         const block = this.reasoningBlock(key, chunks)
         block.text += event.delta ?? ''
-        chunks.push({ type: 'reasoning-delta', index: block.index, text: event.delta ?? '' })
+        chunks.push({
+          type: 'reasoning-delta',
+          index: block.index,
+          text: event.delta ?? '',
+        })
         return chunks
       }
       case 'response.function_call_arguments.delta': {
@@ -425,7 +483,7 @@ export class ResponsesStreamTranslator {
           type: 'tool-call-delta',
           index: block.index,
           id: ToolCallId(block.callId),
-          ...block.name === undefined ? {} : { name: block.name },
+          ...(block.name === undefined ? {} : { name: block.name }),
           argumentsDelta: event.delta ?? '',
         })
         return chunks
@@ -437,16 +495,33 @@ export class ResponsesStreamTranslator {
           const key = `${item.id}:call`
           // The provider may deliver the complete arguments only on done.
           const block = this.blocks.get(key)
-          if (block !== undefined && block.text.length === 0 && item.arguments !== undefined) {
+          if (
+            block !== undefined &&
+            block.text.length === 0 &&
+            item.arguments !== undefined
+          ) {
             block.text = item.arguments
           }
           this.close(key, chunks)
         } else if (item.type === 'message') {
-          if (![...this.blocks.keys()].some(key => key.startsWith(`${item.id}:text:`))) {
+          if (
+            ![...this.blocks.keys()].some((key) =>
+              key.startsWith(`${item.id}:text:`),
+            )
+          ) {
             // No deltas arrived for this item; synthesize blocks from the done payload.
             for (const [partIndex, part] of (item.content ?? []).entries()) {
-              if (part?.type !== 'output_text' || typeof part.text !== 'string' || part.text.length === 0) continue
-              const block = this.open(`${item.id}:text:${partIndex}`, 'text', chunks)
+              if (
+                part?.type !== 'output_text' ||
+                typeof part.text !== 'string' ||
+                part.text.length === 0
+              )
+                continue
+              const block = this.open(
+                `${item.id}:text:${partIndex}`,
+                'text',
+                chunks,
+              )
               block.text = part.text
               this.close(`${item.id}:text:${partIndex}`, chunks)
             }
@@ -461,27 +536,37 @@ export class ResponsesStreamTranslator {
         this.terminated = true
         this.closeAll(chunks)
         const usage = event.response?.usage
-        if (usage !== undefined) chunks.push({ type: 'usage', usage: mapResponsesUsage(usage) })
+        if (usage !== undefined)
+          chunks.push({ type: 'usage', usage: mapResponsesUsage(usage) })
         if (this.order.length === 0) {
           chunks.push({
             type: 'finish',
             reason: {
               kind: 'error',
-              failure: { message: 'model returned a completed response with no content', code: EMPTY_RESPONSE_CODE },
+              failure: {
+                message: 'model returned a completed response with no content',
+                code: EMPTY_RESPONSE_CODE,
+              },
             },
           })
         } else {
-          chunks.push({ type: 'finish', reason: { kind: this.sawToolCall ? 'tool-calls' : 'stop' } })
+          chunks.push({
+            type: 'finish',
+            reason: { kind: this.sawToolCall ? 'tool-calls' : 'stop' },
+          })
         }
         return chunks
       }
       case 'response.failed':
-        throw responsesFailure(event.response?.error?.code, event.response?.error?.message)
+        throw responsesFailure(
+          event.response?.error?.code,
+          event.response?.error?.message,
+        )
       case 'response.incomplete':
         throw responsesFailure(
           event.response?.incomplete_details?.reason,
-          event.response?.error?.message
-            ?? `the provider reported an incomplete response (${event.response?.incomplete_details?.reason ?? 'unknown reason'})`,
+          event.response?.error?.message ??
+            `the provider reported an incomplete response (${event.response?.incomplete_details?.reason ?? 'unknown reason'})`,
         )
       case 'error':
         throw responsesFailure(event.code, event.message)
@@ -512,11 +597,17 @@ export async function* streamResponses(
     try {
       event = JSON.parse(sseEvent.data) as ResponsesStreamEvent
     } catch {
-      throw new LlmError('malformed SSE payload (MALFORMED_RESPONSE): [provider response body omitted]', 'MALFORMED_RESPONSE')
+      throw new LlmError(
+        'malformed SSE payload (MALFORMED_RESPONSE): [provider response body omitted]',
+        'MALFORMED_RESPONSE',
+      )
     }
     if (transform !== undefined) event = transform(event)
     yield* translator.push(event)
     if (translator.terminated) return
   }
-  throw new LlmError('Responses SSE stream ended before response.completed', 'STREAM_CLOSED')
+  throw new LlmError(
+    'Responses SSE stream ended before response.completed',
+    'STREAM_CLOSED',
+  )
 }

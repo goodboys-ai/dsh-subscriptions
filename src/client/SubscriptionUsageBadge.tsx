@@ -26,20 +26,35 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ComponentType, CSSProperties } from 'react'
 import { subscriptionChromeCss } from './provider-settings-styles.js'
 import { createPortal } from 'react-dom'
-import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type {
+  PropsLocale,
+  PropsRuntime,
+} from '@deepseek-ai/dsh-client-ui-slots'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-api-remotes/client'
 import * as primitives from '@deepseek-ai/dsh-client-ui-primitives'
-import { useAnchoredPosition, useDismissOnOutsidePointer } from '@deepseek-ai/dsh-client-ui-primitives'
+import {
+  useAnchoredPosition,
+  useDismissOnOutsidePointer,
+} from '@deepseek-ai/dsh-client-ui-primitives'
 import { callSubscriptionsAuth } from './SubscriptionsSection.js'
 import { UsageMeter } from './UsageMeter.js'
 import { displayUsedPercent } from './usage-pace.js'
-import type { AccountStatus, ProviderStatus, ProviderUsage, SubscriptionProvider, UsageWindow } from './SubscriptionsSection.js'
+import type {
+  AccountStatus,
+  ProviderStatus,
+  ProviderUsage,
+  SubscriptionProvider,
+  UsageWindow,
+} from './SubscriptionsSection.js'
 import type { ModelDirectoriesLike } from './SpeedSelect.js'
 import { en } from './locales.js'
 import type { SubscriptionsKey } from './locales.js'
 import { hostIcon } from './host-icons.js'
 import { HOST_CONTRACT, markerSelector } from './host-contract.js'
-import { USAGE_BADGE_REFRESH_EVENT, useUsageBadgeMode } from './usage-badge-preferences.js'
+import {
+  USAGE_BADGE_REFRESH_EVENT,
+  useUsageBadgeMode,
+} from './usage-badge-preferences.js'
 
 /** DSH renamed the data icon in 0.1.7; retain older supported hosts too. */
 export function usageBadgeIcon(icons: {
@@ -74,11 +89,12 @@ export interface SubscriptionUsageBadgeInjected {
 }
 
 /** Props delivered by the slot outlet + inject + the locale seat. */
-export type SubscriptionUsageBadgeProps = PropsRuntime<'conversation.composer.dock'>
-  & Partial<SubscriptionUsageBadgeInjected>
-  & Partial<PropsLocale<'settings.subscriptions'>>
-  /** Override the rotation cadence (tests only; the slot never passes it). */
-  & { rotationMs?: number }
+export type SubscriptionUsageBadgeProps =
+  PropsRuntime<'conversation.composer.dock'> &
+    Partial<SubscriptionUsageBadgeInjected> &
+    Partial<PropsLocale<'settings.subscriptions'>> &
+    /** Override the rotation cadence (tests only; the slot never passes it). */
+    { rotationMs?: number }
 
 /** One logged-in account's usage windows, as listed in the expanded dialog. */
 export interface AccountUsageDisplay {
@@ -104,11 +120,18 @@ export interface ProviderUsageDisplay {
 
 /** The account the collapsed pill reads: the default one, else the first listed. */
 export function pillAccountOf(d: ProviderUsageDisplay): AccountUsageDisplay {
-  return d.accounts.find(a => a.isDefault) ?? d.accounts[0]!
+  return d.accounts.find((a) => a.isDefault) ?? d.accounts[0]!
 }
 
 /** Brand display names (short form for the compact badge). */
-export type BadgeProvider = SubscriptionProvider | 'cursor-subscription' | 'opencode-go' | 'kimi-coding' | 'minimax' | 'minimax-cn' | 'ollama-cloud'
+export type BadgeProvider =
+  | SubscriptionProvider
+  | 'cursor-subscription'
+  | 'opencode-go'
+  | 'kimi-coding'
+  | 'minimax'
+  | 'minimax-cn'
+  | 'ollama-cloud'
 
 const PROVIDER_NAMES: Record<BadgeProvider, string> = {
   codex: 'Codex',
@@ -119,12 +142,15 @@ const PROVIDER_NAMES: Record<BadgeProvider, string> = {
   'cursor-subscription': 'Cursor',
   'opencode-go': 'OpenCode Go',
   'kimi-coding': 'Kimi Code',
-  'minimax': 'MiniMax',
+  minimax: 'MiniMax',
   'minimax-cn': 'MiniMax CN',
   'ollama-cloud': 'Ollama Cloud',
 }
 
-export interface UsageRosterEntry { provider: BadgeProvider; account: AccountStatus }
+export interface UsageRosterEntry {
+  provider: BadgeProvider
+  account: AccountStatus
+}
 
 /** Key of one account's cached windows: `provider:accountKey`. */
 function usageKeyOf(provider: BadgeProvider, account: AccountStatus): string {
@@ -155,12 +181,17 @@ export function groupUsageDisplays(
     const row: AccountUsageDisplay = {
       key: account.key,
       isDefault: account.isDefault,
-      ...account.account === undefined ? {} : { account: account.account },
-      ...plan === undefined ? {} : { plan },
+      ...(account.account === undefined ? {} : { account: account.account }),
+      ...(plan === undefined ? {} : { plan }),
       windows,
     }
     const display = byProvider.get(provider)
-    if (display === undefined) byProvider.set(provider, { provider, name: PROVIDER_NAMES[provider], accounts: [row] })
+    if (display === undefined)
+      byProvider.set(provider, {
+        provider,
+        name: PROVIDER_NAMES[provider],
+        accounts: [row],
+      })
     else display.accounts.push(row)
   }
   return [...byProvider.values()]
@@ -172,41 +203,75 @@ export async function loadBadgeRoster(rpc: ConnectionHandle['rpc']): Promise<{
   refreshed: Set<BadgeProvider>
 }> {
   const [subscriptions, cursor, external] = await Promise.allSettled([
-    callSubscriptionsAuth<{ providers: Record<SubscriptionProvider, ProviderStatus> }>(rpc, 'status', {}),
+    callSubscriptionsAuth<{
+      providers: Record<SubscriptionProvider, ProviderStatus>
+    }>(rpc, 'status', {}),
     callSubscriptionsAuth<{ authenticated: boolean }>(rpc, 'cursorStatus', {}),
-    callSubscriptionsAuth<Record<'opencode-go' | 'kimi-code' | 'minimax' | 'minimax-cn' | 'ollama-cloud', { configured: boolean }>>(rpc, 'externalStatus', {}),
+    callSubscriptionsAuth<
+      Record<
+        'opencode-go' | 'kimi-code' | 'minimax' | 'minimax-cn' | 'ollama-cloud',
+        { configured: boolean }
+      >
+    >(rpc, 'externalStatus', {}),
   ])
   const roster: UsageRosterEntry[] = []
   const refreshed = new Set<BadgeProvider>()
   if (subscriptions.status === 'fulfilled') {
-    for (const provider of ['codex', 'claude', 'grok', 'copilot', 'antigravity'] as const) {
+    for (const provider of [
+      'codex',
+      'claude',
+      'grok',
+      'copilot',
+      'antigravity',
+    ] as const) {
       refreshed.add(provider)
-      for (const account of accountsOf(subscriptions.value.providers[provider])) roster.push({ provider, account })
+      for (const account of accountsOf(subscriptions.value.providers[provider]))
+        roster.push({ provider, account })
     }
   }
   if (cursor.status === 'fulfilled') {
     refreshed.add('cursor-subscription')
-    if (cursor.value.authenticated) roster.push({
-      provider: 'cursor-subscription', account: { key: 'cursor', isDefault: true },
-    })
+    if (cursor.value.authenticated)
+      roster.push({
+        provider: 'cursor-subscription',
+        account: { key: 'cursor', isDefault: true },
+      })
   }
   if (external.status === 'fulfilled') {
     for (const [source, provider] of [
-      ['opencode-go', 'opencode-go'], ['kimi-code', 'kimi-coding'], ['minimax', 'minimax'], ['minimax-cn', 'minimax-cn'], ['ollama-cloud', 'ollama-cloud'],
+      ['opencode-go', 'opencode-go'],
+      ['kimi-code', 'kimi-coding'],
+      ['minimax', 'minimax'],
+      ['minimax-cn', 'minimax-cn'],
+      ['ollama-cloud', 'ollama-cloud'],
     ] as const) {
       refreshed.add(provider)
-      if (external.value[source]?.configured) roster.push({
-        provider, account: { key: source, isDefault: true },
-      })
+      if (external.value[source]?.configured)
+        roster.push({
+          provider,
+          account: { key: source, isDefault: true },
+        })
     }
   }
   return { roster, refreshed }
 }
 
-export async function usageOf(rpc: ConnectionHandle['rpc'], { provider, account }: UsageRosterEntry): Promise<ProviderUsage> {
-  if (provider === 'cursor-subscription') return callSubscriptionsAuth(rpc, 'cursorUsage', {})
-  if (provider === 'opencode-go' || provider === 'kimi-coding' || provider === 'minimax' || provider === 'minimax-cn' || provider === 'ollama-cloud') {
-    return callSubscriptionsAuth(rpc, 'externalUsage', { source: provider === 'kimi-coding' ? 'kimi-code' : provider })
+export async function usageOf(
+  rpc: ConnectionHandle['rpc'],
+  { provider, account }: UsageRosterEntry,
+): Promise<ProviderUsage> {
+  if (provider === 'cursor-subscription')
+    return callSubscriptionsAuth(rpc, 'cursorUsage', {})
+  if (
+    provider === 'opencode-go' ||
+    provider === 'kimi-coding' ||
+    provider === 'minimax' ||
+    provider === 'minimax-cn' ||
+    provider === 'ollama-cloud'
+  ) {
+    return callSubscriptionsAuth(rpc, 'externalUsage', {
+      source: provider === 'kimi-coding' ? 'kimi-code' : provider,
+    })
   }
   return callSubscriptionsAuth(rpc, 'usage', { provider, account: account.key })
 }
@@ -239,9 +304,12 @@ export function windowLabel(w: UsageWindow): string {
   if (w.resetsAt === undefined || !Number.isFinite(w.resetsAt)) {
     if (w.scope !== undefined && w.scope !== '') return w.scope
     switch (w.kind) {
-      case 'session': return '5h'
-      case 'weekly': return 'Wk'
-      default: return 'W'
+      case 'session':
+        return '5h'
+      case 'weekly':
+        return 'Wk'
+      default:
+        return 'W'
     }
   }
   const ms = Math.max(0, w.resetsAt - Date.now())
@@ -263,38 +331,70 @@ function windowSegment(label: string, w: UsageWindow): string {
 }
 
 /** Keep model quotas separate: matching percentages do not imply a shared pool. */
-export function prioritizeWindows(windows: readonly UsageWindow[], model?: string): UsageWindow[] {
-  return model === undefined ? [...windows] : [
-    ...windows.filter(w => w.scope === model),
-    ...windows.filter(w => w.scope !== model),
-  ]
+export function prioritizeWindows(
+  windows: readonly UsageWindow[],
+  model?: string,
+): UsageWindow[] {
+  return model === undefined
+    ? [...windows]
+    : [
+        ...windows.filter((w) => w.scope === model),
+        ...windows.filter((w) => w.scope !== model),
+      ]
 }
 
 /** Small previews keep a live model catalog from taking over the dialog. */
 export const WINDOW_PREVIEW_LIMIT = 4
-export function previewWindows(windows: readonly UsageWindow[], model?: string, provider?: BadgeProvider) {
+export function previewWindows(
+  windows: readonly UsageWindow[],
+  model?: string,
+  provider?: BadgeProvider,
+) {
   const ordered = prioritizeWindows(windows, model)
   // Antigravity has many model-specific quotas: preview only the current model.
-  const limit = provider === 'antigravity'
-    ? Math.min(2, model === undefined ? 0 : windows.filter(w => w.scope === model).length)
-    : WINDOW_PREVIEW_LIMIT
+  const limit =
+    provider === 'antigravity'
+      ? Math.min(
+          2,
+          model === undefined
+            ? 0
+            : windows.filter((w) => w.scope === model).length,
+        )
+      : WINDOW_PREVIEW_LIMIT
   return { shown: ordered.slice(0, limit), hidden: ordered.slice(limit) }
 }
 
 /** Bounded readout; Antigravity quotas belong to individual models, not the account. */
-export function compactSegment(d: ProviderUsageDisplay, model?: string, t: Translate = fallbackTranslate): string {
+export function compactSegment(
+  d: ProviderUsageDisplay,
+  model?: string,
+  t: Translate = fallbackTranslate,
+): string {
   const windows = pillAccountOf(d).windows
   if (d.provider === 'antigravity') {
-    const matching = model === undefined ? [] : windows.filter(w => w.scope === model)
+    const matching =
+      model === undefined ? [] : windows.filter((w) => w.scope === model)
     if (matching.length === 0) {
-      return `${d.name} ${t(model === undefined ? 'usageBadgeModelCount' : 'usageBadgeModelUnavailable', {
-        count: new Set(windows.map(w => w.scope).filter(Boolean)).size,
-      })}`
+      return `${d.name} ${t(
+        model === undefined
+          ? 'usageBadgeModelCount'
+          : 'usageBadgeModelUnavailable',
+        {
+          count: new Set(windows.map((w) => w.scope).filter(Boolean)).size,
+        },
+      )}`
     }
-    const parts = matching.slice(0, 2).map(w => windowSegment(w.kind === 'weekly' ? t('usageWeekly') : t('usageWindow'), w))
+    const parts = matching
+      .slice(0, 2)
+      .map((w) =>
+        windowSegment(
+          w.kind === 'weekly' ? t('usageWeekly') : t('usageWindow'),
+          w,
+        ),
+      )
     return `${d.name} ${parts.join(' · ')}`
   }
-  const parts = windows.slice(0, 2).map(w => windowSegment(windowLabel(w), w))
+  const parts = windows.slice(0, 2).map((w) => windowSegment(windowLabel(w), w))
   if (windows.length > 2) parts.push(`+${windows.length - 2}`)
   return `${d.name} ${parts.join(' · ')}`
 }
@@ -306,7 +406,10 @@ export function retainSubscriptionSelection(
   previous: ModelSelection | undefined,
   current: ModelSelection | undefined,
 ): ModelSelection | undefined {
-  return current !== undefined && Object.hasOwn(PROVIDER_NAMES, current.provider) ? current : previous
+  return current !== undefined &&
+    Object.hasOwn(PROVIDER_NAMES, current.provider)
+    ? current
+    : previous
 }
 
 /** At most one provider; no known selection or no usage means no badge. */
@@ -314,7 +417,7 @@ export function collapsedDisplays(
   displays: readonly ProviderUsageDisplay[],
   current: string | undefined,
 ): readonly ProviderUsageDisplay[] {
-  const match = displays.find(d => d.provider === current)
+  const match = displays.find((d) => d.provider === current)
   return match === undefined ? [] : [match]
 }
 
@@ -336,10 +439,12 @@ export function rotatingDisplay(
   step: number,
 ): readonly ProviderUsageDisplay[] {
   if (displays.length === 0) return []
-  const match = displays.find(d => d.provider === current)
+  const match = displays.find((d) => d.provider === current)
   if (match !== undefined) return [match]
   const index = Number.isFinite(step) ? Math.floor(step) : 0
-  return [displays[((index % displays.length) + displays.length) % displays.length]!]
+  return [
+    displays[((index % displays.length) + displays.length) % displays.length]!,
+  ]
 }
 
 /** Order for the expanded dialog: the current provider first, the rest in poll order. */
@@ -347,8 +452,10 @@ export function expandedDisplays(
   displays: readonly ProviderUsageDisplay[],
   current: string | undefined,
 ): readonly ProviderUsageDisplay[] {
-  const match = displays.find(d => d.provider === current)
-  return match === undefined ? displays : [match, ...displays.filter(d => d !== match)]
+  const match = displays.find((d) => d.provider === current)
+  return match === undefined
+    ? displays
+    : [match, ...displays.filter((d) => d !== match)]
 }
 
 /**
@@ -358,25 +465,39 @@ export function expandedDisplays(
  */
 function accountsOf(status: ProviderStatus | undefined): AccountStatus[] {
   if (status === undefined || status.accounts.length === 0) return []
-  const fallback = status.accounts.find(a => a.isDefault) ?? status.accounts[0]!
+  const fallback =
+    status.accounts.find((a) => a.isDefault) ?? status.accounts[0]!
   return status.accounts
-    .map(a => (a === fallback ? { ...a, isDefault: true } : a))
+    .map((a) => (a === fallback ? { ...a, isDefault: true } : a))
     .sort((a, b) => Number(b.isDefault) - Number(a.isDefault))
 }
 
 /** English-dictionary fallback for a missing inject `t` (standalone renders). */
-function fallbackTranslate(key: SubscriptionsKey, params?: Record<string, unknown>): string {
-  return en[key].replace(/\{(\w+)\}/g, (_, name: string) => String(params?.[name] ?? ''))
+function fallbackTranslate(
+  key: SubscriptionsKey,
+  params?: Record<string, unknown>,
+): string {
+  return en[key].replace(/\{(\w+)\}/g, (_, name: string) =>
+    String(params?.[name] ?? ''),
+  )
 }
 
-type Translate = (key: SubscriptionsKey, params?: Record<string, unknown>) => string
+type Translate = (
+  key: SubscriptionsKey,
+  params?: Record<string, unknown>,
+) => string
 
 /** Localized label of one usage window (kind, plus the model scope when named). */
 function usageWindowLabel(t: Translate, window: UsageWindow): string {
-  const base = window.kind === 'session'
-    ? t('usageSession')
-    : window.kind === 'weekly' ? t('usageWeekly') : t('usageWindow')
-  return window.scope !== undefined && window.scope !== '' ? `${base} · ${window.scope}` : base
+  const base =
+    window.kind === 'session'
+      ? t('usageSession')
+      : window.kind === 'weekly'
+        ? t('usageWeekly')
+        : t('usageWindow')
+  return window.scope !== undefined && window.scope !== ''
+    ? `${base} · ${window.scope}`
+    : base
 }
 
 /**
@@ -385,17 +506,33 @@ function usageWindowLabel(t: Translate, window: UsageWindow): string {
  * every provider's accounts and their windows. Returns null when no data is
  * available.
  */
-const STATS_ROW_SELECTOR = markerSelector(HOST_CONTRACT.markers.composerStats.row)
-const STATS_DOCK_SELECTOR = markerSelector(HOST_CONTRACT.markers.composerStats.dock)
+const STATS_ROW_SELECTOR = markerSelector(
+  HOST_CONTRACT.markers.composerStats.row,
+)
+const STATS_DOCK_SELECTOR = markerSelector(
+  HOST_CONTRACT.markers.composerStats.dock,
+)
 
-export function SubscriptionUsageBadge({ rpc, currentModel, t, rotationMs }: SubscriptionUsageBadgeProps) {
+export function SubscriptionUsageBadge({
+  rpc,
+  currentModel,
+  t,
+  rotationMs,
+}: SubscriptionUsageBadgeProps) {
   const translate: Translate = t ?? fallbackTranslate
   const [displays, setDisplays] = useState<ProviderUsageDisplay[]>([])
-  const [selection, setSelection] = useState<ModelSelection | undefined>(undefined)
-  const [lastSubscription, setLastSubscription] = useState<ModelSelection | undefined>(undefined)
+  const [selection, setSelection] = useState<ModelSelection | undefined>(
+    undefined,
+  )
+  const [lastSubscription, setLastSubscription] = useState<
+    ModelSelection | undefined
+  >(undefined)
   const displayMode = useUsageBadgeMode()
   const current = selection?.provider
-  const badgeSelection = retainSubscriptionSelection(lastSubscription, selection)
+  const badgeSelection = retainSubscriptionSelection(
+    lastSubscription,
+    selection,
+  )
   const [open, setOpen] = useState(false)
   const [hover, setHover] = useState(false)
   // Rotation tick for `always` mode; the interval runs only in that mode.
@@ -421,7 +558,9 @@ export function SubscriptionUsageBadge({ rpc, currentModel, t, rotationMs }: Sub
   // unsupported. Observation metadata (freshness) shares this lifecycle: an
   // entry is dropped wherever its windows are dropped.
   const lastKnownRef = useRef(new Map<string, UsageWindow[]>())
-  const observationsRef = useRef(new Map<string, { observedAt?: number | undefined; stale: boolean }>())
+  const observationsRef = useRef(
+    new Map<string, { observedAt?: number | undefined; stale: boolean }>(),
+  )
 
   const refresh = useCallback(async (): Promise<void> => {
     if (rpc === undefined || inflightRef.current) return
@@ -433,9 +572,14 @@ export function SubscriptionUsageBadge({ rpc, currentModel, t, rotationMs }: Sub
       const lastKnown = lastKnownRef.current
       // Drop last-known state for anything no longer logged in — that is a
       // real signal, unlike a fetch failure.
-      const live = new Set(roster.map(({ provider, account }) => usageKeyOf(provider, account)))
+      const live = new Set(
+        roster.map(({ provider, account }) => usageKeyOf(provider, account)),
+      )
       for (const key of lastKnown.keys()) {
-        if (refreshed.has(key.split(':', 1)[0] as BadgeProvider) && !live.has(key)) {
+        if (
+          refreshed.has(key.split(':', 1)[0] as BadgeProvider) &&
+          !live.has(key)
+        ) {
           lastKnown.delete(key)
           observationsRef.current.delete(key)
         }
@@ -451,7 +595,10 @@ export function SubscriptionUsageBadge({ rpc, currentModel, t, rotationMs }: Sub
 
       for (const { provider, account } of roster) {
         const key = usageKeyOf(provider, account)
-        observationsRef.current.set(key, { ...observationsRef.current.get(key), stale: true })
+        observationsRef.current.set(key, {
+          ...observationsRef.current.get(key),
+          stale: true,
+        })
       }
       const plans = new Map<string, string>()
       for (const r of results) {
@@ -465,24 +612,44 @@ export function SubscriptionUsageBadge({ rpc, currentModel, t, rotationMs }: Sub
           continue
         }
         lastKnown.set(key, usage.windows)
-        observationsRef.current.set(key, { observedAt: usage.observedAt ?? Date.now(), stale: usage.stale === true })
+        observationsRef.current.set(key, {
+          observedAt: usage.observedAt ?? Date.now(),
+          stale: usage.stale === true,
+        })
       }
 
-      setDisplays(previous => [
-        ...groupUsageDisplays(roster, lastKnown, plans).map(display => ({ ...display,
-          accounts: display.accounts.map(account => ({ ...account,
-            ...observationsRef.current.get(`${display.provider}:${account.key}`),
+      setDisplays((previous) => [
+        ...groupUsageDisplays(roster, lastKnown, plans).map((display) => ({
+          ...display,
+          accounts: display.accounts.map((account) => ({
+            ...account,
+            ...observationsRef.current.get(
+              `${display.provider}:${account.key}`,
+            ),
           })),
         })),
-        ...previous.filter(display => !refreshed.has(display.provider)).map(display => ({ ...display,
-          accounts: display.accounts.map(account => ({ ...account, stale: true })),
-        })),
+        ...previous
+          .filter((display) => !refreshed.has(display.provider))
+          .map((display) => ({
+            ...display,
+            accounts: display.accounts.map((account) => ({
+              ...account,
+              stale: true,
+            })),
+          })),
       ])
     } catch {
       // Keep cached numbers, but never present failed observations as current.
-      if (mountedRef.current) setDisplays(previous => previous.map(display => ({ ...display,
-        accounts: display.accounts.map(account => ({ ...account, stale: true })),
-      })))
+      if (mountedRef.current)
+        setDisplays((previous) =>
+          previous.map((display) => ({
+            ...display,
+            accounts: display.accounts.map((account) => ({
+              ...account,
+              stale: true,
+            })),
+          })),
+        )
     } finally {
       inflightRef.current = false
     }
@@ -490,14 +657,18 @@ export function SubscriptionUsageBadge({ rpc, currentModel, t, rotationMs }: Sub
 
   useEffect(() => {
     mountedRef.current = true
-    return () => { mountedRef.current = false }
+    return () => {
+      mountedRef.current = false
+    }
   }, [])
 
   // Hidden renders nothing, so it polls nothing; showing it again refreshes at once.
   useEffect(() => {
     if (displayMode === 'hidden') return
     void refresh()
-    const timer = setInterval(() => { void refresh() }, USAGE_POLL_INTERVAL_MS)
+    const timer = setInterval(() => {
+      void refresh()
+    }, USAGE_POLL_INTERVAL_MS)
     window.addEventListener(USAGE_BADGE_REFRESH_EVENT, refresh)
     return () => {
       clearInterval(timer)
@@ -513,14 +684,22 @@ export function SubscriptionUsageBadge({ rpc, currentModel, t, rotationMs }: Sub
       const read = currentRef.current
       if (read === undefined || inflight) return
       inflight = true
-      void read().then(
-        (model) => {
-          if (cancelled) return
-          setLastSubscription(previous => retainSubscriptionSelection(previous, model))
-          setSelection(model)
-        },
-        () => { /* keep the last known provider; the next tick retries */ },
-      ).finally(() => { inflight = false })
+      void read()
+        .then(
+          (model) => {
+            if (cancelled) return
+            setLastSubscription((previous) =>
+              retainSubscriptionSelection(previous, model),
+            )
+            setSelection(model)
+          },
+          () => {
+            /* keep the last known provider; the next tick retries */
+          },
+        )
+        .finally(() => {
+          inflight = false
+        })
     }
     reload()
     const timer = setInterval(reload, MODEL_POLL_INTERVAL_MS)
@@ -530,7 +709,14 @@ export function SubscriptionUsageBadge({ rpc, currentModel, t, rotationMs }: Sub
     }
   }, [])
 
-  const pos = useAnchoredPosition({ open, anchorRef: rootRef, panelRef, side: 'top', gap: PANEL_GAP, margin: PANEL_MARGIN })
+  const pos = useAnchoredPosition({
+    open,
+    anchorRef: rootRef,
+    panelRef,
+    side: 'top',
+    gap: PANEL_GAP,
+    margin: PANEL_MARGIN,
+  })
   useDismissOnOutsidePointer(rootRef, open, setOpen, panelRef)
   useEffect(() => {
     if (!open) return
@@ -538,7 +724,9 @@ export function SubscriptionUsageBadge({ rpc, currentModel, t, rotationMs }: Sub
       if (event.key === 'Escape') setOpen(false)
     }
     document.addEventListener('keydown', onKeyDown)
-    return () => { document.removeEventListener('keydown', onKeyDown) }
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+    }
   }, [open])
 
   // Sit on the host's stats row when there is one. Hosts through 0.2.0 render
@@ -557,17 +745,20 @@ export function SubscriptionUsageBadge({ rpc, currentModel, t, rotationMs }: Sub
     if (seat === null) return
     const scope = statsScopeOf(seat)
     if (scope === null) return
-    const find = (): HTMLElement | null => scope.querySelector<HTMLElement>(STATS_ROW_SELECTOR)
-    let observer: MutationObserver
+    const find = (): HTMLElement | null =>
+      scope.querySelector<HTMLElement>(STATS_ROW_SELECTOR)
     const settle = (): void => {
       const row = find()
       setStatsRow(row)
-      if (row === null && scope.querySelector(STATS_DOCK_SELECTOR) !== null) observer.disconnect()
+      if (row === null && scope.querySelector(STATS_DOCK_SELECTOR) !== null)
+        observer.disconnect()
     }
-    observer = new MutationObserver(settle)
+    const observer = new MutationObserver(settle)
     observer.observe(scope, { childList: true, subtree: true })
     settle()
-    return () => { observer.disconnect() }
+    return () => {
+      observer.disconnect()
+    }
   }, [])
 
   useEffect(() => {
@@ -578,35 +769,48 @@ export function SubscriptionUsageBadge({ rpc, currentModel, t, rotationMs }: Sub
   // never advance, so the pill never changes on its own.
   useEffect(() => {
     if (displayMode !== 'always') return
-    const interval = rotationMs !== undefined && Number.isFinite(rotationMs) && rotationMs > 0
-      ? rotationMs
-      : BADGE_ROTATION_INTERVAL_MS
-    const timer = setInterval(() => { setRotation(step => step + 1) }, interval)
-    return () => { clearInterval(timer) }
+    const interval =
+      rotationMs !== undefined && Number.isFinite(rotationMs) && rotationMs > 0
+        ? rotationMs
+        : BADGE_ROTATION_INTERVAL_MS
+    const timer = setInterval(() => {
+      setRotation((step) => step + 1)
+    }, interval)
+    return () => {
+      clearInterval(timer)
+    }
   }, [displayMode, rotationMs])
 
   const seat = <span ref={seatRef} style={styles.seat} aria-hidden />
   // `always` follows the live model, not the retained subscription: the
   // retention pins the pill in `recent`, which is what this mode escapes.
-  const collapsed = displayMode === 'always'
-    ? rotatingDisplay(displays, current, rotation)
-    : collapsedDisplays(displays, badgeSelection?.provider)
+  const collapsed =
+    displayMode === 'always'
+      ? rotatingDisplay(displays, current, rotation)
+      : collapsedDisplays(displays, badgeSelection?.provider)
   if (displayMode === 'hidden' || collapsed.length === 0) return seat
 
   // Model scope only while the pill shows the current model's provider;
   // a rotated provider has no live model, so it reads at account level.
-  const pillModel = displayMode === 'always'
-    ? (current === collapsed[0]?.provider ? selection?.model : undefined)
-    : badgeSelection?.model
+  const pillModel =
+    displayMode === 'always'
+      ? current === collapsed[0]?.provider
+        ? selection?.model
+        : undefined
+      : badgeSelection?.model
   const label = compactSegment(collapsed[0]!, pillModel, translate)
   // The dialog opens from the badge, so it follows the provider and model the
   // badge shows (a retained subscription when the current model is not one).
   // In `always` mode the pill moves under the cursor, so an open dialog keeps
   // the provider that was showing when it opened instead of reordering live.
-  const dialogProvider = open && displayMode === 'always' ? dialogLead : badgeSelection?.provider
-  const dialogModel = open && displayMode === 'always'
-    ? (dialogLead === current ? selection?.model : undefined)
-    : badgeSelection?.model
+  const dialogProvider =
+    open && displayMode === 'always' ? dialogLead : badgeSelection?.provider
+  const dialogModel =
+    open && displayMode === 'always'
+      ? dialogLead === current
+        ? selection?.model
+        : undefined
+      : badgeSelection?.model
   const expanded = expandedDisplays(displays, dialogProvider)
   const title = translate('usageBadgeTitle')
 
@@ -628,66 +832,91 @@ export function SubscriptionUsageBadge({ rpc, currentModel, t, rotationMs }: Sub
         aria-expanded={open}
         aria-label={`${title} · ${label}`}
         title={title}
-        onMouseEnter={() => { setHover(true) }}
-        onMouseLeave={() => { setHover(false) }}
+        onMouseEnter={() => {
+          setHover(true)
+        }}
+        onMouseLeave={() => {
+          setHover(false)
+        }}
         onClick={toggle}
       >
         <UsageBadgeIcon />
         <span style={styles.label}>{label}</span>
       </button>
-      {open && createPortal(
-        <div
-          ref={panelRef}
-          role="dialog"
-          aria-label={title}
-          className="dsh-subscription-usage-panel"
-          style={{ ...styles.panel, ...(pos ?? MEASURE_STYLE) }}
-        >
-          <div style={styles.title}>
-            <span style={styles.titleLabel}>
-              <UsageBadgeIcon />
-              {title}
-            </span>
-          </div>
-          <div style={styles.titleRule} aria-hidden />
-          {expanded.map((d, index) => (
-            <section key={d.provider} style={index === 0 ? undefined : styles.section}>
-              <div style={styles.providerRow}>
-                <span style={styles.providerName}>
-                  {d.name}
-                  {d.provider === current && <span style={styles.currentTag}>{translate('usageBadgeCurrent')}</span>}
-                </span>
-                {d.accounts.length === 1 && <AccountMeta account={d.accounts[0]!} translate={translate} />}
-              </div>
-              {d.accounts.map((account, accountIndex) => (
-                <div key={account.key} style={accountIndex === 0 ? undefined : styles.accountBlock}>
-                  {d.accounts.length > 1 && (
-                    <div style={styles.accountRow}>
-                      <AccountMeta account={account} translate={translate} />
-                    </div>
+      {open &&
+        createPortal(
+          <div
+            ref={panelRef}
+            role="dialog"
+            aria-label={title}
+            className="dsh-subscription-usage-panel"
+            style={{ ...styles.panel, ...(pos ?? MEASURE_STYLE) }}
+          >
+            <div style={styles.title}>
+              <span style={styles.titleLabel}>
+                <UsageBadgeIcon />
+                {title}
+              </span>
+            </div>
+            <div style={styles.titleRule} aria-hidden />
+            {expanded.map((d, index) => (
+              <section
+                key={d.provider}
+                style={index === 0 ? undefined : styles.section}
+              >
+                <div style={styles.providerRow}>
+                  <span style={styles.providerName}>
+                    {d.name}
+                    {d.provider === current && (
+                      <span style={styles.currentTag}>
+                        {translate('usageBadgeCurrent')}
+                      </span>
+                    )}
+                  </span>
+                  {d.accounts.length === 1 && (
+                    <AccountMeta
+                      account={d.accounts[0]!}
+                      translate={translate}
+                    />
                   )}
-                  <AccountWindows
-                    key={`${d.provider}:${dialogModel ?? ''}`}
-                    windows={account.windows}
-                    observedAt={account.observedAt} stale={account.stale}
-                    model={d.provider === dialogProvider ? dialogModel : undefined}
-                    provider={d.provider}
-                    translate={translate}
-                  />
                 </div>
-              ))}
-            </section>
-          ))}
-        </div>,
-        document.body,
-      )}
+                {d.accounts.map((account, accountIndex) => (
+                  <div
+                    key={account.key}
+                    style={accountIndex === 0 ? undefined : styles.accountBlock}
+                  >
+                    {d.accounts.length > 1 && (
+                      <div style={styles.accountRow}>
+                        <AccountMeta account={account} translate={translate} />
+                      </div>
+                    )}
+                    <AccountWindows
+                      key={`${d.provider}:${dialogModel ?? ''}`}
+                      windows={account.windows}
+                      observedAt={account.observedAt}
+                      stale={account.stale}
+                      model={
+                        d.provider === dialogProvider ? dialogModel : undefined
+                      }
+                      provider={d.provider}
+                      translate={translate}
+                    />
+                  </div>
+                ))}
+              </section>
+            ))}
+          </div>,
+          document.body,
+        )}
     </span>
   )
 
   return (
     <>
       {seat}
-      {statsRow !== null && statsRow.isConnected ? createPortal(pill, statsRow) : pill}
+      {statsRow !== null && statsRow.isConnected
+        ? createPortal(pill, statsRow)
+        : pill}
     </>
   )
 }
@@ -704,7 +933,11 @@ const LEGACY_STATS_SCOPE_DEPTH = 4
  */
 function statsScopeOf(seat: HTMLElement): HTMLElement | null {
   let node: HTMLElement | null = seat.parentElement
-  for (let depth = 0; node !== null && depth < LEGACY_STATS_SCOPE_DEPTH; depth++) {
+  for (
+    let depth = 0;
+    node !== null && depth < LEGACY_STATS_SCOPE_DEPTH;
+    depth++
+  ) {
     if (node.querySelector(STATS_ROW_SELECTOR) !== null) return node
     node = node.parentElement
   }
@@ -716,50 +949,108 @@ function statsScopeOf(seat: HTMLElement): HTMLElement | null {
  * marks the default account (the one direct routes serve and the collapsed
  * pill reads), the same glyph Settings → 订阅 uses.
  */
-function AccountMeta({ account, translate }: { account: AccountUsageDisplay; translate: Translate }) {
-  const parts = [account.account, account.plan === undefined ? undefined : translate('usagePlan', { plan: account.plan })]
-    .filter((part): part is string => part !== undefined && part !== '')
+function AccountMeta({
+  account,
+  translate,
+}: {
+  account: AccountUsageDisplay
+  translate: Translate
+}) {
+  const parts = [
+    account.account,
+    account.plan === undefined
+      ? undefined
+      : translate('usagePlan', { plan: account.plan }),
+  ].filter((part): part is string => part !== undefined && part !== '')
   return (
     <span style={styles.providerMeta} title={account.account}>
-      {account.isDefault && <span style={styles.defaultStar} aria-label="default">★ </span>}
+      {account.isDefault && (
+        <span style={styles.defaultStar} aria-label="default">
+          ★{' '}
+        </span>
+      )}
       {parts.join(' · ')}
     </span>
   )
 }
 
 /** Preview each account independently; all remaining quotas stay accessible. */
-export function AccountWindows({ windows, model, provider, translate, observedAt, stale }: {
-  windows: readonly UsageWindow[]; model: string | undefined; provider?: BadgeProvider; translate: Translate
-  observedAt?: number | undefined; stale?: boolean | undefined
+export function AccountWindows({
+  windows,
+  model,
+  provider,
+  translate,
+  observedAt,
+  stale,
+}: {
+  windows: readonly UsageWindow[]
+  model: string | undefined
+  provider?: BadgeProvider
+  translate: Translate
+  observedAt?: number | undefined
+  stale?: boolean | undefined
 }) {
   const { shown, hidden } = previewWindows(windows, model, provider)
   const rows = (items: readonly UsageWindow[]) => (
     <dl style={styles.details}>
       {items.map((w, i) => (
-        <WindowRow key={i} label={`${usageWindowLabel(translate, w)}${model !== undefined && w.scope === model ? ` · ${translate('usageBadgeCurrent')}` : ''}`} window={w} t={translate} observedAt={observedAt} stale={stale} />
+        <WindowRow
+          key={i}
+          label={`${usageWindowLabel(translate, w)}${model !== undefined && w.scope === model ? ` · ${translate('usageBadgeCurrent')}` : ''}`}
+          window={w}
+          t={translate}
+          observedAt={observedAt}
+          stale={stale}
+        />
       ))}
     </dl>
   )
-  return <>
-    {rows(shown)}
-    {hidden.length > 0 && <details style={styles.moreWindows}>
-      <summary style={styles.moreSummary}>{translate('usageBadgeMoreWindows', { count: hidden.length })}</summary>
-      {rows(hidden)}
-    </details>}
-  </>
+  return (
+    <>
+      {rows(shown)}
+      {hidden.length > 0 && (
+        <details style={styles.moreWindows}>
+          <summary style={styles.moreSummary}>
+            {translate('usageBadgeMoreWindows', { count: hidden.length })}
+          </summary>
+          {rows(hidden)}
+        </details>
+      )}
+    </>
+  )
 }
 
 /** One `dt`/`dd` pair: window name → `25% · 6d1h`, with the bar underneath. */
-function WindowRow({ label, window: w, t, observedAt, stale }: { label: string; window: UsageWindow; t: Translate; observedAt?: number | undefined; stale?: boolean | undefined }) {
+function WindowRow({
+  label,
+  window: w,
+  t,
+  observedAt,
+  stale,
+}: {
+  label: string
+  window: UsageWindow
+  t: Translate
+  observedAt?: number | undefined
+  stale?: boolean | undefined
+}) {
   const percent = displayUsedPercent(w.usedPercent)
   return (
     <>
       <dt style={styles.dt}>{label}</dt>
       <dd style={styles.dd}>
         {percent === undefined ? t('usageMeterInvalid') : `${percent}%`}
-        {w.resetsAt !== undefined && Number.isFinite(w.resetsAt) && <span style={styles.reset}> · {windowLabel(w)}</span>}
+        {w.resetsAt !== undefined && Number.isFinite(w.resetsAt) && (
+          <span style={styles.reset}> · {windowLabel(w)}</span>
+        )}
       </dd>
-      <UsageMeter window={w} t={t} style={styles.bar} observedAt={observedAt} stale={stale} />
+      <UsageMeter
+        window={w}
+        t={t}
+        style={styles.bar}
+        observedAt={observedAt}
+        stale={stale}
+      />
     </>
   )
 }
@@ -776,12 +1067,22 @@ const styles: Record<string, CSSProperties> = {
   // Mirrors the host StatsPills pill so the badge reads as a sibling of the
   // shipped time/token pills.
   pill: {
-    boxSizing: 'border-box', maxWidth: '100%',
+    boxSizing: 'border-box',
+    maxWidth: '100%',
     color: 'var(--dsw-alias-label-tertiary)',
-    font: 'inherit', fontSize: 'calc(var(--dsh-content-font-size-secondary, 13px) - 1px)',
-    fontVariantNumeric: 'tabular-nums', lineHeight: 'calc(20px + var(--dsh-content-font-delta-secondary, 0px))', whiteSpace: 'nowrap',
-    background: 'transparent', border: 'none', borderRadius: 999,
-    alignItems: 'center', gap: 6, padding: '1px 8px', display: 'inline-flex', cursor: 'pointer',
+    font: 'inherit',
+    fontSize: 'calc(var(--dsh-content-font-size-secondary, 13px) - 1px)',
+    fontVariantNumeric: 'tabular-nums',
+    lineHeight: 'calc(20px + var(--dsh-content-font-delta-secondary, 0px))',
+    whiteSpace: 'nowrap',
+    background: 'transparent',
+    border: 'none',
+    borderRadius: 999,
+    alignItems: 'center',
+    gap: 6,
+    padding: '1px 8px',
+    display: 'inline-flex',
+    cursor: 'pointer',
   },
   pillActive: {
     background: 'var(--dsw-alias-interactive-bg-hover)',
@@ -793,52 +1094,111 @@ const styles: Record<string, CSSProperties> = {
   // without the blur the transcript behind the dialog stays sharp and shows
   // through the fill.
   panel: {
-    position: 'fixed', zIndex: 1100, boxSizing: 'border-box',
+    position: 'fixed',
+    zIndex: 1100,
+    boxSizing: 'border-box',
     background: 'var(--dsw-specific-menu)',
     backdropFilter: 'var(--dsw-menu-backdrop-filter)',
-    width: 'max-content', minWidth: 'min(300px, 100vw - 24px)', maxWidth: 'min(440px, 100vw - 24px)',
-    maxHeight: 'min(560px, 100dvh - 24px)', overflowY: 'auto', overscrollBehavior: 'contain',
+    width: 'max-content',
+    minWidth: 'min(300px, 100vw - 24px)',
+    maxWidth: 'min(440px, 100vw - 24px)',
+    maxHeight: 'min(560px, 100dvh - 24px)',
+    overflowY: 'auto',
+    overscrollBehavior: 'contain',
     boxShadow: 'var(--dsw-elevation-prominent)',
-    color: 'var(--dsw-alias-label-secondary)', cursor: 'default',
-    border: 0, borderRadius: 'var(--dsw-radius-lg, 16px)', padding: 16, fontSize: 12, lineHeight: '18px',
+    color: 'var(--dsw-alias-label-secondary)',
+    cursor: 'default',
+    border: 0,
+    borderRadius: 'var(--dsw-radius-lg, 16px)',
+    padding: 16,
+    fontSize: 12,
+    lineHeight: '18px',
   },
   title: {
-    color: 'var(--dsw-alias-label-primary)', display: 'flex',
-    justifyContent: 'space-between', gap: 16, marginBottom: 8, fontWeight: 500,
+    color: 'var(--dsw-alias-label-primary)',
+    display: 'flex',
+    justifyContent: 'space-between',
+    gap: 16,
+    marginBottom: 8,
+    fontWeight: 500,
   },
-  titleLabel: { alignItems: 'center', gap: 6, minWidth: 0, display: 'inline-flex' },
-  titleRule: { borderTop: '0.5px solid var(--dsw-alias-border-l2)', marginBottom: 10 },
-  section: { marginTop: 12, paddingTop: 10, borderTop: '0.5px solid var(--dsw-alias-border-l2)' },
+  titleLabel: {
+    alignItems: 'center',
+    gap: 6,
+    minWidth: 0,
+    display: 'inline-flex',
+  },
+  titleRule: {
+    borderTop: '0.5px solid var(--dsw-alias-border-l2)',
+    marginBottom: 10,
+  },
+  section: {
+    marginTop: 12,
+    paddingTop: 10,
+    borderTop: '0.5px solid var(--dsw-alias-border-l2)',
+  },
   providerRow: {
-    display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 16, marginBottom: 6,
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    gap: 16,
+    marginBottom: 6,
   },
-  providerName: { color: 'var(--dsw-alias-label-primary)', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 6 },
+  providerName: {
+    color: 'var(--dsw-alias-label-primary)',
+    fontWeight: 500,
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+  },
   currentTag: {
-    fontSize: 10, lineHeight: '14px', fontWeight: 400, padding: '0 5px', borderRadius: 7,
-    color: 'var(--dsw-alias-label-secondary)', background: 'var(--dsw-alias-interactive-bg-hover)',
+    fontSize: 10,
+    lineHeight: '14px',
+    fontWeight: 400,
+    padding: '0 5px',
+    borderRadius: 7,
+    color: 'var(--dsw-alias-label-secondary)',
+    background: 'var(--dsw-alias-interactive-bg-hover)',
   },
   providerMeta: {
-    color: 'var(--dsw-alias-label-tertiary)', minWidth: 0, overflow: 'hidden',
-    textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+    color: 'var(--dsw-alias-label-tertiary)',
+    minWidth: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
   },
   // Same star and color as the default-account marker in Settings → 订阅.
   defaultStar: { color: 'var(--dsw-alias-state-warn-label)' },
   accountBlock: { marginTop: 8 },
   accountRow: { display: 'flex', marginBottom: 4 },
   details: {
-    color: 'var(--dsw-alias-label-tertiary)', display: 'grid',
-    gridTemplateColumns: 'minmax(0, 1fr) max-content', gap: '4px 16px', margin: 0,
+    color: 'var(--dsw-alias-label-tertiary)',
+    display: 'grid',
+    gridTemplateColumns: 'minmax(0, 1fr) max-content',
+    gap: '4px 16px',
+    margin: 0,
   },
   moreWindows: { marginTop: 8 },
-  moreSummary: { cursor: 'pointer', color: 'var(--dsw-alias-label-secondary)', marginBottom: 8 },
+  moreSummary: {
+    cursor: 'pointer',
+    color: 'var(--dsw-alias-label-secondary)',
+    marginBottom: 8,
+  },
   dt: { minWidth: 0, margin: 0, overflowWrap: 'anywhere' },
   dd: {
-    minWidth: 0, margin: 0, color: 'var(--dsw-alias-label-secondary)',
-    fontVariantNumeric: 'tabular-nums', textAlign: 'right',
+    minWidth: 0,
+    margin: 0,
+    color: 'var(--dsw-alias-label-secondary)',
+    fontVariantNumeric: 'tabular-nums',
+    textAlign: 'right',
   },
   reset: { color: 'var(--dsw-alias-label-tertiary)' },
   bar: {
-    gridColumn: '1 / -1', height: 4, borderRadius: 2, overflow: 'hidden',
-    background: 'var(--dsw-alias-border-l2)', marginBottom: 2,
+    gridColumn: '1 / -1',
+    height: 4,
+    borderRadius: 2,
+    overflow: 'hidden',
+    background: 'var(--dsw-alias-border-l2)',
+    marginBottom: 2,
   },
 }

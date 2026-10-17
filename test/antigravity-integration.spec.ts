@@ -70,13 +70,21 @@ async function virtualLogin(t: TestContext): Promise<VirtualLogin> {
   assert.equal(callback.status, 200)
   assert.match(await callback.text(), /Login successful/)
   const code = await attempt.waitCode()
-  const session = await exchangeAntigravityCode(code, attempt.pkce.verifier, attempt.redirectUri, oauth)
+  const session = await exchangeAntigravityCode(
+    code,
+    attempt.pkce.verifier,
+    attempt.redirectUri,
+    oauth,
+  )
   return { fake, session, attempt }
 }
 
 test('antigravity: full OAuth login flow against the virtual provider', async (t) => {
   const { fake, session, attempt } = await virtualLogin(t)
-  assert.ok(fake.issuedCodes.size <= 1, 'the issued code was consumed by the exchange')
+  assert.ok(
+    fake.issuedCodes.size <= 1,
+    'the issued code was consumed by the exchange',
+  )
   assert.equal(session.account, FAKE_ANTIGRAVITY_IDENTITY.email)
   assert.equal(session.projectId, FAKE_ANTIGRAVITY_IDENTITY.projectId)
   assert.equal(session.plan, FAKE_ANTIGRAVITY_IDENTITY.plan)
@@ -85,7 +93,9 @@ test('antigravity: full OAuth login flow against the virtual provider', async (t
   assert.ok(session.expiresAt > Date.now())
 
   // The exchange used the real form-encoded Google grant.
-  const tokenCall = fake.calls.find(call => call.url === ANTIGRAVITY_TOKEN_URL)
+  const tokenCall = fake.calls.find(
+    (call) => call.url === ANTIGRAVITY_TOKEN_URL,
+  )
   assert.ok(tokenCall !== undefined)
   assert.equal(tokenCall.method, 'POST')
   const form = new URLSearchParams(tokenCall.bodyText)
@@ -94,16 +104,24 @@ test('antigravity: full OAuth login flow against the virtual provider', async (t
   assert.equal(form.get('redirect_uri'), attempt.redirectUri)
 
   // Project discovery ran against the default API base.
-  const loadCall = fake.calls.find(call =>
-    call.url === `${ANTIGRAVITY_DEFAULT_BASE_URL}/v1internal:loadCodeAssist`)
+  const loadCall = fake.calls.find(
+    (call) =>
+      call.url === `${ANTIGRAVITY_DEFAULT_BASE_URL}/v1internal:loadCodeAssist`,
+  )
   assert.ok(loadCall !== undefined)
-  assert.equal(loadCall.headers['authorization'], `Bearer ${session.accessToken}`)
+  assert.equal(
+    loadCall.headers['authorization'],
+    `Bearer ${session.accessToken}`,
+  )
 })
 
 test('antigravity: forged callback state is rejected by the real callback server', async (t) => {
   installFakeAntigravity(t)
   const flows = new OAuthFlowManager()
-  const attempt = await flows.start('antigravity', antigravityFlow(resolveAntigravityOAuthConfig()))
+  const attempt = await flows.start(
+    'antigravity',
+    antigravityFlow(resolveAntigravityOAuthConfig()),
+  )
   const forged = new URL(attempt.redirectUri)
   forged.searchParams.set('code', 'attacker-code')
   forged.searchParams.set('state', 'wrong-state')
@@ -125,8 +143,11 @@ test('antigravity: refresh rotates tokens and keeps project metadata', async (t)
   assert.equal(refreshed.projectId, FAKE_ANTIGRAVITY_IDENTITY.projectId)
   assert.equal(refreshed.account, FAKE_ANTIGRAVITY_IDENTITY.email)
 
-  const refreshCall = fake.calls.find(call =>
-    call.url === ANTIGRAVITY_TOKEN_URL && new URLSearchParams(call.bodyText).get('grant_type') === 'refresh_token')
+  const refreshCall = fake.calls.find(
+    (call) =>
+      call.url === ANTIGRAVITY_TOKEN_URL &&
+      new URLSearchParams(call.bodyText).get('grant_type') === 'refresh_token',
+  )
   assert.ok(refreshCall !== undefined)
   const form = new URLSearchParams(refreshCall.bodyText)
   assert.equal(form.get('refresh_token'), session.refreshToken)
@@ -135,13 +156,19 @@ test('antigravity: refresh rotates tokens and keeps project metadata', async (t)
 test('antigravity: catalog discovery parses the models object', async (t) => {
   const { fake, session } = await virtualLogin(t)
   const models = await fetchAntigravityModels(session)
-  assert.deepEqual(models.map(m => m.id), ['gemini-3-pro'])
+  assert.deepEqual(
+    models.map((m) => m.id),
+    ['gemini-3-pro'],
+  )
   assert.equal(models[0].name, 'Gemini 3 Pro')
   assert.equal(models[0].contextWindow, 1_048_576)
   assert.equal(models[0].maxOutputTokens, 65_536)
 
-  const modelsCall = fake.calls.find(call =>
-    call.url === `${ANTIGRAVITY_DEFAULT_BASE_URL}/v1internal:fetchAvailableModels`)
+  const modelsCall = fake.calls.find(
+    (call) =>
+      call.url ===
+      `${ANTIGRAVITY_DEFAULT_BASE_URL}/v1internal:fetchAvailableModels`,
+  )
   assert.ok(modelsCall !== undefined)
   const body = JSON.parse(modelsCall.bodyText) as Record<string, unknown>
   assert.equal(body.project, FAKE_ANTIGRAVITY_IDENTITY.projectId)
@@ -153,7 +180,7 @@ test('antigravity: quota fractions become used-percent windows', async (t) => {
   assert.equal(usage.supported, true)
   assert.equal(usage.plan, FAKE_ANTIGRAVITY_IDENTITY.plan)
   const windows = usage.windows ?? []
-  const kinds = windows.map(w => `${w.kind}:${w.scope}`)
+  const kinds = windows.map((w) => `${w.kind}:${w.scope}`)
   assert.deepEqual(kinds, ['other:gemini-3-pro', 'weekly:gemini-3-pro'])
   // remainingFraction 0.6 → 40% used; weekly 0.8 → 20% used.
   assert.equal(windows[0].usedPercent, 40)
@@ -166,7 +193,11 @@ test('antigravity: a model run streams text through the real adapter', async (t)
   const tokens = new AccountTokenManager({
     provider: 'antigravity',
     displayName: 'Virtual Antigravity',
-    makeOptions: () => ({ preemptMs: 0, refresh: async () => session, isPermanent: () => false }),
+    makeOptions: () => ({
+      preemptMs: 0,
+      refresh: async () => session,
+      isPermanent: () => false,
+    }),
     io: {
       list: async () => [{ key: 'acct', session }],
       get: async () => session,
@@ -184,12 +215,14 @@ test('antigravity: a model run streams text through the real adapter', async (t)
     provider: 'antigravity',
     model: 'gemini-3-pro',
     sessionId: 'virtual-run' as NonNullable<GenerateOptions['sessionId']>,
-    messages: [{
-      id: MessageId('user'),
-      role: 'user',
-      source: { kind: 'user' },
-      content: [{ type: 'text', text: 'hello' }],
-    }],
+    messages: [
+      {
+        id: MessageId('user'),
+        role: 'user',
+        source: { kind: 'user' },
+        content: [{ type: 'text', text: 'hello' }],
+      },
+    ],
   }
   let text = ''
   let finish: unknown
@@ -200,10 +233,16 @@ test('antigravity: a model run streams text through the real adapter', async (t)
   assert.equal(text, 'Hello, world!')
   assert.deepEqual(finish, { kind: 'stop' })
 
-  const apiCall = fake.calls.find(call => call.url === STREAM_URL)
+  const apiCall = fake.calls.find((call) => call.url === STREAM_URL)
   assert.ok(apiCall !== undefined)
   assert.equal(apiCall.method, 'POST')
-  assert.equal(apiCall.headers['authorization'], `Bearer ${session.accessToken}`)
+  assert.equal(
+    apiCall.headers['authorization'],
+    `Bearer ${session.accessToken}`,
+  )
   const body = JSON.parse(apiCall.bodyText) as Record<string, unknown>
-  assert.ok(typeof body.model === 'string' && (body.model as string).includes('gemini-3-pro'))
+  assert.ok(
+    typeof body.model === 'string' &&
+      (body.model as string).includes('gemini-3-pro'),
+  )
 })

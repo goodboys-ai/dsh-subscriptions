@@ -4,47 +4,58 @@
 export const en = {
   accountsManage: 'Manage',
   accountsTitle: 'Manage {provider} accounts',
-  accountsHint: 'Choose which accounts serve pooled LLM requests. Pool exclusion applies only to LLM routing, not tools or session-wide isolation.',
+  accountsHint:
+    'Choose which accounts serve pooled LLM requests. Pool exclusion applies only to LLM routing, not tools or session-wide isolation.',
   accountsLoading: 'Loading accounts…',
   accountsLoadFailed: 'Could not load account settings: {message}',
   accountsSaveFailed: 'Could not save changes: {message}',
-  accountsEmpty: 'No connected accounts. Add an account on the provider card first.',
+  accountsEmpty:
+    'No connected accounts. Add an account on the provider card first.',
   accountsAlias: 'Alias (optional)',
   accountsPoolEnabled: 'Include in the LLM account pool',
   accountsIndependent: 'Show an independent entry in the model picker',
-  accountsIndependentHint: 'Independent LLM routes use only this account, with no fallback to another account. This does not isolate tools or the whole session.',
+  accountsIndependentHint:
+    'Independent LLM routes use only this account, with no fallback to another account. This does not isolate tools or the whole session.',
   accountsModels: 'Pool model allowlist',
   accountsModelsAll: 'All models',
   accountsModelsCount: '{count} selected',
-  accountsModelsHint: 'Applies only to pooled LLM routing, not independent entries. An empty selection allows no models. Turning off pool participation keeps this selection for later.',
+  accountsModelsHint:
+    'Applies only to pooled LLM routing, not independent entries. An empty selection allows no models. Turning off pool participation keeps this selection for later.',
   accountsModelsAutomatic: 'Allow all models, including future models',
   accountsNoModels: 'No models reported for this account.',
-  accountsCatalogUnavailable: 'Model discovery is currently unavailable. Saved model selections are preserved.',
-  modelsPartialSave: 'Some reasoning defaults were saved. Remaining changes are still in the draft; retry to finish.',
-  modelsEdit: "Edit model list",
-  modelsHint: "Configure model visibility, default reasoning effort, context and tools here; Save changes below submits them together with the account settings. Hidden models remain usable by existing sessions; tool changes apply to new sessions.",
-  modelsAutomatic: "Automatically show all models, including new models",
-  modelsSelectAll: "Select all",
-  modelsSelectNone: "Clear selection",
-  modelsContext: "Context (tokens)",
-  modelsContextBounds: "Default {default} · Maximum {max}",
-  modelsContextHint: "Leave blank to follow the provider. The requested window is capped by the account’s advertised maximum; account pools use the smallest member window. This controls local history and compaction, not the API’s capacity.",
-  modelsContextInvalid: "Enter a positive whole number of tokens for {model}.",
-  modelsTools: "Provider tools",
-  modelsToolsHint: "Changes apply only to sessions created after saving. Existing sessions keep their tools. Shared tools remain available if any supporting provider is enabled.",
-  modelsImage: "Image generation",
-  modelsVideo: "Video generation",
-  modelsSearch: "X search",
-  modelsWebSearch: "Web search",
-  modelsSave: "Save changes",
-  modelsUnavailable: "Currently unavailable",
+  accountsCatalogUnavailable:
+    'Model discovery is currently unavailable. Saved model selections are preserved.',
+  modelsPartialSave:
+    'Some reasoning defaults were saved. Remaining changes are still in the draft; retry to finish.',
+  modelsEdit: 'Edit model list',
+  modelsHint:
+    'Configure model visibility, default reasoning effort, context and tools here; Save changes below submits them together with the account settings. Hidden models remain usable by existing sessions; tool changes apply to new sessions.',
+  modelsAutomatic: 'Automatically show all models, including new models',
+  modelsSelectAll: 'Select all',
+  modelsSelectNone: 'Clear selection',
+  modelsContext: 'Context (tokens)',
+  modelsContextBounds: 'Default {default} · Maximum {max}',
+  modelsContextHint:
+    'Leave blank to follow the provider. The requested window is capped by the account’s advertised maximum; account pools use the smallest member window. This controls local history and compaction, not the API’s capacity.',
+  modelsContextInvalid: 'Enter a positive whole number of tokens for {model}.',
+  modelsTools: 'Provider tools',
+  modelsToolsHint:
+    'Changes apply only to sessions created after saving. Existing sessions keep their tools. Shared tools remain available if any supporting provider is enabled.',
+  modelsImage: 'Image generation',
+  modelsVideo: 'Video generation',
+  modelsSearch: 'X search',
+  modelsWebSearch: 'Web search',
+  modelsSave: 'Save changes',
+  modelsUnavailable: 'Currently unavailable',
   claudeCacheTtl: 'Prompt cache lifetime',
   claudeCacheTtlFollowConfig: 'Follow config',
   claudeCacheTtl5m: '5 minutes',
   claudeCacheTtl1h: '1 hour',
-  claudeCacheTtlHint: 'Overrides the claudePromptCacheTtl config for this Claude route; Follow config uses the configured value. Saved changes apply from the next request. One hour keeps cached prefixes longer but writes them at a higher input price; compaction and session-title requests stay at five minutes.',
+  claudeCacheTtlHint:
+    'Overrides the claudePromptCacheTtl config for this Claude route; Follow config uses the configured value. Saved changes apply from the next request. One hour keeps cached prefixes longer but writes them at a higher input price; compaction and session-title requests stay at five minutes.',
   nav: 'Subscriptions',
-  intro: 'Log a subscription provider in or out. Login opens the provider’s authorization page in a new tab; headless setups can paste the callback URL or code instead.',
+  intro:
+    'Log a subscription provider in or out. Login opens the provider’s authorization page in a new tab; headless setups can paste the callback URL or code instead.',
   unavailable: 'Connection unavailable; subscription status cannot be loaded.',
   checking: 'Checking…',
   loginInProgress: 'Login in progress…',
@@ -55,14 +66,16 @@ export const en = {
   clientVersionLocal: 'local CLI',
   clientVersionFallback: 'built-in',
   clientVersionConfig: 'configured',
-  clientVersionHint: 'Requests present this CLI version, and newer models may require a recent one. It is the latest release on npm, or the local CLI / built-in version while npm is unreachable. Refreshing the model list checks again.',
+  clientVersionHint:
+    'Requests present this CLI version, and newer models may require a recent one. It is the latest release on npm, or the local CLI / built-in version while npm is unreachable. Refreshing the model list checks again.',
   accountExpires: 'expires {date}',
   defaultBadge: 'Default',
   setDefault: 'Set as default',
   addAccount: 'Add account',
   addAccountOAuth: 'Browser authorization',
   addAccountKeychain: 'Import Claude Code',
-  addAccountHint: 'Browser authorization signs in whichever account the browser currently uses — switch accounts there first (or use an incognito window with the manual code below) to add a different one.',
+  addAccountHint:
+    'Browser authorization signs in whichever account the browser currently uses — switch accounts there first (or use an incognito window with the manual code below) to add a different one.',
   login: 'Log in',
   cancel: 'Cancel',
   logout: 'Log out',
@@ -108,13 +121,16 @@ export const en = {
   usageColorStandard: 'Standard (default · 10-point lead)',
   usageColorRelaxed: 'Relaxed (15-point lead)',
   usageColorRemaining: 'Remaining quota only (no yellow)',
-  usageColorPaceHint: 'Yellow when usage leads elapsed time by {allowance} points; red at 90% used takes priority. Saved in this browser; only colors change.',
-  usageColorRemainingHint: 'Red at 90% used; no yellow pace warnings. Reliable time markers remain visible. Saved in this browser.',
+  usageColorPaceHint:
+    'Yellow when usage leads elapsed time by {allowance} points; red at 90% used takes priority. Saved in this browser; only colors change.',
+  usageColorRemainingHint:
+    'Red at 90% used; no yellow pace warnings. Reliable time markers remain visible. Saved in this browser.',
   usagePlan: 'Plan: {plan}',
   resetCreditsTitle: 'Usage limit resets',
   resetCreditsAvailable: '{count} available',
   resetCreditsError: 'Usage limit resets unavailable: {message}',
-  resetCreditsErrorFixed: 'Usage limit resets are unavailable. Refresh usage to try again.',
+  resetCreditsErrorFixed:
+    'Usage limit resets are unavailable. Refresh usage to try again.',
   resetCreditReadOnly: 'Read only. This page cannot spend a Claude reset.',
   resetCreditReadOnlyLabel: 'Read only',
   resetCreditAvailable: 'Available',
@@ -128,12 +144,17 @@ export const en = {
   resetCreditCooldownUntil: 'Usable after {date}',
   resetUseButton: 'Use…',
   resetUseChecking: 'Checking…',
-  resetUseGuard: 'You can use this reset when weekly usage reaches at least 80%.',
-  resetUseRestart: 'Reset details are missing. Restart DSH, reload this page, then refresh usage.',
-  resetUseRefresh: 'Refresh usage to verify current limits and reset availability.',
-  resetUseReady: 'Use this reset — the earliest-expiring credit. Confirmation required.',
+  resetUseGuard:
+    'You can use this reset when weekly usage reaches at least 80%.',
+  resetUseRestart:
+    'Reset details are missing. Restart DSH, reload this page, then refresh usage.',
+  resetUseRefresh:
+    'Refresh usage to verify current limits and reset availability.',
+  resetUseReady:
+    'Use this reset — the earliest-expiring credit. Confirmation required.',
   resetUseConfirmTitle: 'Confirm full reset',
-  resetUseWarning: 'This consumes one credit and resets weekly + 5-hour limits. This interface cannot undo it. Confirmation expires in 60 seconds.',
+  resetUseWarning:
+    'This consumes one credit and resets weekly + 5-hour limits. This interface cannot undo it. Confirmation expires in 60 seconds.',
   resetUseAcknowledge: 'I understand that one credit will be consumed.',
   resetUseConfirm: 'Consume 1 reset',
   resetUseSuccess: 'Reset confirmed. Usage refreshed.',
@@ -144,16 +165,20 @@ export const en = {
   externalUsageConnected: 'API key configured',
   externalUsageNotConfigured: 'Not configured',
   externalUsageApiKey: 'API key',
-  externalUsageConfigure: 'No API key found at {ref}. Add one in Settings → Models.',
+  externalUsageConfigure:
+    'No API key found at {ref}. Add one in Settings → Models.',
   externalUsageUnavailable: 'Usage status unavailable: {message}',
   cursorTitle: 'Cursor',
   cursorOpenLogin: 'Open Cursor sign-in',
   cursorWaiting: 'Waiting for Cursor sign-in…',
   cursorConnected: 'Connected',
   cursorManageTitle: 'Manage Cursor',
-  cursorManageSignIn: 'Sign in to see the models available to this Cursor account.',
-  cursorAccountsHint: 'Cursor uses one connected account. Choose which of its models appear in the model picker.',
-  cursorManageHint: 'Choose model visibility here. Refresh fetches the current models from Cursor; Save changes updates the model picker.',
+  cursorManageSignIn:
+    'Sign in to see the models available to this Cursor account.',
+  cursorAccountsHint:
+    'Cursor uses one connected account. Choose which of its models appear in the model picker.',
+  cursorManageHint:
+    'Choose model visibility here. Refresh fetches the current models from Cursor; Save changes updates the model picker.',
   cursorFilterModels: 'Filter models',
   cursorModelsLoading: 'Loading Cursor models…',
   cursorModelsError: 'Could not load Cursor models: {message}',
@@ -163,9 +188,11 @@ export const en = {
   cursorOtherModels: 'Other Models',
   cursorIncludedRequests: 'Included requests',
   modelDefaultsTitle: 'Default reasoning effort',
-  modelDefaultsHint: 'The model picker preselects this level when you switch to the model; models without levels always follow the provider.',
+  modelDefaultsHint:
+    'The model picker preselects this level when you switch to the model; models without levels always follow the provider.',
   modelDefaultsFollowProvider: 'Follow provider',
-  modelDefaultsNoLevels: '{count} model(s) advertise no reasoning levels and always follow the provider.',
+  modelDefaultsNoLevels:
+    '{count} model(s) advertise no reasoning levels and always follow the provider.',
   modelDefaultsLoading: 'Loading models…',
   modelDefaultsLoadFailed: 'Failed to load models: {message}',
   modelDefaultsRetry: 'Retry',
@@ -191,10 +218,13 @@ export const en = {
   usageBadgeTitle: 'Provider usage',
   usageBadgeDisplay: 'Status-bar quota display',
   usageBadgeDisplayRecent: 'Current / most recent provider with usage',
-  usageBadgeDisplayAlways: 'Always show one provider, rotating through the rest',
+  usageBadgeDisplayAlways:
+    'Always show one provider, rotating through the rest',
   usageBadgeDisplayHidden: 'Hidden',
-  usageBadgeDisplayHint: 'Saved automatically in this browser. One provider is shown at a time. Models without a quota source keep the most recent provider selected in this view, or show nothing. Always show instead rotates through the providers with usage every 10 seconds while the current model has no quota source. Hiding does not affect usage details here.',
-  usageBadgeDisplaySaveFailed: 'Could not save the display preference. Check browser storage permissions.',
+  usageBadgeDisplayHint:
+    'Saved automatically in this browser. One provider is shown at a time. Models without a quota source keep the most recent provider selected in this view, or show nothing. Always show instead rotates through the providers with usage every 10 seconds while the current model has no quota source. Hiding does not affect usage details here.',
+  usageBadgeDisplaySaveFailed:
+    'Could not save the display preference. Check browser storage permissions.',
   usageBadgeCurrent: 'current',
   usageBadgeModelCount: '{count} model quotas',
   usageBadgeModelUnavailable: 'Current model quota unavailable',
@@ -205,7 +235,8 @@ export const en = {
   speedFast: 'Fast',
   speedFastDescription: '1.5x speed, more usage',
   commandFast: 'Switch the Codex speed tier (Standard/Fast)',
-  commandFastUnavailable: 'The current model has no fast tier; /fast only works on Codex models whose catalog advertises one',
+  commandFastUnavailable:
+    'The current model has no fast tier; /fast only works on Codex models whose catalog advertises one',
   ollamaTitle: 'Ollama Cloud',
   ollamaStatus: '{count} model(s) in the picker',
   ollamaStatusNone: 'No models configured',
@@ -213,14 +244,14 @@ export const en = {
   ollamaWebOff: 'Web search/fetch off',
   ollamaManageTitle: 'Manage Ollama Cloud',
   ollamaManageHint:
-    'Fetch the Cloud list, tick the models this route serves, then Save. The picker '
-    + 'shows the ticked models in order; the API key itself stays in DSH credentials.',
+    'Fetch the Cloud list, tick the models this route serves, then Save. The picker ' +
+    'shows the ticked models in order; the API key itself stays in DSH credentials.',
   ollamaFetch: 'Fetch cloud models',
   ollamaFetching: 'Fetching…',
   ollamaKeyPlaceholder: 'One-time API key (optional)',
   ollamaKeyHint:
-    'A key typed here is used for this fetch only and is never saved. Leave it '
-    + 'blank to use the stored credential.',
+    'A key typed here is used for this fetch only and is never saved. Leave it ' +
+    'blank to use the stored credential.',
   ollamaFetchFailed: 'Could not fetch cloud models: {message}',
   ollamaCandidatesCount: '{count} returned',
   ollamaCandidatesEmpty: 'No cloud models returned.',
@@ -229,8 +260,8 @@ export const en = {
   ollamaModelsLoadFailed: 'Could not load Ollama settings: {message}',
   ollamaModelsSaveFailed: 'Could not save Ollama settings: {message}',
   ollamaConfigureHint:
-    'No API key found at {ref}. Add it to the credentials file '
-    + '(~/.dsh/.credentials.yaml).',
+    'No API key found at {ref}. Add it to the credentials file ' +
+    '(~/.dsh/.credentials.yaml).',
   ollamaDisplayName: 'Display name',
   ollamaRowDetails: 'Details',
   ollamaEffortsUnknown:
@@ -240,19 +271,19 @@ export const en = {
   ollamaBaseURL: 'Base URL',
   ollamaApiKeyRef: 'API key reference',
   ollamaConnectionHint:
-    "The base URL receives this route's requests and the credential lookup; the "
-    + "reference names the DSH credential, not the key itself. Requests send "
-    + "the resolved key to that address, so point it only at a host you trust.",
+    "The base URL receives this route's requests and the credential lookup; the " +
+    'reference names the DSH credential, not the key itself. Requests send ' +
+    'the resolved key to that address, so point it only at a host you trust.',
   ollamaWebHint:
-    'Enables the Ollama Cloud web search and fetch providers. The host still '
-    + 'has to select them before the web tools use them.',
+    'Enables the Ollama Cloud web search and fetch providers. The host still ' +
+    'has to select them before the web tools use them.',
   ollamaCatalogOverride:
-    "A profile pins this route's model list; the picker ignores store models "
-    + "until that override is removed.",
+    "A profile pins this route's model list; the picker ignores store models " +
+    'until that override is removed.',
   ollamaResetDefaults: 'Restore deployment defaults',
   ollamaResetConfirm:
-    'Clear every saved Ollama override? The profile values and built-in '
-    + 'defaults apply again.',
+    'Clear every saved Ollama override? The profile values and built-in ' +
+    'defaults apply again.',
   ollamaCapVision: 'vision',
   ollamaCapThinking: 'thinking',
   ollamaContext: 'context {tokens}',
@@ -262,7 +293,8 @@ export const en = {
 export const zh = {
   accountsManage: '管理',
   accountsTitle: '管理 {provider} 账号',
-  accountsHint: '选择参与账号池 LLM 请求的账号。退出账号池仅影响 LLM 路由，不影响工具，也不代表整个会话隔离。',
+  accountsHint:
+    '选择参与账号池 LLM 请求的账号。退出账号池仅影响 LLM 路由，不影响工具，也不代表整个会话隔离。',
   accountsLoading: '加载账号中…',
   accountsLoadFailed: '账号设置加载失败：{message}',
   accountsSaveFailed: '保存失败：{message}',
@@ -270,39 +302,48 @@ export const zh = {
   accountsAlias: '别名（可选）',
   accountsPoolEnabled: '参与 LLM 账号池',
   accountsIndependent: '在模型选择器中显示独立入口',
-  accountsIndependentHint: '独立 LLM 路由仅使用此账号，失败时不会回退到其他账号。这不代表工具或整个会话的隔离。',
+  accountsIndependentHint:
+    '独立 LLM 路由仅使用此账号，失败时不会回退到其他账号。这不代表工具或整个会话的隔离。',
   accountsModels: '账号池模型白名单',
   accountsModelsAll: '全部模型',
   accountsModelsCount: '已选 {count} 个',
-  accountsModelsHint: '仅影响账号池 LLM 路由，不限制独立入口。清空选择表示不允许任何模型。关闭参与账号池后仍保留此选择。',
+  accountsModelsHint:
+    '仅影响账号池 LLM 路由，不限制独立入口。清空选择表示不允许任何模型。关闭参与账号池后仍保留此选择。',
   accountsModelsAutomatic: '允许全部模型（包含以后新增的模型）',
   accountsNoModels: '此账号暂未返回模型。',
-  accountsCatalogUnavailable: '暂时无法获取模型目录，已保存的模型选择会被保留。',
-  modelsPartialSave: '部分推理档已保存，其余更改仍保留在草稿中，请重试完成保存。',
-  modelsEdit: "编辑模型列表",
-  modelsHint: "在此配置模型显示、默认推理档、上下文与工具，底部的「保存更改」会连同账号设置一起提交。隐藏模型不影响已有会话；工具开关对新建会话生效。",
-  modelsAutomatic: "自动显示全部模型（包含以后新增的模型）",
-  modelsSelectAll: "全选",
-  modelsSelectNone: "清空选择",
-  modelsContext: "上下文（token）",
-  modelsContextBounds: "默认 {default} · 最大 {max}",
-  modelsContextHint: "留空跟随服务商。配置值按账号返回的最大窗口限制；账号池取各成员的最小窗口。此设置控制本地历史保留和压缩时机，不会扩大 API 本身的容量。",
-  modelsContextInvalid: "请为 {model} 输入正整数 token 数。",
-  modelsTools: "Provider 工具",
-  modelsToolsHint: "仅对保存后新建的会话生效，已有会话保留原工具。任一支持的服务商启用共享工具时，该工具仍会显示。",
-  modelsImage: "图片生成",
-  modelsVideo: "视频生成",
-  modelsSearch: "X 搜索",
-  modelsWebSearch: "网页搜索",
-  modelsSave: "保存更改",
-  modelsUnavailable: "当前不可用",
+  accountsCatalogUnavailable:
+    '暂时无法获取模型目录，已保存的模型选择会被保留。',
+  modelsPartialSave:
+    '部分推理档已保存，其余更改仍保留在草稿中，请重试完成保存。',
+  modelsEdit: '编辑模型列表',
+  modelsHint:
+    '在此配置模型显示、默认推理档、上下文与工具，底部的「保存更改」会连同账号设置一起提交。隐藏模型不影响已有会话；工具开关对新建会话生效。',
+  modelsAutomatic: '自动显示全部模型（包含以后新增的模型）',
+  modelsSelectAll: '全选',
+  modelsSelectNone: '清空选择',
+  modelsContext: '上下文（token）',
+  modelsContextBounds: '默认 {default} · 最大 {max}',
+  modelsContextHint:
+    '留空跟随服务商。配置值按账号返回的最大窗口限制；账号池取各成员的最小窗口。此设置控制本地历史保留和压缩时机，不会扩大 API 本身的容量。',
+  modelsContextInvalid: '请为 {model} 输入正整数 token 数。',
+  modelsTools: 'Provider 工具',
+  modelsToolsHint:
+    '仅对保存后新建的会话生效，已有会话保留原工具。任一支持的服务商启用共享工具时，该工具仍会显示。',
+  modelsImage: '图片生成',
+  modelsVideo: '视频生成',
+  modelsSearch: 'X 搜索',
+  modelsWebSearch: '网页搜索',
+  modelsSave: '保存更改',
+  modelsUnavailable: '当前不可用',
   claudeCacheTtl: '提示词缓存时长',
   claudeCacheTtlFollowConfig: '跟随配置',
   claudeCacheTtl5m: '5 分钟',
   claudeCacheTtl1h: '1 小时',
-  claudeCacheTtlHint: '覆盖此 Claude 路由的 claudePromptCacheTtl 配置；选择「跟随配置」时使用配置值。保存后自下一次请求生效。1 小时可更久保留缓存前缀，但写入按更高的输入价格计费；压缩与会话标题请求仍为 5 分钟。',
+  claudeCacheTtlHint:
+    '覆盖此 Claude 路由的 claudePromptCacheTtl 配置；选择「跟随配置」时使用配置值。保存后自下一次请求生效。1 小时可更久保留缓存前缀，但写入按更高的输入价格计费；压缩与会话标题请求仍为 5 分钟。',
   nav: '订阅',
-  intro: '在此登录或退出订阅服务商。点击登录会在新标签页打开服务商的授权页面；无浏览器环境可改为粘贴回调 URL 或授权码。',
+  intro:
+    '在此登录或退出订阅服务商。点击登录会在新标签页打开服务商的授权页面；无浏览器环境可改为粘贴回调 URL 或授权码。',
   unavailable: '连接不可用，无法加载订阅状态。',
   checking: '查询中…',
   loginInProgress: '登录中…',
@@ -313,14 +354,16 @@ export const zh = {
   clientVersionLocal: '本机 CLI',
   clientVersionFallback: '内置版本',
   clientVersionConfig: '手动配置',
-  clientVersionHint: '请求以这个 CLI 版本号发出，新模型可能要求较新的版本。默认使用 npm 上的最新版本；npm 无法访问时使用本机 CLI 或内置版本。刷新模型列表会重新检查。',
+  clientVersionHint:
+    '请求以这个 CLI 版本号发出，新模型可能要求较新的版本。默认使用 npm 上的最新版本；npm 无法访问时使用本机 CLI 或内置版本。刷新模型列表会重新检查。',
   accountExpires: '过期时间 {date}',
   defaultBadge: '默认',
   setDefault: '设为默认',
   addAccount: '添加账号',
   addAccountOAuth: '浏览器授权',
   addAccountKeychain: '导入 Claude Code',
-  addAccountHint: '浏览器授权以浏览器当前登录的账号为准；要添加不同账号，请先在浏览器里切换账号，或用无痕窗口走下方手动授权码。',
+  addAccountHint:
+    '浏览器授权以浏览器当前登录的账号为准；要添加不同账号，请先在浏览器里切换账号，或用无痕窗口走下方手动授权码。',
   login: '登录',
   cancel: '取消',
   logout: '退出登录',
@@ -366,8 +409,10 @@ export const zh = {
   usageColorStandard: '标准（默认 · 领先 10 个百分点）',
   usageColorRelaxed: '宽松（领先 15 个百分点）',
   usageColorRemaining: '仅剩余额度（不显示黄色）',
-  usageColorPaceHint: '用量领先时间进度 {allowance} 个百分点时变黄；已用达到 90% 时优先变红。自动保存到当前浏览器，仅改变配色。',
-  usageColorRemainingHint: '已用达到 90% 时变红，不显示黄色节奏警告。可靠的时间标记仍保留，自动保存到当前浏览器。',
+  usageColorPaceHint:
+    '用量领先时间进度 {allowance} 个百分点时变黄；已用达到 90% 时优先变红。自动保存到当前浏览器，仅改变配色。',
+  usageColorRemainingHint:
+    '已用达到 90% 时变红，不显示黄色节奏警告。可靠的时间标记仍保留，自动保存到当前浏览器。',
   usagePlan: '计划：{plan}',
   resetCreditsTitle: '用量限制重置',
   resetCreditsAvailable: '可用 {count} 次',
@@ -391,7 +436,8 @@ export const zh = {
   resetUseRefresh: '请刷新用量以验证当前限制和重置可用性。',
   resetUseReady: '使用此最早到期的重置额度，操作前需要确认。',
   resetUseConfirmTitle: '确认完整重置',
-  resetUseWarning: '将消耗一次额度并重置每周和 5 小时限制，无法撤销。确认将在 60 秒后过期。',
+  resetUseWarning:
+    '将消耗一次额度并重置每周和 5 小时限制，无法撤销。确认将在 60 秒后过期。',
   resetUseAcknowledge: '我理解将消耗一次额度。',
   resetUseConfirm: '消耗一次重置',
   resetUseSuccess: '重置已确认，用量已刷新。',
@@ -402,7 +448,8 @@ export const zh = {
   externalUsageConnected: '已配置 API 密钥',
   externalUsageNotConfigured: '未配置',
   externalUsageApiKey: 'API 密钥',
-  externalUsageConfigure: '未在 {ref} 找到 API 密钥。请在「设置 → 模型」中添加。',
+  externalUsageConfigure:
+    '未在 {ref} 找到 API 密钥。请在「设置 → 模型」中添加。',
   externalUsageUnavailable: '无法获取用量状态：{message}',
   cursorTitle: 'Cursor',
   cursorOpenLogin: '打开 Cursor 登录页面',
@@ -410,8 +457,10 @@ export const zh = {
   cursorConnected: '已连接',
   cursorManageTitle: '管理 Cursor',
   cursorManageSignIn: '登录后可查看此 Cursor 账号可用的模型。',
-  cursorAccountsHint: 'Cursor 使用一个已连接账号。可在此选择模型选择器中显示的模型。',
-  cursorManageHint: '在此选择模型是否显示。刷新可从 Cursor 获取当前模型；保存更改后更新模型选择器。',
+  cursorAccountsHint:
+    'Cursor 使用一个已连接账号。可在此选择模型选择器中显示的模型。',
+  cursorManageHint:
+    '在此选择模型是否显示。刷新可从 Cursor 获取当前模型；保存更改后更新模型选择器。',
   cursorFilterModels: '筛选模型',
   cursorModelsLoading: '正在加载 Cursor 模型…',
   cursorModelsError: '无法加载 Cursor 模型：{message}',
@@ -421,7 +470,8 @@ export const zh = {
   cursorOtherModels: '其他模型',
   cursorIncludedRequests: '套餐内请求',
   modelDefaultsTitle: '默认推理档',
-  modelDefaultsHint: '切换到该模型时，模型选择器会预选此档位；没有推理档的模型始终跟随服务商默认。',
+  modelDefaultsHint:
+    '切换到该模型时，模型选择器会预选此档位；没有推理档的模型始终跟随服务商默认。',
   modelDefaultsFollowProvider: '跟随服务商',
   modelDefaultsNoLevels: '{count} 个模型未声明推理档，始终跟随服务商默认。',
   modelDefaultsLoading: '加载模型中…',
@@ -451,7 +501,8 @@ export const zh = {
   usageBadgeDisplayRecent: '仅显示当前／最近使用的用量服务商',
   usageBadgeDisplayAlways: '始终显示一家，其余服务商轮播',
   usageBadgeDisplayHidden: '不显示',
-  usageBadgeDisplayHint: '自动保存到当前浏览器。状态栏一次显示一家服务商；没有额度来源的模型沿用本视图最近选择的服务商，没有记录则隐藏。选择“始终显示”时，当前模型没有额度来源，就每 10 秒轮播一家有额度的服务商。关闭不影响本页的额度详情。',
+  usageBadgeDisplayHint:
+    '自动保存到当前浏览器。状态栏一次显示一家服务商；没有额度来源的模型沿用本视图最近选择的服务商，没有记录则隐藏。选择“始终显示”时，当前模型没有额度来源，就每 10 秒轮播一家有额度的服务商。关闭不影响本页的额度详情。',
   usageBadgeDisplaySaveFailed: '显示设置保存失败，请检查浏览器存储权限。',
   usageBadgeCurrent: '当前',
   usageBadgeModelCount: '{count} 个模型配额',
@@ -463,14 +514,16 @@ export const zh = {
   speedFast: '快速',
   speedFastDescription: '约 1.5 倍速度，消耗更多用量',
   commandFast: '切换 Codex 速度档（标准/快速）',
-  commandFastUnavailable: '当前模型不支持快速档；/fast 仅对目录声明了 fast tier 的 Codex 模型可用',
+  commandFastUnavailable:
+    '当前模型不支持快速档；/fast 仅对目录声明了 fast tier 的 Codex 模型可用',
   ollamaTitle: 'Ollama Cloud',
   ollamaStatus: '选择器中 {count} 个模型',
   ollamaStatusNone: '尚未配置模型',
   ollamaWebOn: '网页搜索/抓取已启用',
   ollamaWebOff: '网页搜索/抓取已关闭',
   ollamaManageTitle: '管理 Ollama Cloud',
-  ollamaManageHint: '选择此路由提供的云端模型后保存。模型选择器按此顺序显示这份列表；API 密钥本身仍保存在 DSH 凭据中。',
+  ollamaManageHint:
+    '选择此路由提供的云端模型后保存。模型选择器按此顺序显示这份列表；API 密钥本身仍保存在 DSH 凭据中。',
   ollamaFetch: '拉取云端模型',
   ollamaFetching: '拉取中…',
   ollamaKeyPlaceholder: '一次性 API 密钥（可选）',
@@ -491,12 +544,15 @@ export const zh = {
   ollamaBaseURL: '基础 URL',
   ollamaApiKeyRef: 'API 密钥引用',
   ollamaConnectionHint:
-    '基础 URL 用于此路由的请求与凭据查询；引用是 DSH 凭据的名称，不是密钥本身。'
-    + '请求会把解析出的密钥发往该地址，请只填写可信主机。',
-  ollamaWebHint: '启用 Ollama Cloud 的网页搜索与抓取能力。宿主仍需选择它们，网页工具才会使用。',
-  ollamaCatalogOverride: '配置档案固定了此路由的模型列表；在移除该覆盖前，选择器会忽略存储中的模型。',
+    '基础 URL 用于此路由的请求与凭据查询；引用是 DSH 凭据的名称，不是密钥本身。' +
+    '请求会把解析出的密钥发往该地址，请只填写可信主机。',
+  ollamaWebHint:
+    '启用 Ollama Cloud 的网页搜索与抓取能力。宿主仍需选择它们，网页工具才会使用。',
+  ollamaCatalogOverride:
+    '配置档案固定了此路由的模型列表；在移除该覆盖前，选择器会忽略存储中的模型。',
   ollamaResetDefaults: '恢复部署默认值',
-  ollamaResetConfirm: '清除全部已保存的 Ollama 覆盖项？将重新使用配置档案值与内置默认值。',
+  ollamaResetConfirm:
+    '清除全部已保存的 Ollama 覆盖项？将重新使用配置档案值与内置默认值。',
   ollamaCapVision: '视觉',
   ollamaCapThinking: '思考',
   ollamaContext: '上下文 {tokens}',

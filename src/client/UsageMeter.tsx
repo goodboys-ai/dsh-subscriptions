@@ -1,20 +1,42 @@
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
-import type { UsageWindow, SubscriptionsSectionInjected } from './SubscriptionsSection.js'
-import { displayStartPercent, elapsedPercent, isUsageFresh, resetCountdownParts, usageBarColor, usageColorState, validUsage } from './usage-pace.js'
+import type {
+  UsageWindow,
+  SubscriptionsSectionInjected,
+} from './SubscriptionsSection.js'
+import {
+  displayStartPercent,
+  elapsedPercent,
+  isUsageFresh,
+  resetCountdownParts,
+  usageBarColor,
+  usageColorState,
+  validUsage,
+} from './usage-pace.js'
 import type { CountdownPart, UsageObservation } from './usage-pace.js'
 import { useUsageColorPreset } from './usage-color-preferences.js'
 import type { SubscriptionsKey } from './locales.js'
 
 /** Singular/plural locale keys per countdown unit (zh maps both to one string). */
-const UNIT_KEYS: Record<CountdownPart['unit'], [SubscriptionsKey, SubscriptionsKey]> = {
+const UNIT_KEYS: Record<
+  CountdownPart['unit'],
+  [SubscriptionsKey, SubscriptionsKey]
+> = {
   day: ['usageUnitDay', 'usageUnitDays'],
   hour: ['usageUnitHour', 'usageUnitHours'],
   minute: ['usageUnitMinute', 'usageUnitMinutes'],
 }
 
-export function UsageMeter({ window: quota, t, style, observedAt, stale }: {
-  window: UsageWindow; t: SubscriptionsSectionInjected['t']; style?: CSSProperties
+export function UsageMeter({
+  window: quota,
+  t,
+  style,
+  observedAt,
+  stale,
+}: {
+  window: UsageWindow
+  t: SubscriptionsSectionInjected['t']
+  style?: CSSProperties
 } & UsageObservation) {
   const preset = useUsageColorPreset()
   const [now, setNow] = useState(Date.now)
@@ -38,33 +60,89 @@ export function UsageMeter({ window: quota, t, style, observedAt, stale }: {
   const state = usageColorState(quota.usedPercent, pace, preset, fresh)
   const lead = pace === undefined ? 0 : Math.round(used - pace)
   const label = [
-    valid ? t('usageMeterUsed', { used: Math.round(used), remaining: Math.round(100 - used) }) : t('usageMeterInvalid'),
+    valid
+      ? t('usageMeterUsed', {
+          used: Math.round(used),
+          remaining: Math.round(100 - used),
+        })
+      : t('usageMeterInvalid'),
     // An invalid reading already states unavailability; the stale line would repeat it.
-    !valid ? '' : !fresh ? t('usageMeterStale') : state === 'red' ? t('usageMeterNearLimit')
-      : pace === undefined && preset !== 'remaining' ? t('usageMeterUnknownTime')
-        : state === 'yellow' ? t('usageMeterAhead') : t('usageMeterNoWarning'),
+    !valid
+      ? ''
+      : !fresh
+        ? t('usageMeterStale')
+        : state === 'red'
+          ? t('usageMeterNearLimit')
+          : pace === undefined && preset !== 'remaining'
+            ? t('usageMeterUnknownTime')
+            : state === 'yellow'
+              ? t('usageMeterAhead')
+              : t('usageMeterNoWarning'),
     // The elapsed-time line is a timing fact: it shows whenever the window's
     // interval is known, even for a stale or invalid reading.
-    marker === undefined ? '' : t('usageMeterPace', { elapsed: Math.round(marker) }),
-    pace === undefined ? '' : lead > 0 ? t('usageMeterPaceAhead', { points: lead })
-      : lead < 0 ? t('usageMeterPaceBehind', { points: -lead }) : t('usageMeterPaceEven'),
-    quota.resetsAt !== undefined && quota.resetsAt > current ? t('usageMeterReset', {
-      duration: resetCountdownParts(quota.resetsAt - current)
-        .map(part => t(UNIT_KEYS[part.unit][part.count === 1 ? 0 : 1], { count: part.count }))
-        .join(' '),
-    }) : '',
-  ].filter(Boolean).join(' · ')
-  return <div role="img" aria-label={label} title={label} data-usage-color={state} style={{
-    height: 6, borderRadius: 3, overflow: 'hidden',
-    background: 'var(--dsw-alias-bg-layer-1)', border: '1px solid var(--dsw-alias-border-l2)',
-    ...style, position: 'relative',
-  }}>
-    <div style={{ height: '100%', borderRadius: 'inherit', width: `${used}%`,
-      background: usageBarColor(quota.usedPercent, pace, preset, fresh) }} />
-    {marker !== undefined && <span aria-hidden="true" data-usage-time-marker style={{
-      position: 'absolute', left: `clamp(0px, calc(${marker}% - 1px), calc(100% - 2px))`,
-      top: 0, bottom: 0, width: 2, background: 'var(--dsw-alias-label-primary)',
-      boxShadow: '0 0 0 1px var(--dsw-alias-bg-layer-1)',
-    }} />}
-  </div>
+    marker === undefined
+      ? ''
+      : t('usageMeterPace', { elapsed: Math.round(marker) }),
+    pace === undefined
+      ? ''
+      : lead > 0
+        ? t('usageMeterPaceAhead', { points: lead })
+        : lead < 0
+          ? t('usageMeterPaceBehind', { points: -lead })
+          : t('usageMeterPaceEven'),
+    quota.resetsAt !== undefined && quota.resetsAt > current
+      ? t('usageMeterReset', {
+          duration: resetCountdownParts(quota.resetsAt - current)
+            .map((part) =>
+              t(UNIT_KEYS[part.unit][part.count === 1 ? 0 : 1], {
+                count: part.count,
+              }),
+            )
+            .join(' '),
+        })
+      : '',
+  ]
+    .filter(Boolean)
+    .join(' · ')
+  return (
+    <div
+      role="img"
+      aria-label={label}
+      title={label}
+      data-usage-color={state}
+      style={{
+        height: 6,
+        borderRadius: 3,
+        overflow: 'hidden',
+        background: 'var(--dsw-alias-bg-layer-1)',
+        border: '1px solid var(--dsw-alias-border-l2)',
+        ...style,
+        position: 'relative',
+      }}
+    >
+      <div
+        style={{
+          height: '100%',
+          borderRadius: 'inherit',
+          width: `${used}%`,
+          background: usageBarColor(quota.usedPercent, pace, preset, fresh),
+        }}
+      />
+      {marker !== undefined && (
+        <span
+          aria-hidden="true"
+          data-usage-time-marker
+          style={{
+            position: 'absolute',
+            left: `clamp(0px, calc(${marker}% - 1px), calc(100% - 2px))`,
+            top: 0,
+            bottom: 0,
+            width: 2,
+            background: 'var(--dsw-alias-label-primary)',
+            boxShadow: '0 0 0 1px var(--dsw-alias-bg-layer-1)',
+          }}
+        />
+      )}
+    </div>
+  )
 }
