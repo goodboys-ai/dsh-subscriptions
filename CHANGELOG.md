@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.2.2 — 2026-10-17
+
+- **Composer Speed toggle stops polling.** The control calls
+  `subscriptions-auth.speed` when the composer mounts, when its menu opens, when
+  the session's selected model changes, and after `/fast` writes a tier. The
+  model directory store pushes selection changes. A host without the store
+  re-reads the directory locally and calls `speed` only after the selection
+  identity changes. A mount that runs before the model service exists, or whose
+  first read fails, tries again until that read succeeds, and stops after four
+  attempts. A session whose model selection is unavailable stays hidden after
+  one read. No provider protocol changed. The PR gate was green for build,
+  tests, boot smoke, and host E2E on the supported window.
+
 ## v0.2.1 — 2026-10-17
 
 - **DSH 0.2.1 support.** The gated support window moves to DSH `0.1.7-rc.2`,
