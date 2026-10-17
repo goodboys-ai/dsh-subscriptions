@@ -11,9 +11,12 @@ import type { Node } from './component-harness.js'
 import {
   SpeedSelect,
   SPEED_CHANGED_EVENT,
+  SPEED_MOUNT_READ_ATTEMPTS,
   createModelSelectionWatch,
+  createSpeedLoader,
   MODEL_DIRECTORY_POLL_INTERVAL_MS,
 } from '../src/client/SpeedSelect.js'
+import type { ConnectionHandle } from '@deepseek-ai/dsh-api-remotes/client'
 import type {
   ModelDirectoriesLike,
   SpeedSelectProps,
@@ -85,6 +88,69 @@ describe('speed select load timing', { concurrency: false }, () => {
       uninstall()
       mock.timers.reset()
     }
+  })
+
+  test('SpeedSelect stops retrying when the mount read keeps failing', async () => {
+    mock.timers.enable({ apis: ['setInterval'] })
+    const uninstall = installWindow()
+    try {
+      let calls = 0
+      const component = new Component(
+        () =>
+          SpeedSelect({
+            loadSpeed: async () => {
+              calls += 1
+              throw new Error('permanent')
+            },
+            setSpeed: async () => true,
+            watchModel: () => () => {},
+          } as SpeedSelectProps) as Node,
+      )
+      component.render()
+      await settle(component)
+      assert.equal(calls, 1)
+      for (let attempt = 1; attempt < SPEED_MOUNT_READ_ATTEMPTS; attempt++) {
+        mock.timers.tick(MODEL_DIRECTORY_POLL_INTERVAL_MS)
+        await settle(component)
+      }
+      assert.equal(calls, SPEED_MOUNT_READ_ATTEMPTS)
+      mock.timers.tick(MODEL_DIRECTORY_POLL_INTERVAL_MS * 10)
+      await settle(component)
+      assert.equal(calls, SPEED_MOUNT_READ_ATTEMPTS)
+      component.unmount()
+    } finally {
+      uninstall()
+      mock.timers.reset()
+    }
+  })
+
+  test('createSpeedLoader hides a session whose model selection is unavailable', async () => {
+    let speedCalls = 0
+    const load = createSpeedLoader(
+      {
+        rpc: {
+          call: async () => {
+            speedCalls += 1
+            return {
+              ok: true,
+              value: { tier: 'standard', fastModels: ['gpt-5'] },
+            }
+          },
+        },
+      } as unknown as ConnectionHandle,
+      () => ({
+        directoryFor: () => ({
+          load: async () => {
+            throw new Error(
+              'model selection is unavailable for addressed subagent sessions',
+            )
+          },
+        }),
+      }),
+      'session',
+    )
+    assert.deepEqual(await load(), { visible: false, tier: 'standard' })
+    assert.equal(speedCalls, 1)
   })
 
   test('SpeedSelect retries a failed mount read, then stops', async () => {

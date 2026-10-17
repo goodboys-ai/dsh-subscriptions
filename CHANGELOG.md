@@ -8,7 +8,9 @@
   model directory store pushes selection changes. A host without the store
   re-reads the directory locally and calls `speed` only after the selection
   identity changes. A mount that runs before the model service exists, or whose
-  first read fails, tries again until that read succeeds.
+  first read fails, tries again until that read succeeds, and stops after four
+  attempts. A session whose model selection is unavailable stays hidden after
+  one read.
 
 ## v0.2.1 — 2026-10-17
 

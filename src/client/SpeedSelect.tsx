@@ -94,9 +94,10 @@ export type SpeedSelectProps = PropsRuntime<'conversation.input.right'> &
 
 /**
  * The `loadSpeed` half of the inject face: the plugin's own speed state plus
- * the host's current model selection (the visibility gate). A model-RPC
- * failure throws rather than answering "hidden" — the caller keeps its last
- * known state, so a transient failure never locks the toggle away.
+ * the host's current model selection (the visibility gate). A session whose
+ * model selection is unavailable (an addressed subagent) answers hidden.
+ * Any other model-directory failure throws, so the caller keeps its last
+ * known state instead of locking the toggle away.
  *
  * `sessionId` is a plain string: slot and command contexts brand it through
  * different dsh-session copies, and only the service boundary needs one.
@@ -118,13 +119,28 @@ export function createSpeedLoader(
     )
     const directories = models()
     if (directories === undefined) return { visible: false, tier: state.tier }
-    const { current } = await directories.directoryFor(sessionId).load()
+    let current: ModelSelectionSnapshot['current']
+    try {
+      const loaded = await directories.directoryFor(sessionId).load()
+      current = loaded.current
+    } catch (error) {
+      if (!modelSelectionUnavailable(error)) throw error
+      return { visible: false, tier: state.tier }
+    }
     const visible =
       current !== null &&
       current.provider === 'codex' &&
       state.fastModels.includes(current.model)
     return { visible, tier: state.tier }
   }
+}
+
+/** Host copy for a session that has no model seat (an addressed subagent). */
+const MODEL_SELECTION_UNAVAILABLE = 'model selection is unavailable'
+
+function modelSelectionUnavailable(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  return message.includes(MODEL_SELECTION_UNAVAILABLE)
 }
 
 /** Stable identity of a model selection. Empty when nothing is selected. */
@@ -141,6 +157,12 @@ export function modelSelectionKey(
  * `subscriptions-auth.speed`.
  */
 export const MODEL_DIRECTORY_POLL_INTERVAL_MS = 3000
+
+/**
+ * Mount reads of `speed`, including the first attempt. Further failures stop
+ * instead of polling for the life of the composer.
+ */
+export const SPEED_MOUNT_READ_ATTEMPTS = 4
 
 /** Fired after `/fast` writes a tier, so an open composer re-reads `speed`. */
 export const SPEED_CHANGED_EVENT = 'dsh:subscriptions:speed-changed'
@@ -268,7 +290,8 @@ const TIERS: readonly SpeedTier[] = ['standard', 'fast']
  * menu opens, when {@link SpeedSelectInjected.watchModel} reports a new
  * selected model, and when {@link notifySpeedChanged} fires. Until the first
  * read succeeds, a failure is retried on
- * {@link MODEL_DIRECTORY_POLL_INTERVAL_MS}; after that, a failed read keeps
+ * {@link MODEL_DIRECTORY_POLL_INTERVAL_MS}, at most
+ * {@link SPEED_MOUNT_READ_ATTEMPTS} times; after that, a failed read keeps
  * the last known state.
  */
 export function SpeedSelect({
@@ -296,6 +319,7 @@ export function SpeedSelect({
     let inflight = false
     let again = false
     let loadedOnce = false
+    let failures = 0
     let retry: ReturnType<typeof setInterval> | undefined
     const stopRetry = (): void => {
       if (retry === undefined) return
@@ -319,7 +343,8 @@ export function SpeedSelect({
             setState(loaded)
           },
           () => {
-            /* keep the last known state; the retry interval covers a miss */
+            failures += 1
+            if (failures >= SPEED_MOUNT_READ_ATTEMPTS) stopRetry()
           },
         )
         .finally(() => {
