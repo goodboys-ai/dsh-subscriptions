@@ -29,7 +29,9 @@ diff, and GitHub renders those files with soft line breaks, so the wrap does not
 show on the page. Only prose written for a surface GitHub renders as a
 standalone body — PR descriptions and issue/PR comments — is written one line
 per paragraph, because there a single newline inside a paragraph is a hard line
-break, so a wrapped body shows as sentences broken mid-line.
+break, so a wrapped body shows as sentences broken mid-line. A Markdown table
+row is at most 120 characters; `node scripts/check-markdown-tables.mjs` checks
+that in `repo-checks`.
 
 JavaScript, TypeScript, and Markdown are formatted with Prettier
 (`pnpm format`). JavaScript and TypeScript are linted with ESLint (`pnpm lint`).

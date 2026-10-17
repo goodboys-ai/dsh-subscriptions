@@ -34,6 +34,8 @@ jobs:
     #    and the compatibility table) against dsh-versions.txt;
     #  - PR evidence bitmap sizes and the recording ban, protecting every
     #    clone and CI fetch from oversized committed media;
+    #  - markdown table rows, at most 120 characters. The upstream README
+    #    snapshots are skipped. Fenced code is not a table;
     #  - the pull request title topic and template sections, when the event
     #    is a pull request. A push still parses the template file.
     runs-on: ubuntu-latest
@@ -50,6 +52,8 @@ jobs:
       - run: node scripts/verify-agent-notes.mjs
       - name: Check Agent Note and CHANGELOG prose wrapping
         run: npx --yes markdownlint-cli2@0.22.0
+      - name: Check markdown table width
+        run: node scripts/check-markdown-tables.mjs
       # Version-independent, so it runs here once instead of in every
       # build-and-test matrix leg: it reads dsh-versions.txt and the repo,
       # never a host, and would return the same verdict on each DSH version.

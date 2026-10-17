@@ -8,15 +8,25 @@ prove our logic; they cannot prove the providers still behave the way we
 recorded, and no automated check here calls a real provider. That gap belongs to
 the manual pre-release canary.
 
-| Check                           | Command                                          | Runs                         | Proves                                                                                   |
-| ------------------------------- | ------------------------------------------------ | ---------------------------- | ---------------------------------------------------------------------------------------- |
-| Unit and integration tests      | `pnpm test`                                      | CI, every version            | plugin logic, provider wire contracts against fakes                                      |
-| Host-export check               | `node scripts/check-host-exports.mjs --dsh <v>`  | CI, every version            | `src/` compiles against that version's declarations                                      |
-| Host contract check             | `node scripts/check-host-contract.mjs --dsh <v>` | CI, every version            | runtime host names in `src/client/host-contract.ts` exist in that version's shipped code |
-| Boot smoke test                 | `bash scripts/boot-smoke.sh`                     | CI, every version            | the packed tarball installs, mounts, serves, and answers logged-out RPCs                 |
-| Host end-to-end test (host E2E) | `bash scripts/host-e2e.sh`                       | CI, every version            | the plugin works inside a signed-in `dsh web`, driven through Chrome                     |
-| Nightly                         | `.github/workflows/nightly.yml`                  | schedule                     | mutation score, shuffled order, newest published DSH                                     |
-| Canary                          | manual                                           | optional, not a release gate | real providers                                                                           |
+| Check                      | Command                                          | Runs                         |
+| -------------------------- | ------------------------------------------------ | ---------------------------- |
+| Unit and integration tests | `pnpm test`                                      | CI, every version            |
+| Host-export check          | `node scripts/check-host-exports.mjs --dsh <v>`  | CI, every version            |
+| Host contract check        | `node scripts/check-host-contract.mjs --dsh <v>` | CI, every version            |
+| Boot smoke test            | `bash scripts/boot-smoke.sh`                     | CI, every version            |
+| Host end-to-end test       | `bash scripts/host-e2e.sh`                       | CI, every version            |
+| Nightly                    | `.github/workflows/nightly.yml`                  | schedule                     |
+| Canary                     | manual                                           | optional, not a release gate |
+
+| Check                      | Proves                                                                   |
+| -------------------------- | ------------------------------------------------------------------------ |
+| Unit and integration tests | plugin logic, provider wire contracts against fakes                      |
+| Host-export check          | `src/` compiles against that version's declarations                      |
+| Host contract check        | host names in `host-contract.ts` exist in that version's shipped code    |
+| Boot smoke test            | the packed tarball installs, mounts, serves, and answers logged-out RPCs |
+| Host end-to-end test       | the plugin works inside a signed-in `dsh web`, driven through Chrome     |
+| Nightly                    | mutation score, shuffled order, newest published DSH                     |
+| Canary                     | real providers                                                           |
 
 Unit and integration tests share one command: `pnpm test` compiles `test/` and
 runs every spec, including the virtual-provider integration specs. Integration
@@ -36,6 +46,11 @@ Repository checks run once in CI, without a DSH version or dependencies:
   branch. Documentation images outside that directory are not policed.
   `--dir <path>` selects a fixture repository root; exit 0 means clean, 1 a
   finding, and 2 that the check could not run.
+- `node scripts/check-markdown-tables.mjs`: every Markdown table row is at most
+  120 characters. Prose stays at 80; a table row cannot wrap, and Prettier pads
+  a column out to its widest cell. Fenced code is not a table. The upstream
+  README snapshots are not checked. Exit 0 means clean, 1 a finding, and 2 that
+  the check could not run.
 - `node scripts/check-pr-template.mjs`: on a pull request, checks the title
   against the topic convention in CONTRIBUTING.md and the body against
   `.github/PULL_REQUEST_TEMPLATE.md` (section names and order, verification
@@ -441,37 +456,98 @@ false break.
 ## Bug replay
 
 A regression test is only worth keeping if it fails when its bug comes back.
-Each row below re-introduced a past bug in current code and recorded which check
-failed. Add a row when a fix lands with its test, and state in the PR which test
-failed before the fix.
+Each entry below re-introduced a past bug in current code and recorded which
+check failed. Add an entry when a fix lands with its test, and state in the PR
+which test failed before the fix.
 
 Issue and PR numbers refer to the upstream tracker,
-`V1ki/dsh-plugin-subscriptions`. The upstream rows were last replayed on
-2026-09-29 against `pnpm test`; the dialog-surface row was replayed on
-2026-10-01 against `bash scripts/host-e2e.sh`; the usage-cursor row was replayed
-on 2026-10-06 against `pnpm test`.
+`V1ki/dsh-plugin-subscriptions`. The upstream entries were last replayed on
+2026-09-29 against `pnpm test`; the dialog-surface entry was replayed on
+2026-10-01 against `bash scripts/host-e2e.sh`; the usage-cursor entry was
+replayed on 2026-10-06 against `pnpm test`.
 
-| Bug                                                                  | What broke                                                                                                                                                                                                                                                                         | Re-introduced as                                                                                                            | Specs that failed                                                                                          |
-| -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Plugin display metadata                                              | The card and Settings inventory fell back to English package metadata in Chinese UI                                                                                                                                                                                                | Remove the locale export or duplicate English metadata into `zh.json`                                                       | `package-identity` (source and manifest checks; packed assets and rendering verified separately)           |
-| Usage dialog surface                                                 | The dialog kept the host's translucent menu fill without its backdrop blur, so the transcript behind it stayed readable through the panel                                                                                                                                          | `styles.panel` drops `backdrop-filter`                                                                                      | host E2E (`host-e2e.mjs`, dialog surface)                                                                  |
-| Usage cursor tied to freshness                                       | The elapsed-time cursor vanished at 0% used, after a failed refresh, and once a reading was five minutes old, though the window's timing was unchanged                                                                                                                             | `UsageMeter` computes the cursor only when `isUsageFresh` holds                                                             | `usage-pace`, `usage-cursor-providers`                                                                     |
-| [PR #116](https://github.com/V1ki/dsh-plugin-subscriptions/pull/116) | DSH 0.1.7 renamed the host icons, and the badge lost its glyphs                                                                                                                                                                                                                    | `hostIcon` reads only `Icon<Name>16`                                                                                        | `host-icons`, `subscription-usage-badge`                                                                   |
-| [#80](https://github.com/V1ki/dsh-plugin-subscriptions/issues/80)    | Every `/subscriptions-auth` RPC answered 405, so login was impossible                                                                                                                                                                                                              | Routes registered as `/subscriptions-auth/<endpoint>` instead of `/api/subscriptions-auth.<endpoint>`                       | `login`, `rpc`, `model-defaults-rpc`, `provider-settings-rpc`, `usage-bar`                                 |
-| [#22](https://github.com/V1ki/dsh-plugin-subscriptions/issues/22)    | A settled background subagent put `tool_use` in a user message, and Claude answered 400 from then on                                                                                                                                                                               | `tool-call` blocks become `tool_use` in every role                                                                          | `translate`                                                                                                |
-| [#24](https://github.com/V1ki/dsh-plugin-subscriptions/issues/24)    | The Claude route sent no `cache_control`, so every request reprocessed the whole prompt                                                                                                                                                                                            | `markMessageCache` does nothing; separately, the system block gets no breakpoint                                            | `translate`, `models`, `anthropic-messages.property`                                                       |
-| [#27](https://github.com/V1ki/dsh-plugin-subscriptions/issues/27)    | A closed rate-limit window failed the turn instead of waiting                                                                                                                                                                                                                      | The configured wait no longer widens the retry ceiling                                                                      | `rate-limit`                                                                                               |
-| [#46](https://github.com/V1ki/dsh-plugin-subscriptions/issues/46)    | A failed usage snapshot was not cached, so `quota_aware` hit the rate-limited endpoint on every request                                                                                                                                                                            | No cooldown entry after a failed refresh                                                                                    | `pool-usage`, `pool`, `usage`                                                                              |
-| Concurrent model-catalog saves                                       | Two accounts saving at once lost one account's catalog section: each writer merged onto a snapshot read before the other's rename                                                                                                                                                  | `save`/`clear` do a whole-file read-modify-write with no per-path serialization                                             | `catalog-store`                                                                                            |
-| Account-pool failures reported as rate limits                        | When no candidate remained after switch-classified failures, or no account could be resolved, the pool reported a synthetic rate limit. TRANSPORT left no cooldown; AUTH and SERVER recorded cooldowns but were still mislabeled. Throw-classified failures bypassed `exhausted()` | `exhausted()` always emits its own RATE_LIMIT message instead of reporting attempt failures or scoped cooldown reasons      | `pool`, `pool-health`                                                                                      |
-| Antigravity tool-result error flag                                   | A failed tool result whose output parsed as JSON reached the model as a success, so the answer treated the tool as having worked                                                                                                                                                   | `toolResultValue` returns the parsed object without merging `isError`; the tool-role path never passes `message.isError`    | `antigravity` (translate decoder)                                                                          |
-| MiniMax percentage-only windows                                      | The usage UI showed only the video model: standard models report zero counts with an explicit remaining percentage, and the parser dropped any window without a positive total                                                                                                     | `fetchMiniMaxUsage` requires `total_count > 0` before reading the percentage; the external card label drops the model scope | `minimax-usage`, `external-usage-controller`, `subscription-usage-badge`; baseline label-expression replay |
+**Plugin display metadata.** The card and Settings inventory fell back to
+English package metadata in Chinese UI. Re-introduced as: remove the locale
+export or duplicate English metadata into `zh.json`. Specs that failed:
+`package-identity` (source and manifest checks; packed assets and rendering
+verified separately).
 
-The MiniMax row was replayed on 2026-10-06 against `pnpm test`. The current host
-E2E also checks MiniMax's fixture windows through the RPC and both UI locations.
-Neither layer proves a real account's entitlement or response.
+**Usage dialog surface.** The dialog kept the host's translucent menu fill
+without its backdrop blur, so the transcript behind it stayed readable through
+the panel. Re-introduced as: `styles.panel` drops `backdrop-filter`. Specs that
+failed: host E2E (`host-e2e.mjs`, dialog surface).
 
-The dialog-surface row is the first bug the host E2E's own checks catch. The
+**Usage cursor tied to freshness.** The elapsed-time cursor vanished at 0% used,
+after a failed refresh, and once a reading was five minutes old, though the
+window's timing was unchanged. Re-introduced as: `UsageMeter` computes the
+cursor only when `isUsageFresh` holds. Specs that failed: `usage-pace`,
+`usage-cursor-providers`.
+
+**[PR #116](https://github.com/V1ki/dsh-plugin-subscriptions/pull/116).** DSH
+0.1.7 renamed the host icons, and the badge lost its glyphs. Re-introduced as:
+`hostIcon` reads only `Icon<Name>16`. Specs that failed: `host-icons`,
+`subscription-usage-badge`.
+
+**[#80](https://github.com/V1ki/dsh-plugin-subscriptions/issues/80).** Every
+`/subscriptions-auth` RPC answered 405, so login was impossible. Re-introduced
+as: routes registered as `/subscriptions-auth/<endpoint>` instead of
+`/api/subscriptions-auth.<endpoint>`. Specs that failed: `login`, `rpc`,
+`model-defaults-rpc`, `provider-settings-rpc`, `usage-bar`.
+
+**[#22](https://github.com/V1ki/dsh-plugin-subscriptions/issues/22).** A settled
+background subagent put `tool_use` in a user message, and Claude answered 400
+from then on. Re-introduced as: `tool-call` blocks become `tool_use` in every
+role. Specs that failed: `translate`.
+
+**[#24](https://github.com/V1ki/dsh-plugin-subscriptions/issues/24).** The
+Claude route sent no `cache_control`, so every request reprocessed the whole
+prompt. Re-introduced as: `markMessageCache` does nothing; separately, the
+system block gets no breakpoint. Specs that failed: `translate`, `models`,
+`anthropic-messages.property`.
+
+**[#27](https://github.com/V1ki/dsh-plugin-subscriptions/issues/27).** A closed
+rate-limit window failed the turn instead of waiting. Re-introduced as: the
+configured wait no longer widens the retry ceiling. Specs that failed:
+`rate-limit`.
+
+**[#46](https://github.com/V1ki/dsh-plugin-subscriptions/issues/46).** A failed
+usage snapshot was not cached, so `quota_aware` hit the rate-limited endpoint on
+every request. Re-introduced as: no cooldown entry after a failed refresh. Specs
+that failed: `pool-usage`, `pool`, `usage`.
+
+**Concurrent model-catalog saves.** Two accounts saving at once lost one
+account's catalog section: each writer merged onto a snapshot read before the
+other's rename. Re-introduced as: `save`/`clear` do a whole-file
+read-modify-write with no per-path serialization. Specs that failed:
+`catalog-store`.
+
+**Account-pool failures reported as rate limits.** When no candidate remained
+after switch-classified failures, or no account could be resolved, the pool
+reported a synthetic rate limit. TRANSPORT left no cooldown; AUTH and SERVER
+recorded cooldowns but were still mislabeled. Throw-classified failures bypassed
+`exhausted()`. Re-introduced as: `exhausted()` always emits its own RATE_LIMIT
+message instead of reporting attempt failures or scoped cooldown reasons. Specs
+that failed: `pool`, `pool-health`.
+
+**Antigravity tool-result error flag.** A failed tool result whose output parsed
+as JSON reached the model as a success, so the answer treated the tool as having
+worked. Re-introduced as: `toolResultValue` returns the parsed object without
+merging `isError`; the tool-role path never passes `message.isError`. Specs that
+failed: `antigravity` (translate decoder).
+
+**MiniMax percentage-only windows.** The usage UI showed only the video model:
+standard models report zero counts with an explicit remaining percentage, and
+the parser dropped any window without a positive total. Re-introduced as:
+`fetchMiniMaxUsage` requires `total_count > 0` before reading the percentage;
+the external card label drops the model scope. Specs that failed:
+`minimax-usage`, `external-usage-controller`, `subscription-usage-badge`;
+baseline label-expression replay.
+
+The MiniMax entry was replayed on 2026-10-06 against `pnpm test`. The current
+host E2E also checks MiniMax's fixture windows through the RPC and both UI
+locations. Neither layer proves a real account's entitlement or response.
+
+The dialog-surface entry is the first bug the host E2E's own checks catch. The
 rest of that driver was checked against injected faults before a bug covered it:
 the pill rendered outside the stats row, a slot entry that throws, and dropped
 Codex text deltas. Each ended the run with a product failure.

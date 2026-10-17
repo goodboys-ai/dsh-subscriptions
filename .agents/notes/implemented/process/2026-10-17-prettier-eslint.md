@@ -24,7 +24,10 @@ Archived notes stay out of Prettier: their bodies are frozen. The upstream
 README snapshots stay out too. Agent Notes and the changelog still have the
 markdownlint 80-column check. A long verbatim error in a note is a fenced block,
 which that check skips, rather than an inline span Prettier must keep on one
-line.
+line. A table row is at most 120 characters
+(`node scripts/check-markdown-tables.mjs`). markdownlint still skips tables: an
+aligned command table does not fit in 80 columns. The upstream README snapshots
+are excluded from the table check as well.
 
 `pnpm install` points git hooks at `.husky` only when this checkout is the git
 root. An install under `node_modules` skips that step and still builds the
@@ -41,6 +44,10 @@ line-length check. Biome would replace both with a third policy.
 **Leave Markdown to the hand wrap.** `proseWrap: preserve` pulls a wrapped code
 span onto the next line without its indent. `proseWrap: always` reflows to the
 same 80-column contract and keeps the span whole.
+
+**Limit tables to 80 columns with the prose check.** A three-column command
+table does not fit in 80 once Prettier pads each column. 120 keeps that table on
+one line.
 
 **Format archived notes too.** Their bodies are the historical record and are
 not updated in place. Prettier would also swap an emphasis marker there.

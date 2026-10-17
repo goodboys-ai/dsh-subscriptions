@@ -85,7 +85,9 @@ and checks Agent Notes and `CHANGELOG.md`; it does not check the other
 repository Markdown. The changelog is covered because it carries each release's
 user-facing claims. Code blocks, tables, and lines with no whitespace past
 column 80 (such as an indivisible link) are exempt. Archived notes are excluded
-from the wrapping check.
+from the wrapping check. A table row is a separate limit: at most 120
+characters, checked by `node scripts/check-markdown-tables.mjs` on repository
+Markdown except the upstream README snapshots.
 
 `node scripts/verify-agent-notes.mjs` (also a CI job) enforces the shape:
 `{proposed,implemented,rejected,archived}/` lifecycle folders, the closed class

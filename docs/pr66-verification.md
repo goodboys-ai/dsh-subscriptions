@@ -11,10 +11,12 @@ report. Grok's expired session was refreshed through the existing OAuth refresh
 implementation and saved through the auth store before testing. Models were
 selected from each account's live model catalog.
 
-| Provider / model                      | Old tool-less body             | Fixed tool-less body           | Fixed body with tools          |
-| ------------------------------------- | ------------------------------ | ------------------------------ | ------------------------------ |
-| Grok / `grok-4.20-0309-non-reasoning` | HTTP 400, `invalid-argument`   | HTTP 200, `response.completed` | HTTP 200, `response.completed` |
-| Codex / `gpt-5.6-luna`                | HTTP 200, `response.completed` | HTTP 200, `response.completed` | HTTP 200, `response.completed` |
+| Provider / model                      | Old tool-less body             | Fixed tool-less body           |
+| ------------------------------------- | ------------------------------ | ------------------------------ |
+| Grok / `grok-4.20-0309-non-reasoning` | HTTP 400, `invalid-argument`   | HTTP 200, `response.completed` |
+| Codex / `gpt-5.6-luna`                | HTTP 200, `response.completed` | HTTP 200, `response.completed` |
+
+With tools in the body, both providers returned HTTP 200, `response.completed`.
 
 Requests used the provider request-body builders and the plugin's configured
 HTTP/proxy transport, targeting `https://api.x.ai/v1/responses` and
