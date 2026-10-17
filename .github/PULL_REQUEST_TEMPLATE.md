@@ -2,7 +2,9 @@
 newline inside a paragraph as a hard line break, so an 80-column wrap
 reads as broken sentences on the PR page. This applies only to PR
 descriptions and comments. Repository markdown is wrapped at 80 columns
-by Prettier. -->
+by Prettier. The title starts with a topic and a colon
+(`fix: ...` or `fix(scope): ...`). Topics are feat, fix, docs, test,
+chore, refactor, ci, build, and style. -->
 
 ## What does this PR do?
 

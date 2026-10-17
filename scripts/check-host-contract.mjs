@@ -254,16 +254,16 @@ function checkVersion(version) {
     )
   }
 
-  // A marker lists the attribute spellings across host generations; one
-  // host build renders exactly one spelling, so shipping any of them
-  // satisfies the marker.
+  // `row` and `dock` are the two host generations' spellings. One build
+  // renders exactly one of them, so shipping either satisfies the marker.
   for (const [key, marker] of Object.entries(HOST_CONTRACT.markers)) {
+    const attributes = [marker.row, marker.dock]
     expect(
-      marker.attributes.some((attribute) =>
+      attributes.some((attribute) =>
         codeOf(marker.package).includes(`"${attribute}"`),
       ),
       `marker ${key}`,
-      `${marker.package} renders none of ${marker.attributes.join(', ')}`,
+      `${marker.package} renders none of ${attributes.join(', ')}`,
     )
   }
 

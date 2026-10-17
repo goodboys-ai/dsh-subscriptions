@@ -50,6 +50,7 @@ import type { ModelDirectoriesLike } from './SpeedSelect.js'
 import { en } from './locales.js'
 import type { SubscriptionsKey } from './locales.js'
 import { hostIcon } from './host-icons.js'
+import { HOST_CONTRACT, markerSelector } from './host-contract.js'
 import {
   USAGE_BADGE_REFRESH_EVENT,
   useUsageBadgeMode,
@@ -505,6 +506,13 @@ function usageWindowLabel(t: Translate, window: UsageWindow): string {
  * every provider's accounts and their windows. Returns null when no data is
  * available.
  */
+const STATS_ROW_SELECTOR = markerSelector(
+  HOST_CONTRACT.markers.composerStats.row,
+)
+const STATS_DOCK_SELECTOR = markerSelector(
+  HOST_CONTRACT.markers.composerStats.dock,
+)
+
 export function SubscriptionUsageBadge({
   rpc,
   currentModel,
@@ -738,11 +746,11 @@ export function SubscriptionUsageBadge({
     const scope = statsScopeOf(seat)
     if (scope === null) return
     const find = (): HTMLElement | null =>
-      scope.querySelector<HTMLElement>('[data-composer-stats]')
+      scope.querySelector<HTMLElement>(STATS_ROW_SELECTOR)
     const settle = (): void => {
       const row = find()
       setStatsRow(row)
-      if (row === null && scope.querySelector('[data-composer-stat]') !== null)
+      if (row === null && scope.querySelector(STATS_DOCK_SELECTOR) !== null)
         observer.disconnect()
     }
     const observer = new MutationObserver(settle)
@@ -913,22 +921,24 @@ export function SubscriptionUsageBadge({
   )
 }
 
-/**
- * Ancestor bound for the scope search in statsScopeOf below. The host E2E
- * pill probe uses the same bound under the same name, so the check judges
- * placement with the product's own reach.
- */
-const COMPOSER_SCOPE_DEPTH = 4
+/** How far statsScopeOf walks looking for `composerStats.row`. */
+const LEGACY_STATS_SCOPE_DEPTH = 4
 
 /**
- * Nearest ancestor of the dock seat that can contain the host's stats row:
- * the composer bar. Bounded so a badge in an unfamiliar layout never adopts
- * some other composer's pills.
+ * Scope for the legacy stats row. The nearest ancestor within
+ * LEGACY_STATS_SCOPE_DEPTH that contains `composerStats.row`, so a badge
+ * does not adopt another composer's pills. When none does, the seat's
+ * parent: the slot outlet, which holds sibling `composerStats.dock` anchors
+ * on hosts whose pills are dock entries.
  */
 function statsScopeOf(seat: HTMLElement): HTMLElement | null {
   let node: HTMLElement | null = seat.parentElement
-  for (let depth = 0; node !== null && depth < COMPOSER_SCOPE_DEPTH; depth++) {
-    if (node.querySelector('[data-composer-stats]') !== null) return node
+  for (
+    let depth = 0;
+    node !== null && depth < LEGACY_STATS_SCOPE_DEPTH;
+    depth++
+  ) {
+    if (node.querySelector(STATS_ROW_SELECTOR) !== null) return node
     node = node.parentElement
   }
   return seat.parentElement

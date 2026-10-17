@@ -36,6 +36,13 @@ Repository checks run once in CI, without a DSH version or dependencies:
   branch. Documentation images outside that directory are not policed.
   `--dir <path>` selects a fixture repository root; exit 0 means clean, 1 a
   finding, and 2 that the check could not run.
+- `node scripts/check-pr-template.mjs`: on a pull request, checks the title
+  against the topic convention in CONTRIBUTING.md and the body against
+  `.github/PULL_REQUEST_TEMPLATE.md` (section names and order, verification
+  labels, AI disclosure fields, one line per paragraph). `--event` reads
+  `pull_request.title` and `pull_request.body`; an event with no pull request
+  exits 0 after the template file parses. `--title` and `--body-file` check a
+  description locally. Exit 1 is a finding; exit 2 means the check did not run.
 - `pnpm format:check` and `pnpm lint`: Prettier on JavaScript, TypeScript, and
   Markdown, and ESLint on JavaScript and TypeScript, once per CI run, not once
   per DSH version. Generated `lib/` and `lib-test/`, `vendor/`, archived Agent
@@ -313,12 +320,12 @@ script:
    - a message to that model streams through the plugin's Codex adapter, and the
      canned reply renders in the transcript;
    - the usage pill (`Codex 5h 11%`) renders in the host's stats row — inside
-     `data-composer-stats` through DSH 0.2.0, or in the composer dock beside the
-     `data-composer-stat` pills from 0.2.1. Its dialog has one section per
-     source, each named for that source and showing only that source's fixture
-     windows, with no unexpected section. The badge fills the dialog from RPCs
-     that settle at their own pace, so the driver polls until it matches, and
-     after a deadline fails on what the dialog then shows;
+     `data-composer-stats` through DSH 0.2.0, or inside `[data-composer-dock]`
+     beside a `data-composer-stat` pill from 0.2.1. Its dialog has one section
+     per source, each named for that source and showing only that source's
+     fixture windows, with no unexpected section. The badge fills the dialog
+     from RPCs that settle at their own pace, so the driver polls until it
+     matches, and after a deadline fails on what the dialog then shows;
    - the dialog wears the host's menu material — the `--dsw-specific-menu` fill
      and the `--dsw-menu-backdrop-filter` blur — in the light and dark themes,
      and the collapsed pill stays transparent. The driver switches themes
