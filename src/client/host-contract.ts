@@ -69,8 +69,17 @@ export const HOST_CONTRACT = {
 
   /** DOM attributes the client looks up in host-rendered markup. */
   markers: {
-    /** The shipped StatsPills row; the usage badge renders into it as a third pill. */
-    composerStats: { attribute: 'data-composer-stats', package: '@deepseek-ai/dsh-client-ui-chat' },
+    /**
+     * The shipped StatsPills anchors, in the two forms hosts render. Through
+     * 0.2.0 the pills share one row marked `data-composer-stats`, and the
+     * usage badge renders into it as a third pill. From 0.2.1 each pill is a
+     * composer-dock entry whose anchor carries `data-composer-stat`; the
+     * badge's own dock entry shares that row, so it renders in place and
+     * only watches for the docked anchors to know no row will appear. A host
+     * renders one form or the other; the contract check accepts either, and
+     * the host E2E reads both to find the pill's row.
+     */
+    composerStats: { attributes: ['data-composer-stats', 'data-composer-stat'], package: '@deepseek-ai/dsh-client-ui-chat' },
   },
 
   /**

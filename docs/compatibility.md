@@ -92,16 +92,17 @@ That exemption is an at-your-own-risk escape hatch, not support.
 
 ## Compatibility table
 
-The source targets `0.2.0`, with peers `>=0.1.7-rc.2 <0.3.0-0`. Gate
+The source targets `0.2.1`, with peers `>=0.1.7-rc.2 <0.3.0-0`. Gate
 results below were first recorded locally on 2026-09-30 and confirmed by
-main CI on 2026-10-02. The CI matrix runs identical gates on every push. A
+main CI on 2026-10-02; the `0.2.1-rc.2` row was recorded locally on
+2026-10-17. The CI matrix runs identical gates on every push. A
 cell becomes ✅ only from a green gate run, never from "it should work".
 
 | DSH | build | tests | host exports | host contract | boot smoke | host E2E | Notes |
 |-----|-------|-------|--------------|---------------|------------|----------|-------|
 | `0.1.7-rc.2` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | window floor; devDeps pin here |
-| `0.2.0-rc.1` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | transition entry for the newest line |
 | `0.2.0-rc.2` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | packed-tarball install verified |
+| `0.2.1-rc.2` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | stats pills are composer-dock entries from this version |
 
 The boot smoke and host E2E installed the packed tarball (no
 `node_modules`). The host E2E used the host's default workspace on every version, without the directory picker.
@@ -113,8 +114,8 @@ The plugin uses semver independently of DSH (`0.1.0`, `0.1.1`, …). During the
 keeps the old window, and a minor for a new provider, a breaking setting, or
 dropped DSH support. A peer-range move still requires a new plugin version
 and tag; it does not create one plugin release line per DSH minor. The
-current source version `0.2.0` supports a three-version window
-(`0.1.7-rc.2`, `0.2.0-rc.1`, `0.2.0-rc.2`), so its minor version cannot
+current source version `0.2.1` supports a three-version window
+(`0.1.7-rc.2`, `0.2.0-rc.2`, `0.2.1-rc.2`), so its minor version cannot
 identify one DSH minor. The peer range and CI matrix state host
 compatibility; plugin patches can ship between DSH releases.
 

@@ -157,8 +157,8 @@ provider's text. No live account was used to verify what Anthropic returns. See
 
 ## Install
 
-Current source is tested with DSH `0.1.7-rc.2`, `0.2.0-rc.1`, and
-`0.2.0-rc.2`. The package's peers admit `>=0.1.7-rc.2 <0.3.0-0`: untested
+Current source is tested with DSH `0.1.7-rc.2`, `0.2.0-rc.2`, and
+`0.2.1-rc.2`. The package's peers admit `>=0.1.7-rc.2 <0.3.0-0`: untested
 versions inside that range install but are unsupported, and versions
 outside it need an explicit `dsh plugin allow-version` exemption.
 `dsh plugin add` checks those ranges with `includePrerelease` semantics, so

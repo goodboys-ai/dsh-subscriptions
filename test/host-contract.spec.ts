@@ -137,7 +137,7 @@ test('every theme token the client styles with is in the host contract', () => {
 })
 
 test('every host DOM marker the client queries is in the host contract', () => {
-  const markers = Object.values(HOST_CONTRACT.markers).map(marker => marker.attribute)
+  const markers = Object.values(HOST_CONTRACT.markers).flatMap(marker => marker.attributes)
   assertSameNames('DOM markers', used(SCANNERS.markers), markers)
 })
 

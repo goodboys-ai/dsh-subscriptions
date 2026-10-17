@@ -55,7 +55,11 @@ test('Codex Web Search sends the standalone contract and normalizes citations', 
 
 test('DSH WebRuntime caps Codex sources for the native web_search tool', async () => {
   const ctx = new Context()
-  const web = new WebRuntime(ctx)
+  // Mounted through ctx.plugin, not constructed: from DSH 0.2.1 the
+  // WebRuntime constructor requires the provider-selection config in its
+  // framework-wrapped volatile form, which only plugin mounting produces.
+  await ctx.plugin(WebRuntime, {})
+  const web = ctx.web
   web.registerSearchProvider(provider(async () => new Response(JSON.stringify({ output: 'ok', results: [
     { url: 'https://example.com/1' }, { url: 'https://example.com/2' },
   ] }))))
@@ -114,7 +118,8 @@ test('the Codex web_search switch drives provider availability, not the host too
 
 test('a disabled Codex provider releases the seam instead of holding it', async () => {
   const ctx = new Context()
-  const web = new WebRuntime(ctx)
+  await ctx.plugin(WebRuntime, {})
+  const web = ctx.web
   let enabled = false
   web.registerSearchProvider(new CodexWebSearchProvider({
     tokens: { session: async () => session },
