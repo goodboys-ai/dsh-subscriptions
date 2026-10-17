@@ -136,9 +136,30 @@ test('every theme token the client styles with is in the host contract', () => {
   assertSameNames('tokens', used(SCANNERS.tokens), HOST_CONTRACT.tokens.names)
 })
 
+/** Marker names read as `HOST_CONTRACT.markers.<id>.row` or `.dock`. */
+function contractMarkerUses(code: string): Set<string> {
+  const found = new Set<string>()
+  for (const match of code.matchAll(/HOST_CONTRACT\.markers\.(?<key>[A-Za-z0-9_]+)\.(?<field>row|dock)/g)) {
+    const marker = HOST_CONTRACT.markers[match.groups?.key as keyof typeof HOST_CONTRACT.markers]
+    const attribute = marker?.[match.groups?.field as 'row' | 'dock']
+    if (typeof attribute === 'string') found.add(attribute)
+  }
+  return found
+}
+
 test('every host DOM marker the client queries is in the host contract', () => {
-  const markers = Object.values(HOST_CONTRACT.markers).flatMap(marker => marker.attributes)
-  assertSameNames('DOM markers', used(SCANNERS.markers), markers)
+  const inCode = used(SCANNERS.markers)
+  for (const { code } of sources) for (const name of contractMarkerUses(code)) inCode.add(name)
+  const listed = Object.values(HOST_CONTRACT.markers).flatMap(marker => [marker.row, marker.dock])
+  assertSameNames('DOM markers', inCode, listed)
+})
+
+test('a host-contract marker field counts as a use of that attribute', () => {
+  assert.deepEqual(
+    [...contractMarkerUses('scope.querySelector(markerSelector(HOST_CONTRACT.markers.composerStats.row))')].sort(),
+    ['data-composer-stats'],
+  )
+  assert.deepEqual([...contractMarkerUses('querySelector("[data-composer-stats]")')], [])
 })
 
 test('every host glyph and named host export the client reads is in the host contract', () => {

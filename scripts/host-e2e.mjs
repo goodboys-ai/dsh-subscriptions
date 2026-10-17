@@ -11,13 +11,13 @@
 //   2. The host's model picker lists the plugin's Codex model.
 //   3. A message to that model streams through the plugin's adapter, and
 //      the canned reply renders in the transcript.
-//   4. The usage pill renders in the host's stats row — the
-//      `data-composer-stats` row through DSH 0.2.0, or the composer dock
-//      beside the `data-composer-stat` pills from 0.2.1 — and its dialog
-//      shows each source's name
-//      with that source's own percentage and wears the host's menu
-//      material (translucent fill plus backdrop blur) in both themes,
-//      while the collapsed pill stays transparent.
+//   4. The usage pill renders with the host's stats — inside the
+//      `data-composer-stats` row through DSH 0.2.0, or inside
+//      `[data-composer-dock]` beside a `data-composer-stat` pill from
+//      0.2.1. Its dialog shows each source's name with that source's own
+//      percentage and wears the host's menu material (translucent fill
+//      plus backdrop blur) in both themes, while the collapsed pill stays
+//      transparent.
 //   5. The plugin's settings section renders inside the host's settings
 //      panel: nav entry, intro copy, provider cards for the signed-in
 //      fixture profile, the usage-display control, and the preference it
@@ -68,15 +68,6 @@ const DIALOG_SETTLE_MS = 10_000
 
 /** The plugin's usage dialog, as opposed to the host's modal settings panel. */
 const USAGE_DIALOG = 'div[role="dialog"]:not([aria-modal="true"])'
-
-/**
- * Ancestor bound for the pill probe's dock search — the same bound, under
- * the same name, as COMPOSER_SCOPE_DEPTH in SubscriptionUsageBadge.tsx,
- * whose statsScopeOf searches with it. The probe judges placement with the
- * product's own reach, so the two cannot disagree about scope. Declared
- * with the other top-level constants, for the reason THEME_LABELS gives.
- */
-const COMPOSER_SCOPE_DEPTH = 4
 
 /**
  * Appearance-row cube labels per theme, in the driver's two locales. Declared
@@ -440,11 +431,10 @@ async function drive(cdp, page, evidence) {
 
   // Product: the host's model picker lists the plugin's Codex model.
   if (!await clickLabel(cdp, ['Select model', '选择模型'])) throw new HarnessFailure('model menu did not open')
-  // From 0.2.1 the menu opens as the model list itself; older hosts open a
-  // menu whose Model entry expands the list. Expand only when the list is
-  // not already showing.
-  if (!await waitFor(cdp, hasText(CODEX_MODEL.name), 3_000) && !await clickLabel(cdp, ['Model', '模型'])) {
-    throw new HarnessFailure('model list did not open')
+  // 0.2.1 opens this menu as the model list. Older hosts open a menu whose
+  // Model entry expands the list.
+  if (!await waitFor(cdp, hasText(CODEX_MODEL.name), 3_000)) {
+    if (!await clickLabel(cdp, ['Model', '模型'])) throw new HarnessFailure('model list did not open')
   }
   if (!await waitFor(cdp, hasText(CODEX_MODEL.name), 20_000)) {
     throw new ProductFailure(`the host model picker does not list ${CODEX_MODEL.name}`)
@@ -472,10 +462,11 @@ async function drive(cdp, page, evidence) {
   if (!await waitFor(cdp, placed, 30_000)) {
     const { placement } = await cdp.evaluate(pillProbe())
     throw new ProductFailure(placement === 'outside'
-      ? `the usage pill ${CODEX_PILL} rendered outside the host's stats row`
+      ? `the usage pill ${CODEX_PILL} rendered outside the stats row and the composer dock`
       : `the usage pill ${CODEX_PILL} did not render`)
   }
-  console.log(`ok: usage pill ${CODEX_PILL} renders in the host's stats row`)
+  const { placement } = await cdp.evaluate(pillProbe())
+  console.log(`ok: usage pill ${CODEX_PILL} renders in the composer (${placement})`)
 
   // Product: the dialog lists every source with its own percentage.
   const colorPreset = await cdp.evaluate(`localStorage.getItem('dsh.subscriptions.usageColorPreset')`)
@@ -915,12 +906,6 @@ async function checkDialogSurface(cdp, evidence) {
 }
 
 /**
- * Switch the host's theme through the Appearance cubes in Settings → General
- * and assert the host applied it. The cubes are the host's own controls, so
- * this exercises the theme path a user takes rather than setting the body
- * attribute behind the host's back.
- */
-/**
  * Open the settings panel. Through 0.2.0 the sidebar foot carries a
  * Settings trigger; from 0.2.1 the settings launcher is the sidebar
  * account menu (the "More" button), whose Settings item opens the panel.
@@ -933,6 +918,12 @@ async function openSettingsPanel(cdp) {
   return clickLabel(cdp, ['Settings', '设置'])
 }
 
+/**
+ * Switch the host's theme through the Appearance cubes in Settings → General
+ * and assert the host applied it. The cubes are the host's own controls, so
+ * this exercises the theme path a user takes rather than setting the body
+ * attribute behind the host's back.
+ */
 async function applyTheme(cdp, theme) {
   const labels = THEME_LABELS[theme]
   if (!await openSettingsPanel(cdp)) {
@@ -1078,30 +1069,31 @@ async function clickPill(cdp) {
 
 /**
  * Page expression probing the usage pill: its placement ('row' inside the
- * stats row hosts render through 0.2.0, 'dock' when its own composer-dock
- * entry shares an ancestor with a docked stat pill, from 0.2.1, 'outside'
- * when it rendered anywhere else, 'absent' when it did not render) and,
- * when placed, its resting background. Several page buttons can carry the
- * pill's label prefix (the transcript's session actions among them), so
- * every match is classified and a placed one wins. The ancestor walk is
- * bounded like the badge's own scope search, so a button elsewhere on the
- * page never counts the composer dock as its row.
+ * legacy stats row, 'dock' inside `[data-composer-dock]` when that dock
+ * contains a docked stat pill, 'outside' when it rendered anywhere else,
+ * 'absent' when it did not render) and, when placed, its resting background.
+ * Several page buttons can carry the pill's label prefix (the transcript's
+ * session actions among them), so every match is classified and a placed
+ * one wins. `row` and `dock` are the host contract's named marker fields.
  */
 function pillProbe() {
-  const [rowAttribute, statAttribute] = HOST_CONTRACT.markers.composerStats.attributes
+  const { row, dock } = HOST_CONTRACT.markers.composerStats
   return `(() => {
     const matches = [...document.querySelectorAll('button')]
       .filter(node => (node.getAttribute('aria-label') || '').includes(${JSON.stringify(CODEX_PILL)}))
-    const inRow = (button) => button.closest('[${rowAttribute}]') !== null
+    const inRow = (button) => button.closest('[${row}]') !== null
     const inDock = (button) => {
-      for (let node = button.parentElement, depth = 0; node !== null && depth < ${COMPOSER_SCOPE_DEPTH}; node = node.parentElement, depth += 1) {
-        if (node.querySelector('[${statAttribute}]') !== null) return true
-      }
-      return false
+      const dockRow = button.closest('[data-composer-dock]')
+      return dockRow !== null && dockRow.querySelector('[${dock}]') !== null
     }
     const placed = matches.find(button => inRow(button)) ?? matches.find(button => inDock(button)) ?? null
+    let placement = 'outside'
+    if (matches.length === 0) placement = 'absent'
+    else if (placed === null) placement = 'outside'
+    else if (inRow(placed)) placement = 'row'
+    else placement = 'dock'
     return {
-      placement: matches.length === 0 ? 'absent' : placed === null ? 'outside' : inRow(placed) ? 'row' : 'dock',
+      placement,
       pillBackground: placed === null ? null : getComputedStyle(placed).backgroundColor,
     }
   })()`
