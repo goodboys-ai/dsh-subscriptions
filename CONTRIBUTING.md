@@ -10,6 +10,20 @@ the chosen approach and its meaningful trade-offs. In AI disclosure, name the
 tool and share a relevant prompt, conversation link, or summary of the work
 delegated to it; use `N/A` when no AI tool was used.
 
+The title starts with a topic and a colon: `fix: ...` or `fix(scope): ...`.
+The topics are `feat`, `fix`, `docs`, `test`, `chore`, `refactor`, `ci`,
+`build`, and `style`. A scope is optional. When present it is lowercase
+words separated by commas or hyphens, as in `fix(auth,tools): ...` or
+`fix(host-e2e): ...`. The description uses the template headings in that
+order. Each section has an answer. Related issue is `None` or an issue
+link. The verification bullets and the AI disclosure fields keep the
+template's labels, with the answer on that same line. A paragraph in the
+description is one line. `node scripts/check-pr-template.mjs` enforces
+this in `repo-checks`. Pass `--event` the GitHub event file, or `--title`
+and `--body-file` locally. An event that is not a pull request skips the
+title and body checks after the template file parses. Exit 1 is a finding;
+exit 2 means the check did not run.
+
 Repository markdown (docs/, README.md, this file, .agents/notes/) keeps
 its 80-column wrap: it is read in an editor and reviewed as a diff, and
 GitHub renders those files with soft line breaks, so the wrap does not

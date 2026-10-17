@@ -36,6 +36,14 @@ Repository checks run once in CI, without a DSH version or dependencies:
   an append-only assets branch. Documentation images outside that directory
   are not policed. `--dir <path>` selects a fixture repository root; exit 0
   means clean, 1 a finding, and 2 that the check could not run.
+- `node scripts/check-pr-template.mjs`: on a pull request, checks the title
+  against the topic convention in CONTRIBUTING.md and the body against
+  `.github/PULL_REQUEST_TEMPLATE.md` (section names and order, verification
+  labels, AI disclosure fields, one line per paragraph). `--event` reads
+  `pull_request.title` and `pull_request.body`; an event with no pull
+  request exits 0 after the template file parses. `--title` and
+  `--body-file` check a description locally. Exit 1 is a finding; exit 2
+  means the check did not run.
 
 ## Unit tests
 
