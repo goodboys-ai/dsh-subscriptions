@@ -30,10 +30,12 @@ aligned command table does not fit in 80 columns. The upstream README snapshots
 are excluded from the table check as well.
 
 `pnpm install` points git hooks at `.husky` only when this checkout is the git
-root. An install under `node_modules` skips that step and still builds the
-client bundle. The pre-commit hook runs ESLint and Prettier on staged files. CI
-runs `pnpm format:check` and `pnpm lint` once, in a job that does not depend on
-a DSH version.
+root and husky is installed. A missing husky binary, `HUSKY=0`, an install under
+`node_modules`, or a tree without `.git` skips that step and still builds the
+client bundle. The pre-commit hook runs Prettier on the staged files and ESLint
+with `--no-warn-ignored`, so a staged file under `vendor/` does not fail the
+hook. CI runs `pnpm format:check` and `pnpm lint` once, in a job that does not
+depend on a DSH version.
 
 ## Alternatives considered
 
