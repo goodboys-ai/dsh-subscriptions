@@ -70,16 +70,17 @@ export const HOST_CONTRACT = {
   /** DOM attributes the client looks up in host-rendered markup. */
   markers: {
     /**
-     * The shipped StatsPills anchors, in the two forms hosts render. Through
-     * 0.2.0 the pills share one row marked `data-composer-stats`, and the
-     * usage badge renders into it as a third pill. From 0.2.1 each pill is a
-     * composer-dock entry whose anchor carries `data-composer-stat`; the
-     * badge's own dock entry shares that row, so it renders in place and
-     * only watches for the docked anchors to know no row will appear. A host
-     * renders one form or the other; the contract check accepts either, and
-     * the host E2E reads both to find the pill's row.
+     * Stats pill anchors, by role. `row` is the shared stats row through DSH
+     * 0.2.0; the badge portals into it. `dock` is the per-pill anchor from
+     * 0.2.1; the badge stays in its dock entry and stops watching once that
+     * anchor is in scope. A host renders one of them. The package check
+     * accepts either spelling; callers read `row` and `dock` by name.
      */
-    composerStats: { attributes: ['data-composer-stats', 'data-composer-stat'], package: '@deepseek-ai/dsh-client-ui-chat' },
+    composerStats: {
+      row: 'data-composer-stats',
+      dock: 'data-composer-stat',
+      package: '@deepseek-ai/dsh-client-ui-chat',
+    },
   },
 
   /**
@@ -143,3 +144,8 @@ export const HOST_CONTRACT = {
 
 /** A glyph name listed in {@link HOST_CONTRACT}; hostIcon() accepts no other. */
 export type HostIconName = (typeof HOST_CONTRACT.icons.names)[number]
+
+/** Attribute selector for a host DOM marker (`data-composer-stats` → `[data-composer-stats]`). */
+export function markerSelector(attribute: string): string {
+  return `[${attribute}]`
+}
