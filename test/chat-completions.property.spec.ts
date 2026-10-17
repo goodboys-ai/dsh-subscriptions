@@ -11,12 +11,21 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import fc from 'fast-check'
 import { toChatMessages } from '../src/translate/chat-completions.js'
-import type { TranslatableBlock, TranslatableMessage } from '../src/translate/resolved.js'
+import type {
+  TranslatableBlock,
+  TranslatableMessage,
+} from '../src/translate/resolved.js'
 import { ToolCallId } from '../src/compat.js'
 
-const textBlock = fc.string({ maxLength: 40 }).map((text): TranslatableBlock => ({ type: 'text', text }))
+const textBlock = fc
+  .string({ maxLength: 40 })
+  .map((text): TranslatableBlock => ({ type: 'text', text }))
 
-const callName = fc.string({ unit: fc.constantFrom('a', 'b', 'c', 'r', 'w', '_'), minLength: 1, maxLength: 8 })
+const callName = fc.string({
+  unit: fc.constantFrom('a', 'b', 'c', 'r', 'w', '_'),
+  minLength: 1,
+  maxLength: 8,
+})
 
 /** A turn: user text, or an assistant message whose calls are all answered. */
 type Turn =
@@ -24,12 +33,15 @@ type Turn =
   | { kind: 'agent'; blocks: TranslatableBlock[]; calls: string[] }
 
 const turn: fc.Arbitrary<Turn> = fc.oneof(
-  fc.array(textBlock, { minLength: 1, maxLength: 2 })
+  fc
+    .array(textBlock, { minLength: 1, maxLength: 2 })
     .map((blocks): Turn => ({ kind: 'user', blocks })),
-  fc.record({
-    blocks: fc.array(textBlock, { maxLength: 2 }),
-    calls: fc.array(callName, { maxLength: 3 }),
-  }).map((turnSpec): Turn => ({ kind: 'agent', ...turnSpec })),
+  fc
+    .record({
+      blocks: fc.array(textBlock, { maxLength: 2 }),
+      calls: fc.array(callName, { maxLength: 3 }),
+    })
+    .map((turnSpec): Turn => ({ kind: 'agent', ...turnSpec })),
 )
 
 interface Materialized {
@@ -61,7 +73,11 @@ function materialize(turns: readonly Turn[]): Materialized {
     if (blocks.length === 0) continue
     messages.push({ role: 'assistant', content: blocks })
     for (const id of ids) {
-      messages.push({ role: 'tool', toolCallId: id, content: [{ type: 'text', text: `result for ${id}` }] })
+      messages.push({
+        role: 'tool',
+        toolCallId: id,
+        content: [{ type: 'text', text: `result for ${id}` }],
+      })
     }
   }
   return { messages, callIds }
@@ -69,7 +85,9 @@ function materialize(turns: readonly Turn[]): Materialized {
 
 function assistantCallIds(message: Record<string, unknown>): string[] {
   if (!Array.isArray(message['tool_calls'])) return []
-  return (message['tool_calls'] as Record<string, unknown>[]).map(call => String(call['id']))
+  return (message['tool_calls'] as Record<string, unknown>[]).map((call) =>
+    String(call['id']),
+  )
 }
 
 test('toChatMessages: tool_calls are answered in place and no tool message is orphaned', () => {
@@ -89,10 +107,17 @@ test('toChatMessages: tool_calls are answered in place and no tool message is or
           // carrying exactly these ids — anything in between breaks the API's
           // call/answer adjacency.
           const answers = out.slice(index + 1, index + 1 + ids.length)
-          assert.equal(answers.length, ids.length, 'every call must be answered')
-          assert.ok(answers.every(answer => answer['role'] === 'tool'), 'answers must be tool messages')
+          assert.equal(
+            answers.length,
+            ids.length,
+            'every call must be answered',
+          )
+          assert.ok(
+            answers.every((answer) => answer['role'] === 'tool'),
+            'answers must be tool messages',
+          )
           assert.deepEqual(
-            answers.map(answer => String(answer['tool_call_id'])),
+            answers.map((answer) => String(answer['tool_call_id'])),
             ids,
             'answers must arrive in call order',
           )
@@ -101,7 +126,10 @@ test('toChatMessages: tool_calls are answered in place and no tool message is or
           allWireResultIds.push(String(message['tool_call_id']))
           // No tool message may point at a call the wire never made.
           const priorCalls = out.slice(0, index).flatMap(assistantCallIds)
-          assert.ok(priorCalls.includes(String(message['tool_call_id'])), 'tool message without its call')
+          assert.ok(
+            priorCalls.includes(String(message['tool_call_id'])),
+            'tool message without its call',
+          )
         }
       }
 

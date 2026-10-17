@@ -1,5 +1,11 @@
 import { execFileSync } from 'node:child_process'
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import type { ClaudeSession } from './store.js'
@@ -25,25 +31,39 @@ interface CredentialBlob {
   emailAddress?: string
 }
 
-const DEFAULT_SCOPES = 'user:profile user:inference user:sessions:claude_code user:mcp_servers'
+const DEFAULT_SCOPES =
+  'user:profile user:inference user:sessions:claude_code user:mcp_servers'
 
 function toSession(data: RawCreds): ClaudeSession | undefined {
   // Empty-string tokens (seen from a corrupted Keychain item left by a Claude
   // Code logout) pass the typeof gate but are useless and would poison the
   // auth store — a single such entry fails every provider's status read.
-  if (typeof data.accessToken !== 'string' || data.accessToken.length === 0
-    || typeof data.refreshToken !== 'string' || data.refreshToken.length === 0
-    || typeof data.expiresAt !== 'number' || !Number.isFinite(data.expiresAt)) {
+  if (
+    typeof data.accessToken !== 'string' ||
+    data.accessToken.length === 0 ||
+    typeof data.refreshToken !== 'string' ||
+    data.refreshToken.length === 0 ||
+    typeof data.expiresAt !== 'number' ||
+    !Number.isFinite(data.expiresAt)
+  ) {
     return undefined
   }
-  const scopes = Array.isArray(data.scopes) ? data.scopes.join(' ') : typeof data.scopes === 'string' ? data.scopes : DEFAULT_SCOPES
+  const scopes = Array.isArray(data.scopes)
+    ? data.scopes.join(' ')
+    : typeof data.scopes === 'string'
+      ? data.scopes
+      : DEFAULT_SCOPES
   return {
     accessToken: data.accessToken,
     refreshToken: data.refreshToken,
     expiresAt: Math.trunc(data.expiresAt),
     scopes,
-    ...typeof data.emailAddress === 'string' ? { emailAddress: data.emailAddress } : {},
-    ...typeof data.subscriptionType === 'string' ? { subscriptionType: data.subscriptionType } : {},
+    ...(typeof data.emailAddress === 'string'
+      ? { emailAddress: data.emailAddress }
+      : {}),
+    ...(typeof data.subscriptionType === 'string'
+      ? { subscriptionType: data.subscriptionType }
+      : {}),
   }
 }
 
@@ -58,16 +78,23 @@ function parseBlob(raw: string): ClaudeSession | undefined {
 }
 
 function credentialsFilePath(): string {
-  return join(process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude'), '.credentials.json')
+  return join(
+    process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude'),
+    '.credentials.json',
+  )
 }
 
 function readKeychainRaw(): string | undefined {
   try {
-    return execFileSync('/usr/bin/security', ['find-generic-password', '-s', PRIMARY_SERVICE, '-w'], {
-      timeout: 3000,
-      encoding: 'utf8',
-      stdio: ['pipe', 'pipe', 'pipe'],
-    }).trim()
+    return execFileSync(
+      '/usr/bin/security',
+      ['find-generic-password', '-s', PRIMARY_SERVICE, '-w'],
+      {
+        timeout: 3000,
+        encoding: 'utf8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+      },
+    ).trim()
   } catch {
     return undefined
   }
@@ -98,11 +125,15 @@ function blobMatches(raw: string, expectedAccessToken: string): boolean {
 
 function getKeychainAccountName(): string | undefined {
   try {
-    const output = execFileSync('/usr/bin/security', ['find-generic-password', '-s', PRIMARY_SERVICE], {
-      timeout: 2000,
-      encoding: 'utf8',
-      stdio: ['pipe', 'pipe', 'pipe'],
-    })
+    const output = execFileSync(
+      '/usr/bin/security',
+      ['find-generic-password', '-s', PRIMARY_SERVICE],
+      {
+        timeout: 2000,
+        encoding: 'utf8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+      },
+    )
     return /"acct"<blob>="([^"]*)"/.exec(output)?.[1]
   } catch {
     return undefined
@@ -110,7 +141,10 @@ function getKeychainAccountName(): string | undefined {
 }
 
 /** Merge fresh tokens into an existing raw blob, preserving unrelated fields. */
-function mergeIntoBlob(existingRaw: string, next: ClaudeSession): string | undefined {
+function mergeIntoBlob(
+  existingRaw: string,
+  next: ClaudeSession,
+): string | undefined {
   let parsed: CredentialBlob
   try {
     parsed = JSON.parse(existingRaw)
@@ -133,18 +167,35 @@ function mergeIntoBlob(existingRaw: string, next: ClaudeSession): string | undef
  * @param expectedPriorAccessToken - the access token this refresh started from.
  * @returns whether the write-back succeeded.
  */
-export function writeBackClaudeCodeCredentials(next: ClaudeSession, expectedPriorAccessToken: string): boolean {
+export function writeBackClaudeCodeCredentials(
+  next: ClaudeSession,
+  expectedPriorAccessToken: string,
+): boolean {
   if (process.platform === 'darwin') {
     const raw = readKeychainRaw()
-    if (raw === undefined || !blobMatches(raw, expectedPriorAccessToken)) return false
+    if (raw === undefined || !blobMatches(raw, expectedPriorAccessToken))
+      return false
     const updated = mergeIntoBlob(raw, next)
     if (updated === undefined) return false
     const account = getKeychainAccountName() ?? PRIMARY_SERVICE
     try {
-      execFileSync('/usr/bin/security', ['add-generic-password', '-s', PRIMARY_SERVICE, '-a', account, '-w', updated, '-U'], {
-        timeout: 2000,
-        stdio: 'ignore',
-      })
+      execFileSync(
+        '/usr/bin/security',
+        [
+          'add-generic-password',
+          '-s',
+          PRIMARY_SERVICE,
+          '-a',
+          account,
+          '-w',
+          updated,
+          '-U',
+        ],
+        {
+          timeout: 2000,
+          stdio: 'ignore',
+        },
+      )
       return true
     } catch {
       return false
@@ -185,7 +236,10 @@ export async function refreshClaudeSynced(
   doRefresh: (session: ClaudeSession) => Promise<ClaudeSession>,
 ): Promise<ClaudeSession> {
   const fromSource = readClaudeCodeCredentials()
-  const base = fromSource !== undefined && fromSource.accessToken !== session.accessToken ? fromSource : session
+  const base =
+    fromSource !== undefined && fromSource.accessToken !== session.accessToken
+      ? fromSource
+      : session
   if (base.expiresAt > Date.now() + 60_000) return base
   const next = await doRefresh(base)
   writeBackClaudeCodeCredentials(next, base.accessToken)

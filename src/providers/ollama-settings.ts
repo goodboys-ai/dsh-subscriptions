@@ -58,7 +58,8 @@ function fail(message: string): never {
 }
 
 function readNonEmptyString(value: unknown, field: string): string {
-  if (typeof value !== 'string' || value.trim().length === 0) fail(`${field} must be a non-empty string`)
+  if (typeof value !== 'string' || value.trim().length === 0)
+    fail(`${field} must be a non-empty string`)
   return value
 }
 
@@ -92,9 +93,12 @@ export function validateOllamaBaseURL(value: unknown): string {
   } catch {
     fail('baseURL must be an absolute URL')
   }
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') fail('baseURL must use http or https')
-  if (url.username !== '' || url.password !== '') fail('baseURL must not carry credentials')
-  if (url.search !== '' || url.hash !== '') fail('baseURL must not carry a query or fragment')
+  if (url.protocol !== 'http:' && url.protocol !== 'https:')
+    fail('baseURL must use http or https')
+  if (url.username !== '' || url.password !== '')
+    fail('baseURL must not carry credentials')
+  if (url.search !== '' || url.hash !== '')
+    fail('baseURL must not carry a query or fragment')
   return raw.trim()
 }
 
@@ -106,7 +110,8 @@ function readApiKeyRef(value: unknown): string {
 }
 
 function readEfforts(value: unknown, field: string): string[] {
-  if (!Array.isArray(value) || value.length === 0) fail(`${field} must be a non-empty array`)
+  if (!Array.isArray(value) || value.length === 0)
+    fail(`${field} must be a non-empty array`)
   const efforts: string[] = []
   for (const entry of value) {
     const effort = readNonEmptyString(entry, `${field} entries`)
@@ -122,22 +127,40 @@ function readModel(entry: unknown, index: number): OllamaModelSetting {
   const record = entry as Record<string, unknown>
   // The id is the wire id, so surrounding whitespace is always a paste
   // artifact; trim it before the duplicate check sees it.
-  const model: OllamaModelSetting = { id: readNonEmptyString(record.id, `models[${index}].id`).trim() }
-  if (record.name !== undefined) model.name = readNonEmptyString(record.name, `models[${index}].name`)
+  const model: OllamaModelSetting = {
+    id: readNonEmptyString(record.id, `models[${index}].id`).trim(),
+  }
+  if (record.name !== undefined)
+    model.name = readNonEmptyString(record.name, `models[${index}].name`)
   if (record.contextWindow !== undefined) {
-    model.contextWindow = readPositiveInteger(record.contextWindow, `models[${index}].contextWindow`)
+    model.contextWindow = readPositiveInteger(
+      record.contextWindow,
+      `models[${index}].contextWindow`,
+    )
   }
   if (record.contextOverride !== undefined) {
-    model.contextOverride = readPositiveInteger(record.contextOverride, `models[${index}].contextOverride`)
+    model.contextOverride = readPositiveInteger(
+      record.contextOverride,
+      `models[${index}].contextOverride`,
+    )
   }
   if (record.maxTokens !== undefined) {
-    model.maxTokens = readPositiveInteger(record.maxTokens, `models[${index}].maxTokens`)
+    model.maxTokens = readPositiveInteger(
+      record.maxTokens,
+      `models[${index}].maxTokens`,
+    )
   }
-  if (record.vision !== undefined) model.vision = readBoolean(record.vision, `models[${index}].vision`)
-  if (record.thinking !== undefined) model.thinking = readBoolean(record.thinking, `models[${index}].thinking`)
-  if (record.efforts !== undefined) model.efforts = readEfforts(record.efforts, `models[${index}].efforts`)
+  if (record.vision !== undefined)
+    model.vision = readBoolean(record.vision, `models[${index}].vision`)
+  if (record.thinking !== undefined)
+    model.thinking = readBoolean(record.thinking, `models[${index}].thinking`)
+  if (record.efforts !== undefined)
+    model.efforts = readEfforts(record.efforts, `models[${index}].efforts`)
   if (record.defaultEffort !== undefined) {
-    const effort = readNonEmptyString(record.defaultEffort, `models[${index}].defaultEffort`)
+    const effort = readNonEmptyString(
+      record.defaultEffort,
+      `models[${index}].defaultEffort`,
+    )
     // The runtime rejects a default the model does not advertise, so a
     // mismatch is a store bug rather than something to carry forward.
     if (model.efforts !== undefined && !model.efforts.includes(effort)) {
@@ -173,8 +196,10 @@ export function validateOllamaSettings(input: unknown): OllamaSettings {
     settings.models = models
   }
   if (record.web !== undefined) settings.web = readBoolean(record.web, 'web')
-  if (record.baseURL !== undefined) settings.baseURL = validateOllamaBaseURL(record.baseURL)
-  if (record.apiKeyRef !== undefined) settings.apiKeyRef = readApiKeyRef(record.apiKeyRef)
+  if (record.baseURL !== undefined)
+    settings.baseURL = validateOllamaBaseURL(record.baseURL)
+  if (record.apiKeyRef !== undefined)
+    settings.apiKeyRef = readApiKeyRef(record.apiKeyRef)
   return settings
 }
 
@@ -191,11 +216,17 @@ export class OllamaSettingsStore {
   private corrupt: string | undefined
 
   constructor(
-    readonly path = dshHomePath('plugins', 'subscriptions', 'ollama-settings.json'),
+    readonly path = dshHomePath(
+      'plugins',
+      'subscriptions',
+      'ollama-settings.json',
+    ),
     private readonly onCorrupt?: (message: string) => void,
   ) {
     try {
-      this.current = validateOllamaSettings(JSON.parse(readFileSync(path, 'utf8')) as unknown)
+      this.current = validateOllamaSettings(
+        JSON.parse(readFileSync(path, 'utf8')) as unknown,
+      )
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
         // A broken file must not take the whole plugin down: degrade to
@@ -205,24 +236,38 @@ export class OllamaSettingsStore {
         // The raw V8 message quotes the offending bytes; the log keeps a
         // fixed diagnosis and corruption() carries the detail for callers
         // that surface it outside log lines.
-        this.onCorrupt?.(`Ollama settings at ${path} are unreadable and ignored; defaults serve until the next save.`)
+        this.onCorrupt?.(
+          `Ollama settings at ${path} are unreadable and ignored; defaults serve until the next save.`,
+        )
       }
     }
   }
 
   /** Why the stored file is ignored, when it is. */
-  corruption(): string | undefined { return this.corrupt }
+  corruption(): string | undefined {
+    return this.corrupt
+  }
 
-  get(): OllamaSettings { return structuredClone(this.current) }
+  get(): OllamaSettings {
+    return structuredClone(this.current)
+  }
 
   /** The stored catalog, or `undefined` when the store carries no override. */
-  models(): readonly OllamaModelSetting[] | undefined { return this.current.models }
+  models(): readonly OllamaModelSetting[] | undefined {
+    return this.current.models
+  }
 
-  web(): boolean | undefined { return this.current.web }
+  web(): boolean | undefined {
+    return this.current.web
+  }
 
-  baseURL(): string | undefined { return this.current.baseURL }
+  baseURL(): string | undefined {
+    return this.current.baseURL
+  }
 
-  apiKeyRef(): string | undefined { return this.current.apiKeyRef }
+  apiKeyRef(): string | undefined {
+    return this.current.apiKeyRef
+  }
 
   set(input: unknown): Promise<void> {
     const validated = validateOllamaSettings(input)
@@ -230,7 +275,9 @@ export class OllamaSettingsStore {
       await mkdir(dirname(this.path), { recursive: true })
       const temporary = `${this.path}.${process.pid}.${Math.random().toString(36).slice(2)}.tmp`
       try {
-        await writeFile(temporary, JSON.stringify(validated, null, 2), { mode: 0o600 })
+        await writeFile(temporary, JSON.stringify(validated, null, 2), {
+          mode: 0o600,
+        })
         await rename(temporary, this.path)
       } finally {
         await rm(temporary, { force: true })

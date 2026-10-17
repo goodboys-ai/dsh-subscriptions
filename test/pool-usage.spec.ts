@@ -15,9 +15,16 @@ import type { ProviderUsage } from '../src/providers/common.js'
 import { PoolUsageTracker } from '../src/providers/pool-usage.js'
 import type { ProviderId } from '../src/auth/store.js'
 
-const MEMBER = { provider: 'claude' as const, account: 'a1', model: 'claude-opus-5' }
+const MEMBER = {
+  provider: 'claude' as const,
+  account: 'a1',
+  model: 'claude-opus-5',
+}
 
-const OK_USAGE: ProviderUsage = { supported: true, windows: [{ kind: 'session', usedPercent: 10 }] }
+const OK_USAGE: ProviderUsage = {
+  supported: true,
+  windows: [{ kind: 'session', usedPercent: 10 }],
+}
 
 /** A tracker whose sole fetcher counts calls and answers from a script. */
 function trackerOf(
@@ -28,7 +35,10 @@ function trackerOf(
   const tracker = new PoolUsageTracker(
     (provider: ProviderId, account: string) =>
       provider === MEMBER.provider && account === MEMBER.account
-        ? () => { calls.count += 1; return fetcher() }
+        ? () => {
+            calls.count += 1
+            return fetcher()
+          }
         : undefined,
     ttlMs,
   )
@@ -36,7 +46,12 @@ function trackerOf(
 }
 
 test('quotaFor: a 429 with retry-after is cached — the second call within the window skips the network', async () => {
-  const error = new OAuthEndpointError('claude usage token endpoint error (HTTP 429)', 429, undefined, 60_000)
+  const error = new OAuthEndpointError(
+    'claude usage token endpoint error (HTTP 429)',
+    429,
+    undefined,
+    60_000,
+  )
   const { tracker, calls } = trackerOf(() => Promise.reject(error))
   const first = await tracker.quotaFor(MEMBER)
   assert.deepEqual(first, { available: true, urgency: 0, fetchedAt: 0 })
@@ -46,11 +61,14 @@ test('quotaFor: a 429 with retry-after is cached — the second call within the 
 })
 
 test('quotaFor: a failure with no retry-after falls back to the default TTL', async () => {
-  const { tracker, calls } = trackerOf(() => Promise.reject(new Error('network blip')), 50)
+  const { tracker, calls } = trackerOf(
+    () => Promise.reject(new Error('network blip')),
+    50,
+  )
   await tracker.quotaFor(MEMBER)
   await tracker.quotaFor(MEMBER)
   assert.equal(calls.count, 1, 'still within the default TTL')
-  await new Promise(resolve => setTimeout(resolve, 60))
+  await new Promise((resolve) => setTimeout(resolve, 60))
   await tracker.quotaFor(MEMBER)
   assert.equal(calls.count, 2, 'the TTL expired, so this call retries')
 })
@@ -58,31 +76,51 @@ test('quotaFor: a failure with no retry-after falls back to the default TTL', as
 test('quotaFor: a missing/invalid credential is never negative-cached, so recovery is immediate', async () => {
   let broken = true
   const { tracker, calls } = trackerOf(() =>
-    broken ? Promise.reject(new LlmError('logged out', 'MISSING_CREDENTIAL')) : Promise.resolve(OK_USAGE))
+    broken
+      ? Promise.reject(new LlmError('logged out', 'MISSING_CREDENTIAL'))
+      : Promise.resolve(OK_USAGE),
+  )
   const first = await tracker.quotaFor(MEMBER)
   assert.deepEqual(first, { available: false, urgency: 0, fetchedAt: 0 })
   broken = false
   const second = await tracker.quotaFor(MEMBER)
   assert.equal(second.available, true)
-  assert.equal(calls.count, 2, 'every call re-checks credentials live, no cooldown')
+  assert.equal(
+    calls.count,
+    2,
+    'every call re-checks credentials live, no cooldown',
+  )
 })
 
 test('quotaFor: a stale success still serves cached data while a background refresh runs', async () => {
   const { tracker, calls } = trackerOf(() => Promise.resolve(OK_USAGE), 10)
   await tracker.quotaFor(MEMBER)
-  await new Promise(resolve => setTimeout(resolve, 20))
+  await new Promise((resolve) => setTimeout(resolve, 20))
   const stale = await tracker.quotaFor(MEMBER)
   assert.equal(stale.available, true)
-  await new Promise(resolve => setTimeout(resolve, 20))
-  assert.equal(calls.count, 2, 'the stale read triggered exactly one background refresh')
+  await new Promise((resolve) => setTimeout(resolve, 20))
+  assert.equal(
+    calls.count,
+    2,
+    'the stale read triggered exactly one background refresh',
+  )
 })
 
 test('snapshotFor: a live failure cooldown is never bypassed, even by a forced (manual refresh) call', async () => {
-  const error = new OAuthEndpointError('claude usage token endpoint error (HTTP 429)', 429, undefined, 60_000)
+  const error = new OAuthEndpointError(
+    'claude usage token endpoint error (HTTP 429)',
+    429,
+    undefined,
+    60_000,
+  )
   const { tracker, calls } = trackerOf(() => Promise.reject(error))
   await assert.rejects(tracker.snapshotFor('claude', 'a1'), error)
   await assert.rejects(tracker.snapshotFor('claude', 'a1', true), error)
-  assert.equal(calls.count, 1, 'force must not punch through an active cooldown')
+  assert.equal(
+    calls.count,
+    1,
+    'force must not punch through an active cooldown',
+  )
 })
 
 test('snapshotFor: force bypasses a fresh SUCCESS cache for an honest re-check', async () => {
@@ -91,7 +129,11 @@ test('snapshotFor: force bypasses a fresh SUCCESS cache for an honest re-check',
   await tracker.snapshotFor('claude', 'a1')
   assert.equal(calls.count, 1, 'plain calls reuse the fresh cache')
   await tracker.snapshotFor('claude', 'a1', true)
-  assert.equal(calls.count, 2, 'a forced call re-fetches regardless of freshness')
+  assert.equal(
+    calls.count,
+    2,
+    'a forced call re-fetches regardless of freshness',
+  )
 })
 
 test('snapshotFor: a provider without a usage fetcher answers supported:false', async () => {
@@ -104,7 +146,14 @@ test('snapshotFor: a rate limit after a prior success serves the stale snapshot 
   let rateLimited = false
   const { tracker, calls } = trackerOf(() => {
     if (rateLimited) {
-      return Promise.reject(new OAuthEndpointError('claude usage token endpoint error (HTTP 429)', 429, undefined, 60_000))
+      return Promise.reject(
+        new OAuthEndpointError(
+          'claude usage token endpoint error (HTTP 429)',
+          429,
+          undefined,
+          60_000,
+        ),
+      )
     }
     return Promise.resolve(OK_USAGE)
   }, 10)
@@ -116,10 +165,14 @@ test('snapshotFor: a rate limit after a prior success serves the stale snapshot 
 
   // Past the 10ms TTL, so the next call re-fetches instead of serving the
   // fresh-cache fast path.
-  await new Promise(resolve => setTimeout(resolve, 20))
+  await new Promise((resolve) => setTimeout(resolve, 20))
   rateLimited = true
   const second = await tracker.snapshotFor('claude', 'a1')
-  assert.deepEqual(second, { ...first, stale: true }, 'cached readings preserve their original observation time and expose failure')
+  assert.deepEqual(
+    second,
+    { ...first, stale: true },
+    'cached readings preserve their original observation time and expose failure',
+  )
   assert.equal(calls.count, 2)
 
   // Still cooling down: repeat calls (forced or not) keep serving the
@@ -128,40 +181,65 @@ test('snapshotFor: a rate limit after a prior success serves the stale snapshot 
   const forced = await tracker.snapshotFor('claude', 'a1', true)
   assert.deepEqual(third, second)
   assert.deepEqual(forced, second)
-  assert.equal(calls.count, 2, 'the live cooldown must not be bypassed even by a forced call')
+  assert.equal(
+    calls.count,
+    2,
+    'the live cooldown must not be bypassed even by a forced call',
+  )
 })
 
 test('snapshotFor: the stale snapshot is carried across consecutive failure cooldowns', async () => {
-  const FRESH_USAGE: ProviderUsage = { supported: true, windows: [{ kind: 'session', usedPercent: 42 }] }
+  const FRESH_USAGE: ProviderUsage = {
+    supported: true,
+    windows: [{ kind: 'session', usedPercent: 42 }],
+  }
   let answer: ProviderUsage | 'rate-limited' = OK_USAGE
   const { tracker, calls } = trackerOf(() => {
     if (answer === 'rate-limited') {
       // A short retry-after so the cooldown expires within the test.
-      return Promise.reject(new OAuthEndpointError('claude usage token endpoint error (HTTP 429)', 429, undefined, 10))
+      return Promise.reject(
+        new OAuthEndpointError(
+          'claude usage token endpoint error (HTTP 429)',
+          429,
+          undefined,
+          10,
+        ),
+      )
     }
     return Promise.resolve(answer)
   }, 10)
 
   const original = await tracker.snapshotFor('claude', 'a1')
   assert.deepEqual(original.windows, OK_USAGE.windows)
-  await new Promise(resolve => setTimeout(resolve, 20))
+  await new Promise((resolve) => setTimeout(resolve, 20))
   answer = 'rate-limited'
 
   // First failure: the snapshot on record is carried onto the failure entry.
-  assert.deepEqual(await tracker.snapshotFor('claude', 'a1'), { ...original, stale: true })
+  assert.deepEqual(await tracker.snapshotFor('claude', 'a1'), {
+    ...original,
+    stale: true,
+  })
   assert.equal(calls.count, 2)
 
   // The cooldown expires and the retry fails AGAIN. The entry being replaced
   // is now a failure entry, not a snapshot — its carried snapshot must be
   // carried forward once more rather than dropped.
-  await new Promise(resolve => setTimeout(resolve, 20))
-  assert.deepEqual(await tracker.snapshotFor('claude', 'a1'), { ...original, stale: true }, 'a second consecutive failure must not lose the stale snapshot')
+  await new Promise((resolve) => setTimeout(resolve, 20))
+  assert.deepEqual(
+    await tracker.snapshotFor('claude', 'a1'),
+    { ...original, stale: true },
+    'a second consecutive failure must not lose the stale snapshot',
+  )
   assert.equal(calls.count, 3, 'the expired cooldown allowed one retry')
-  assert.deepEqual(await tracker.snapshotFor('claude', 'a1'), { ...original, stale: true }, 'and the new cooldown keeps serving it')
+  assert.deepEqual(
+    await tracker.snapshotFor('claude', 'a1'),
+    { ...original, stale: true },
+    'and the new cooldown keeps serving it',
+  )
   assert.equal(calls.count, 3)
 
   // A later success replaces the stale snapshot for real.
-  await new Promise(resolve => setTimeout(resolve, 20))
+  await new Promise((resolve) => setTimeout(resolve, 20))
   answer = FRESH_USAGE
   const recovered = await tracker.snapshotFor('claude', 'a1')
   assert.deepEqual(recovered.windows, FRESH_USAGE.windows)
@@ -171,7 +249,12 @@ test('snapshotFor: the stale snapshot is carried across consecutive failure cool
 })
 
 test('snapshotFor: a rate limit with no prior success still throws (nothing to fall back to)', async () => {
-  const error = new OAuthEndpointError('claude usage token endpoint error (HTTP 429)', 429, undefined, 60_000)
+  const error = new OAuthEndpointError(
+    'claude usage token endpoint error (HTTP 429)',
+    429,
+    undefined,
+    60_000,
+  )
   const { tracker } = trackerOf(() => Promise.reject(error))
   await assert.rejects(tracker.snapshotFor('claude', 'a1'), error)
 })
@@ -182,16 +265,30 @@ test('snapshotFor: an invalidate during a fetch neither repopulates the cache no
   for (const staleFails of [false, true]) {
     let calls = 0
     let release!: () => void
-    const gate = new Promise<void>(resolve => { release = resolve })
-    let phase: 'before' | 'after' = 'before'
-    const percent = (value: number): ProviderUsage =>
-      ({ supported: true, windows: [{ kind: 'weekly', usedPercent: value, resetsAt: Date.now() + 3_600_000 }] })
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const percent = (value: number): ProviderUsage => ({
+      supported: true,
+      windows: [
+        {
+          kind: 'weekly',
+          usedPercent: value,
+          resetsAt: Date.now() + 3_600_000,
+        },
+      ],
+    })
     const tracker = new PoolUsageTracker(() => async () => {
       calls += 1
-      if (calls === 1) { await gate; throw_if(staleFails) }
+      if (calls === 1) {
+        await gate
+        throw_if(staleFails)
+      }
       return percent(11)
     })
-    const throw_if = (fails: boolean): void => { if (fails) throw new Error('boom') }
+    const throw_if = (fails: boolean): void => {
+      if (fails) throw new Error('boom')
+    }
     const stale = tracker.snapshotFor('claude', 'a1', true)
     // The caller learns the world changed (a redeemed credit) mid-poll.
     tracker.invalidate('claude', 'a1')
@@ -199,9 +296,17 @@ test('snapshotFor: an invalidate during a fetch neither repopulates the cache no
     await assert.rejects(stale, /boom/).catch(() => undefined)
     const fresh = await tracker.snapshotFor('claude', 'a1', true)
     assert.equal(fresh.windows?.[0]?.usedPercent, 11)
-    assert.equal(calls, 2, 'the forced read after the invalidation must fetch again')
+    assert.equal(
+      calls,
+      2,
+      'the forced read after the invalidation must fetch again',
+    )
     const cached = await tracker.snapshotFor('claude', 'a1')
-    assert.equal(cached.windows?.[0]?.usedPercent, 11, 'the abandoned result must not be cached')
+    assert.equal(
+      cached.windows?.[0]?.usedPercent,
+      11,
+      'the abandoned result must not be cached',
+    )
   }
 })
 
@@ -209,14 +314,26 @@ test('snapshotFor: a discarded fetch that fails after a newer success cannot cac
   // A starts, an invalidate abandons it, B starts and succeeds, then A rejects
   // late. A must not bury B's fresh numbers under a negative cache.
   let releaseA!: () => void
-  const gateA = new Promise<void>(resolve => { releaseA = resolve })
+  const gateA = new Promise<void>((resolve) => {
+    releaseA = resolve
+  })
   let calls = 0
   let rejectA!: (error: Error) => void
-  const failureA = new Promise<never>((_resolve, reject) => { rejectA = reject })
-  const fresh: ProviderUsage = { supported: true, windows: [{ kind: 'weekly', usedPercent: 11, resetsAt: Date.now() + 3_600_000 }] }
+  const failureA = new Promise<never>((_resolve, reject) => {
+    rejectA = reject
+  })
+  const fresh: ProviderUsage = {
+    supported: true,
+    windows: [
+      { kind: 'weekly', usedPercent: 11, resetsAt: Date.now() + 3_600_000 },
+    ],
+  }
   const tracker = new PoolUsageTracker(() => async () => {
     calls += 1
-    if (calls === 1) { await gateA; return failureA }
+    if (calls === 1) {
+      await gateA
+      return failureA
+    }
     return fresh
   })
   const stale = tracker.snapshotFor('claude', 'a1', true).catch(() => undefined)
@@ -228,5 +345,9 @@ test('snapshotFor: a discarded fetch that fails after a newer success cannot cac
   await stale
   // The cached entry must still be the newer success, not a cooldown.
   const cached = await tracker.snapshotFor('claude', 'a1')
-  assert.equal(cached.windows?.[0]?.usedPercent, 11, 'the late failure must not displace the fresh success')
+  assert.equal(
+    cached.windows?.[0]?.usedPercent,
+    11,
+    'the late failure must not displace the fresh success',
+  )
 })

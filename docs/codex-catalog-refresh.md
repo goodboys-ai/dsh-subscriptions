@@ -2,19 +2,20 @@
 
 ## Confirmed cause (2026-09-05)
 
-Two read-only GETs to `https://chatgpt.com/backend-api/codex/models` used
-the same existing, unexpired Codex subscription session and identical auth
-headers. Only `client_version` changed:
+Two read-only GETs to `https://chatgpt.com/backend-api/codex/models` used the
+same existing, unexpired Codex subscription session and identical auth headers.
+Only `client_version` changed:
 
-| Version | Status | Visible GPT-6 Astra |
-| --- | --- | --- |
-| `0.147.0` (previous plugin default) | 200 | absent |
-| `0.153.4` (npm `@openai/codex` stable at verification time) | 200 | `gpt-6-astra`, visibility `list` |
+| Version                                                     | Status | Visible GPT-6 Astra              |
+| ----------------------------------------------------------- | ------ | -------------------------------- |
+| `0.147.0` (previous plugin default)                         | 200    | absent                           |
+| `0.153.4` (npm `@openai/codex` stable at verification time) | 200    | `gpt-6-astra`, visibility `list` |
 
 This confirms version-gated catalog visibility for the tested account, not
 universal account access or successful model inference. No generation request,
 token refresh, credential write or user cache deletion was needed for this
-comparison. [Official model documentation](https://developers.openai.com/api/docs/models/gpt-6-astra)
+comparison.
+[Official model documentation](https://developers.openai.com/api/docs/models/gpt-6-astra)
 also describes a staged rollout; never synthesize access by adding a static row.
 
 ## Changes

@@ -33,7 +33,9 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 
 /** Whether a version string is a DSH prerelease (the packages that track DSH). */
 function isDshPrerelease(version) {
-  return /^\d+\.\d+\.\d+-(alpha|beta|rc)(\.|$)/.test(version.replace(/^[~^]/, ''))
+  return /^\d+\.\d+\.\d+-(alpha|beta|rc)(\.|$)/.test(
+    version.replace(/^[~^]/, ''),
+  )
 }
 
 /**
@@ -42,14 +44,22 @@ function isDshPrerelease(version) {
  * track DSH under a different name).
  */
 function isDshPackage(name) {
-  return name.startsWith('@deepseek-ai/dsh-') || isDshPrerelease(currentVersion(name) ?? '')
+  return (
+    name.startsWith('@deepseek-ai/dsh-') ||
+    isDshPrerelease(currentVersion(name) ?? '')
+  )
 }
 
 /** @deepseek-ai/* dependency names from package.json (dev + peer). */
 function hostPackages() {
   const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
   const names = new Set()
-  for (const section of ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']) {
+  for (const section of [
+    'dependencies',
+    'devDependencies',
+    'peerDependencies',
+    'optionalDependencies',
+  ]) {
     for (const name of Object.keys(pkg[section] ?? {})) {
       if (name.startsWith('@deepseek-ai/')) names.add(name)
     }
@@ -60,7 +70,12 @@ function hostPackages() {
 /** Current version string of a host package in package.json (any section). */
 function currentVersion(name) {
   const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
-  for (const section of ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']) {
+  for (const section of [
+    'dependencies',
+    'devDependencies',
+    'peerDependencies',
+    'optionalDependencies',
+  ]) {
     const current = pkg[section]?.[name]
     if (typeof current === 'string') return current
   }
@@ -92,21 +107,40 @@ function installHost(version) {
   const marker = join(dir, '.installed')
   if (!existsSync(marker)) {
     mkdirSync(dir, { recursive: true })
-    const specs = hostPackages().map(name => installSpec(name, version))
-    console.log(`installing ${specs.length} @deepseek-ai/* packages for DSH ${version} ...`)
+    const specs = hostPackages().map((name) => installSpec(name, version))
+    console.log(
+      `installing ${specs.length} @deepseek-ai/* packages for DSH ${version} ...`,
+    )
     // tsc only reads the declarations, so the packages' install scripts never run.
     try {
-      execFileSync('npm', ['install', '--no-save', '--no-audit', '--no-fund', '--ignore-scripts', '--legacy-peer-deps', '--prefix', dir, ...specs],
-        { stdio: ['ignore', 'inherit', 'pipe'] })
+      execFileSync(
+        'npm',
+        [
+          'install',
+          '--no-save',
+          '--no-audit',
+          '--no-fund',
+          '--ignore-scripts',
+          '--legacy-peer-deps',
+          '--prefix',
+          dir,
+          ...specs,
+        ],
+        { stdio: ['ignore', 'inherit', 'pipe'] },
+      )
     } catch (error) {
       const stderr = error.stderr?.toString() ?? ''
       process.stderr.write(stderr)
       // A package missing at this version is a finding about the host.
       // Anything else (network, registry) only means the check did not run.
       if (/\bcode (?:ETARGET|E404)\b/.test(stderr)) {
-        throw new MissingHostPackage(`a host package is not published at DSH ${version}`)
+        throw new MissingHostPackage(
+          `a host package is not published at DSH ${version}`,
+        )
       }
-      throw new SetupFailure(`npm could not install the host packages for DSH ${version}`)
+      throw new SetupFailure(
+        `npm could not install the host packages for DSH ${version}`,
+      )
     }
     writeFileSync(marker, `${version}\n`)
   }
@@ -126,30 +160,48 @@ function checkVersion(version) {
   const cacheDir = join(root, '.cache', 'host-exports')
   mkdirSync(cacheDir, { recursive: true })
   const tsconfigPath = join(cacheDir, `tsconfig.${version}.json`)
-  writeFileSync(tsconfigPath, JSON.stringify({
-    extends: join(root, 'tsconfig.json'),
-    compilerOptions: {
-      noEmit: true,
-      baseUrl: root,
-      paths: {
-        '@deepseek-ai/*': [join(dir, 'node_modules', '@deepseek-ai', '*')],
+  writeFileSync(
+    tsconfigPath,
+    JSON.stringify(
+      {
+        extends: join(root, 'tsconfig.json'),
+        compilerOptions: {
+          noEmit: true,
+          baseUrl: root,
+          paths: {
+            '@deepseek-ai/*': [join(dir, 'node_modules', '@deepseek-ai', '*')],
+          },
+        },
+        include: [join(root, 'src/**/*.ts'), join(root, 'src/**/*.tsx')],
       },
-    },
-    include: [join(root, 'src/**/*.ts'), join(root, 'src/**/*.tsx')],
-  }, null, 2))
+      null,
+      2,
+    ),
+  )
   try {
-    execFileSync(join(root, 'node_modules', '.bin', 'tsc'), ['-p', tsconfigPath], { stdio: 'pipe' })
-    console.log(`DSH ${version}: ok — src/ compiles against this version's host APIs`)
+    execFileSync(
+      join(root, 'node_modules', '.bin', 'tsc'),
+      ['-p', tsconfigPath],
+      { stdio: 'pipe' },
+    )
+    console.log(
+      `DSH ${version}: ok — src/ compiles against this version's host APIs`,
+    )
     return true
   } catch (error) {
-    const out = (error.stdout?.toString() ?? '') + (error.stderr?.toString() ?? '')
+    const out =
+      (error.stdout?.toString() ?? '') + (error.stderr?.toString() ?? '')
     // Only a diagnostic located in a source file is a finding. A compiler
     // that died, or reported only a config error, did not check anything.
     if (!/\.tsx?\(\d+,\d+\): error TS\d+:/.test(out)) {
       process.stderr.write(out)
-      throw new SetupFailure(`the compiler failed without a diagnostic: ${error.message}`)
+      throw new SetupFailure(
+        `the compiler failed without a diagnostic: ${error.message}`,
+      )
     }
-    console.log(`DSH ${version}: FAIL — src/ does not compile against this version's host APIs`)
+    console.log(
+      `DSH ${version}: FAIL — src/ does not compile against this version's host APIs`,
+    )
     // Show at most the first 30 diagnostics; the full output is in the CI log.
     console.log(out.split('\n').slice(0, 30).join('\n'))
     return false
@@ -161,7 +213,9 @@ function main() {
   let versions
   if (args.includes('--all')) {
     versions = readFileSync(join(root, 'dsh-versions.txt'), 'utf8')
-      .split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'))
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l && !l.startsWith('#'))
   } else {
     const i = args.indexOf('--dsh')
     if (i === -1 || !args[i + 1]) {
@@ -170,9 +224,11 @@ function main() {
     }
     versions = [args[i + 1]]
   }
-  const failed = versions.filter(v => !checkVersion(v))
+  const failed = versions.filter((v) => !checkVersion(v))
   if (failed.length > 0) {
-    console.error(`\n${failed.length} DSH version(s) break the host contract: ${failed.join(', ')}`)
+    console.error(
+      `\n${failed.length} DSH version(s) break the host contract: ${failed.join(', ')}`,
+    )
     process.exit(1)
   }
   console.log('\nAll requested DSH versions satisfy the host contract.')
@@ -180,8 +236,11 @@ function main() {
 
 /** Findings are returned, never thrown, so any exception means the check did not run. */
 function setupExit(error) {
-  console.error(`SETUP FAILURE: ${error instanceof Error ? error.message : String(error)}`)
-  if (!(error instanceof SetupFailure) && error instanceof Error) console.error(error.stack)
+  console.error(
+    `SETUP FAILURE: ${error instanceof Error ? error.message : String(error)}`,
+  )
+  if (!(error instanceof SetupFailure) && error instanceof Error)
+    console.error(error.stack)
   process.exit(2)
 }
 process.on('uncaughtException', setupExit)

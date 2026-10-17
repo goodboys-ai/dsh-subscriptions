@@ -72,21 +72,30 @@ export function buildVideoGenerateBody(args: {
   image_url?: string
 }): VideoGenerateRequestBody {
   const prompt = args.prompt.trim()
-  if (prompt.length === 0) throw new Error('video_generate: prompt must be a non-empty string')
-  if (args.duration !== undefined
-    && (!Number.isInteger(args.duration)
-      || args.duration < DURATION_RANGE.min
-      || args.duration > DURATION_RANGE.max)) {
-    throw new Error(`video_generate: duration must be an integer between ${String(DURATION_RANGE.min)} and ${String(DURATION_RANGE.max)} seconds`)
+  if (prompt.length === 0)
+    throw new Error('video_generate: prompt must be a non-empty string')
+  if (
+    args.duration !== undefined &&
+    (!Number.isInteger(args.duration) ||
+      args.duration < DURATION_RANGE.min ||
+      args.duration > DURATION_RANGE.max)
+  ) {
+    throw new Error(
+      `video_generate: duration must be an integer between ${String(DURATION_RANGE.min)} and ${String(DURATION_RANGE.max)} seconds`,
+    )
   }
   const imageUrl = args.image_url?.trim()
   return {
     prompt,
     model: VIDEO_GENERATE_MODEL,
-    ...args.duration === undefined ? {} : { duration: args.duration },
-    ...args.aspect_ratio === undefined ? {} : { aspect_ratio: args.aspect_ratio },
-    ...args.resolution === undefined ? {} : { resolution: args.resolution },
-    ...imageUrl === undefined || imageUrl.length === 0 ? {} : { image: { url: imageUrl } },
+    ...(args.duration === undefined ? {} : { duration: args.duration }),
+    ...(args.aspect_ratio === undefined
+      ? {}
+      : { aspect_ratio: args.aspect_ratio }),
+    ...(args.resolution === undefined ? {} : { resolution: args.resolution }),
+    ...(imageUrl === undefined || imageUrl.length === 0
+      ? {}
+      : { image: { url: imageUrl } }),
   }
 }
 
@@ -111,7 +120,10 @@ const REQUEST_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/
 
 export function parseVideoStartResponse(payload: unknown): string {
   const body = isRecord(payload) ? payload : {}
-  if (typeof body.request_id !== 'string' || !REQUEST_ID_PATTERN.test(body.request_id)) {
+  if (
+    typeof body.request_id !== 'string' ||
+    !REQUEST_ID_PATTERN.test(body.request_id)
+  ) {
     throw new Error('video_generate: the response carried no usable request_id')
   }
   return body.request_id
@@ -136,12 +148,16 @@ export function parseVideoStatusResponse(payload: unknown): VideoStatus {
     case 'done': {
       const video = isRecord(body.video) ? body.video : {}
       if (typeof video.url !== 'string' || video.url.length === 0) {
-        throw new Error('video_generate: the completed response carried no video URL')
+        throw new Error(
+          'video_generate: the completed response carried no video URL',
+        )
       }
       return {
         status: 'done',
         url: video.url,
-        ...typeof video.duration === 'number' ? { duration: video.duration } : {},
+        ...(typeof video.duration === 'number'
+          ? { duration: video.duration }
+          : {}),
       }
     }
     case 'failed':
@@ -151,7 +167,9 @@ export function parseVideoStatusResponse(payload: unknown): VideoStatus {
       return { status: body.status }
     default:
       // Safe here also excludes provider-controlled free text, not all system secrets.
-      throw new Error('video_generate: unexpected status: [provider response body omitted]')
+      throw new Error(
+        'video_generate: unexpected status: [provider response body omitted]',
+      )
   }
 }
 
@@ -177,13 +195,20 @@ function sleep(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     const onAbort = (): void => {
       clearTimeout(timer)
-      reject(signal.reason instanceof Error ? signal.reason : new Error('video_generate: aborted'))
+      reject(
+        signal.reason instanceof Error
+          ? signal.reason
+          : new Error('video_generate: aborted'),
+      )
     }
     const timer = setTimeout(() => {
       signal.removeEventListener('abort', onAbort)
       resolve()
     }, ms)
-    if (signal.aborted) { onAbort(); return }
+    if (signal.aborted) {
+      onAbort()
+      return
+    }
     signal.addEventListener('abort', onAbort, { once: true })
   })
 }
@@ -200,35 +225,46 @@ interface VideoGenerateValue {
  * @param options - grok session source, fetch implementation, and video directory.
  * @returns the tool to register on `ctx.tools`.
  */
-export function createVideoGenerateTool(options: VideoGenerateToolOptions): ToolDefinition {
+export function createVideoGenerateTool(
+  options: VideoGenerateToolOptions,
+): ToolDefinition {
   const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS
   const maxWaitMs = options.maxWaitMs ?? DEFAULT_MAX_WAIT_MS
   return defineTool({
     name: 'video_generate',
-    description: `Generate a short video (1-15 seconds) with the grok subscription (${VIDEO_GENERATE_MODEL}) `
-      + 'and save it as an MP4 file. Generation is asynchronous and may take a minute or more; '
-      + 'the tool waits for completion and returns the saved file path. '
-      + 'Optionally animate a still image by passing image_url (image-to-video).',
+    description:
+      `Generate a short video (1-15 seconds) with the grok subscription (${VIDEO_GENERATE_MODEL}) ` +
+      'and save it as an MP4 file. Generation is asynchronous and may take a minute or more; ' +
+      'the tool waits for completion and returns the saved file path. ' +
+      'Optionally animate a still image by passing image_url (image-to-video).',
     parameters: {
-      prompt: { type: 'string', required: true, description: 'What the video should show.' },
+      prompt: {
+        type: 'string',
+        required: true,
+        description: 'What the video should show.',
+      },
       duration: {
         type: 'integer',
-        description: 'Clip length in seconds (1-15); omit for the provider default.',
+        description:
+          'Clip length in seconds (1-15); omit for the provider default.',
       },
       aspect_ratio: {
         type: 'string',
         enum: ['16:9', '9:16', '1:1', '4:3', '3:4', '3:2', '2:3'],
-        description: 'Output aspect ratio; omit for the provider default (16:9).',
+        description:
+          'Output aspect ratio; omit for the provider default (16:9).',
       },
       resolution: {
         type: 'string',
         enum: ['480p', '720p', '1080p'],
-        description: 'Output resolution; omit for the provider default (480p). Higher is slower.',
+        description:
+          'Output resolution; omit for the provider default (480p). Higher is slower.',
       },
       image_url: {
         type: 'string',
-        description: 'Optional public URL or base64 data URL of a JPEG/PNG/WebP image to animate '
-          + '(image-to-video); the image becomes the starting frame.',
+        description:
+          'Optional public URL or base64 data URL of a JPEG/PNG/WebP image to animate ' +
+          '(image-to-video); the image becomes the starting frame.',
       },
     },
     output: {
@@ -241,20 +277,25 @@ export function createVideoGenerateTool(options: VideoGenerateToolOptions): Tool
         },
         additionalProperties: false,
       },
-      render: (_args, value) => [{
-        type: 'text',
-        text: `Saved video to ${value.path}`
-          + (value.duration === undefined ? '' : ` (${String(value.duration)}s)`)
-          + `\nTemporary provider URL (expires soon): ${value.url}`,
-      }],
+      render: (_args, value) => [
+        {
+          type: 'text',
+          text:
+            `Saved video to ${value.path}` +
+            (value.duration === undefined
+              ? ''
+              : ` (${String(value.duration)}s)`) +
+            `\nTemporary provider URL (expires soon): ${value.url}`,
+        },
+      ],
       // The client toolview fetches the bytes by bare file name through the
       // `/subscriptions-auth` `video` endpoint; meta hands it that name.
       presentationMeta: (_args, value) => ({
         fileName: basename(value.path),
-        ...value.duration === undefined ? {} : { duration: value.duration },
+        ...(value.duration === undefined ? {} : { duration: value.duration }),
       }),
     },
-    presentCall: args => ({
+    presentCall: (args) => ({
       card: 'generic',
       title: `video_generate: ${truncate(args.prompt)}`,
     }),
@@ -263,8 +304,8 @@ export function createVideoGenerateTool(options: VideoGenerateToolOptions): Tool
       const session = await options.tokens.session()
       const fetchFn = options.fetchFn ?? hostFetch
       const headers = {
-        'authorization': `Bearer ${session.accessToken}`,
-        'accept': 'application/json',
+        authorization: `Bearer ${session.accessToken}`,
+        accept: 'application/json',
       }
       const submit = await fetchFn(VIDEO_GENERATE_URL, {
         method: 'POST',
@@ -273,7 +314,9 @@ export function createVideoGenerateTool(options: VideoGenerateToolOptions): Tool
         signal: exec.signal,
       })
       if (!submit.ok) throw await httpLlmError(submit, 'video_generate')
-      const requestId = parseVideoStartResponse(await parseProviderJson(submit, 'video generate start'))
+      const requestId = parseVideoStartResponse(
+        await parseProviderJson(submit, 'video generate start'),
+      )
 
       const deadline = Date.now() + maxWaitMs
       let done: { url: string; duration?: number }
@@ -285,7 +328,9 @@ export function createVideoGenerateTool(options: VideoGenerateToolOptions): Tool
           signal: exec.signal,
         })
         if (!poll.ok) throw await httpLlmError(poll, 'video_generate')
-        const status = parseVideoStatusResponse(await parseProviderJson(poll, 'video generate status poll'))
+        const status = parseVideoStatusResponse(
+          await parseProviderJson(poll, 'video generate status poll'),
+        )
         if (status.status === 'done') {
           done = status
           break
@@ -294,17 +339,25 @@ export function createVideoGenerateTool(options: VideoGenerateToolOptions): Tool
           // No provider response text on this path. The request id is shaped like an
           // opaque id before it is stored (see REQUEST_ID_PATTERN), so it is an
           // identifier rather than provider prose; anything else was refused at parse.
-          throw new Error(`video_generate: generation ${status.status} (request ${requestId})`
-            + ': [provider response body omitted]')
+          throw new Error(
+            `video_generate: generation ${status.status} (request ${requestId})` +
+              ': [provider response body omitted]',
+          )
         }
         if (Date.now() >= deadline) {
-          throw new Error(`video_generate: timed out after ${String(maxWaitMs)}ms waiting for request ${requestId}`)
+          throw new Error(
+            `video_generate: timed out after ${String(maxWaitMs)}ms waiting for request ${requestId}`,
+          )
         }
       }
 
       // The MP4 lives on a separate signed host: no auth header on purpose.
-      const download = await fetchFn(done.url, { method: 'GET', signal: exec.signal })
-      if (!download.ok) throw await httpLlmError(download, 'video_generate download')
+      const download = await fetchFn(done.url, {
+        method: 'GET',
+        signal: exec.signal,
+      })
+      if (!download.ok)
+        throw await httpLlmError(download, 'video_generate download')
       const data = Buffer.from(await download.arrayBuffer())
       const directory = options.videosDir ?? videosDirectory()
       await mkdir(directory, { recursive: true })
@@ -314,7 +367,7 @@ export function createVideoGenerateTool(options: VideoGenerateToolOptions): Tool
       const value: VideoGenerateValue = {
         path,
         url: done.url,
-        ...done.duration === undefined ? {} : { duration: done.duration },
+        ...(done.duration === undefined ? {} : { duration: done.duration }),
       }
       return value
     },

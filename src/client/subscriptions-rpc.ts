@@ -1,4 +1,7 @@
-import type { ConnectionHandle, RpcResult } from '@deepseek-ai/dsh-api-remotes/client'
+import type {
+  ConnectionHandle,
+  RpcResult,
+} from '@deepseek-ai/dsh-api-remotes/client'
 
 /**
  * The node half mounts every endpoint as an exact POST route on the shared
@@ -22,13 +25,23 @@ export class SubscriptionsAuthError extends Error {}
  * @param payload - endpoint-owned request payload.
  * @returns the success value, cast by the caller to the endpoint's shape.
  */
-export async function callSubscriptionsAuth<T>(rpc: ConnectionHandle['rpc'], endpoint: string, payload: unknown): Promise<T> {
+export async function callSubscriptionsAuth<T>(
+  rpc: ConnectionHandle['rpc'],
+  endpoint: string,
+  payload: unknown,
+): Promise<T> {
   let result: RpcResult<unknown>
   try {
-    result = await rpc.call(SUBSCRIPTIONS_AUTH_CHANNEL, `${SUBSCRIPTIONS_AUTH_PREFIX}${endpoint}`, payload)
+    result = await rpc.call(
+      SUBSCRIPTIONS_AUTH_CHANNEL,
+      `${SUBSCRIPTIONS_AUTH_PREFIX}${endpoint}`,
+      payload,
+    )
   } catch (error) {
     // The transport rejected rather than answering; surface the same way.
-    throw new SubscriptionsAuthError(error instanceof Error ? error.message : String(error))
+    throw new SubscriptionsAuthError(
+      error instanceof Error ? error.message : String(error),
+    )
   }
   if (!result.ok) throw new SubscriptionsAuthError(result.error.message)
   return result.value as T

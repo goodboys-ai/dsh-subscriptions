@@ -231,13 +231,31 @@ jobs:
           path: dsh-versions.txt
           overwrite: true
 
+  lint:
+    # Formatting and static checks that do not depend on a DSH version, so
+    # they run once. repo-checks stays free of a pnpm install.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10.33.2
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+      - run: pnpm lint
+
   ci-gate:
     # Stable required check for branch protection. A successful matrix job
     # uploads a version-named marker; missing markers keep this gate red even
     # when GitHub reports a skipped dependent job as successful.
     name: CI gate
     if: ${{ always() }}
-    needs: [versions, pack, build-and-test, boot-smoke, host-e2e, repo-checks]
+    needs:
+      [versions, pack, build-and-test, boot-smoke, host-e2e, repo-checks, lint]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -252,9 +270,10 @@ jobs:
           BOOT_RESULT: ${{ needs.boot-smoke.result }}
           E2E_RESULT: ${{ needs.host-e2e.result }}
           REPO_RESULT: ${{ needs.repo-checks.result }}
+          LINT_RESULT: ${{ needs.lint.result }}
         run: |
           failed=0
-          for result in "$VERSIONS_RESULT" "$PACK_RESULT" "$BUILD_RESULT" "$BOOT_RESULT" "$E2E_RESULT" "$REPO_RESULT"; do
+          for result in "$VERSIONS_RESULT" "$PACK_RESULT" "$BUILD_RESULT" "$BOOT_RESULT" "$E2E_RESULT" "$REPO_RESULT" "$LINT_RESULT"; do
             [[ "$result" == success ]] || failed=1
           done
           mapfile -t versions < <(grep -Ev '^#|^[[:space:]]*$' dsh-versions.txt)

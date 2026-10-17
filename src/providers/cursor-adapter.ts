@@ -5,19 +5,25 @@ import { CursorAdapter } from 'dsh-subscriptions/cursor-transport'
  * The imported Cursor transport still reads tool results as user-role content
  * blocks. DSH 0.1.7 carries them as first-class role=tool messages instead.
  */
-export function projectCursorMessages(messages: GenerateOptions['messages']): unknown[] {
-  return messages.map(message => message.role === 'tool'
-    ? {
-      ...message,
-      role: 'user',
-      content: [{
-        type: 'tool-result',
-        toolCallId: message.toolCallId,
-        isError: message.isError,
-        content: message.content,
-      }],
-    }
-    : message)
+export function projectCursorMessages(
+  messages: GenerateOptions['messages'],
+): unknown[] {
+  return messages.map((message) =>
+    message.role === 'tool'
+      ? {
+          ...message,
+          role: 'user',
+          content: [
+            {
+              type: 'tool-result',
+              toolCallId: message.toolCallId,
+              isError: message.isError,
+              content: message.content,
+            },
+          ],
+        }
+      : message,
+  )
 }
 
 type CursorAuthPort = ConstructorParameters<typeof CursorAdapter>[0]['auth']
@@ -28,7 +34,11 @@ type CursorAuthPort = ConstructorParameters<typeof CursorAdapter>[0]['auth']
  * carry a `classifyCursorError` code or `CURSOR_PROTOCOL`, never these, so the
  * code is a sound discriminator for them.
  */
-const LOCAL_VENDOR_CODES: ReadonlySet<string> = new Set(['UNSUPPORTED_OPTION', 'UNSUPPORTED_CONTENT', 'TOOL_LIMIT'])
+const LOCAL_VENDOR_CODES: ReadonlySet<string> = new Set([
+  'UNSUPPORTED_OPTION',
+  'UNSUPPORTED_CONTENT',
+  'TOOL_LIMIT',
+])
 
 /**
  * Plain-error messages the vendor throws as fixed literals (`vendor/cursor/
@@ -78,20 +88,33 @@ const LOCAL_VENDOR_PATTERNS: readonly RegExp[] = [
  * protocol errors) are not recognised and stay replaced.
  */
 const LOCAL_SYSTEM_ERRNO: ReadonlySet<string> = new Set([
-  'ECONNREFUSED', 'ECONNRESET', 'ECONNABORTED', 'ENOTFOUND', 'EAI_AGAIN', 'ETIMEDOUT',
-  'ENETUNREACH', 'ENETDOWN', 'EHOSTUNREACH', 'EHOSTDOWN', 'EPIPE',
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'ECONNABORTED',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+  'ETIMEDOUT',
+  'ENETUNREACH',
+  'ENETDOWN',
+  'EHOSTUNREACH',
+  'EHOSTDOWN',
+  'EPIPE',
 ])
 
 function errorCode(value: unknown): unknown {
-  return typeof value === 'object' && value !== null ? (value as { code?: unknown }).code : undefined
+  return typeof value === 'object' && value !== null
+    ? (value as { code?: unknown }).code
+    : undefined
 }
 
 function isLocalSystemError(error: unknown): boolean {
   if (!(error instanceof Error)) return false
   const own = errorCode(error)
   const cause = errorCode(error.cause)
-  return (typeof own === 'string' && LOCAL_SYSTEM_ERRNO.has(own))
-    || (typeof cause === 'string' && LOCAL_SYSTEM_ERRNO.has(cause))
+  return (
+    (typeof own === 'string' && LOCAL_SYSTEM_ERRNO.has(own)) ||
+    (typeof cause === 'string' && LOCAL_SYSTEM_ERRNO.has(cause))
+  )
 }
 
 function messageOf(error: unknown): string {
@@ -136,7 +159,8 @@ class LocalFailureMessages {
   wrapAttachments(resolve: () => unknown): () => unknown {
     return () => {
       const store = resolve()
-      const readImage = (store as { readImage?: unknown } | undefined)?.readImage
+      const readImage = (store as { readImage?: unknown } | undefined)
+        ?.readImage
       if (typeof readImage !== 'function') return store
       return Object.create(store as object, {
         readImage: {
@@ -170,12 +194,14 @@ class LocalFailureMessages {
     }
     const wait = target.waitForResponse
     if (typeof wait === 'function') {
-      target.waitForResponse = (...args) => Promise.resolve(wait.apply(target, args)).catch(observe)
+      target.waitForResponse = (...args) =>
+        Promise.resolve(wait.apply(target, args)).catch(observe)
     }
     const frames = target.frames
     const next = frames?.next
     if (frames !== undefined && typeof next === 'function') {
-      frames.next = (...args) => Promise.resolve(next.apply(frames, args)).catch(observe)
+      frames.next = (...args) =>
+        Promise.resolve(next.apply(frames, args)).catch(observe)
     }
     return run
   }
@@ -198,7 +224,10 @@ class LocalFailureMessages {
 }
 
 function isVendorLocalMessage(message: string): boolean {
-  return LOCAL_VENDOR_MESSAGES.has(message) || LOCAL_VENDOR_PATTERNS.some(pattern => pattern.test(message))
+  return (
+    LOCAL_VENDOR_MESSAGES.has(message) ||
+    LOCAL_VENDOR_PATTERNS.some((pattern) => pattern.test(message))
+  )
 }
 
 /**
@@ -236,33 +265,45 @@ function isVendorLocalMessage(message: string): boolean {
  * not done here and is not verified.
  */
 export class CursorCompatAdapter extends CursorAdapter {
-  private readonly visibleModels: (() => readonly string[] | undefined) | undefined
+  private readonly visibleModels:
+    (() => readonly string[] | undefined) | undefined
   private readonly localFailures: LocalFailureMessages
 
-  constructor(options: ConstructorParameters<typeof CursorAdapter>[0] & {
-    visibleModels?: () => readonly string[] | undefined
-  }) {
+  constructor(
+    options: ConstructorParameters<typeof CursorAdapter>[0] & {
+      visibleModels?: () => readonly string[] | undefined
+    },
+  ) {
     const localFailures = new LocalFailureMessages()
     super({
       ...options,
       auth: localFailures.wrap(options.auth),
       ...(options.resolveAttachments === undefined
         ? {}
-        : { resolveAttachments: localFailures.wrapAttachments(options.resolveAttachments) }),
+        : {
+            resolveAttachments: localFailures.wrapAttachments(
+              options.resolveAttachments,
+            ),
+          }),
     })
     this.localFailures = localFailures
     this.visibleModels = options.visibleModels
     // The vendor assigns `createAgentRun` (the injected one, or its own
     // `AgentRun` factory) in its constructor but does not type it as a member.
-    const vendor = this as unknown as { createAgentRun: (access: string) => unknown }
+    const vendor = this as unknown as {
+      createAgentRun: (access: string) => unknown
+    }
     const createRun = vendor.createAgentRun
-    vendor.createAgentRun = access => localFailures.observeRun(createRun(access))
+    vendor.createAgentRun = (access) =>
+      localFailures.observeRun(createRun(access))
   }
 
   override async listModels(provider: string) {
     const models = await super.listModels(provider)
     const visible = this.visibleModels?.()
-    return visible === undefined ? models : models.filter(model => visible.includes(model.id))
+    return visible === undefined
+      ? models
+      : models.filter((model) => visible.includes(model.id))
   }
 
   override async *stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
@@ -270,12 +311,17 @@ export class CursorCompatAdapter extends CursorAdapter {
       ...options,
       // Existing DSH sessions may still hold this retired selection.
       model: options.model === 'composer-2' ? 'composer-2.5' : options.model,
-      messages: projectCursorMessages(options.messages) as GenerateOptions['messages'],
+      messages: projectCursorMessages(
+        options.messages,
+      ) as GenerateOptions['messages'],
     })) {
-      if (chunk.type === 'finish' && chunk.reason.kind === 'error'
-        && !LOCAL_VENDOR_CODES.has(chunk.reason.failure.code)
-        && !isVendorLocalMessage(chunk.reason.failure.message)
-        && !this.localFailures.has(chunk.reason.failure.message)) {
+      if (
+        chunk.type === 'finish' &&
+        chunk.reason.kind === 'error' &&
+        !LOCAL_VENDOR_CODES.has(chunk.reason.failure.code) &&
+        !isVendorLocalMessage(chunk.reason.failure.message) &&
+        !this.localFailures.has(chunk.reason.failure.message)
+      ) {
         // The vendor uses raw headers, trailers and end-stream errors for protocol
         // checks and classification before this boundary. Keep its code and retry
         // decisions; do not reclassify the replacement text. "Safe" here means no

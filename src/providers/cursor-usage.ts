@@ -7,7 +7,7 @@ const ORIGIN = 'https://cursor.com'
 
 function record(value: unknown): Record<string, unknown> | undefined {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? value as Record<string, unknown>
+    ? (value as Record<string, unknown>)
     : undefined
 }
 
@@ -25,7 +25,9 @@ export function cursorUserId(token: string): string | undefined {
   try {
     const parts = token.split('.')
     if (parts.length !== 3 || !parts[1]) return undefined
-    const claims = record(JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8')))
+    const claims = record(
+      JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8')),
+    )
     const raw = claims?.sub
     if (typeof raw !== 'string' || raw.length === 0) return undefined
     const id = raw.includes('|') ? raw.split('|').at(-1) : raw
@@ -35,7 +37,12 @@ export function cursorUserId(token: string): string | undefined {
   }
 }
 
-async function dashboardJson(url: string, cookie: string, http: typeof fetch, signal?: AbortSignal): Promise<unknown> {
+async function dashboardJson(
+  url: string,
+  cookie: string,
+  http: typeof fetch,
+  signal?: AbortSignal,
+): Promise<unknown> {
   const response = await http(url, {
     headers: {
       accept: 'application/json',
@@ -45,24 +52,38 @@ async function dashboardJson(url: string, cookie: string, http: typeof fetch, si
     },
     ...(signal === undefined ? {} : { signal }),
   })
-  if (!response.ok) throw new Error(`Cursor usage endpoint returned HTTP ${response.status}`)
+  if (!response.ok)
+    throw new Error(`Cursor usage endpoint returned HTTP ${response.status}`)
   return parseProviderJson(response, 'Cursor usage')
 }
 
-function legacyRequestWindow(body: unknown, resetsAt?: number): UsageWindow | undefined {
+function legacyRequestWindow(
+  body: unknown,
+  resetsAt?: number,
+): UsageWindow | undefined {
   const usage = record(body)
   if (usage === undefined) return undefined
   const gpt4 = record(usage['gpt-4'])
-  const candidate = gpt4 !== undefined && number(gpt4.numRequests) !== undefined ? gpt4 : Object.values(usage)
-    .map(record)
-    .filter((value): value is Record<string, unknown> => value !== undefined)
-    .sort((a, b) => (number(b.maxRequestUsage) ?? 0) - (number(a.maxRequestUsage) ?? 0))[0]
+  const candidate =
+    gpt4 !== undefined && number(gpt4.numRequests) !== undefined
+      ? gpt4
+      : Object.values(usage)
+          .map(record)
+          .filter(
+            (value): value is Record<string, unknown> => value !== undefined,
+          )
+          .sort(
+            (a, b) =>
+              (number(b.maxRequestUsage) ?? 0) -
+              (number(a.maxRequestUsage) ?? 0),
+          )[0]
   const used = number(candidate?.numRequests)
   const limit = number(candidate?.maxRequestUsage)
   if (used === undefined || limit === undefined || limit <= 0) return undefined
   return {
-    kind: 'other', scope: 'Included requests',
-    usedPercent: Math.max(0, Math.min(100, used / limit * 100)),
+    kind: 'other',
+    scope: 'Included requests',
+    usedPercent: Math.max(0, Math.min(100, (used / limit) * 100)),
     ...(resetsAt === undefined ? {} : { resetsAt }),
   }
 }
@@ -77,25 +98,45 @@ export async function fetchCursorUsage(
   signal?: AbortSignal,
 ): Promise<ProviderUsage> {
   const userId = cursorUserId(accessToken)
-  if (userId === undefined) throw new Error('Cursor session token has no usable user identity')
+  if (userId === undefined)
+    throw new Error('Cursor session token has no usable user identity')
   const cookie = `WorkosCursorSessionToken=${userId}::${accessToken}`
   const [summaryResult, legacyResult] = await Promise.allSettled([
     dashboardJson(`${ORIGIN}/api/usage-summary`, cookie, http, signal),
-    dashboardJson(`${ORIGIN}/api/usage?user=${encodeURIComponent(userId)}`, cookie, http, signal),
+    dashboardJson(
+      `${ORIGIN}/api/usage?user=${encodeURIComponent(userId)}`,
+      cookie,
+      http,
+      signal,
+    ),
   ])
-  if (summaryResult.status === 'rejected' && legacyResult.status === 'rejected') {
-    throw summaryResult.reason instanceof Error ? summaryResult.reason : new Error('Cursor usage is unavailable')
+  if (
+    summaryResult.status === 'rejected' &&
+    legacyResult.status === 'rejected'
+  ) {
+    throw summaryResult.reason instanceof Error
+      ? summaryResult.reason
+      : new Error('Cursor usage is unavailable')
   }
 
-  const summary = summaryResult.status === 'fulfilled' ? record(summaryResult.value) : undefined
-  const plan = record(record(summary?.individualUsage)?.plan) ?? record(record(summary?.teamUsage)?.plan)
+  const summary =
+    summaryResult.status === 'fulfilled'
+      ? record(summaryResult.value)
+      : undefined
+  const plan =
+    record(record(summary?.individualUsage)?.plan) ??
+    record(record(summary?.teamUsage)?.plan)
   const resetValue = summary?.billingCycleEnd
-  const parsedReset = typeof resetValue === 'string' ? Date.parse(resetValue) : NaN
+  const parsedReset =
+    typeof resetValue === 'string' ? Date.parse(resetValue) : NaN
   const resetsAt = Number.isFinite(parsedReset) ? parsedReset : undefined
   const startValue = summary?.billingCycleStart
-  const parsedStart = typeof startValue === 'string' ? Date.parse(startValue) : NaN
-  const timing = { ...(resetsAt === undefined ? {} : { resetsAt }),
-    ...(Number.isFinite(parsedStart) ? { startsAt: parsedStart } : {}) }
+  const parsedStart =
+    typeof startValue === 'string' ? Date.parse(startValue) : NaN
+  const timing = {
+    ...(resetsAt === undefined ? {} : { resetsAt }),
+    ...(Number.isFinite(parsedStart) ? { startsAt: parsedStart } : {}),
+  }
   const windows: UsageWindow[] = []
   for (const [field, scope] of [
     ['totalPercentUsed', 'Included'],
@@ -103,10 +144,14 @@ export async function fetchCursorUsage(
     ['apiPercentUsed', 'Other Models'],
   ] as const) {
     const usedPercent = number(plan?.[field])
-    if (usedPercent === undefined || usedPercent < 0 || usedPercent > 100) continue
+    if (usedPercent === undefined || usedPercent < 0 || usedPercent > 100)
+      continue
     windows.push({ kind: 'other', scope, usedPercent, ...timing })
   }
-  const legacy = legacyRequestWindow(legacyResult.status === 'fulfilled' ? legacyResult.value : undefined, resetsAt)
+  const legacy = legacyRequestWindow(
+    legacyResult.status === 'fulfilled' ? legacyResult.value : undefined,
+    resetsAt,
+  )
   if (legacy !== undefined) windows.push({ ...legacy, ...timing })
   if (windows.length === 0 && summary?.isUnlimited !== true) {
     throw new Error('Cursor usage response has no quota windows')
@@ -115,6 +160,8 @@ export async function fetchCursorUsage(
   return {
     supported: true,
     windows,
-    ...(typeof membershipType === 'string' && membershipType.length > 0 ? { plan: membershipType } : {}),
+    ...(typeof membershipType === 'string' && membershipType.length > 0
+      ? { plan: membershipType }
+      : {}),
   }
 }

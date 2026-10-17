@@ -2,12 +2,18 @@
 import { randomUUID } from 'node:crypto'
 import { attributionHeaders } from '@deepseek-ai/dsh-llm'
 import { WebError } from '@deepseek-ai/dsh-web'
-import type { WebSearchProvider, WebSearchRequest, WebSearchResult, WebSearchSource } from '@deepseek-ai/dsh-web'
+import type {
+  WebSearchProvider,
+  WebSearchRequest,
+  WebSearchResult,
+  WebSearchSource,
+} from '@deepseek-ai/dsh-web'
 import type { CodexSession } from '../auth/store.js'
 import type { AccountTokenManager } from '../providers/accounts.js'
 
 export const CODEX_SEARCH_PROVIDER_ID = 'codex'
-export const CODEX_SEARCH_URL = 'https://chatgpt.com/backend-api/codex/alpha/search'
+export const CODEX_SEARCH_URL =
+  'https://chatgpt.com/backend-api/codex/alpha/search'
 export const CODEX_SEARCH_MODEL = 'gpt-5.6-terra'
 const MAX_ATTEMPTS = 5
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024
@@ -33,9 +39,14 @@ export class CodexWebSearchProvider implements WebSearchProvider {
 
   constructor(private readonly options: CodexWebSearchOptions) {}
 
-  available(): boolean { return this.options.enabled?.() ?? true }
+  available(): boolean {
+    return this.options.enabled?.() ?? true
+  }
 
-  async search(request: WebSearchRequest, signal?: AbortSignal): Promise<WebSearchResult> {
+  async search(
+    request: WebSearchRequest,
+    signal?: AbortSignal,
+  ): Promise<WebSearchResult> {
     throwIfAborted(signal)
     let session: CodexSession
     try {
@@ -63,7 +74,11 @@ export class CodexWebSearchProvider implements WebSearchProvider {
     return normalizeCodexSearchResponse(value)
   }
 
-  private async dispatch(body: object, session: CodexSession, signal?: AbortSignal): Promise<unknown> {
+  private async dispatch(
+    body: object,
+    session: CodexSession,
+    signal?: AbortSignal,
+  ): Promise<unknown> {
     const fetchFn = this.options.fetchFn ?? fetch
     const retryBaseMs = this.options.retryBaseMs ?? RETRY_BASE_MS
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -73,10 +88,10 @@ export class CodexWebSearchProvider implements WebSearchProvider {
         response = await fetchFn(CODEX_SEARCH_URL, {
           method: 'POST',
           headers: {
-            'authorization': `Bearer ${session.accessToken}`,
+            authorization: `Bearer ${session.accessToken}`,
             'chatgpt-account-id': session.accountId,
             'content-type': 'application/json',
-            'originator': 'codex_cli_rs',
+            originator: 'codex_cli_rs',
             ...attributionHeaders(),
           },
           body: JSON.stringify(body),
@@ -88,49 +103,84 @@ export class CodexWebSearchProvider implements WebSearchProvider {
           await abortableDelay(retryBaseMs * 2 ** (attempt - 1), signal)
           continue
         }
-        throw new WebError('Codex Web Search failed after five transport attempts', 'CODEX_SEARCH_NETWORK', { cause })
+        throw new WebError(
+          'Codex Web Search failed after five transport attempts',
+          'CODEX_SEARCH_NETWORK',
+          { cause },
+        )
       }
       if (response.status === 429) {
         await discard(response)
-        throw new WebError('Codex Web Search was rate-limited; retry later', 'CODEX_SEARCH_RATE_LIMIT')
+        throw new WebError(
+          'Codex Web Search was rate-limited; retry later',
+          'CODEX_SEARCH_RATE_LIMIT',
+        )
       }
-      if (response.status >= 500 && response.status <= 599 && attempt < MAX_ATTEMPTS) {
+      if (
+        response.status >= 500 &&
+        response.status <= 599 &&
+        attempt < MAX_ATTEMPTS
+      ) {
         await discard(response)
         await abortableDelay(retryBaseMs * 2 ** (attempt - 1), signal)
         continue
       }
       if (!response.ok) {
         await discard(response)
-        throw new WebError(`Codex Web Search returned HTTP ${response.status}`, 'CODEX_SEARCH_UPSTREAM')
+        throw new WebError(
+          `Codex Web Search returned HTTP ${response.status}`,
+          'CODEX_SEARCH_UPSTREAM',
+        )
       }
       const text = await boundedText(response, signal)
-      try { return JSON.parse(text) as unknown } catch {
+      try {
+        return JSON.parse(text) as unknown
+      } catch {
         // No cause: the host expands causes recursively, and Node's parse error
         // quotes a bounded excerpt of the body, so attaching it would relocate
         // the leak rather than remove it.
-        throw new WebError('Codex Web Search returned invalid JSON', 'CODEX_SEARCH_RESPONSE')
+        throw new WebError(
+          'Codex Web Search returned invalid JSON',
+          'CODEX_SEARCH_RESPONSE',
+        )
       }
     }
-    throw new WebError('Codex Web Search exhausted its retry policy', 'CODEX_SEARCH_UPSTREAM')
+    throw new WebError(
+      'Codex Web Search exhausted its retry policy',
+      'CODEX_SEARCH_UPSTREAM',
+    )
   }
 }
 
 export function normalizeCodexSearchResponse(value: unknown): WebSearchResult {
   if (!record(value) || typeof value.output !== 'string') {
-    throw new WebError('Codex Web Search returned an unusable response', 'CODEX_SEARCH_RESPONSE')
+    throw new WebError(
+      'Codex Web Search returned an unusable response',
+      'CODEX_SEARCH_RESPONSE',
+    )
   }
   const sources: WebSearchSource[] = []
   const seen = new Set<string>()
-  if (Array.isArray(value.results)) for (const candidate of value.results) {
-    if (!record(candidate)) continue
-    const rawUrl = safeString(candidate.url, 8192) ?? safeString(candidate.source_url, 8192)
-    const url = rawUrl === undefined ? undefined : httpUrl(rawUrl)
-    if (url === undefined || seen.has(url)) continue
-    seen.add(url)
-    const title = safeString(candidate.title, 1000) ?? safeString(candidate.source_title, 1000)
-    const snippet = safeString(candidate.snippet, 4000) ?? safeString(candidate.text, 4000)
-    sources.push({ url, ...(title ? { title } : {}), ...(snippet ? { snippet } : {}) })
-  }
+  if (Array.isArray(value.results))
+    for (const candidate of value.results) {
+      if (!record(candidate)) continue
+      const rawUrl =
+        safeString(candidate.url, 8192) ??
+        safeString(candidate.source_url, 8192)
+      const url = rawUrl === undefined ? undefined : httpUrl(rawUrl)
+      if (url === undefined || seen.has(url)) continue
+      seen.add(url)
+      const title =
+        safeString(candidate.title, 1000) ??
+        safeString(candidate.source_title, 1000)
+      const snippet =
+        safeString(candidate.snippet, 4000) ?? safeString(candidate.text, 4000)
+      sources.push({
+        url,
+        ...(title ? { title } : {}),
+        ...(snippet ? { snippet } : {}),
+      })
+    }
   return { content: value.output, sources, truncated: false }
 }
 
@@ -140,38 +190,71 @@ function record(value: unknown): value is Record<string, unknown> {
 function safeString(value: unknown, max: number): string | undefined {
   if (typeof value !== 'string') return undefined
   const text = value.trim()
-  if (!text || text.length > max || /[\u0000-\u001f]/.test(text)) return undefined
+  // The class is the C0 control range being rejected, not an accidental escape.
+  // eslint-disable-next-line no-control-regex -- reject NUL through unit separator in provider text
+  if (!text || text.length > max || /[\u0000-\u001f]/.test(text))
+    return undefined
   return text
 }
 function httpUrl(value: string): string | undefined {
   try {
     const parsed = new URL(value)
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed.href : undefined
-  } catch { return undefined }
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+      ? parsed.href
+      : undefined
+  } catch {
+    return undefined
+  }
 }
 async function discard(response: Response): Promise<void> {
-  try { await response.body?.cancel() } catch { /* best effort */ }
+  try {
+    await response.body?.cancel()
+  } catch {
+    /* best effort */
+  }
 }
 function throwIfAborted(signal?: AbortSignal): void {
   if (signal?.aborted) throw cancelled(signal.reason)
 }
 function cancelled(cause?: unknown): WebError {
-  return new WebError('Codex Web Search was cancelled', 'CODEX_SEARCH_CANCELLED', { cause })
+  return new WebError(
+    'Codex Web Search was cancelled',
+    'CODEX_SEARCH_CANCELLED',
+    { cause },
+  )
 }
 function abortableDelay(ms: number, signal?: AbortSignal): Promise<void> {
-  if (ms <= 0) { throwIfAborted(signal); return Promise.resolve() }
+  if (ms <= 0) {
+    throwIfAborted(signal)
+    return Promise.resolve()
+  }
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => { cleanup(); resolve() }, ms)
-    const onAbort = () => { cleanup(); reject(cancelled(signal?.reason)) }
-    const cleanup = () => { clearTimeout(timer); signal?.removeEventListener('abort', onAbort) }
+    const timer = setTimeout(() => {
+      cleanup()
+      resolve()
+    }, ms)
+    const onAbort = () => {
+      cleanup()
+      reject(cancelled(signal?.reason))
+    }
+    const cleanup = () => {
+      clearTimeout(timer)
+      signal?.removeEventListener('abort', onAbort)
+    }
     signal?.addEventListener('abort', onAbort, { once: true })
   })
 }
-async function boundedText(response: Response, signal?: AbortSignal): Promise<string> {
+async function boundedText(
+  response: Response,
+  signal?: AbortSignal,
+): Promise<string> {
   const declared = Number(response.headers.get('content-length'))
   if (Number.isFinite(declared) && declared > MAX_RESPONSE_BYTES) {
     await discard(response)
-    throw new WebError('Codex Web Search response exceeded the safe size limit', 'CODEX_SEARCH_RESPONSE_TOO_LARGE')
+    throw new WebError(
+      'Codex Web Search response exceeded the safe size limit',
+      'CODEX_SEARCH_RESPONSE_TOO_LARGE',
+    )
   }
   if (response.body === null) return ''
   const reader = response.body.getReader()
@@ -184,7 +267,11 @@ async function boundedText(response: Response, signal?: AbortSignal): Promise<st
       const chunk = await reader.read()
       if (chunk.done) break
       bytes += chunk.value.byteLength
-      if (bytes > MAX_RESPONSE_BYTES) throw new WebError('Codex Web Search response exceeded the safe size limit', 'CODEX_SEARCH_RESPONSE_TOO_LARGE')
+      if (bytes > MAX_RESPONSE_BYTES)
+        throw new WebError(
+          'Codex Web Search response exceeded the safe size limit',
+          'CODEX_SEARCH_RESPONSE_TOO_LARGE',
+        )
       text += decoder.decode(chunk.value, { stream: true })
     }
     return text + decoder.decode()
@@ -192,6 +279,10 @@ async function boundedText(response: Response, signal?: AbortSignal): Promise<st
     if (signal?.aborted) throw cancelled(cause)
     throw cause
   } finally {
-    try { reader.releaseLock() } catch { /* best effort */ }
+    try {
+      reader.releaseLock()
+    } catch {
+      /* best effort */
+    }
   }
 }

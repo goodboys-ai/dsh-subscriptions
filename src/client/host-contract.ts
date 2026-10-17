@@ -33,7 +33,10 @@ export const HOST_CONTRACT = {
 
   /** Named runtime exports the client reads from a host module. */
   exports: {
-    '@deepseek-ai/dsh-client-ui-primitives': ['useAnchoredPosition', 'useDismissOnOutsidePointer'],
+    '@deepseek-ai/dsh-client-ui-primitives': [
+      'useAnchoredPosition',
+      'useDismissOnOutsidePointer',
+    ],
   },
 
   /**
@@ -79,7 +82,10 @@ export const HOST_CONTRACT = {
      * renders one form or the other; the contract check accepts either, and
      * the host E2E reads both to find the pill's row.
      */
-    composerStats: { attributes: ['data-composer-stats', 'data-composer-stat'], package: '@deepseek-ai/dsh-client-ui-chat' },
+    composerStats: {
+      attributes: ['data-composer-stats', 'data-composer-stat'],
+      package: '@deepseek-ai/dsh-client-ui-chat',
+    },
   },
 
   /**

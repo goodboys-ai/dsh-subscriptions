@@ -70,9 +70,10 @@ export interface OAuthAttempt {
   cancel(): void
 }
 
-const SUCCESS_PAGE = '<!doctype html><html><head><meta charset="utf-8"><title>Login successful</title></head>'
-  + '<body style="font-family:sans-serif"><h1>Login successful</h1>'
-  + '<p>You can close this tab and return to DeepSeek Harness.</p></body></html>'
+const SUCCESS_PAGE =
+  '<!doctype html><html><head><meta charset="utf-8"><title>Login successful</title></head>' +
+  '<body style="font-family:sans-serif"><h1>Login successful</h1>' +
+  '<p>You can close this tab and return to DeepSeek Harness.</p></body></html>'
 
 function authorizationFailure(error: string | null): string {
   // Safe means this failure path carries no provider-controlled free text,
@@ -80,22 +81,40 @@ function authorizationFailure(error: string | null): string {
   // RFC 6749 §4.1.2.1 categories select local literals, never provider prose.
   let category: string | undefined
   switch (error) {
-    case 'invalid_request': category = 'invalid_request'; break
-    case 'unauthorized_client': category = 'unauthorized_client'; break
-    case 'access_denied': category = 'access_denied'; break
-    case 'unsupported_response_type': category = 'unsupported_response_type'; break
-    case 'invalid_scope': category = 'invalid_scope'; break
-    case 'server_error': category = 'server_error'; break
-    case 'temporarily_unavailable': category = 'temporarily_unavailable'; break
+    case 'invalid_request':
+      category = 'invalid_request'
+      break
+    case 'unauthorized_client':
+      category = 'unauthorized_client'
+      break
+    case 'access_denied':
+      category = 'access_denied'
+      break
+    case 'unsupported_response_type':
+      category = 'unsupported_response_type'
+      break
+    case 'invalid_scope':
+      category = 'invalid_scope'
+      break
+    case 'server_error':
+      category = 'server_error'
+      break
+    case 'temporarily_unavailable':
+      category = 'temporarily_unavailable'
+      break
   }
-  return 'authorization failed'
-    + (category === undefined ? '' : ` (${category})`)
-    + ': [provider message omitted]'
+  return (
+    'authorization failed' +
+    (category === undefined ? '' : ` (${category})`) +
+    ': [provider message omitted]'
+  )
 }
 
 function failurePage(detail: string): string {
-  return '<!doctype html><html><head><meta charset="utf-8"><title>Login failed</title></head>'
-    + `<body style="font-family:sans-serif"><h1>Login failed</h1><p>${detail.replace(/[<>&]/g, '')}</p></body></html>`
+  return (
+    '<!doctype html><html><head><meta charset="utf-8"><title>Login failed</title></head>' +
+    `<body style="font-family:sans-serif"><h1>Login failed</h1><p>${detail.replace(/[<>&]/g, '')}</p></body></html>`
+  )
 }
 
 /**
@@ -125,9 +144,14 @@ function familyUnavailable(error: unknown): boolean {
  * rejects when every port fails. Ephemeral ports (0) are retried so each
  * family can be re-bound onto the first family's assigned port.
  */
-async function listen(handler: RequestListener, spec: ListenSpec): Promise<BoundServers> {
+async function listen(
+  handler: RequestListener,
+  spec: ListenSpec,
+): Promise<BoundServers> {
   const hosts = listenHosts(spec.host)
-  const candidates = spec.ports.flatMap(port => (port === 0 ? [0, 0, 0] : [port]))
+  const candidates = spec.ports.flatMap((port) =>
+    port === 0 ? [0, 0, 0] : [port],
+  )
   let lastError: unknown
   for (const candidate of candidates) {
     const servers: Server[] = []
@@ -145,7 +169,8 @@ async function listen(handler: RequestListener, spec: ListenSpec): Promise<Bound
           })
         })
         const address = server.address() as AddressInfo | null
-        if (address === null) throw new Error(`callback server on ${host}:${port} has no address`)
+        if (address === null)
+          throw new Error(`callback server on ${host}:${port} has no address`)
         if (port === 0) port = address.port
         servers.push(server)
       } catch (error) {
@@ -164,7 +189,9 @@ async function listen(handler: RequestListener, spec: ListenSpec): Promise<Bound
   }
   throw lastError instanceof Error
     ? lastError
-    : new Error(`callback server could not listen on ${spec.host} (ports ${spec.ports.join(', ')})`)
+    : new Error(
+        `callback server could not listen on ${spec.host} (ports ${spec.ports.join(', ')})`,
+      )
 }
 
 /**
@@ -220,6 +247,8 @@ export class OAuthFlowManager {
     })
 
     let settled = false
+    // Assigned after listen(); a callback that arrives first must see it absent.
+    // eslint-disable-next-line prefer-const -- the single write is after the listener exists
     let timer: ReturnType<typeof setTimeout> | undefined
     let servers: Server[] = []
     const handler: RequestListener = (request, response) => {
@@ -236,7 +265,10 @@ export class OAuthFlowManager {
         response.end('state mismatch')
         return
       }
-      if (url.searchParams.has('error_description') || url.searchParams.has('error')) {
+      if (
+        url.searchParams.has('error_description') ||
+        url.searchParams.has('error')
+      ) {
         const detail = authorizationFailure(url.searchParams.get('error'))
         response.writeHead(200, { 'content-type': 'text/html' })
         response.end(failurePage(detail))
@@ -272,7 +304,9 @@ export class OAuthFlowManager {
     input.redirectUri = `http://${spec.listen.host}:${bound.port}${spec.callbackPath}`
 
     timer = setTimeout(() => {
-      settle(new Error(`login timed out after ${Math.round(timeoutMs / 1000)}s`))
+      settle(
+        new Error(`login timed out after ${Math.round(timeoutMs / 1000)}s`),
+      )
     }, timeoutMs)
     timer.unref()
 
@@ -283,7 +317,8 @@ export class OAuthFlowManager {
       state: input.state,
       waitCode: () => codePromise,
       manual(rawInput: string) {
-        if (settled) throw new Error(`the ${provider} login attempt already finished`)
+        if (settled)
+          throw new Error(`the ${provider} login attempt already finished`)
         const trimmed = rawInput.trim()
         let code: string | undefined
         let pastedState: string | undefined
@@ -302,7 +337,9 @@ export class OAuthFlowManager {
           throw new Error('no authorization code found in the pasted input')
         }
         if (pastedState !== undefined && pastedState !== input.state) {
-          throw new Error('state mismatch: the pasted URL belongs to a different login attempt')
+          throw new Error(
+            'state mismatch: the pasted URL belongs to a different login attempt',
+          )
         }
         settle(undefined, code)
       },

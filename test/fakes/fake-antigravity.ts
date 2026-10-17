@@ -77,16 +77,34 @@ const LOOPBACK_RE = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/
 
 function geminiSseBody(): string {
   const events = [
-    { response: { candidates: [{ content: { role: 'model', parts: [{ text: 'Hello, ' }] } }] } },
-    { response: { candidates: [{ content: { role: 'model', parts: [{ text: 'world!' }] } }] } },
     {
       response: {
-        candidates: [{ finishReason: 'STOP', content: { role: 'model', parts: [] } }],
-        usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 5, totalTokenCount: 15 },
+        candidates: [
+          { content: { role: 'model', parts: [{ text: 'Hello, ' }] } },
+        ],
+      },
+    },
+    {
+      response: {
+        candidates: [
+          { content: { role: 'model', parts: [{ text: 'world!' }] } },
+        ],
+      },
+    },
+    {
+      response: {
+        candidates: [
+          { finishReason: 'STOP', content: { role: 'model', parts: [] } },
+        ],
+        usageMetadata: {
+          promptTokenCount: 10,
+          candidatesTokenCount: 5,
+          totalTokenCount: 15,
+        },
       },
     },
   ]
-  return events.map(event => `data: ${JSON.stringify(event)}\n\n`).join('')
+  return events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join('')
 }
 
 /**
@@ -102,15 +120,22 @@ export function installFakeAntigravity(t: TestContext): FakeAntigravity {
   const fetchModelsURL = `${ANTIGRAVITY_DEFAULT_BASE_URL}/v1internal:fetchAvailableModels`
   const streamURL = `${ANTIGRAVITY_DEFAULT_BASE_URL}/v1internal:streamGenerateContent?alt=sse`
 
-  const router = async (input: unknown, init?: RequestInit): Promise<Response> => {
+  const router = async (
+    input: unknown,
+    init?: RequestInit,
+  ): Promise<Response> => {
     const url = input instanceof Request ? input.url : String(input)
     if (LOOPBACK_RE.test(url)) return realFetch(input as RequestInfo, init)
 
-    const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase()
+    const method = (
+      init?.method ?? (input instanceof Request ? input.method : 'GET')
+    ).toUpperCase()
     const headers: Record<string, string> = {}
     const rawHeaders = init?.headers
     if (rawHeaders !== undefined) {
-      new Headers(rawHeaders).forEach((v, k) => { headers[k.toLowerCase()] = v })
+      new Headers(rawHeaders).forEach((v, k) => {
+        headers[k.toLowerCase()] = v
+      })
     }
     let bodyText = ''
     if (init?.body !== undefined) {
@@ -169,7 +194,10 @@ export function installFakeAntigravity(t: TestContext): FakeAntigravity {
 
     if (url === loadCodeAssistURL && method === 'POST') {
       return Response.json({
-        cloudaicompanionProject: { id: FAKE_ANTIGRAVITY_IDENTITY.projectId, name: 'Virtual project' },
+        cloudaicompanionProject: {
+          id: FAKE_ANTIGRAVITY_IDENTITY.projectId,
+          name: 'Virtual project',
+        },
         currentTier: { id: 'free-tier', name: FAKE_ANTIGRAVITY_IDENTITY.plan },
       })
     }
@@ -201,9 +229,14 @@ export function installFakeAntigravity(t: TestContext): FakeAntigravity {
     }
 
     if (url === streamURL && method === 'POST') {
-      return new Response(geminiSseBody(), { headers: { 'content-type': 'text/event-stream' } })
+      return new Response(geminiSseBody(), {
+        headers: { 'content-type': 'text/event-stream' },
+      })
     }
-    return new Response(`virtual antigravity provider has no route for ${method} ${url}`, { status: 404 })
+    return new Response(
+      `virtual antigravity provider has no route for ${method} ${url}`,
+      { status: 404 },
+    )
   }
 
   t.mock.method(globalThis, 'fetch', router)

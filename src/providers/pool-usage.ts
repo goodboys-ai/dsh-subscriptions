@@ -89,7 +89,10 @@ export class PoolUsageTracker {
   private readonly lastWritten = new Map<string, number>()
 
   constructor(
-    private readonly fetcherFor: (provider: ProviderId, account: string) => (() => Promise<ProviderUsage>) | undefined,
+    private readonly fetcherFor: (
+      provider: ProviderId,
+      account: string,
+    ) => (() => Promise<ProviderUsage>) | undefined,
     private readonly ttlMs = USAGE_TTL_MS,
   ) {}
 
@@ -112,7 +115,8 @@ export class PoolUsageTracker {
   async quotaFor(member: ConcretePoolMember): Promise<MemberQuota> {
     const key = `${member.provider}/${member.account}`
     const fetcher = this.fetcherFor(member.provider, member.account)
-    if (fetcher === undefined) return { available: true, urgency: 0, fetchedAt: 0 }
+    if (fetcher === undefined)
+      return { available: true, urgency: 0, fetchedAt: 0 }
     const entry = this.entries.get(key)
     if (entry !== undefined) {
       const fresh = Date.now() - entry.at < (entry.cooldownMs ?? this.ttlMs)
@@ -143,12 +147,19 @@ export class PoolUsageTracker {
    *   lockout, so even a forced call still answers from the negative cache.
    * @returns `{ supported: false }` when the provider has no usage fetcher.
    */
-  async snapshotFor(provider: ProviderId, account: string, force = false): Promise<ProviderUsage> {
+  async snapshotFor(
+    provider: ProviderId,
+    account: string,
+    force = false,
+  ): Promise<ProviderUsage> {
     const fetcher = this.fetcherFor(provider, account)
     if (fetcher === undefined) return { supported: false }
     const key = `${provider}/${account}`
     const entry = this.entries.get(key)
-    if (entry !== undefined && Date.now() - entry.at < (entry.cooldownMs ?? this.ttlMs)) {
+    if (
+      entry !== undefined &&
+      Date.now() - entry.at < (entry.cooldownMs ?? this.ttlMs)
+    ) {
       if (entry.snapshot !== undefined) {
         if (!force) return entry.snapshot
       } else if (entry.lastSnapshot !== undefined) {
@@ -168,7 +179,8 @@ export class PoolUsageTracker {
       // fetch that just failed on THIS call: `refresh` recorded whatever
       // snapshot was on record before it ran onto the new failure entry.
       const failed = this.entries.get(key)
-      if (failed?.snapshot === undefined && failed?.lastSnapshot !== undefined) return { ...failed.lastSnapshot, stale: true }
+      if (failed?.snapshot === undefined && failed?.lastSnapshot !== undefined)
+        return { ...failed.lastSnapshot, stale: true }
       throw error
     }
   }
@@ -204,7 +216,10 @@ export class PoolUsageTracker {
    * member rejoins routing the instant its login is fixed, rather than
    * waiting out a stale cooldown.
    */
-  private refresh(key: string, fetcher: () => Promise<ProviderUsage>): Promise<ProviderUsage> {
+  private refresh(
+    key: string,
+    fetcher: () => Promise<ProviderUsage>,
+  ): Promise<ProviderUsage> {
     let pending = this.inflight.get(key)
     if (pending === undefined) {
       // Captured before the fetch starts: whichever real snapshot is on
@@ -220,35 +235,43 @@ export class PoolUsageTracker {
       // fetch fails late and would otherwise cache a cooldown over a fresher
       // success that already landed.
       const sequence = ++this.nextSequence
-      pending = fetcher().then(
-        (value) => {
-          const at = Date.now()
-          const snapshot = { ...value, observedAt: at, stale: false }
-          // An invalidate() during the fetch means this result describes a world
-          // that has moved on; caching it would resurrect the old numbers.
-          if ((this.generation.get(key) ?? 0) === generation && (this.lastWritten.get(key) ?? 0) < sequence) {
-            this.lastWritten.set(key, sequence)
-            this.entries.set(key, { snapshot, at })
-          }
-          return snapshot
-        },
-        (error: unknown) => {
-          if (!isMissingOrInvalidCredential(error) && (this.generation.get(key) ?? 0) === generation
-            && (this.lastWritten.get(key) ?? 0) < sequence) {
-            this.lastWritten.set(key, sequence)
-            this.entries.set(key, {
-              error,
-              at: Date.now(),
-              cooldownMs: cooldownFor(error, this.ttlMs),
-              ...lastSnapshot === undefined ? {} : { lastSnapshot },
-            })
-          }
-          throw error
-        },
-      ).finally(() => {
-        // Only clear our own slot: an invalidate may have replaced it.
-        if (this.inflight.get(key) === pending) this.inflight.delete(key)
-      })
+      pending = fetcher()
+        .then(
+          (value) => {
+            const at = Date.now()
+            const snapshot = { ...value, observedAt: at, stale: false }
+            // An invalidate() during the fetch means this result describes a world
+            // that has moved on; caching it would resurrect the old numbers.
+            if (
+              (this.generation.get(key) ?? 0) === generation &&
+              (this.lastWritten.get(key) ?? 0) < sequence
+            ) {
+              this.lastWritten.set(key, sequence)
+              this.entries.set(key, { snapshot, at })
+            }
+            return snapshot
+          },
+          (error: unknown) => {
+            if (
+              !isMissingOrInvalidCredential(error) &&
+              (this.generation.get(key) ?? 0) === generation &&
+              (this.lastWritten.get(key) ?? 0) < sequence
+            ) {
+              this.lastWritten.set(key, sequence)
+              this.entries.set(key, {
+                error,
+                at: Date.now(),
+                cooldownMs: cooldownFor(error, this.ttlMs),
+                ...(lastSnapshot === undefined ? {} : { lastSnapshot }),
+              })
+            }
+            throw error
+          },
+        )
+        .finally(() => {
+          // Only clear our own slot: an invalidate may have replaced it.
+          if (this.inflight.get(key) === pending) this.inflight.delete(key)
+        })
       this.inflight.set(key, pending)
     }
     return pending
@@ -256,7 +279,9 @@ export class PoolUsageTracker {
 
   /** Score one member against a snapshot's windows. */
   private score(member: ConcretePoolMember, entry: SnapshotEntry): MemberQuota {
-    const windows = (entry.snapshot.windows ?? []).filter(window => windowApplies(window, member.model))
+    const windows = (entry.snapshot.windows ?? []).filter((window) =>
+      windowApplies(window, member.model),
+    )
     let available = true
     let urgency = 0
     for (const window of windows) {
@@ -281,7 +306,9 @@ function degradedQuota(error: unknown): MemberQuota {
 
 /** How long to hold a failure in the negative cache: the endpoint's own `retry-after`, or the default TTL. */
 function cooldownFor(error: unknown, defaultTtlMs: number): number {
-  return error instanceof OAuthEndpointError && error.retryAfterMs !== undefined ? error.retryAfterMs : defaultTtlMs
+  return error instanceof OAuthEndpointError && error.retryAfterMs !== undefined
+    ? error.retryAfterMs
+    : defaultTtlMs
 }
 
 /**
@@ -297,8 +324,9 @@ function windowApplies(window: UsageWindow, model: string): boolean {
 /** The required burn rate of one window (fraction per ms). */
 function windowUrgency(window: UsageWindow, now = Date.now()): number {
   const remaining = Math.max(0, 1 - window.usedPercent / 100)
-  const horizon = window.resetsAt !== undefined
-    ? Math.max(window.resetsAt - now, 1)
-    : FALLBACK_HORIZON_MS[window.kind]
+  const horizon =
+    window.resetsAt !== undefined
+      ? Math.max(window.resetsAt - now, 1)
+      : FALLBACK_HORIZON_MS[window.kind]
   return remaining / horizon
 }

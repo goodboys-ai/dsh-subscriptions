@@ -55,25 +55,32 @@ export interface VideoGenerateToolviewInjected {
  * Props delivered by the toolview outlet: the owner share plus the inject
  * face and the framework locale seat, spread flat.
  */
-export type VideoGenerateToolviewProps =
-  Partial<ToolCallOwnerProps>
-  & Partial<VideoGenerateToolviewInjected>
-  & { t?: ((key: SubscriptionsKey, params?: Record<string, unknown>) => string) | undefined }
+export type VideoGenerateToolviewProps = Partial<ToolCallOwnerProps> &
+  Partial<VideoGenerateToolviewInjected> & {
+    t?:
+      | ((key: SubscriptionsKey, params?: Record<string, unknown>) => string)
+      | undefined
+  }
 
 /**
  * Build the video loader over the `/subscriptions-auth` `video` endpoint.
  * @param rpc - Connection RPC caller.
  * @returns loader resolving a bare file name to the decoded bytes.
  */
-export function createVideoLoader(rpc: ConnectionHandle['rpc']): (name: string) => Promise<VideoBytes> {
-  return name => callSubscriptionsAuth<VideoBytes>(rpc, 'video', { name })
+export function createVideoLoader(
+  rpc: ConnectionHandle['rpc'],
+): (name: string) => Promise<VideoBytes> {
+  return (name) => callSubscriptionsAuth<VideoBytes>(rpc, 'video', { name })
 }
 
 /**
  * English-dictionary fallback for a missing locale seat (standalone renders);
  * the framework always supplies the namespace-bound one.
  */
-function fallbackTranslate(key: SubscriptionsKey, params?: Record<string, unknown>): string {
+function fallbackTranslate(
+  key: SubscriptionsKey,
+  params?: Record<string, unknown>,
+): string {
   let text: string = en[key]
   for (const [name, value] of Object.entries(params ?? {})) {
     text = text.replaceAll(`{${name}}`, String(value))
@@ -93,15 +100,21 @@ function derivePrompt(argsRaw: string): string {
   let prompt: string | undefined
   if (typeof parsed === 'object' && parsed !== null) {
     const args = parsed as Record<string, unknown>
-    if (typeof args.prompt === 'string' && args.prompt !== '') prompt = args.prompt
+    if (typeof args.prompt === 'string' && args.prompt !== '')
+      prompt = args.prompt
     else {
       for (const value of Object.values(args)) {
-        if (typeof value === 'string' && value !== '') { prompt = value; break }
+        if (typeof value === 'string' && value !== '') {
+          prompt = value
+          break
+        }
       }
     }
   }
   const line = (prompt ?? argsRaw).split('\n', 1)[0] ?? ''
-  return line.length > PROMPT_MAX_LENGTH ? `${line.slice(0, PROMPT_MAX_LENGTH)}…` : line
+  return line.length > PROMPT_MAX_LENGTH
+    ? `${line.slice(0, PROMPT_MAX_LENGTH)}…`
+    : line
 }
 
 /** Flatten a settled result's text blocks (the fallback body and the error line). */
@@ -111,7 +124,8 @@ function resultText(block: ToolCallBlock): string {
   for (const part of block.content) {
     if (part.type === 'text') parts.push(part.text)
   }
-  if (parts.length === 0 && block.error !== undefined) parts.push(`${block.error.name}: ${block.error.code}`)
+  if (parts.length === 0 && block.error !== undefined)
+    parts.push(`${block.error.name}: ${block.error.code}`)
   return parts.join('\n')
 }
 
@@ -137,7 +151,8 @@ function resolveFileName(block: ToolCallBlock): string | undefined {
 function base64Bytes(dataBase64: string): Uint8Array {
   const binary = atob(dataBase64)
   const bytes = new Uint8Array(binary.length)
-  for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index)
+  for (let index = 0; index < binary.length; index++)
+    bytes[index] = binary.charCodeAt(index)
   return bytes
 }
 
@@ -148,21 +163,51 @@ type LoadState =
   | { phase: 'failed'; message: string }
 
 const styles: Record<string, CSSProperties> = {
-  container: { display: 'flex', flexDirection: 'column', gap: 6, padding: '4px 0' },
+  container: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+    padding: '4px 0',
+  },
   row: { display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 },
-  icon: { display: 'inline-flex', flexShrink: 0, color: 'var(--dsw-alias-label-tertiary)' },
+  icon: {
+    display: 'inline-flex',
+    flexShrink: 0,
+    color: 'var(--dsw-alias-label-tertiary)',
+  },
   title: {
-    fontSize: 13, lineHeight: '20px', color: 'var(--dsw-alias-label-primary)',
-    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+    fontSize: 13,
+    lineHeight: '20px',
+    color: 'var(--dsw-alias-label-primary)',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
   },
-  subtle: { margin: 0, fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary)' },
+  subtle: {
+    margin: 0,
+    fontSize: 12,
+    lineHeight: '18px',
+    color: 'var(--dsw-alias-label-tertiary)',
+  },
   output: {
-    margin: 0, fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary)',
-    whiteSpace: 'pre-wrap', overflowWrap: 'anywhere',
+    margin: 0,
+    fontSize: 12,
+    lineHeight: '18px',
+    color: 'var(--dsw-alias-label-secondary)',
+    whiteSpace: 'pre-wrap',
+    overflowWrap: 'anywhere',
   },
-  error: { margin: 0, fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-state-error-primary)' },
+  error: {
+    margin: 0,
+    fontSize: 12,
+    lineHeight: '18px',
+    color: 'var(--dsw-alias-state-error-primary)',
+  },
   video: {
-    display: 'block', maxWidth: 480, width: '100%', borderRadius: 8,
+    display: 'block',
+    maxWidth: 480,
+    width: '100%',
+    borderRadius: 8,
     backgroundColor: 'var(--dsw-alias-bg-skeleton)',
   },
 }
@@ -177,7 +222,10 @@ export function VideoGenerateToolview(props: VideoGenerateToolviewProps) {
   const t = props.t ?? fallbackTranslate
   const settled = block !== undefined && 'kind' in block
   const isError = settled && block.isError
-  const fileName = block !== undefined && settled && !isError ? resolveFileName(block) : undefined
+  const fileName =
+    block !== undefined && settled && !isError
+      ? resolveFileName(block)
+      : undefined
   const [load, setLoad] = useState<LoadState>({ phase: 'loading' })
 
   useEffect(() => {
@@ -189,12 +237,19 @@ export function VideoGenerateToolview(props: VideoGenerateToolviewProps) {
       (video) => {
         if (cancelled) return
         // Uint8Array#slice detaches a plain ArrayBuffer view for BlobPart.
-        objectUrl = URL.createObjectURL(new Blob([base64Bytes(video.dataBase64).slice()], { type: video.mediaType }))
+        objectUrl = URL.createObjectURL(
+          new Blob([base64Bytes(video.dataBase64).slice()], {
+            type: video.mediaType,
+          }),
+        )
         setLoad({ phase: 'ready', url: objectUrl })
       },
       (error: unknown) => {
         if (cancelled) return
-        setLoad({ phase: 'failed', message: error instanceof Error ? error.message : String(error) })
+        setLoad({
+          phase: 'failed',
+          message: error instanceof Error ? error.message : String(error),
+        })
       },
     )
     return () => {
@@ -204,29 +259,52 @@ export function VideoGenerateToolview(props: VideoGenerateToolviewProps) {
   }, [fileName, loadVideo])
 
   if (block === undefined) return null
-  const argsRaw = (settled ? block.call?.argsRaw : block.phase === 'start' ? block.argsRaw : undefined) ?? ''
+  const argsRaw =
+    (settled
+      ? block.call?.argsRaw
+      : block.phase === 'start'
+        ? block.argsRaw
+        : undefined) ?? ''
   const title = `video_generate: ${derivePrompt(argsRaw)}`
   const text = settled ? resultText(block) : ''
   return (
     <div style={styles.container}>
       <div style={styles.row}>
-        <span style={styles.icon}><SparkleIcon size={14} /></span>
+        <span style={styles.icon}>
+          <SparkleIcon size={14} />
+        </span>
         <span style={styles.title}>{title}</span>
       </div>
       {!settled && <p style={styles.subtle}>{t('generatingVideo')}</p>}
       {settled && isError && text !== '' && (
         <p style={styles.error}>{text.split('\n', 1)[0]}</p>
       )}
-      {settled && !isError && fileName !== undefined && load.phase === 'loading' && (
-        <p style={styles.subtle}>{t('videoLoading')}</p>
-      )}
-      {settled && !isError && fileName !== undefined && load.phase === 'failed' && (
-        <p style={styles.error}>{t('videoLoadFailed', { message: load.message })}</p>
-      )}
-      {settled && !isError && fileName !== undefined && load.phase === 'ready' && (
-        // eslint-disable-next-line jsx-a11y/media-has-caption -- generated clip; no caption track exists.
-        <video style={styles.video} src={load.url} controls preload="metadata" />
-      )}
+      {settled &&
+        !isError &&
+        fileName !== undefined &&
+        load.phase === 'loading' && (
+          <p style={styles.subtle}>{t('videoLoading')}</p>
+        )}
+      {settled &&
+        !isError &&
+        fileName !== undefined &&
+        load.phase === 'failed' && (
+          <p style={styles.error}>
+            {t('videoLoadFailed', { message: load.message })}
+          </p>
+        )}
+      {settled &&
+        !isError &&
+        fileName !== undefined &&
+        load.phase === 'ready' && (
+          // Generated clip; no caption track exists.
+          <video
+            style={styles.video}
+            src={load.url}
+            controls
+            preload="metadata"
+          />
+        )}
       {settled && !isError && fileName === undefined && text !== '' && (
         <p style={styles.output}>{text}</p>
       )}

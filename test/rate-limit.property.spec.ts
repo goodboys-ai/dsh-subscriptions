@@ -29,9 +29,15 @@ function withRetryAfter(value: string): Response {
 
 test('retryAfterInstant: a positive delay in seconds becomes the exact reset instant', () => {
   fc.assert(
-    fc.property(fc.double({ min: 0.001, max: 1_000_000, noNaN: true }), (seconds) => {
-      assert.equal(retryAfterInstant(withRetryAfter(String(seconds)), NOW), NOW + seconds * 1_000)
-    }),
+    fc.property(
+      fc.double({ min: 0.001, max: 1_000_000, noNaN: true }),
+      (seconds) => {
+        assert.equal(
+          retryAfterInstant(withRetryAfter(String(seconds)), NOW),
+          NOW + seconds * 1_000,
+        )
+      },
+    ),
     { numRuns: 200 },
   )
 })
@@ -40,7 +46,10 @@ test('retryAfterInstant: the HTTP-date form parses to its instant', () => {
   fc.assert(
     fc.property(fc.integer({ min: 0, max: 4_000_000_000_000 }), (instant) => {
       const instantSeconds = Math.floor(instant / 1_000) * 1_000
-      assert.equal(retryAfterInstant(withRetryAfter(new Date(instant).toUTCString()), NOW), instantSeconds)
+      assert.equal(
+        retryAfterInstant(withRetryAfter(new Date(instant).toUTCString()), NOW),
+        instantSeconds,
+      )
     }),
     { numRuns: 200 },
   )
@@ -48,11 +57,17 @@ test('retryAfterInstant: the HTTP-date form parses to its instant', () => {
 
 test('retryAfterInstant: a non-positive delay is no disclosure at all', () => {
   fc.assert(
-    fc.property(fc.double({ min: -1_000_000, max: 0, noNaN: true }), (seconds) => {
-      // Zero and negative delays are not a reopening time; scheduling a wait
-      // of `now` would burn the retry budget against a still-closed window.
-      assert.equal(retryAfterInstant(withRetryAfter(String(seconds)), NOW), undefined)
-    }),
+    fc.property(
+      fc.double({ min: -1_000_000, max: 0, noNaN: true }),
+      (seconds) => {
+        // Zero and negative delays are not a reopening time; scheduling a wait
+        // of `now` would burn the retry budget against a still-closed window.
+        assert.equal(
+          retryAfterInstant(withRetryAfter(String(seconds)), NOW),
+          undefined,
+        )
+      },
+    ),
     { numRuns: 200 },
   )
 })
@@ -60,13 +75,33 @@ test('retryAfterInstant: a non-positive delay is no disclosure at all', () => {
 test('retryAfterInstant: arbitrary header values never throw and never yield NaN', () => {
   // Header values are byte strings, so the fuzz alphabet stays ASCII.
   const headerJunk = fc.string({
-    unit: fc.constantFrom('0', '1', '9', '.', '-', '+', ' ', 's', 'm', 'h', 'x', 'GMT', 'Jan', ':', ',', 'e'),
+    unit: fc.constantFrom(
+      '0',
+      '1',
+      '9',
+      '.',
+      '-',
+      '+',
+      ' ',
+      's',
+      'm',
+      'h',
+      'x',
+      'GMT',
+      'Jan',
+      ':',
+      ',',
+      'e',
+    ),
     maxLength: 40,
   })
   fc.assert(
     fc.property(headerJunk, (value) => {
       const instant = retryAfterInstant(withRetryAfter(value), NOW)
-      assert.ok(instant === undefined || Number.isFinite(instant), 'a bad header must be ignored, not parsed to NaN')
+      assert.ok(
+        instant === undefined || Number.isFinite(instant),
+        'a bad header must be ignored, not parsed to NaN',
+      )
     }),
     { numRuns: 200 },
   )
@@ -81,17 +116,27 @@ test('resetInstantFromNumber: each protocol meaning maps to its instant', () => 
   // generated date, timestamp, or delay — so a regressed threshold fails the
   // class it misreads instead of passing against a copy of its own branches.
   /** A real instant in epoch milliseconds, 2001-09-09 through 2100. */
-  const epochMs = fc.integer({ min: 1_000_000_000_000, max: Date.UTC(2100, 0, 1) })
+  const epochMs = fc.integer({
+    min: 1_000_000_000_000,
+    max: Date.UTC(2100, 0, 1),
+  })
   /** The same timeline in epoch seconds, whole or fractional. */
   const epochSeconds = fc.oneof(
     fc.integer({ min: 1_000_000_000, max: Date.UTC(2100, 0, 1) / 1_000 }),
-    fc.double({ min: 1_000_000_000, max: Date.UTC(2100, 0, 1) / 1_000, noNaN: true }),
+    fc.double({
+      min: 1_000_000_000,
+      max: Date.UTC(2100, 0, 1) / 1_000,
+      noNaN: true,
+    }),
   )
   /** A delay in seconds within a year, weighted to include tiny sub-second and whole-second values. */
   const delaySeconds = fc.oneof(
     { weight: 2, arbitrary: fc.integer({ min: 1, max: 31_536_000 }) },
     { weight: 1, arbitrary: fc.double({ min: 0.001, max: 1, noNaN: true }) },
-    { weight: 1, arbitrary: fc.double({ min: 1, max: 31_536_000, noNaN: true }) },
+    {
+      weight: 1,
+      arbitrary: fc.double({ min: 1, max: 31_536_000, noNaN: true }),
+    },
   )
   /** A value no meaning attaches to: non-positive or non-finite. */
   const unusable = fc.oneof(
@@ -103,10 +148,13 @@ test('resetInstantFromNumber: each protocol meaning maps to its instant', () => 
   fc.assert(
     fc.property(
       fc.oneof(
-        epochMs.map(value => ({ value, expected: value })),
-        epochSeconds.map(value => ({ value, expected: value * 1_000 })),
-        delaySeconds.map(value => ({ value, expected: NOW + value * 1_000 })),
-        unusable.map(value => ({ value, expected: undefined as number | undefined })),
+        epochMs.map((value) => ({ value, expected: value })),
+        epochSeconds.map((value) => ({ value, expected: value * 1_000 })),
+        delaySeconds.map((value) => ({ value, expected: NOW + value * 1_000 })),
+        unusable.map((value) => ({
+          value,
+          expected: undefined as number | undefined,
+        })),
       ),
       ({ value, expected }) => {
         assert.equal(resetInstantFromNumber(value, NOW), expected)
@@ -125,11 +173,20 @@ test('resetInstantFromNumber: boundary magnitudes are read by their protocol mea
   // One second less is ~31.7 years: plausible as a delay, not as a date.
   assert.equal(resetInstantFromNumber(999_999_999, NOW), NOW + 999_999_999_000)
   // The same instant written in milliseconds is already milliseconds.
-  assert.equal(resetInstantFromNumber(1_000_000_000_000, NOW), 1_000_000_000_000)
+  assert.equal(
+    resetInstantFromNumber(1_000_000_000_000, NOW),
+    1_000_000_000_000,
+  )
 })
 
 /** The reset keys this reader searches for, plus noise keys it must ignore. */
-const RESET_KEYS = ['reset_at', 'retry_after', 'resets', 'reset', 'window_reset'] as const
+const RESET_KEYS = [
+  'reset_at',
+  'retry_after',
+  'resets',
+  'reset',
+  'window_reset',
+] as const
 const NOISE_KEYS = ['note', 'detail', 'info', 'meta'] as const
 
 interface FieldEntry {
@@ -142,19 +199,28 @@ interface FieldEntry {
 }
 
 const fieldEntries: fc.Arbitrary<FieldEntry[]> = fc
-  .uniqueArray(fc.constantFrom(...RESET_KEYS, ...NOISE_KEYS), { minLength: 1, maxLength: 9 })
-  .chain(keys => fc.array(
-    fc.record({
-      delay: fc.double({ min: 0.5, max: 100_000, noNaN: true }),
-      nested: fc.boolean(),
-    }),
-    { minLength: keys.length, maxLength: keys.length },
-  ).map(specs => keys.map((key, index) => ({
-    key,
-    matching: (RESET_KEYS as readonly string[]).includes(key),
-    delay: specs[index].delay,
-    nested: specs[index].nested,
-  }))))
+  .uniqueArray(fc.constantFrom(...RESET_KEYS, ...NOISE_KEYS), {
+    minLength: 1,
+    maxLength: 9,
+  })
+  .chain((keys) =>
+    fc
+      .array(
+        fc.record({
+          delay: fc.double({ min: 0.5, max: 100_000, noNaN: true }),
+          nested: fc.boolean(),
+        }),
+        { minLength: keys.length, maxLength: keys.length },
+      )
+      .map((specs) =>
+        keys.map((key, index) => ({
+          key,
+          matching: (RESET_KEYS as readonly string[]).includes(key),
+          delay: specs[index].delay,
+          nested: specs[index].nested,
+        })),
+      ),
+  )
 
 /** The body one entry ordering produces; a matching key holds its value flat. */
 function bodyFrom(entries: readonly FieldEntry[]): Record<string, unknown> {
@@ -175,8 +241,11 @@ function bodyFrom(entries: readonly FieldEntry[]): Record<string, unknown> {
  */
 function expectedReset(entries: readonly FieldEntry[]): number | undefined {
   const candidates = entries
-    .filter(entry => (entry.matching && !entry.nested) || (!entry.matching && entry.nested))
-    .map(entry => NOW + entry.delay * 1_000)
+    .filter(
+      (entry) =>
+        (entry.matching && !entry.nested) || (!entry.matching && entry.nested),
+    )
+    .map((entry) => NOW + entry.delay * 1_000)
   return candidates.length > 0 ? Math.min(...candidates) : undefined
 }
 
@@ -189,18 +258,26 @@ test('resetFromFields: the earliest disclosed reset wins, independent of field o
       // Providers move fields between containers and reorder them across
       // versions; the answer must not depend on object key order.
       const shuffled = [...entries].reverse()
-      assert.equal(resetFromFields(bodyFrom(shuffled), RESET_KEYS, NOW), instant)
+      assert.equal(
+        resetFromFields(bodyFrom(shuffled), RESET_KEYS, NOW),
+        instant,
+      )
     }),
     { numRuns: 200 },
   )
 })
 
 test('durationMs: a well-formed Go duration sums its components', () => {
-  const component = fc.option(fc.integer({ min: 1, max: 999 }), { nil: undefined })
+  const component = fc.option(fc.integer({ min: 1, max: 999 }), {
+    nil: undefined,
+  })
   fc.assert(
     fc.property(
-      fc.record({ h: component, m: component, s: component, ms: component })
-        .filter(parts => Object.values(parts).some(value => value !== undefined)),
+      fc
+        .record({ h: component, m: component, s: component, ms: component })
+        .filter((parts) =>
+          Object.values(parts).some((value) => value !== undefined),
+        ),
       (parts) => {
         const text = [
           parts.h === undefined ? '' : `${parts.h}h`,
@@ -208,8 +285,11 @@ test('durationMs: a well-formed Go duration sums its components', () => {
           parts.s === undefined ? '' : `${parts.s}s`,
           parts.ms === undefined ? '' : `${parts.ms}ms`,
         ].join('')
-        const expected = (parts.h ?? 0) * 3_600_000 + (parts.m ?? 0) * 60_000
-          + (parts.s ?? 0) * 1_000 + (parts.ms ?? 0)
+        const expected =
+          (parts.h ?? 0) * 3_600_000 +
+          (parts.m ?? 0) * 60_000 +
+          (parts.s ?? 0) * 1_000 +
+          (parts.ms ?? 0)
         // A disclosed duration is positive by construction here; zero ("0s")
         // means an already-rolled bucket and is rejected by design.
         assert.equal(durationMs(text), expected)

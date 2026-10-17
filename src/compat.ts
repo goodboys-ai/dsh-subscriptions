@@ -22,7 +22,9 @@ export type ToolCallId = Extract<ContentBlock, { type: 'tool-call' }>['id']
 /** Brand a string as a tool-call id: alpha's `ToolCallId`, rc.2's `CallId`. */
 export const ToolCallId: (id: string) => ToolCallId = (() => {
   const exports = llm as Record<string, unknown>
-  return (exports['ToolCallId'] ?? exports['CallId']) as (id: string) => ToolCallId
+  return (exports['ToolCallId'] ?? exports['CallId']) as (
+    id: string,
+  ) => ToolCallId
 })()
 
 /**

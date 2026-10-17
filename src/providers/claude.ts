@@ -5,7 +5,13 @@
  */
 
 import { execFileSync } from 'node:child_process'
-import { EMPTY_RESPONSE_CODE, errorChain, LlmAdapter, LlmError, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
+import {
+  EMPTY_RESPONSE_CODE,
+  errorChain,
+  LlmAdapter,
+  LlmError,
+  ReasoningEffortId,
+} from '@deepseek-ai/dsh-llm'
 import type {
   GenerateOptions,
   LlmModelInfo,
@@ -18,7 +24,12 @@ import type { ClaudeSession } from '../auth/store.js'
 import type { ProviderId } from '../auth/store.js'
 import type { PoolAdapter } from './pool.js'
 import type { AttachmentStore } from '@deepseek-ai/dsh-attachment'
-import { hostSupportsImageOffload, IMAGE_OFFLOAD_REQUIRED, requiredImageOffloadCount, resolveImages } from '../translate/resolved.js'
+import {
+  hostSupportsImageOffload,
+  IMAGE_OFFLOAD_REQUIRED,
+  requiredImageOffloadCount,
+  resolveImages,
+} from '../translate/resolved.js'
 import type { TranslatableMessage } from '../translate/resolved.js'
 import {
   markMessageCache,
@@ -42,8 +53,19 @@ import {
   oauthEndpointError,
   OAuthEndpointError,
 } from './common.js'
-import { AccountTokenManager, DISCOVERY_TIMEOUT_MS, unionAccountCatalogs } from './accounts.js'
-import type { CatalogPersistence, DiscoveredModel, FetchFn, ModelEntry, ProviderUsage, UsageWindow } from './common.js'
+import {
+  AccountTokenManager,
+  DISCOVERY_TIMEOUT_MS,
+  unionAccountCatalogs,
+} from './accounts.js'
+import type {
+  CatalogPersistence,
+  DiscoveredModel,
+  FetchFn,
+  ModelEntry,
+  ProviderUsage,
+  UsageWindow,
+} from './common.js'
 import { hostFetch } from '../http.js'
 import { compareVersions } from './npm-cli-version.js'
 import type { CliVersion } from './npm-cli-version.js'
@@ -64,7 +86,8 @@ export const CLAUDE_TOKEN_URL = 'https://claude.ai/v1/oauth/token'
 export const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages?beta=true'
 export const CLAUDE_PROFILE_URL = 'https://api.anthropic.com/api/oauth/profile'
 export const CLAUDE_MODELS_URL = 'https://api.anthropic.com/v1/models?beta=true'
-export const CLAUDE_SCOPE = 'org:create_api_key user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload'
+export const CLAUDE_SCOPE =
+  'org:create_api_key user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload'
 export const CLAUDE_CALLBACK_PATH = '/callback'
 // Fallbacks only when discovery is unavailable or the model omits its limits.
 const CLAUDE_CONTEXT_WINDOW = 200_000
@@ -76,7 +99,12 @@ export const CLAUDE_PREEMPT_MS = 5 * 60_000
  * Body fields Anthropic uses to name a reset instant, read when the unified
  * headers are absent.
  */
-const CLAUDE_RESET_FIELDS = ['resets_at', 'resetsAt', 'reset_at', 'retry_after'] as const
+const CLAUDE_RESET_FIELDS = [
+  'resets_at',
+  'resetsAt',
+  'reset_at',
+  'retry_after',
+] as const
 
 /**
  * Reads the reset instant of the Anthropic window that rejected a request.
@@ -91,10 +119,18 @@ const CLAUDE_RESET_FIELDS = ['resets_at', 'resetsAt', 'reset_at', 'retry_after']
  * lands straight back in the closed window. The parsed reset supplies the retry
  * hint; diagnostics omit raw provider headers and body text.
  */
-export const claudeRateLimitReset: RateLimitResetReader = (response, body, now) => {
+export const claudeRateLimitReset: RateLimitResetReader = (
+  response,
+  body,
+  now,
+) => {
   const unified = earliestReset(
     resetInstantFromHeader(response, 'anthropic-ratelimit-unified-reset', now),
-    resetInstantFromHeader(response, 'anthropic-ratelimit-unified-fallback-reset', now),
+    resetInstantFromHeader(
+      response,
+      'anthropic-ratelimit-unified-fallback-reset',
+      now,
+    ),
   )
   if (unified !== undefined) return unified
   return resetFromFields(jsonBody(body), CLAUDE_RESET_FIELDS, now)
@@ -113,7 +149,11 @@ export const CLAUDE_CLI_FALLBACK_VERSION = '2.1.283'
  * Candidate invocations, in order of preference. Windows npm installs expose
  * Claude Code as a `.cmd` shim, which must run through a shell.
  */
-const CLAUDE_VERSION_PROBES: readonly (readonly [string, readonly string[], { shell?: boolean }])[] =
+const CLAUDE_VERSION_PROBES: readonly (readonly [
+  string,
+  readonly string[],
+  { shell?: boolean },
+])[] =
   process.platform === 'win32'
     ? [
         ['claude --version', [], { shell: true }],
@@ -139,7 +179,10 @@ export function detectClaudeVersion(): string {
   }
   // This is debug-only: the fallback is expected when Claude Code is absent.
   if (lastError !== undefined) {
-    console.debug('dsh-subscriptions: Claude CLI version detection fell back', lastError)
+    console.debug(
+      'dsh-subscriptions: Claude CLI version detection fell back',
+      lastError,
+    )
   }
   return CLAUDE_CLI_FALLBACK_VERSION
 }
@@ -150,7 +193,9 @@ export function detectClaudeVersion(): string {
  * version the endpoint already rejects for new models.
  * @param detect - local CLI probe (injectable for tests).
  */
-export function claudeCliVersionFloor(detect: () => string = detectClaudeVersion): CliVersion {
+export function claudeCliVersionFloor(
+  detect: () => string = detectClaudeVersion,
+): CliVersion {
   const local = detect()
   return compareVersions(local, CLAUDE_CLI_FALLBACK_VERSION) > 0
     ? { version: local, source: 'local' }
@@ -212,21 +257,35 @@ interface ClaudeTokenResponse {
 }
 
 /** Best-effort account profile; login must not fail when this does. */
-async function fetchClaudeProfile(accessToken: string): Promise<Pick<ClaudeSession, 'emailAddress' | 'subscriptionType'>> {
+async function fetchClaudeProfile(
+  accessToken: string,
+): Promise<Pick<ClaudeSession, 'emailAddress' | 'subscriptionType'>> {
   try {
     const response = await hostFetch(CLAUDE_PROFILE_URL, {
       headers: { authorization: `Bearer ${accessToken}` },
     })
     if (!response.ok) return {}
-    const profile = await response.json() as Record<string, unknown>
-    const account = typeof profile.account === 'object' && profile.account !== null
-      ? profile.account as Record<string, unknown>
-      : {}
-    const email = profile.emailAddress ?? profile.email ?? account.email_address ?? account.email
-    const subscription = profile.subscriptionType ?? profile.subscription_type ?? account.subscription_type
+    const profile = (await response.json()) as Record<string, unknown>
+    const account =
+      typeof profile.account === 'object' && profile.account !== null
+        ? (profile.account as Record<string, unknown>)
+        : {}
+    const email =
+      profile.emailAddress ??
+      profile.email ??
+      account.email_address ??
+      account.email
+    const subscription =
+      profile.subscriptionType ??
+      profile.subscription_type ??
+      account.subscription_type
     return {
-      ...typeof email === 'string' && email.length > 0 ? { emailAddress: email } : {},
-      ...typeof subscription === 'string' && subscription.length > 0 ? { subscriptionType: subscription } : {},
+      ...(typeof email === 'string' && email.length > 0
+        ? { emailAddress: email }
+        : {}),
+      ...(typeof subscription === 'string' && subscription.length > 0
+        ? { subscriptionType: subscription }
+        : {}),
     }
   } catch {
     // Profile lookup is decorative; only the token exchange owns login success.
@@ -240,15 +299,21 @@ async function claudeSession(
   fallbackRefreshToken: string | undefined,
   withProfile: boolean,
 ): Promise<ClaudeSession> {
-  if (typeof tokens.access_token !== 'string' || tokens.access_token.length === 0) {
+  if (
+    typeof tokens.access_token !== 'string' ||
+    tokens.access_token.length === 0
+  ) {
     throw new Error('claude token endpoint returned no access token')
   }
   const refreshToken = tokens.refresh_token ?? fallbackRefreshToken
-  if (refreshToken === undefined) throw new Error('claude token endpoint returned no refresh token')
+  if (refreshToken === undefined)
+    throw new Error('claude token endpoint returned no refresh token')
   if (typeof tokens.expires_in !== 'number' || tokens.expires_in <= 0) {
     throw new Error('claude token endpoint returned no usable expiry')
   }
-  const profile = withProfile ? await fetchClaudeProfile(tokens.access_token) : {}
+  const profile = withProfile
+    ? await fetchClaudeProfile(tokens.access_token)
+    : {}
   return {
     accessToken: tokens.access_token,
     refreshToken,
@@ -285,7 +350,14 @@ export async function exchangeClaudeCode(
     }),
   })
   if (!response.ok) throw await oauthEndpointError(response, 'claude')
-  return claudeSession(await parseProviderJson(response, 'claude token exchange') as ClaudeTokenResponse, undefined, true)
+  return claudeSession(
+    (await parseProviderJson(
+      response,
+      'claude token exchange',
+    )) as ClaudeTokenResponse,
+    undefined,
+    true,
+  )
 }
 
 /**
@@ -293,7 +365,9 @@ export async function exchangeClaudeCode(
  * @param session - the stored session.
  * @returns the fresh session to store.
  */
-export async function refreshClaude(session: ClaudeSession): Promise<ClaudeSession> {
+export async function refreshClaude(
+  session: ClaudeSession,
+): Promise<ClaudeSession> {
   const response = await hostFetch(CLAUDE_TOKEN_URL, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -305,11 +379,22 @@ export async function refreshClaude(session: ClaudeSession): Promise<ClaudeSessi
     }),
   })
   if (!response.ok) throw await oauthEndpointError(response, 'claude')
-  const next = await claudeSession(await parseProviderJson(response, 'claude token refresh') as ClaudeTokenResponse, session.refreshToken, false)
+  const next = await claudeSession(
+    (await parseProviderJson(
+      response,
+      'claude token refresh',
+    )) as ClaudeTokenResponse,
+    session.refreshToken,
+    false,
+  )
   return {
     ...next,
-    ...session.emailAddress === undefined ? {} : { emailAddress: session.emailAddress },
-    ...session.subscriptionType === undefined ? {} : { subscriptionType: session.subscriptionType },
+    ...(session.emailAddress === undefined
+      ? {}
+      : { emailAddress: session.emailAddress }),
+    ...(session.subscriptionType === undefined
+      ? {}
+      : { subscriptionType: session.subscriptionType }),
   }
 }
 
@@ -319,8 +404,10 @@ export async function refreshClaude(session: ClaudeSession): Promise<ClaudeSessi
  * @returns true when re-login is the only fix.
  */
 export function isClaudePermanentRefreshError(error: unknown): boolean {
-  return error instanceof OAuthEndpointError
-    && (error.oauthCode === 'invalid_grant' || error.oauthCode === 'invalid_token')
+  return (
+    error instanceof OAuthEndpointError &&
+    (error.oauthCode === 'invalid_grant' || error.oauthCode === 'invalid_token')
+  )
 }
 
 export const CLAUDE_USAGE_URL = 'https://api.anthropic.com/api/oauth/usage'
@@ -335,7 +422,9 @@ function claudeResetsAt(value: unknown): number | undefined {
   } else {
     return undefined
   }
-  return Number.isFinite(parsed) && Number.isFinite(new Date(parsed).getTime()) ? parsed : undefined
+  return Number.isFinite(parsed) && Number.isFinite(new Date(parsed).getTime())
+    ? parsed
+    : undefined
 }
 
 /**
@@ -343,65 +432,101 @@ function claudeResetsAt(value: unknown): number | undefined {
  * contract. Each entry retains its grant id and counts; claimable is only
  * read-only server-selection metadata, never an implemented redemption path.
  */
-function claudeResetCredits(value: unknown, now: number): ProviderUsage['resetCredits'] {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined
+function claudeResetCredits(
+  value: unknown,
+  now: number,
+): ProviderUsage['resetCredits'] {
+  if (typeof value !== 'object' || value === null || Array.isArray(value))
+    return undefined
   const ember = value as Record<string, unknown>
   if (ember.eligible !== true || !Array.isArray(ember.grants)) return undefined
   const cooldownUntil = claudeResetsAt(ember.cooldown_until)
   // An unparseable disclosed cooldown must not assert that claims are available.
-  const cooling = cooldownUntil === undefined
-    ? ember.cooldown_until !== undefined && ember.cooldown_until !== null
-    : cooldownUntil > now
+  const cooling =
+    cooldownUntil === undefined
+      ? ember.cooldown_until !== undefined && ember.cooldown_until !== null
+      : cooldownUntil > now
   const credits: NonNullable<ProviderUsage['resetCredits']> = []
   let selected = false
   for (const raw of ember.grants) {
     if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) continue
     const grant = raw as Record<string, unknown>
-    const { id, resets_total: total, resets_left: left, usable_now: usable, paused } = grant
+    const {
+      id,
+      resets_total: total,
+      resets_left: left,
+      usable_now: usable,
+      paused,
+    } = grant
     const expiresAt = claudeResetsAt(grant.ends_at)
-    if (typeof id !== 'string' || id.trim().length === 0
-      || typeof total !== 'number' || !Number.isSafeInteger(total) || total < 1
-      || typeof left !== 'number' || !Number.isSafeInteger(left)
-      || expiresAt === undefined
-      || (usable !== undefined && typeof usable !== 'boolean')
-      || (paused !== undefined && typeof paused !== 'boolean')) continue
+    if (
+      typeof id !== 'string' ||
+      id.trim().length === 0 ||
+      typeof total !== 'number' ||
+      !Number.isSafeInteger(total) ||
+      total < 1 ||
+      typeof left !== 'number' ||
+      !Number.isSafeInteger(left) ||
+      expiresAt === undefined ||
+      (usable !== undefined && typeof usable !== 'boolean') ||
+      (paused !== undefined && typeof paused !== 'boolean')
+    )
+      continue
     const resetsLeft = Math.max(0, Math.min(left, total))
     if (resetsLeft === 0) continue
-    const claimable = !selected && id === ember.next_grant_id && usable === true
-      && paused !== true && !cooling && expiresAt > now
+    const claimable =
+      !selected &&
+      id === ember.next_grant_id &&
+      usable === true &&
+      paused !== true &&
+      !cooling &&
+      expiresAt > now
     if (claimable) selected = true
     credits.push({
       id,
       expiresAt,
       resetsTotal: total,
       resetsLeft,
-      ...usable === undefined ? {} : { usableNow: usable },
-      ...paused === undefined ? {} : { paused },
+      ...(usable === undefined ? {} : { usableNow: usable }),
+      ...(paused === undefined ? {} : { paused }),
       claimable,
-      ...cooldownUntil === undefined ? {} : { cooldownUntil },
+      ...(cooldownUntil === undefined ? {} : { cooldownUntil }),
     })
   }
   return credits.length > 0 ? credits : undefined
 }
 
 /** Claude session and weekly buckets reset as whole five-hour/seven-day windows. */
-function claudeWindowTiming(kind: UsageWindow['kind']): Pick<UsageWindow, 'windowDurationMs' | 'fixedWindow'> {
-  return kind === 'session' ? { windowDurationMs: 5 * 60 * 60_000, fixedWindow: true }
-    : kind === 'weekly' ? { windowDurationMs: 7 * 24 * 60 * 60_000, fixedWindow: true } : {}
+function claudeWindowTiming(
+  kind: UsageWindow['kind'],
+): Pick<UsageWindow, 'windowDurationMs' | 'fixedWindow'> {
+  return kind === 'session'
+    ? { windowDurationMs: 5 * 60 * 60_000, fixedWindow: true }
+    : kind === 'weekly'
+      ? { windowDurationMs: 7 * 24 * 60 * 60_000, fixedWindow: true }
+      : {}
 }
 
 /** Map one legacy `{utilization, resets_at}` bucket; undefined when null or unusable. */
-function claudeLegacyWindow(value: unknown, kind: UsageWindow['kind'], scope?: string): UsageWindow | undefined {
+function claudeLegacyWindow(
+  value: unknown,
+  kind: UsageWindow['kind'],
+  scope?: string,
+): UsageWindow | undefined {
   if (typeof value !== 'object' || value === null) return undefined
   const bucket = value as { utilization?: number; resets_at?: unknown }
-  if (typeof bucket.utilization !== 'number' || !Number.isFinite(bucket.utilization)) return undefined
+  if (
+    typeof bucket.utilization !== 'number' ||
+    !Number.isFinite(bucket.utilization)
+  )
+    return undefined
   const resetsAt = claudeResetsAt(bucket.resets_at)
   return {
     kind,
-    ...scope === undefined ? {} : { scope },
+    ...(scope === undefined ? {} : { scope }),
     ...claudeWindowTiming(kind),
     usedPercent: bucket.utilization,
-    ...resetsAt === undefined ? {} : { resetsAt },
+    ...(resetsAt === undefined ? {} : { resetsAt }),
   }
 }
 
@@ -420,18 +545,22 @@ function claudeLimitsWindows(value: unknown): UsageWindow[] {
   for (const raw of value) {
     if (typeof raw !== 'object' || raw === null) continue
     const entry = raw as ClaudeLimitEntry
-    if (typeof entry.percent !== 'number' || !Number.isFinite(entry.percent)) continue
-    const kind: UsageWindow['kind'] = entry.kind === 'session'
-      ? 'session'
-      : entry.kind === 'weekly_all' || entry.kind === 'weekly_scoped' ? 'weekly' : 'other'
+    if (typeof entry.percent !== 'number' || !Number.isFinite(entry.percent))
+      continue
+    const kind: UsageWindow['kind'] =
+      entry.kind === 'session'
+        ? 'session'
+        : entry.kind === 'weekly_all' || entry.kind === 'weekly_scoped'
+          ? 'weekly'
+          : 'other'
     const scope = entry.scope?.model?.display_name
     const resetsAt = claudeResetsAt(entry.resets_at)
     windows.push({
       kind,
-      ...typeof scope === 'string' && scope.length > 0 ? { scope } : {},
+      ...(typeof scope === 'string' && scope.length > 0 ? { scope } : {}),
       ...claudeWindowTiming(kind),
       usedPercent: entry.percent,
-      ...resetsAt === undefined ? {} : { resetsAt },
+      ...(resetsAt === undefined ? {} : { resetsAt }),
     })
   }
   return windows
@@ -461,14 +590,14 @@ export async function fetchClaudeUsage(
   const userAgent = claudeCliUserAgent(await cliVersion())
   const init: RequestInit = {
     headers: {
-      'authorization': `Bearer ${session.accessToken}`,
+      authorization: `Bearer ${session.accessToken}`,
       'anthropic-beta': 'oauth-2025-04-20',
       // Unrecognized clients are aggressively rate-limited on this endpoint,
       // so it presents as the CLI like every other subscription request.
       'user-agent': userAgent,
-      'accept': 'application/json',
+      accept: 'application/json',
     },
-    ...signal === undefined ? {} : { signal },
+    ...(signal === undefined ? {} : { signal }),
   }
   let response = await fetchFn(`${CLAUDE_USAGE_URL}?cedar_ember=1`, init)
   let resetCreditsError: string | undefined
@@ -478,11 +607,17 @@ export async function fetchClaudeUsage(
     response = await fetchFn(CLAUDE_USAGE_URL, init)
   }
   if (!response.ok) throw await oauthEndpointError(response, 'claude usage')
-  const payload = await parseProviderJson(response, 'claude usage') as Record<string, unknown>
-  const resetCredits = resetCreditsError === undefined ? claudeResetCredits(payload.cedar_ember, Date.now()) : undefined
+  const payload = (await parseProviderJson(response, 'claude usage')) as Record<
+    string,
+    unknown
+  >
+  const resetCredits =
+    resetCreditsError === undefined
+      ? claudeResetCredits(payload.cedar_ember, Date.now())
+      : undefined
   const resets = {
-    ...resetCredits === undefined ? {} : { resetCredits },
-    ...resetCreditsError === undefined ? {} : { resetCreditsError },
+    ...(resetCredits === undefined ? {} : { resetCredits }),
+    ...(resetCreditsError === undefined ? {} : { resetCreditsError }),
   }
   const modern = claudeLimitsWindows(payload.limits)
   if (modern.length > 0) return { supported: true, windows: modern, ...resets }
@@ -516,7 +651,9 @@ interface ClaudeModelCapabilities {
   }
 }
 
-function claudeThinkingType(capabilities: ClaudeModelCapabilities | undefined): 'enabled' | 'adaptive' | undefined {
+function claudeThinkingType(
+  capabilities: ClaudeModelCapabilities | undefined,
+): 'enabled' | 'adaptive' | undefined {
   const types = capabilities?.thinking?.types
   if (types?.enabled?.supported === true) return 'enabled'
   if (types?.adaptive?.supported === true) return 'adaptive'
@@ -526,12 +663,17 @@ function claudeThinkingType(capabilities: ClaudeModelCapabilities | undefined): 
 /** Effort levels in display order; a model exposes only the ones it advertises as supported. */
 const CLAUDE_EFFORT_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max'] as const
 
-function claudeReasoning(capabilities: ClaudeModelCapabilities | undefined): DiscoveredModel['reasoning'] {
+function claudeReasoning(
+  capabilities: ClaudeModelCapabilities | undefined,
+): DiscoveredModel['reasoning'] {
   const effort = capabilities?.effort
   if (effort?.supported !== true) return undefined
-  const efforts = CLAUDE_EFFORT_LEVELS
-    .filter(level => effort[level]?.supported === true)
-    .map(level => ({ id: ReasoningEffortId(level), name: level[0].toUpperCase() + level.slice(1) }))
+  const efforts = CLAUDE_EFFORT_LEVELS.filter(
+    (level) => effort[level]?.supported === true,
+  ).map((level) => ({
+    id: ReasoningEffortId(level),
+    name: level[0].toUpperCase() + level.slice(1),
+  }))
   return efforts.length > 0 ? { efforts } : undefined
 }
 
@@ -548,7 +690,9 @@ interface ClaudeWireModel {
 
 /** A token limit the endpoint disclosed, or undefined when absent or malformed. */
 function positiveTokenCount(value: unknown): number | undefined {
-  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : undefined
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0
+    ? value
+    : undefined
 }
 
 /**
@@ -565,21 +709,25 @@ export async function fetchClaudeModels(
   const userAgent = claudeCliUserAgent(await cliVersion())
   const response = await fetchFn(CLAUDE_MODELS_URL, {
     headers: {
-      'authorization': `Bearer ${session.accessToken}`,
+      authorization: `Bearer ${session.accessToken}`,
       'anthropic-version': '2023-06-01',
       'user-agent': userAgent,
       'anthropic-dangerous-direct-browser-access': 'true',
-      'accept': 'application/json',
+      accept: 'application/json',
     },
-    ...signal === undefined ? {} : { signal },
+    ...(signal === undefined ? {} : { signal }),
   })
   if (!response.ok) throw await httpLlmError(response, 'claude models API')
-  const payload = await parseProviderJson(response, 'claude models API') as { data?: ClaudeWireModel[] }
+  const payload = (await parseProviderJson(response, 'claude models API')) as {
+    data?: ClaudeWireModel[]
+  }
   if (!Array.isArray(payload.data)) {
     throw new Error('claude models API returned an invalid catalog')
   }
   const models: DiscoveredModel[] = payload.data
-    .filter((m): m is ClaudeWireModel & { id: string } => typeof m.id === 'string')
+    .filter(
+      (m): m is ClaudeWireModel & { id: string } => typeof m.id === 'string',
+    )
     .map((m) => {
       const thinkingType = claudeThinkingType(m.capabilities)
       const reasoning = claudeReasoning(m.capabilities)
@@ -590,10 +738,10 @@ export async function fetchClaudeModels(
       return {
         id: m.id,
         name: m.display_name ?? m.id,
-        ...contextWindow === undefined ? {} : { contextWindow },
-        ...maxOutputTokens === undefined ? {} : { maxOutputTokens },
-        ...thinkingType === undefined ? {} : { thinkingType },
-        ...reasoning === undefined ? {} : { reasoning },
+        ...(contextWindow === undefined ? {} : { contextWindow }),
+        ...(maxOutputTokens === undefined ? {} : { maxOutputTokens }),
+        ...(thinkingType === undefined ? {} : { thinkingType }),
+        ...(reasoning === undefined ? {} : { reasoning }),
       }
     })
   if (models.length === 0) {
@@ -606,10 +754,16 @@ export async function fetchClaudeModels(
  * The output cap for one model: configuration may lower the default, but never
  * exceeds a server-advertised ceiling; the built-in constant is the last resort.
  */
-function claudeMaxTokens(configured: ModelEntry | undefined, disc: DiscoveredModel | undefined): number {
+function claudeMaxTokens(
+  configured: ModelEntry | undefined,
+  disc: DiscoveredModel | undefined,
+): number {
   const outputLimit = disc?.maxOutputTokens
-  const preferred = configured?.maxTokens ?? outputLimit ?? CLAUDE_DEFAULT_MAX_TOKENS
-  return outputLimit === undefined ? preferred : Math.min(preferred, outputLimit)
+  const preferred =
+    configured?.maxTokens ?? outputLimit ?? CLAUDE_DEFAULT_MAX_TOKENS
+  return outputLimit === undefined
+    ? preferred
+    : Math.min(preferred, outputLimit)
 }
 
 /** Constructor dependencies for {@link ClaudeAdapter}. */
@@ -712,13 +866,15 @@ export function claudeRequestBody(
     max_tokens: maxTokens,
     system: toAnthropicSystem(options.system, messages, ttl),
     messages: anthropicMessages,
-    ...options.tools !== undefined && options.tools.length > 0
+    ...(options.tools !== undefined && options.tools.length > 0
       ? { tools: toAnthropicTools(options.tools) }
-      : {},
-    ...thinking === undefined ? {} : { thinking },
-    ...effort === undefined ? {} : { output_config: { effort } },
+      : {}),
+    ...(thinking === undefined ? {} : { thinking }),
+    ...(effort === undefined ? {} : { output_config: { effort } }),
     stream: true,
-    ...options.sessionId !== undefined ? { metadata: { user_id: String(options.sessionId) } } : {},
+    ...(options.sessionId !== undefined
+      ? { metadata: { user_id: String(options.sessionId) } }
+      : {}),
   }
 }
 
@@ -735,7 +891,10 @@ export class ClaudeAdapter extends LlmAdapter {
     this.catalog = new ModelCatalogCache(options.catalogStore)
   }
 
-  private async fetchCatalog(account?: string, signal?: AbortSignal): Promise<DiscoveredModel[]> {
+  private async fetchCatalog(
+    account?: string,
+    signal?: AbortSignal,
+  ): Promise<DiscoveredModel[]> {
     return fetchClaudeModels(
       await this.options.tokens.session(account),
       this.options.fetchFn,
@@ -748,7 +907,11 @@ export class ClaudeAdapter extends LlmAdapter {
   clearAccountCatalog(account?: string): void {
     if (account === undefined) this.accountCatalogs.clear()
     else this.accountCatalogs.delete(account)
-    if (account === undefined || this.catalogOwner === account || this.catalogOwner === undefined) {
+    if (
+      account === undefined ||
+      this.catalogOwner === account ||
+      this.catalogOwner === undefined
+    ) {
       this.catalogOwner = undefined
       this.catalog.invalidate()
     }
@@ -773,22 +936,26 @@ export class ClaudeAdapter extends LlmAdapter {
     return cache
   }
 
-  private async discovered(model: string, account?: string): Promise<DiscoveredModel | undefined> {
+  private async discovered(
+    model: string,
+    account?: string,
+  ): Promise<DiscoveredModel | undefined> {
     if (!this.options.discovery) return undefined
     // A named account is looked up alone: its window must not be borrowed
     // from another account's catalog.
-    const accounts = account === undefined
-      ? (await this.options.tokens.list()).map(entry => entry.key)
-      : [account]
-    return discoverAcrossAccounts(accounts, async account => {
+    const accounts =
+      account === undefined
+        ? (await this.options.tokens.list()).map((entry) => entry.key)
+        : [account]
+    return discoverAcrossAccounts(accounts, async (account) => {
       const catalog = await this.catalogFor(account)
       const models = await catalog.resolve(() => this.fetchCatalog(account))
-      return models?.find(entry => entry.id === model)
+      return models?.find((entry) => entry.id === model)
     })
   }
 
   private staticModels(provider: string): LlmModelInfo[] {
-    return this.options.models.map(model => ({
+    return this.options.models.map((model) => ({
       provider,
       id: model.id,
       name: model.name ?? model.id,
@@ -808,39 +975,51 @@ export class ClaudeAdapter extends LlmAdapter {
     )
   }
 
-  override async listModels(provider: string): Promise<readonly LlmModelInfo[]> {
+  override async listModels(
+    provider: string,
+  ): Promise<readonly LlmModelInfo[]> {
     const own = await this.listOwnModels(provider)
     const pool = this.options.pool?.()
     if (pool === undefined) return own
     const extra = await pool.modelsForProvider(provider as ProviderId)
-    const seen = new Set(own.map(model => model.id))
+    const seen = new Set(own.map((model) => model.id))
     // Account pools reuse the catalog row; only configured tiers are extra.
-    return [...own, ...extra.filter(model => !seen.has(model.id))]
+    return [...own, ...extra.filter((model) => !seen.has(model.id))]
   }
 
   /** The provider's own catalog: union of every account, or one account when named. */
-  async listOwnModels(provider: string, account?: string, signal?: AbortSignal): Promise<readonly LlmModelInfo[]> {
+  async listOwnModels(
+    provider: string,
+    account?: string,
+    signal?: AbortSignal,
+  ): Promise<readonly LlmModelInfo[]> {
     if (account === undefined) {
-      const accounts = (await this.options.tokens.list()).map(entry => entry.key)
+      const accounts = (await this.options.tokens.list()).map(
+        (entry) => entry.key,
+      )
       if (accounts.length === 0) return []
       return unionAccountCatalogs(
         accounts,
-        (key, accountSignal) => this.listOwnModels(provider, key, accountSignal),
-        { timeoutMs: DISCOVERY_TIMEOUT_MS, ...signal === undefined ? {} : { signal } },
+        (key, accountSignal) =>
+          this.listOwnModels(provider, key, accountSignal),
+        {
+          timeoutMs: DISCOVERY_TIMEOUT_MS,
+          ...(signal === undefined ? {} : { signal }),
+        },
       )
     }
-    if (!await this.options.tokens.hasSession(account)) {
+    if (!(await this.options.tokens.hasSession(account))) {
       return []
     }
     if (!this.options.discovery) return this.staticModels(provider)
     const catalog = await this.catalogFor(account)
     try {
       const models = await discoverOrRetryAuth(
-        force => this.options.tokens.session(account, force),
+        (force) => this.options.tokens.session(account, force),
         catalog,
         () => catalog.get(() => this.fetchCatalog(account, signal)),
       )
-      return models.map(model => ({
+      return models.map((model) => ({
         provider,
         id: model.id,
         name: model.name,
@@ -856,26 +1035,44 @@ export class ClaudeAdapter extends LlmAdapter {
     }
   }
 
-  override async resolveModel(provider: string, model: string): Promise<LlmResolvedModelInfo> {
+  override async resolveModel(
+    provider: string,
+    model: string,
+  ): Promise<LlmResolvedModelInfo> {
     const pool = this.options.pool?.()
-    if (pool !== undefined && await pool.owns(provider as ProviderId, model)) {
+    if (
+      pool !== undefined &&
+      (await pool.owns(provider as ProviderId, model))
+    ) {
       return pool.resolveModel(provider, model)
     }
     return this.resolveOwnModel(provider, model)
   }
 
   /** Capability resolution of the provider's own models (the pool resolves members here). */
-  async resolveOwnModel(provider: string, model: string, account?: string): Promise<LlmResolvedModelInfo> {
+  async resolveOwnModel(
+    provider: string,
+    model: string,
+    account?: string,
+  ): Promise<LlmResolvedModelInfo> {
     const disc = await this.discovered(model, account)
-    const configured = this.options.models.find(entry => entry.id === model)
+    const configured = this.options.models.find((entry) => entry.id === model)
     const limits = this.contextLimitsFor(disc, configured)
-    const reasoning = mergeReasoning(this.options.defaultEffortOf?.(model), disc?.reasoning)
+    const reasoning = mergeReasoning(
+      this.options.defaultEffortOf?.(model),
+      disc?.reasoning,
+    )
     return {
       provider,
       id: model,
       name: disc?.name ?? configured?.name ?? model,
       inputModalities: configured?.inputModalities ?? CLAUDE_MODALITIES,
-      context: { contextWindow: Math.min(this.options.contextWindowOf?.(model) ?? limits.default, limits.max) },
+      context: {
+        contextWindow: Math.min(
+          this.options.contextWindowOf?.(model) ?? limits.default,
+          limits.max,
+        ),
+      },
       defaultMaxTokens: claudeMaxTokens(configured, disc),
       ...(reasoning === undefined ? {} : { reasoning }),
     }
@@ -886,21 +1083,28 @@ export class ClaudeAdapter extends LlmAdapter {
     disc: DiscoveredModel | undefined,
     configured: { contextWindow?: number } | undefined,
   ): { default: number; max: number } {
-    const advertised = disc?.contextWindow ?? configured?.contextWindow ?? CLAUDE_CONTEXT_WINDOW
+    const advertised =
+      disc?.contextWindow ?? configured?.contextWindow ?? CLAUDE_CONTEXT_WINDOW
     return { default: advertised, max: advertised }
   }
 
   /** Account-specific bounds the Settings editor shows next to a model's override input. */
-  async contextLimits(model: string, account?: string): Promise<{ default: number; max: number }> {
+  async contextLimits(
+    model: string,
+    account?: string,
+  ): Promise<{ default: number; max: number }> {
     return this.contextLimitsFor(
       await this.discovered(model, account),
-      this.options.models.find(entry => entry.id === model),
+      this.options.models.find((entry) => entry.id === model),
     )
   }
 
   async *stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
     const pool = this.options.pool?.()
-    if (pool !== undefined && await pool.owns(options.provider as ProviderId, options.model)) {
+    if (
+      pool !== undefined &&
+      (await pool.owns(options.provider as ProviderId, options.model))
+    ) {
       yield* pool.stream(options)
       return
     }
@@ -908,12 +1112,21 @@ export class ClaudeAdapter extends LlmAdapter {
   }
 
   /** Pool seam: stream through one specific account instead of the default. */
-  streamAccount(options: GenerateOptions, account: string): AsyncIterable<StreamChunk> {
+  streamAccount(
+    options: GenerateOptions,
+    account: string,
+  ): AsyncIterable<StreamChunk> {
     return this.streamCore(options, account)
   }
 
-  private async *streamCore(options: GenerateOptions, account?: string): AsyncIterable<StreamChunk> {
-    const watchdog = idleWatchdog(options.signal, this.options.streamIdleTimeoutMs)
+  private async *streamCore(
+    options: GenerateOptions,
+    account?: string,
+  ): AsyncIterable<StreamChunk> {
+    const watchdog = idleWatchdog(
+      options.signal,
+      this.options.streamIdleTimeoutMs,
+    )
     try {
       let session = await this.options.tokens.session(account)
       let response = await this.request(options, session, watchdog.signal)
@@ -924,13 +1137,20 @@ export class ClaudeAdapter extends LlmAdapter {
       if (!response.ok) {
         throw await httpLlmError(response, 'claude API', {
           rateLimitReset: claudeRateLimitReset,
-          ...this.options.onWarn === undefined ? {} : { onWarn: this.options.onWarn },
+          ...(this.options.onWarn === undefined
+            ? {}
+            : { onWarn: this.options.onWarn }),
         })
       }
       if (response.body === null) {
-        throw new LlmError('claude API returned no response body', EMPTY_RESPONSE_CODE)
+        throw new LlmError(
+          'claude API returned no response body',
+          EMPTY_RESPONSE_CODE,
+        )
       }
-      yield* streamAnthropic(response.body, () => { watchdog.pulse() })
+      yield* streamAnthropic(response.body, () => {
+        watchdog.pulse()
+      })
     } catch (error: unknown) {
       throw mapFetchFailure('claude API', error, watchdog, options.signal)
     } finally {
@@ -945,54 +1165,86 @@ export class ClaudeAdapter extends LlmAdapter {
    * always render empty even though real reasoning (and billed thinking_tokens)
    * ran.
    */
-  private thinkingParam(thinkingType: 'enabled' | 'adaptive' | undefined, maxTokens: number): Record<string, unknown> | undefined {
-    if (thinkingType === 'adaptive') return { type: 'adaptive', display: 'summarized' }
+  private thinkingParam(
+    thinkingType: 'enabled' | 'adaptive' | undefined,
+    maxTokens: number,
+  ): Record<string, unknown> | undefined {
+    if (thinkingType === 'adaptive')
+      return { type: 'adaptive', display: 'summarized' }
     if (thinkingType === 'enabled') {
-      const budget = Math.min(Math.max(1_024, Math.floor(maxTokens * 0.5)), maxTokens - 100)
+      const budget = Math.min(
+        Math.max(1_024, Math.floor(maxTokens * 0.5)),
+        maxTokens - 100,
+      )
       if (budget < 1_024) return undefined
       return { type: 'enabled', budget_tokens: budget, display: 'summarized' }
     }
     return undefined
   }
 
-  private async request(options: GenerateOptions, session: ClaudeSession, signal: AbortSignal): Promise<Response> {
-    const messages = await resolveImages(options.messages, this.options.resolveAttachments?.(), signal, CLAUDE_IMAGE_LIMIT)
+  private async request(
+    options: GenerateOptions,
+    session: ClaudeSession,
+    signal: AbortSignal,
+  ): Promise<Response> {
+    const messages = await resolveImages(
+      options.messages,
+      this.options.resolveAttachments?.(),
+      signal,
+      CLAUDE_IMAGE_LIMIT,
+    )
     if (hostSupportsImageOffload()) {
-      const offloadImages = requiredImageOffloadCount(messages, CLAUDE_REQUEST_IMAGE_BUDGET)
+      const offloadImages = requiredImageOffloadCount(
+        messages,
+        CLAUDE_REQUEST_IMAGE_BUDGET,
+      )
       if (offloadImages > 0) {
         // The supported 0.1.7-rc.2 floor reads `offloadImages`; older option types lack it.
         throw new LlmError(
-          `claude request images exceed the ${CLAUDE_REQUEST_IMAGE_BUDGET}-byte base64 budget; `
-          + `${offloadImages} more oldest image(s) must be offloaded`,
+          `claude request images exceed the ${CLAUDE_REQUEST_IMAGE_BUDGET}-byte base64 budget; ` +
+            `${offloadImages} more oldest image(s) must be offloaded`,
           IMAGE_OFFLOAD_REQUIRED,
           { offloadImages } as ErrorOptions,
         )
       }
     }
     const disc = await this.discovered(options.model)
-    const maxTokens = options.maxTokens
-      ?? claudeMaxTokens(this.options.models.find(entry => entry.id === options.model), disc)
+    const maxTokens =
+      options.maxTokens ??
+      claudeMaxTokens(
+        this.options.models.find((entry) => entry.id === options.model),
+        disc,
+      )
     const thinking = this.thinkingParam(disc?.thinkingType, maxTokens)
-    const effort = options.reasoningEffort !== undefined && disc?.reasoning !== undefined
-      ? String(options.reasoningEffort)
-      : undefined
+    const effort =
+      options.reasoningEffort !== undefined && disc?.reasoning !== undefined
+        ? String(options.reasoningEffort)
+        : undefined
     // Read the Settings override per request: a saved change must apply from
     // the next turn, and a cached value here would go stale.
-    const cacheTtl = this.options.promptCacheTtlOverride?.() ?? this.options.promptCacheTtl
+    const cacheTtl =
+      this.options.promptCacheTtlOverride?.() ?? this.options.promptCacheTtl
     const body = claudeRequestBody(
-      options, messages, maxTokens, thinking, effort, cacheTtl,
+      options,
+      messages,
+      maxTokens,
+      thinking,
+      effort,
+      cacheTtl,
     )
-    const cliVersion = await (this.options.resolveCliVersion ?? localClaudeCliVersion)()
+    const cliVersion = await (
+      this.options.resolveCliVersion ?? localClaudeCliVersion
+    )()
     return hostFetch(CLAUDE_API_URL, {
       method: 'POST',
       headers: {
-        'authorization': `Bearer ${session.accessToken}`,
+        authorization: `Bearer ${session.accessToken}`,
         'anthropic-version': '2023-06-01',
         'anthropic-beta': CLAUDE_BETA_FLAGS,
         'user-agent': claudeCliUserAgent(cliVersion),
         'x-app': 'cli',
         'anthropic-dangerous-direct-browser-access': 'true',
-        'accept': 'text/event-stream',
+        accept: 'text/event-stream',
         'content-type': 'application/json',
       },
       body: JSON.stringify(body),

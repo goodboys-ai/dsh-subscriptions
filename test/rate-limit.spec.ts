@@ -27,31 +27,43 @@ import { claudeRateLimitReset, ClaudeAdapter } from '../src/providers/claude.js'
 import { codexRateLimitReset, CodexAdapter } from '../src/providers/codex.js'
 import { grokRateLimitReset, GrokAdapter } from '../src/providers/grok.js'
 import { CopilotAdapter } from '../src/providers/copilot.js'
-import type { ClaudeSession, CodexSession, CopilotSession, GrokSession } from '../src/auth/store.js'
+import type {
+  ClaudeSession,
+  CodexSession,
+  CopilotSession,
+  GrokSession,
+} from '../src/auth/store.js'
 
 /** A fixed clock, so every expectation is an exact number rather than a window. */
 const NOW = 1_800_000_000_000
 
 /** Builds a failed response with the given headers and body. */
-function failure(status: number, headers: Record<string, string>, body = ''): Response {
+function failure(
+  status: number,
+  headers: Record<string, string>,
+  body = '',
+): Response {
   return new Response(body, { status, headers })
 }
 
 /** An AccountTokenManager over an in-memory session; these tests never refresh. */
-function memoryTokens<S extends { accessToken: string; refreshToken: string; expiresAt: number }>(
-  initial: S,
-): AccountTokenManager<S> {
+function memoryTokens<
+  S extends { accessToken: string; refreshToken: string; expiresAt: number },
+>(initial: S): AccountTokenManager<S> {
   let stored: S | undefined = initial
   return new AccountTokenManager<S>({
     provider: 'codex',
     displayName: 'Test',
     makeOptions: () => ({
       preemptMs: 0,
-      refresh: session => Promise.resolve(session),
+      refresh: (session) => Promise.resolve(session),
       isPermanent: () => false,
     }),
     io: {
-      list: () => Promise.resolve(stored === undefined ? [] : [{ key: 'acct', session: stored }]),
+      list: () =>
+        Promise.resolve(
+          stored === undefined ? [] : [{ key: 'acct', session: stored }],
+        ),
       get: () => Promise.resolve(stored),
       save: (_account, session) => {
         stored = session
@@ -65,15 +77,29 @@ function memoryTokens<S extends { accessToken: string; refreshToken: string; exp
   })
 }
 
-const claudeSession: ClaudeSession = { accessToken: 'at', refreshToken: 'rt', expiresAt: NOW, scopes: 's' }
-const codexSession: CodexSession = { accessToken: 'at', refreshToken: 'rt', expiresAt: NOW, accountId: 'a' }
+const claudeSession: ClaudeSession = {
+  accessToken: 'at',
+  refreshToken: 'rt',
+  expiresAt: NOW,
+  scopes: 's',
+}
+const codexSession: CodexSession = {
+  accessToken: 'at',
+  refreshToken: 'rt',
+  expiresAt: NOW,
+  accountId: 'a',
+}
 const grokSession: GrokSession = {
   accessToken: 'at',
   refreshToken: 'rt',
   expiresAt: NOW,
   tokenEndpoint: 'https://auth.x.ai/token',
 }
-const copilotSession: CopilotSession = { accessToken: 'at', refreshToken: 'rt', expiresAt: NOW }
+const copilotSession: CopilotSession = {
+  accessToken: 'at',
+  refreshToken: 'rt',
+  expiresAt: NOW,
+}
 
 test('a bare number is read as epoch ms, epoch seconds, or a delay by magnitude', () => {
   assert.equal(resetInstantFromNumber(NOW + 5_000, NOW), NOW + 5_000)
@@ -108,7 +134,10 @@ test('a single value is read in every shape a provider might encode it in', () =
   assert.equal(resetInstantFromValue(300, NOW), NOW + 300_000)
   assert.equal(resetInstantFromValue('300', NOW), NOW + 300_000)
   assert.equal(resetInstantFromValue('6m0s', NOW), NOW + 360_000)
-  assert.equal(resetInstantFromValue('2027-01-15T10:30:00Z', NOW), Date.parse('2027-01-15T10:30:00Z'))
+  assert.equal(
+    resetInstantFromValue('2027-01-15T10:30:00Z', NOW),
+    Date.parse('2027-01-15T10:30:00Z'),
+  )
   assert.equal(resetInstantFromValue(null, NOW), undefined)
   assert.equal(resetInstantFromValue({ nested: 1 }, NOW), undefined)
   assert.equal(resetInstantFromValue('whenever', NOW), undefined)
@@ -118,13 +147,25 @@ test('a single value is read in every shape a provider might encode it in', () =
 })
 
 test('retry-after reads a delay in seconds or an HTTP-date, never an epoch stamp', () => {
-  assert.equal(retryAfterInstant(failure(429, { 'retry-after': '120' }), NOW), NOW + 120_000)
+  assert.equal(
+    retryAfterInstant(failure(429, { 'retry-after': '120' }), NOW),
+    NOW + 120_000,
+  )
   // A large number stays a delay here, unlike a bare rate-limit field.
-  assert.equal(retryAfterInstant(failure(429, { 'retry-after': '1800000000' }), NOW), NOW + 1_800_000_000_000)
+  assert.equal(
+    retryAfterInstant(failure(429, { 'retry-after': '1800000000' }), NOW),
+    NOW + 1_800_000_000_000,
+  )
   const date = 'Wed, 21 Oct 2026 07:28:00 GMT'
-  assert.equal(retryAfterInstant(failure(429, { 'retry-after': date }), NOW), Date.parse(date))
+  assert.equal(
+    retryAfterInstant(failure(429, { 'retry-after': date }), NOW),
+    Date.parse(date),
+  )
   assert.equal(retryAfterInstant(failure(429, {}), NOW), undefined)
-  assert.equal(retryAfterInstant(failure(429, { 'retry-after': '0' }), NOW), undefined)
+  assert.equal(
+    retryAfterInstant(failure(429, { 'retry-after': '0' }), NOW),
+    undefined,
+  )
 })
 
 test('a reset instant becomes a wait with clock-skew grace and a floor', () => {
@@ -132,17 +173,37 @@ test('a reset instant becomes a wait with clock-skew grace and a floor', () => {
   // Already past: still scheduled, at the floor.
   assert.equal(waitFromReset(NOW - 60_000, NOW), 1_000)
   // Never capped here: an over-ceiling wait must reach the policy to be refused.
-  assert.equal(waitFromReset(NOW + 7 * 24 * 3_600_000, NOW), 7 * 24 * 3_600_000 + 2_000)
+  assert.equal(
+    waitFromReset(NOW + 7 * 24 * 3_600_000, NOW),
+    7 * 24 * 3_600_000 + 2_000,
+  )
 })
 
 test('a body field is found wherever the provider nests it', () => {
-  const body = jsonBody('{"detail":{"type":"usage_limit_reached","resets_in_seconds":9000}}')
-  assert.equal(resetFromFields(body, ['resets_in_seconds'], NOW), NOW + 9_000_000)
-  assert.equal(resetFromFields(jsonBody('{"resets_in_seconds":60}'), ['resets_in_seconds'], NOW), NOW + 60_000)
+  const body = jsonBody(
+    '{"detail":{"type":"usage_limit_reached","resets_in_seconds":9000}}',
+  )
+  assert.equal(
+    resetFromFields(body, ['resets_in_seconds'], NOW),
+    NOW + 9_000_000,
+  )
+  assert.equal(
+    resetFromFields(
+      jsonBody('{"resets_in_seconds":60}'),
+      ['resets_in_seconds'],
+      NOW,
+    ),
+    NOW + 60_000,
+  )
   // The earliest of several matches wins.
-  const many = jsonBody('{"a":{"resets_at":1800000600},"b":{"resets_at":1800000300}}')
+  const many = jsonBody(
+    '{"a":{"resets_at":1800000600},"b":{"resets_at":1800000300}}',
+  )
   assert.equal(resetFromFields(many, ['resets_at'], NOW), 1_800_000_300_000)
-  assert.equal(resetFromFields(jsonBody('{"other":5}'), ['resets_at'], NOW), undefined)
+  assert.equal(
+    resetFromFields(jsonBody('{"other":5}'), ['resets_at'], NOW),
+    undefined,
+  )
   assert.equal(jsonBody('<html>502</html>'), undefined)
 })
 
@@ -170,14 +231,22 @@ test('claude: the per-bucket snapshot headers never park a turn', () => {
 })
 
 test('claude: a header-less rejection falls back to a reset named in the body', () => {
-  const body = '{"type":"error","error":{"type":"rate_limit_error","resets_at":1800003600}}'
-  assert.equal(claudeRateLimitReset(failure(429, {}), body, NOW), 1_800_003_600_000)
-  assert.equal(claudeRateLimitReset(failure(429, {}), '{"type":"error"}', NOW), undefined)
+  const body =
+    '{"type":"error","error":{"type":"rate_limit_error","resets_at":1800003600}}'
+  assert.equal(
+    claudeRateLimitReset(failure(429, {}), body, NOW),
+    1_800_003_600_000,
+  )
+  assert.equal(
+    claudeRateLimitReset(failure(429, {}), '{"type":"error"}', NOW),
+    undefined,
+  )
 })
 
 test('codex: the exhausted window in the body wins over the snapshot headers', () => {
   const response = failure(429, { 'x-codex-primary-reset-after-seconds': '30' })
-  const body = '{"detail":{"type":"usage_limit_reached","resets_in_seconds":9000,"plan_type":"plus"}}'
+  const body =
+    '{"detail":{"type":"usage_limit_reached","resets_in_seconds":9000,"plan_type":"plus"}}'
   assert.equal(codexRateLimitReset(response, body, NOW), NOW + 9_000_000)
 })
 
@@ -188,7 +257,10 @@ test('codex: the snapshot headers never park a turn', () => {
     'x-codex-primary-reset-after-seconds': '17000',
     'x-codex-secondary-reset-after-seconds': '90000',
   })
-  assert.equal(codexRateLimitReset(response, '{"detail":"Too many requests"}', NOW), undefined)
+  assert.equal(
+    codexRateLimitReset(response, '{"detail":"Too many requests"}', NOW),
+    undefined,
+  )
 })
 
 test('grok: the body wins over the OpenAI-compatible snapshot headers', () => {
@@ -198,17 +270,27 @@ test('grok: the body wins over the OpenAI-compatible snapshot headers', () => {
     'x-ratelimit-reset-requests': '0s',
     'x-ratelimit-reset-tokens': '6m0s',
   })
-  assert.equal(grokRateLimitReset(response, '{"error":{"retry_after":60}}', NOW), NOW + 60_000)
+  assert.equal(
+    grokRateLimitReset(response, '{"error":{"retry_after":60}}', NOW),
+    NOW + 60_000,
+  )
   assert.equal(grokRateLimitReset(response, '', NOW), undefined)
 })
 
 test('grok: a body-named retry delay serves when no header carries one', () => {
-  assert.equal(grokRateLimitReset(failure(429, {}), '{"error":{"retry_after":45}}', NOW), NOW + 45_000)
-  assert.equal(grokRateLimitReset(failure(429, {}), '{"error":"rate limited"}', NOW), undefined)
+  assert.equal(
+    grokRateLimitReset(failure(429, {}), '{"error":{"retry_after":45}}', NOW),
+    NOW + 45_000,
+  )
+  assert.equal(
+    grokRateLimitReset(failure(429, {}), '{"error":"rate limited"}', NOW),
+    undefined,
+  )
 })
 
 test('a 429 classifies as RATE_LIMIT even when the wording reads as terminal quota', async () => {
-  const body = '{"detail":{"type":"usage_limit_reached","resets_in_seconds":9000,"plan_type":"plus"}}'
+  const body =
+    '{"detail":{"type":"usage_limit_reached","resets_in_seconds":9000,"plan_type":"plus"}}'
   const error = await httpLlmError(failure(429, {}, body), 'codex API', {
     rateLimitReset: codexRateLimitReset,
   })
@@ -218,52 +300,80 @@ test('a 429 classifies as RATE_LIMIT even when the wording reads as terminal quo
 })
 
 test('quota wording still classifies as QUOTA on any other status', async () => {
-  const error = await httpLlmError(failure(402, {}, 'Weekly usage limit exceeded'), 'codex API')
+  const error = await httpLlmError(
+    failure(402, {}, 'Weekly usage limit exceeded'),
+    'codex API',
+  )
   assert.equal(error.code, 'QUOTA')
 })
 
 test('a rate-limit reset parses the full body even though display omits it', async () => {
   const padding = 'x'.repeat(2_000)
-  const body = JSON.stringify({ note: padding, detail: { resets_in_seconds: 600 } })
+  const body = JSON.stringify({
+    note: padding,
+    detail: { resets_in_seconds: 600 },
+  })
   const error = await httpLlmError(failure(429, {}, body), 'codex API', {
     rateLimitReset: codexRateLimitReset,
   })
   assert.equal(error.code, 'RATE_LIMIT')
   assert.ok(error.failure.providerRetryAfterMs !== undefined)
   assert.ok(error.failure.providerRetryAfterMs > 590_000)
-  assert.equal(error.message, 'codex API error (HTTP 429, RATE_LIMIT): [provider response body omitted]')
+  assert.equal(
+    error.message,
+    'codex API error (HTTP 429, RATE_LIMIT): [provider response body omitted]',
+  )
   assert.equal(error.failure.message, error.message)
   assert.doesNotMatch(error.message, /xxxx|resets_in_seconds/)
   assert.doesNotMatch(error.failure.message, /xxxx|resets_in_seconds/)
 })
 
 test("the provider's own field beats a short retry-after on the same response", async () => {
-  const response = failure(429, {
-    'retry-after': '60',
-    'anthropic-ratelimit-unified-reset': String(Math.floor(NOW / 1_000) + 9_000),
-  }, '')
-  const error = await httpLlmError(response, 'claude API', { rateLimitReset: claudeRateLimitReset })
+  const response = failure(
+    429,
+    {
+      'retry-after': '60',
+      'anthropic-ratelimit-unified-reset': String(
+        Math.floor(NOW / 1_000) + 9_000,
+      ),
+    },
+    '',
+  )
+  const error = await httpLlmError(response, 'claude API', {
+    rateLimitReset: claudeRateLimitReset,
+  })
   assert.ok(error.failure.providerRetryAfterMs !== undefined)
-  assert.ok(error.failure.providerRetryAfterMs > 8_000_000, 'the window reset, not the 60s backoff')
+  assert.ok(
+    error.failure.providerRetryAfterMs > 8_000_000,
+    'the window reset, not the 60s backoff',
+  )
 })
 
 test('retry-after still serves a provider that disclosed nothing else', async () => {
-  const error = await httpLlmError(failure(429, { 'retry-after': '30' }, ''), 'grok API', {
-    rateLimitReset: grokRateLimitReset,
-  })
+  const error = await httpLlmError(
+    failure(429, { 'retry-after': '30' }, ''),
+    'grok API',
+    {
+      rateLimitReset: grokRateLimitReset,
+    },
+  )
   assert.ok(error.failure.providerRetryAfterMs !== undefined)
   assert.ok(error.failure.providerRetryAfterMs >= 30_000)
 })
 
 test('a 429 that disclosed no reset warns without provider headers or body text', async () => {
   const warnings: string[] = []
-  const response = failure(429, {
-    'x-ratelimit-remaining-requests': '0',
-    'content-type': 'application/json',
-  }, '{"error":"slow down"}')
+  const response = failure(
+    429,
+    {
+      'x-ratelimit-remaining-requests': '0',
+      'content-type': 'application/json',
+    },
+    '{"error":"slow down"}',
+  )
   const error = await httpLlmError(response, 'grok API', {
     rateLimitReset: grokRateLimitReset,
-    onWarn: message => warnings.push(message),
+    onWarn: (message) => warnings.push(message),
   })
   assert.equal(error.failure.providerRetryAfterMs, undefined)
   assert.equal(warnings.length, 1)
@@ -275,7 +385,9 @@ test('a 429 that disclosed no reset warns without provider headers or body text'
 
 test('a non-429 failure never emits the rate-limit diagnostic', async () => {
   const warnings: string[] = []
-  await httpLlmError(failure(500, {}, 'boom'), 'grok API', { onWarn: message => warnings.push(message) })
+  await httpLlmError(failure(500, {}, 'boom'), 'grok API', {
+    onWarn: (message) => warnings.push(message),
+  })
   assert.deepEqual(warnings, [])
 })
 
@@ -283,10 +395,18 @@ test('a non-429 failure never inherits the current window as its retry delay', a
   // The rate-limit headers ride every response, so a transient overload would
   // otherwise report the window rollover — hours out — as its backoff, and the
   // retry plugin honours providerRetryAfterMs for every retryable code.
-  const response = failure(529, {
-    'anthropic-ratelimit-unified-reset': String(Math.floor(NOW / 1_000) + 14_400),
-  }, '{"type":"error","error":{"type":"overloaded_error"}}')
-  const error = await httpLlmError(response, 'claude API', { rateLimitReset: claudeRateLimitReset })
+  const response = failure(
+    529,
+    {
+      'anthropic-ratelimit-unified-reset': String(
+        Math.floor(NOW / 1_000) + 14_400,
+      ),
+    },
+    '{"type":"error","error":{"type":"overloaded_error"}}',
+  )
+  const error = await httpLlmError(response, 'claude API', {
+    rateLimitReset: claudeRateLimitReset,
+  })
   assert.equal(error.code, 'SERVER')
   assert.equal(error.failure.providerRetryAfterMs, undefined)
 })
@@ -294,9 +414,13 @@ test('a non-429 failure never inherits the current window as its retry delay', a
 test('retry-after still serves a non-429 that asked for a backoff', async () => {
   // Unlike a window snapshot, retry-after on a 503 is a delay the provider
   // actually asked for, so it stays readable on any status.
-  const error = await httpLlmError(failure(503, { 'retry-after': '30' }, 'shedding load'), 'grok API', {
-    rateLimitReset: grokRateLimitReset,
-  })
+  const error = await httpLlmError(
+    failure(503, { 'retry-after': '30' }, 'shedding load'),
+    'grok API',
+    {
+      rateLimitReset: grokRateLimitReset,
+    },
+  )
   assert.equal(error.code, 'SERVER')
   assert.ok(error.failure.providerRetryAfterMs !== undefined)
   assert.ok(error.failure.providerRetryAfterMs >= 30_000)
@@ -304,12 +428,16 @@ test('retry-after still serves a non-429 that asked for a backoff', async () => 
 
 test('a 429 whose only signal is a snapshot header warns without displaying it', async () => {
   const warnings: string[] = []
-  const response = failure(429, {
-    'x-codex-primary-reset-after-seconds': '17000',
-  }, '{"detail":"Too many requests"}')
+  const response = failure(
+    429,
+    {
+      'x-codex-primary-reset-after-seconds': '17000',
+    },
+    '{"detail":"Too many requests"}',
+  )
   const error = await httpLlmError(response, 'codex API', {
     rateLimitReset: codexRateLimitReset,
-    onWarn: message => warnings.push(message),
+    onWarn: (message) => warnings.push(message),
   })
   assert.equal(error.code, 'RATE_LIMIT')
   assert.equal(error.failure.providerRetryAfterMs, undefined)
@@ -325,20 +453,25 @@ test('an Antigravity quota body discloses its reset without a provider reader', 
   const body = JSON.stringify({
     error: {
       code: 429,
-      message: 'Individual quota reached. Please upgrade your subscription to increase your limits.',
+      message:
+        'Individual quota reached. Please upgrade your subscription to increase your limits.',
       status: 'RESOURCE_EXHAUSTED',
-      details: [{
-        reason: 'QUOTA_EXHAUSTED',
-        metadata: {
-          quotaResetDelay: '35h25m28.374531157s',
-          quotaResetTimeStamp: new Date(Date.now() + 127_528_374).toISOString(),
-          model: 'claude-sonnet-4-6',
+      details: [
+        {
+          reason: 'QUOTA_EXHAUSTED',
+          metadata: {
+            quotaResetDelay: '35h25m28.374531157s',
+            quotaResetTimeStamp: new Date(
+              Date.now() + 127_528_374,
+            ).toISOString(),
+            model: 'claude-sonnet-4-6',
+          },
         },
-      }],
+      ],
     },
   })
   const error = await httpLlmError(failure(429, {}, body), 'Antigravity API', {
-    onWarn: message => warnings.push(message),
+    onWarn: (message) => warnings.push(message),
   })
   assert.equal(error.code, 'RATE_LIMIT')
   assert.equal(warnings.length, 0)
@@ -350,11 +483,22 @@ test('an Antigravity quota body discloses its reset without a provider reader', 
 
 test('an Antigravity quota delay beats a timestamp a skewed clock would misread', async () => {
   // A local clock 35 hours slow would read the timestamp as 35 hours longer.
-  const body = JSON.stringify({ error: { details: [{ metadata: {
-    quotaResetDelay: '90s',
-    quotaResetTimeStamp: new Date(Date.now() + 35 * 3_600_000).toISOString(),
-  } }] } })
-  const wait = (await httpLlmError(failure(429, {}, body), 'Antigravity API')).failure.providerRetryAfterMs
+  const body = JSON.stringify({
+    error: {
+      details: [
+        {
+          metadata: {
+            quotaResetDelay: '90s',
+            quotaResetTimeStamp: new Date(
+              Date.now() + 35 * 3_600_000,
+            ).toISOString(),
+          },
+        },
+      ],
+    },
+  })
+  const wait = (await httpLlmError(failure(429, {}, body), 'Antigravity API'))
+    .failure.providerRetryAfterMs
   assert.ok(wait !== undefined)
   assert.ok(wait >= 90_000)
   assert.ok(wait < 95_000)
@@ -362,10 +506,20 @@ test('an Antigravity quota delay beats a timestamp a skewed clock would misread'
 
 test('an Antigravity quota timestamp serves when the delay is absent or unreadable', async () => {
   for (const metadata of [{}, { quotaResetDelay: 'soon' }]) {
-    const body = JSON.stringify({ error: { details: [{ metadata: {
-      ...metadata,
-      quotaResetTimeStamp: new Date(Date.now() + 2 * 3_600_000).toISOString(),
-    } }] } })
+    const body = JSON.stringify({
+      error: {
+        details: [
+          {
+            metadata: {
+              ...metadata,
+              quotaResetTimeStamp: new Date(
+                Date.now() + 2 * 3_600_000,
+              ).toISOString(),
+            },
+          },
+        ],
+      },
+    })
     const error = await httpLlmError(failure(429, {}, body), 'Antigravity API')
     const wait = error.failure.providerRetryAfterMs
     assert.equal(error.code, 'RATE_LIMIT')
@@ -377,15 +531,32 @@ test('an Antigravity quota timestamp serves when the delay is absent or unreadab
 
 test('an Antigravity quota body beats a generic retry-after', async () => {
   // A 5-second retry-after cannot reopen a quota window 35 hours away.
-  const body = JSON.stringify({ error: { details: [{ metadata: { quotaResetDelay: '35h' } }] } })
-  const wait = (await httpLlmError(failure(429, { 'retry-after': '5' }, body), 'Antigravity API')).failure.providerRetryAfterMs
+  const body = JSON.stringify({
+    error: { details: [{ metadata: { quotaResetDelay: '35h' } }] },
+  })
+  const wait = (
+    await httpLlmError(
+      failure(429, { 'retry-after': '5' }, body),
+      'Antigravity API',
+    )
+  ).failure.providerRetryAfterMs
   assert.ok(wait !== undefined)
   assert.ok(wait >= 35 * 3_600_000)
 })
 
-test("a provider reset reader still beats Google quota fields", async () => {
+test('a provider reset reader still beats Google quota fields', async () => {
   const body = JSON.stringify({
-    error: { details: [{ metadata: { quotaResetTimeStamp: new Date(Date.now() + 35 * 3_600_000).toISOString() } }] },
+    error: {
+      details: [
+        {
+          metadata: {
+            quotaResetTimeStamp: new Date(
+              Date.now() + 35 * 3_600_000,
+            ).toISOString(),
+          },
+        },
+      ],
+    },
   })
   const error = await httpLlmError(failure(429, {}, body), 'codex API', {
     rateLimitReset: (_response, _body, now) => now + 45_000,
@@ -398,22 +569,38 @@ test("a provider reset reader still beats Google quota fields", async () => {
 
 test('copilot uses generic retry-after and diagnoses unrecognized reset signals', async () => {
   const warnings: string[] = []
-  const error = await httpLlmError(failure(429, {
-    'retry-after': '30',
-    'x-ratelimit-reset': '2027-01-15T10:30:00Z',
-  }, '{"message":"rate limited"}'), 'copilot API', {
-    onWarn: message => warnings.push(message),
-  })
+  const error = await httpLlmError(
+    failure(
+      429,
+      {
+        'retry-after': '30',
+        'x-ratelimit-reset': '2027-01-15T10:30:00Z',
+      },
+      '{"message":"rate limited"}',
+    ),
+    'copilot API',
+    {
+      onWarn: (message) => warnings.push(message),
+    },
+  )
   assert.equal(error.code, 'RATE_LIMIT')
   assert.ok(error.failure.providerRetryAfterMs !== undefined)
   assert.ok(error.failure.providerRetryAfterMs >= 30_000)
   assert.equal(warnings.length, 0)
 
-  const noRetryAfter = await httpLlmError(failure(429, {
-    'x-ratelimit-reset': '2027-01-15T10:30:00Z',
-  }, '{"message":"rate limited"}'), 'copilot API', {
-    onWarn: message => warnings.push(message),
-  })
+  const noRetryAfter = await httpLlmError(
+    failure(
+      429,
+      {
+        'x-ratelimit-reset': '2027-01-15T10:30:00Z',
+      },
+      '{"message":"rate limited"}',
+    ),
+    'copilot API',
+    {
+      onWarn: (message) => warnings.push(message),
+    },
+  )
   assert.equal(noRetryAfter.failure.providerRetryAfterMs, undefined)
   assert.equal(warnings.length, 1)
   assert.match(warnings[0], /copilot API: 429 disclosed no reset time/)
@@ -431,8 +618,13 @@ test('waiting widens the delay ceiling to the configured maximum', () => {
   assert.equal(policy.mode, 'normal')
   assert.equal(policy.maxDelayMs, 6 * 3_600_000)
   assert.equal(policy.initialDelayMs, DEFAULT_RETRY.initialDelayMs)
-  assert.equal(policy.mode === 'normal' && policy.maxRetries, DEFAULT_RETRY.maxRetries)
-  assert.ok(policy.mode === 'normal' && policy.retryableCodes.includes('RATE_LIMIT'))
+  assert.equal(
+    policy.mode === 'normal' && policy.maxRetries,
+    DEFAULT_RETRY.maxRetries,
+  )
+  assert.ok(
+    policy.mode === 'normal' && policy.retryableCodes.includes('RATE_LIMIT'),
+  )
 })
 
 test('opting out of waiting restores the route defaults exactly', () => {
@@ -453,7 +645,7 @@ test('a wait ceiling below the local backoff ceiling never shortens local backof
   assert.equal(policy.maxDelayMs, DEFAULT_RETRY.maxDelayMs)
 })
 
-test('the shared retry shape is Claude Code\'s, not the dsh-llm default', () => {
+test("the shared retry shape is Claude Code's, not the dsh-llm default", () => {
   assert.deepEqual(DEFAULT_RETRY, {
     maxRetries: 10,
     initialDelayMs: 1_000,
@@ -476,7 +668,11 @@ test('rate-limit waiting defaults to on with a six-hour ceiling', () => {
     /rateLimit.maxWaitMs must be a positive finite number/,
   )
   assert.throws(
-    () => resolveRateLimitWait({ maxWaitMs: 30 * 24 * 3_600_000 }, 'config: rateLimit'),
+    () =>
+      resolveRateLimitWait(
+        { maxWaitMs: 30 * 24 * 3_600_000 },
+        'config: rateLimit',
+      ),
     /maximum schedulable delay/,
   )
 })
@@ -511,15 +707,33 @@ test('every route reports a policy able to hold the configured wait', () => {
     discovery: false,
     rateLimit,
   })
-  for (const [route, adapter] of [['claude', claude], ['codex', codex], ['grok', grok], ['copilot', copilot]] as const) {
+  for (const [route, adapter] of [
+    ['claude', claude],
+    ['codex', codex],
+    ['grok', grok],
+    ['copilot', copilot],
+  ] as const) {
     const policy = adapter.providerRetryPolicy(route)
     assert.ok(policy !== undefined, `${route} reports a policy`)
-    assert.equal(policy.maxDelayMs, 4 * 3_600_000, `${route} accepts the configured wait`)
+    assert.equal(
+      policy.maxDelayMs,
+      4 * 3_600_000,
+      `${route} accepts the configured wait`,
+    )
   }
   // Every route carries Claude Code's retry budget, not just claude.
-  for (const [route, adapter] of [['claude', claude], ['codex', codex], ['grok', grok], ['copilot', copilot]] as const) {
+  for (const [route, adapter] of [
+    ['claude', claude],
+    ['codex', codex],
+    ['grok', grok],
+    ['copilot', copilot],
+  ] as const) {
     const policy = adapter.providerRetryPolicy(route)
-    assert.equal(policy?.mode === 'normal' && policy.maxRetries, DEFAULT_RETRY.maxRetries, route)
+    assert.equal(
+      policy?.mode === 'normal' && policy.maxRetries,
+      DEFAULT_RETRY.maxRetries,
+      route,
+    )
     assert.equal(policy?.initialDelayMs, DEFAULT_RETRY.initialDelayMs, route)
     assert.equal(policy?.jitterRatio, DEFAULT_RETRY.jitterRatio, route)
   }

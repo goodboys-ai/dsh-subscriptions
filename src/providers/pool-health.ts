@@ -10,11 +10,19 @@
  * (the request itself is at fault and another account would fail alike).
  */
 
-import { CONTEXT_WINDOW_EXCEEDED_CODE, LlmError, QUOTA_EXCEEDED_CODE } from '@deepseek-ai/dsh-llm'
+import {
+  CONTEXT_WINDOW_EXCEEDED_CODE,
+  LlmError,
+  QUOTA_EXCEEDED_CODE,
+} from '@deepseek-ai/dsh-llm'
 import type { ProviderId } from '../auth/store.js'
 
 /** Registry key for one pool member. */
-export function memberKey(provider: ProviderId, account: string, model: string): string {
+export function memberKey(
+  provider: ProviderId,
+  account: string,
+  model: string,
+): string {
   return `${provider}/${account}/${model}`
 }
 
@@ -35,7 +43,12 @@ export type PoolFailureScope = 'member' | 'account'
 
 /** What the pool should do with a member that just failed. */
 export type PoolFailureAction =
-  | { action: 'switch'; cooldownMs: number; reason: string; scope: PoolFailureScope }
+  | {
+      action: 'switch'
+      cooldownMs: number
+      reason: string
+      scope: PoolFailureScope
+    }
   | { action: 'switch' }
   | { action: 'throw' }
 
@@ -48,7 +61,10 @@ export type PoolFailureAction =
  * wall means its siblings on the SAME account would too, so the cooldown
  * parks the account (other accounts of the provider are unaffected).
  */
-const MODEL_SCOPED_QUOTA_PROVIDERS: ReadonlySet<ProviderId> = new Set(['claude', 'antigravity'])
+const MODEL_SCOPED_QUOTA_PROVIDERS: ReadonlySet<ProviderId> = new Set([
+  'claude',
+  'antigravity',
+])
 
 /** The `retry-after` an adapter propagated through `httpLlmError`, when any. */
 function retryAfterMs(error: LlmError): number | undefined {
@@ -68,7 +84,10 @@ function retryAfterMs(error: LlmError): number | undefined {
  * @param provider - the failing member's provider (decides the quota scope).
  * @returns the action the pool should take.
  */
-export function classifyPoolFailure(error: unknown, provider: ProviderId): PoolFailureAction {
+export function classifyPoolFailure(
+  error: unknown,
+  provider: ProviderId,
+): PoolFailureAction {
   if (!(error instanceof LlmError)) return { action: 'throw' }
   switch (error.code) {
     case QUOTA_EXCEEDED_CODE:
@@ -77,16 +96,28 @@ export function classifyPoolFailure(error: unknown, provider: ProviderId): PoolF
         action: 'switch',
         cooldownMs: retryAfterMs(error) ?? DEFAULT_QUOTA_COOLDOWN_MS,
         reason: error.code,
-        scope: MODEL_SCOPED_QUOTA_PROVIDERS.has(provider) ? 'member' : 'account',
+        scope: MODEL_SCOPED_QUOTA_PROVIDERS.has(provider)
+          ? 'member'
+          : 'account',
       }
     case 'AUTH':
     case 'INVALID_CREDENTIAL':
     case 'MISSING_CREDENTIAL':
-      return { action: 'switch', cooldownMs: AUTH_COOLDOWN_MS, reason: error.code, scope: 'account' }
+      return {
+        action: 'switch',
+        cooldownMs: AUTH_COOLDOWN_MS,
+        reason: error.code,
+        scope: 'account',
+      }
     case 'SERVER':
     case 'TIMEOUT':
     case 'EMPTY_RESPONSE':
-      return { action: 'switch', cooldownMs: TRANSIENT_COOLDOWN_MS, reason: error.code, scope: 'member' }
+      return {
+        action: 'switch',
+        cooldownMs: TRANSIENT_COOLDOWN_MS,
+        reason: error.code,
+        scope: 'member',
+      }
     case 'TRANSPORT':
       return { action: 'switch' }
     case 'HTTP_402':
@@ -94,7 +125,12 @@ export function classifyPoolFailure(error: unknown, provider: ProviderId): PoolF
       // Plan/model availability is account-shaped: another account of the
       // same subscription may still serve. A 400 that is not a context-window
       // error stays HTTP_400 and throws (the request itself is at fault).
-      return { action: 'switch', cooldownMs: TRANSIENT_COOLDOWN_MS, reason: error.code, scope: 'member' }
+      return {
+        action: 'switch',
+        cooldownMs: TRANSIENT_COOLDOWN_MS,
+        reason: error.code,
+        scope: 'member',
+      }
     case CONTEXT_WINDOW_EXCEEDED_CODE:
     case 'ABORTED':
     default:
@@ -116,9 +152,16 @@ export class PoolHealthRegistry {
   private readonly records = new Map<string, HealthRecord>()
 
   /** Whether a member may serve: neither it nor its whole account is cooling. */
-  isMemberAvailable(provider: ProviderId, account: string, model: string, now = Date.now()): boolean {
-    return this.isAvailable(accountKey(provider, account), now)
-      && this.isAvailable(memberKey(provider, account, model), now)
+  isMemberAvailable(
+    provider: ProviderId,
+    account: string,
+    model: string,
+    now = Date.now(),
+  ): boolean {
+    return (
+      this.isAvailable(accountKey(provider, account), now) &&
+      this.isAvailable(memberKey(provider, account, model), now)
+    )
   }
 
   /** Whether one registry key is clear right now. */
@@ -133,7 +176,12 @@ export class PoolHealthRegistry {
   }
 
   /** Park a member for `cooldownMs`; a longer existing cooldown wins. */
-  markUnavailable(key: string, cooldownMs: number, reason: string, now = Date.now()): void {
+  markUnavailable(
+    key: string,
+    cooldownMs: number,
+    reason: string,
+    now = Date.now(),
+  ): void {
     const until = now + cooldownMs
     const existing = this.records.get(key)
     if (existing !== undefined && existing.unavailableUntil > until) return
@@ -148,7 +196,10 @@ export class PoolHealthRegistry {
    * pool's retry hint. Feeds the pool-exhausted error's
    * `providerRetryAfterMs`.
    */
-  earliestRecovery(keys: ReadonlySet<string>, now = Date.now()): number | undefined {
+  earliestRecovery(
+    keys: ReadonlySet<string>,
+    now = Date.now(),
+  ): number | undefined {
     let earliest: number | undefined
     for (const [key, record] of this.records) {
       if (record.unavailableUntil <= now) {
@@ -167,14 +218,16 @@ export class PoolHealthRegistry {
   unavailableReasons(keys: ReadonlySet<string>, now = Date.now()): string[] {
     const reasons: string[] = []
     for (const [key, record] of this.records) {
-      if (keys.has(key) && record.unavailableUntil > now) reasons.push(record.reason)
+      if (keys.has(key) && record.unavailableUntil > now)
+        reasons.push(record.reason)
     }
     return reasons
   }
 
   /** Drop records of one provider, or of a single account when given (auth changes). */
   clear(provider: ProviderId, account?: string): void {
-    const prefix = account === undefined ? `${provider}/` : `${provider}/${account}/`
+    const prefix =
+      account === undefined ? `${provider}/` : `${provider}/${account}/`
     for (const key of [...this.records.keys()]) {
       if (key.startsWith(prefix)) this.records.delete(key)
     }

@@ -19,36 +19,91 @@ const currentModel = async () => {
   document.documentElement.dataset.lastRead = selection.provider
   return selection
 }
-const rpc = { call: async (_channel: string, method: string, payload: { provider?: string }) => {
-  if (method.endsWith('.status')) document.documentElement.dataset.statusCalls = String(++statusCalls)
-  if (method.endsWith('.status')) return { ok: true, value: { providers: {
-    codex: { accounts: [{ key: 'codex-test', isDefault: true }] },
-    grok: { accounts: [{ key: 'grok-test', isDefault: true }] },
-    antigravity: { accounts: [{ key: 'anti-test', isDefault: true }] },
-  } } }
-  if (method.endsWith('.usage')) return { ok: true, value: {
-    supported: true, windows: payload.provider === 'antigravity'
-      ? Array.from({ length: 30 }, (_, i) => ({ kind: 'other', scope: `gemini-model-${i}`, usedPercent: i }))
-      : [{ kind: 'weekly', usedPercent: payload.provider === 'codex' ? 13 : 25 }],
-  } }
-  throw new Error(`Unexpected RPC: ${method}`)
-} } as unknown as SubscriptionUsageBadgeInjected['rpc']
+const rpc = {
+  call: async (
+    _channel: string,
+    method: string,
+    payload: { provider?: string },
+  ) => {
+    if (method.endsWith('.status'))
+      document.documentElement.dataset.statusCalls = String(++statusCalls)
+    if (method.endsWith('.status'))
+      return {
+        ok: true,
+        value: {
+          providers: {
+            codex: { accounts: [{ key: 'codex-test', isDefault: true }] },
+            grok: { accounts: [{ key: 'grok-test', isDefault: true }] },
+            antigravity: { accounts: [{ key: 'anti-test', isDefault: true }] },
+          },
+        },
+      }
+    if (method.endsWith('.usage'))
+      return {
+        ok: true,
+        value: {
+          supported: true,
+          windows:
+            payload.provider === 'antigravity'
+              ? Array.from({ length: 30 }, (_, i) => ({
+                  kind: 'other',
+                  scope: `gemini-model-${i}`,
+                  usedPercent: i,
+                }))
+              : [
+                  {
+                    kind: 'weekly',
+                    usedPercent: payload.provider === 'codex' ? 13 : 25,
+                  },
+                ],
+        },
+      }
+    throw new Error(`Unexpected RPC: ${method}`)
+  },
+} as unknown as SubscriptionUsageBadgeInjected['rpc']
 
 function App() {
   const [locale, setLocale] = useState<'en' | 'zh'>('en')
   const [rotationMs, setRotationMs] = useState(10_000)
   const dictionary = locale === 'en' ? en : zh
-  const t = (key: keyof typeof en, params?: Record<string, unknown>) => dictionary[key]
-    .replace(/\{(\w+)\}/g, (_, name: string) => String(params?.[name] ?? ''))
-  return <>
-    <button onClick={() => setLocale(locale === 'en' ? 'zh' : 'en')}>Locale</button>
-    <button onClick={() => { setRotationMs(200); document.documentElement.dataset.rotationMs = '200' }}>Fast rotation</button>
-    {Object.entries(selections).map(([name, next]) => <button key={name} onClick={() => { selection = next }}>{name}</button>)}
-    <UsageBadgeDisplaySetting t={t} />
-    <div>
-      <div data-composer-stats />
-      <SubscriptionUsageBadge rpc={rpc} currentModel={currentModel} t={t} rotationMs={rotationMs} />
-    </div>
-  </>
+  const t = (key: keyof typeof en, params?: Record<string, unknown>) =>
+    dictionary[key].replace(/\{(\w+)\}/g, (_, name: string) =>
+      String(params?.[name] ?? ''),
+    )
+  return (
+    <>
+      <button onClick={() => setLocale(locale === 'en' ? 'zh' : 'en')}>
+        Locale
+      </button>
+      <button
+        onClick={() => {
+          setRotationMs(200)
+          document.documentElement.dataset.rotationMs = '200'
+        }}
+      >
+        Fast rotation
+      </button>
+      {Object.entries(selections).map(([name, next]) => (
+        <button
+          key={name}
+          onClick={() => {
+            selection = next
+          }}
+        >
+          {name}
+        </button>
+      ))}
+      <UsageBadgeDisplaySetting t={t} />
+      <div>
+        <div data-composer-stats />
+        <SubscriptionUsageBadge
+          rpc={rpc}
+          currentModel={currentModel}
+          t={t}
+          rotationMs={rotationMs}
+        />
+      </div>
+    </>
+  )
 }
 createRoot(document.getElementById('root')!).render(<App />)

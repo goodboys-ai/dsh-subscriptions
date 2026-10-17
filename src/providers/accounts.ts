@@ -10,7 +10,12 @@
  */
 
 import { LlmAdapter, LlmError } from '@deepseek-ai/dsh-llm'
-import type { GenerateOptions, LlmModelInfo, LlmResolvedModelInfo, StreamChunk } from '@deepseek-ai/dsh-llm'
+import type {
+  GenerateOptions,
+  LlmModelInfo,
+  LlmResolvedModelInfo,
+  StreamChunk,
+} from '@deepseek-ai/dsh-llm'
 import { TokenManager, withTimeout } from './common.js'
 import type { TokenManagerOptions } from './common.js'
 import {
@@ -34,18 +39,28 @@ interface TimedSession {
 /** An adapter that can stream through a named account (the pool's seam). */
 export interface AccountAwareAdapter extends LlmAdapter {
   /** Stream using the given account's credentials instead of the default. */
-  streamAccount(options: GenerateOptions, account: string): AsyncIterable<StreamChunk>
+  streamAccount(
+    options: GenerateOptions,
+    account: string,
+  ): AsyncIterable<StreamChunk>
   /**
    * The provider's own catalog: one account when `account` is set, otherwise
    * the union of every logged-in account (default first; later duplicates
    * dropped). The picker uses the union; pool assembly lists each account.
    */
-  listOwnModels(provider: string, account?: string, signal?: AbortSignal): Promise<readonly LlmModelInfo[]>
+  listOwnModels(
+    provider: string,
+    account?: string,
+    signal?: AbortSignal,
+  ): Promise<readonly LlmModelInfo[]>
   /**
    * The last catalog one account successfully listed, with no network.
    * Routing falls back to it when a live `listOwnModels` times out.
    */
-  lastKnownOwnModels?(provider: string, account: string): Promise<readonly LlmModelInfo[] | undefined>
+  lastKnownOwnModels?(
+    provider: string,
+    account: string,
+  ): Promise<readonly LlmModelInfo[] | undefined>
   /**
    * Capability resolution of the provider's OWN models, bypassing the pool
    * delegation. The pool resolves its members through this — an account pool
@@ -53,7 +68,11 @@ export interface AccountAwareAdapter extends LlmAdapter {
    * otherwise bounce straight back into the pool forever. The optional account
    * lets adapters with account-specific limits resolve that member conservatively.
    */
-  resolveOwnModel(provider: string, model: string, account?: string): Promise<LlmResolvedModelInfo>
+  resolveOwnModel(
+    provider: string,
+    model: string,
+    account?: string,
+  ): Promise<LlmResolvedModelInfo>
   /** Drop cached catalogs: one account, or every account when omitted (login/logout). */
   clearAccountCatalog(account?: string): void
 }
@@ -69,7 +88,9 @@ export interface UnionAccountCatalogsOptions {
 /** Catalog sort hint when the provider advertised one (Codex `priority`). */
 function catalogPriority(model: LlmModelInfo): number {
   const ranked = model as LlmModelInfo & { priority?: number }
-  return typeof ranked.priority === 'number' ? ranked.priority : Number.MAX_SAFE_INTEGER
+  return typeof ranked.priority === 'number'
+    ? ranked.priority
+    : Number.MAX_SAFE_INTEGER
 }
 
 /**
@@ -81,28 +102,36 @@ function catalogPriority(model: LlmModelInfo): number {
  */
 export async function unionAccountCatalogs(
   accounts: readonly string[],
-  listOne: (account: string, signal?: AbortSignal) => Promise<readonly LlmModelInfo[]>,
+  listOne: (
+    account: string,
+    signal?: AbortSignal,
+  ) => Promise<readonly LlmModelInfo[]>,
   options?: UnionAccountCatalogsOptions,
 ): Promise<LlmModelInfo[]> {
   const timeoutMs = options?.timeoutMs
   const caller = options?.signal
-  const catalogs = await Promise.all(accounts.map(async account => {
-    try {
-      if (timeoutMs === undefined) return await listOne(account, caller)
-      const models = await withTimeout(
-        timeoutSignal => listOne(
-          account,
-          caller === undefined ? timeoutSignal : AbortSignal.any([timeoutSignal, caller]),
-        ),
-        timeoutMs,
-      )
-      return models ?? []
-    } catch (error: unknown) {
-      // One expired or failing account must not hide models the others list.
-      if (caller?.aborted === true) throw error
-      return []
-    }
-  }))
+  const catalogs = await Promise.all(
+    accounts.map(async (account) => {
+      try {
+        if (timeoutMs === undefined) return await listOne(account, caller)
+        const models = await withTimeout(
+          (timeoutSignal) =>
+            listOne(
+              account,
+              caller === undefined
+                ? timeoutSignal
+                : AbortSignal.any([timeoutSignal, caller]),
+            ),
+          timeoutMs,
+        )
+        return models ?? []
+      } catch (error: unknown) {
+        // One expired or failing account must not hide models the others list.
+        if (caller?.aborted === true) throw error
+        return []
+      }
+    }),
+  )
   const seen = new Set<string>()
   const models: LlmModelInfo[] = []
   for (const catalog of catalogs) {
@@ -131,7 +160,12 @@ export interface AccountTokenManagerOptions<S extends TimedSession> {
   /** Human-readable provider name for error messages. */
   displayName: string
   /** Provider hooks shared by every account (load/save/remove are bound per account). */
-  makeOptions: (account: string) => Omit<TokenManagerOptions<S>, 'load' | 'save' | 'remove' | 'onRemoved' | 'displayName'>
+  makeOptions: (
+    account: string,
+  ) => Omit<
+    TokenManagerOptions<S>,
+    'load' | 'save' | 'remove' | 'onRemoved' | 'displayName'
+  >
   /** Called after a permanent refresh failure deleted one account's session. */
   onAccountRemoved?: (account: string) => void
   /** Store backend; defaults to the durable auth store. */
@@ -146,10 +180,12 @@ export class AccountTokenManager<S extends TimedSession> {
     const provider = options.provider
     this.io = options.io ?? {
       list: () => listAccounts(provider) as Promise<AccountEntry<S>[]>,
-      get: account => getAccountSession(provider, account) as Promise<S | undefined>,
-      save: (account, session) => saveAccountSession(provider, account, session as never),
-      remove: account => deleteAccountSession(provider, account),
-      resolve: account => resolveAccountKey(provider, account),
+      get: (account) =>
+        getAccountSession(provider, account) as Promise<S | undefined>,
+      save: (account, session) =>
+        saveAccountSession(provider, account, session as never),
+      remove: (account) => deleteAccountSession(provider, account),
+      resolve: (account) => resolveAccountKey(provider, account),
     }
   }
 
@@ -172,7 +208,7 @@ export class AccountTokenManager<S extends TimedSession> {
    * @throws LlmError MISSING_CREDENTIAL when the account is not logged in.
    */
   async session(account?: string, forceRefresh = false): Promise<S> {
-    const requested = account ?? await this.defaultAccount()
+    const requested = account ?? (await this.defaultAccount())
     if (requested === undefined) throw this.missingCredential()
     const key = await this.resolveAccount(requested)
     return this.tokensFor(key).session(forceRefresh)
@@ -185,7 +221,9 @@ export class AccountTokenManager<S extends TimedSession> {
 
   /** Read an account's stored session without any refresh side effect. */
   async peek(account?: string): Promise<S | undefined> {
-    return this.io.get(account === undefined ? undefined : await this.resolveAccount(account))
+    return this.io.get(
+      account === undefined ? undefined : await this.resolveAccount(account),
+    )
   }
 
   /** Whether a session is stored for the account (cheap; never refreshes). */
@@ -203,7 +241,7 @@ export class AccountTokenManager<S extends TimedSession> {
         displayName: this.options.displayName,
         ...this.options.makeOptions(account),
         load: () => io.get(boundAccount),
-        save: async session => {
+        save: async (session) => {
           await io.save(boundAccount, session)
           const canonical = await this.resolveAccount(boundAccount)
           if (canonical !== boundAccount) {
@@ -211,12 +249,15 @@ export class AccountTokenManager<S extends TimedSession> {
             // aliases, so callbacks must not keep relying on the old key.
             // Retain the manager itself to preserve its in-flight refresh.
             this.managers.set(canonical, manager!)
-            if (this.managers.get(boundAccount) === manager) this.managers.delete(boundAccount)
+            if (this.managers.get(boundAccount) === manager)
+              this.managers.delete(boundAccount)
             boundAccount = canonical
           }
         },
         remove: () => io.remove(boundAccount),
-        onRemoved: () => { this.options.onAccountRemoved?.(boundAccount) },
+        onRemoved: () => {
+          this.options.onAccountRemoved?.(boundAccount)
+        },
       })
       this.managers.set(account, manager)
     }
@@ -226,8 +267,8 @@ export class AccountTokenManager<S extends TimedSession> {
   /** The logged-out error, mirroring TokenManager's own message. */
   private missingCredential(): LlmError {
     return new LlmError(
-      `dsh-subscriptions: not logged in to ${this.options.displayName}; `
-      + 'log in via Settings → Subscriptions in the dsh web app',
+      `dsh-subscriptions: not logged in to ${this.options.displayName}; ` +
+        'log in via Settings → Subscriptions in the dsh web app',
       'MISSING_CREDENTIAL',
     )
   }

@@ -43,7 +43,10 @@ export async function* parseSse(
         if (line.endsWith('\r')) line = line.slice(0, -1)
         if (line.length === 0) {
           if (dataLines.length > 0) {
-            yield { data: dataLines.join('\n'), ...eventName === undefined ? {} : { event: eventName } }
+            yield {
+              data: dataLines.join('\n'),
+              ...(eventName === undefined ? {} : { event: eventName }),
+            }
           }
           dataLines = []
           eventName = undefined
@@ -59,7 +62,9 @@ export async function* parseSse(
   } finally {
     // A terminal SSE frame can precede HTTP EOF; returning or decoding failure
     // must close the remaining body rather than leave the connection reading.
-    try { await reader.cancel() } catch {
+    try {
+      await reader.cancel()
+    } catch {
       // Cleanup failure must not mask the original stream outcome.
     }
     reader.releaseLock()

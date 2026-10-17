@@ -15,7 +15,7 @@ export interface ToolRegistry {
 export function registerWithAlias(
   registry: ToolRegistry,
   definition: ToolDefinition,
-  warn: (message: string) => void = message => console.warn(message),
+  warn: (message: string) => void = (message) => console.warn(message),
 ): { name: string; dispose: () => void } | undefined {
   try {
     return { name: definition.name, dispose: registry.register(definition) }
@@ -23,9 +23,14 @@ export function registerWithAlias(
     const alias = TOOL_ALIASES[definition.name as keyof typeof TOOL_ALIASES]
     if (alias === undefined) throw error
     try {
-      return { name: alias, dispose: registry.register({ ...definition, name: alias }) }
+      return {
+        name: alias,
+        dispose: registry.register({ ...definition, name: alias }),
+      }
     } catch (aliasError) {
-      warn(`dsh-subscriptions: tool ${JSON.stringify(definition.name)} and alias ${JSON.stringify(alias)} are already registered; skipping (${aliasError instanceof Error ? aliasError.message : String(aliasError)})`)
+      warn(
+        `dsh-subscriptions: tool ${JSON.stringify(definition.name)} and alias ${JSON.stringify(alias)} are already registered; skipping (${aliasError instanceof Error ? aliasError.message : String(aliasError)})`,
+      )
       return undefined
     }
   }

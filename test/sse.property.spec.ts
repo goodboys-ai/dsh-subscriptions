@@ -13,7 +13,25 @@ import { parseSse, type SseEvent } from '../src/translate/sse.js'
 
 /** Payload characters, weighted with multi-byte UTF-8 so read splits land mid-sequence. */
 const payloadChar = fc.constantFrom(
-  'a', 'Z', '0', ' ', '{', '}', '"', ':', '\\', '/', 'é', 'ß', '中', '文', '🙂', '\t', '-', '_', '=',
+  'a',
+  'Z',
+  '0',
+  ' ',
+  '{',
+  '}',
+  '"',
+  ':',
+  '\\',
+  '/',
+  'é',
+  'ß',
+  '中',
+  '文',
+  '🙂',
+  '\t',
+  '-',
+  '_',
+  '=',
 )
 
 /**
@@ -22,12 +40,14 @@ const payloadChar = fc.constantFrom(
  * breaks instead of re-encoding those two rules into the expectation; the
  * strip rule itself is pinned by the dedicated test below.
  */
-const dataLine = fc.string({ unit: payloadChar, maxLength: 24 })
-  .map(line => (line.startsWith(' ') ? `x${line}` : line))
+const dataLine = fc
+  .string({ unit: payloadChar, maxLength: 24 })
+  .map((line) => (line.startsWith(' ') ? `x${line}` : line))
 
 /** An `event:` name, under the same framing constraints as a data line. */
-const eventName = fc.string({ unit: payloadChar, minLength: 1, maxLength: 12 })
-  .map(name => (name.startsWith(' ') ? `x${name}` : name))
+const eventName = fc
+  .string({ unit: payloadChar, minLength: 1, maxLength: 12 })
+  .map((name) => (name.startsWith(' ') ? `x${name}` : name))
 
 /** One generated SSE event: an optional name plus at least one data line. */
 interface ModelEvent {
@@ -45,8 +65,10 @@ const modelEvent: fc.Arbitrary<ModelEvent> = fc.record({
  * between an event's own lines without changing the event it produces.
  */
 const noiseLine = fc.oneof(
-  fc.string({ unit: payloadChar, maxLength: 16 }).map(text => `: ${text}`),
-  fc.string({ unit: payloadChar, minLength: 1, maxLength: 8 }).map(name => `${name.replace(/:/g, 'x')}: ignored`),
+  fc.string({ unit: payloadChar, maxLength: 16 }).map((text) => `: ${text}`),
+  fc
+    .string({ unit: payloadChar, minLength: 1, maxLength: 8 })
+    .map((name) => `${name.replace(/:/g, 'x')}: ignored`),
 )
 
 interface StreamSpec {
@@ -62,16 +84,25 @@ interface StreamSpec {
 const streamSpec: fc.Arbitrary<StreamSpec> = fc
   .tuple(
     fc.array(modelEvent, { maxLength: 6 }),
-    fc.array(fc.array(noiseLine, { maxLength: 2 }), { minLength: 7, maxLength: 7 }),
+    fc.array(fc.array(noiseLine, { maxLength: 2 }), {
+      minLength: 7,
+      maxLength: 7,
+    }),
     fc.array(fc.boolean(), { minLength: 80, maxLength: 80 }),
     fc.boolean(),
   )
-  .map(([events, noise, crlf, orphanTail]) => ({ events, noise, crlf, orphanTail }))
+  .map(([events, noise, crlf, orphanTail]) => ({
+    events,
+    noise,
+    crlf,
+    orphanTail,
+  }))
 
 /** Serialize a spec to SSE text, exercising both line endings and skipped lines. */
 function serialize(spec: StreamSpec): string {
   let lineIndex = 0
-  const eol = (): string => (spec.crlf[lineIndex++ % spec.crlf.length] ? '\r\n' : '\n')
+  const eol = (): string =>
+    spec.crlf[lineIndex++ % spec.crlf.length] ? '\r\n' : '\n'
   let text = ''
   spec.events.forEach((event, index) => {
     for (const noise of spec.noise[index] ?? []) text += `${noise}${eol()}`
@@ -79,16 +110,17 @@ function serialize(spec: StreamSpec): string {
     for (const line of event.data) text += `data:${line}${eol()}`
     text += eol()
   })
-  for (const noise of spec.noise[spec.events.length] ?? []) text += `${noise}${eol()}`
+  for (const noise of spec.noise[spec.events.length] ?? [])
+    text += `${noise}${eol()}`
   if (spec.orphanTail) text += 'data: orphan'
   return text
 }
 
 /** The events the spec must produce, per parseSse's join and skip rules. */
 function expectedEvents(spec: StreamSpec): SseEvent[] {
-  return spec.events.map(event => ({
+  return spec.events.map((event) => ({
     data: event.data.join('\n'),
-    ...event.name === undefined ? {} : { event: event.name },
+    ...(event.name === undefined ? {} : { event: event.name }),
   }))
 }
 

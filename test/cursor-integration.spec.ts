@@ -20,7 +20,7 @@
  * cannot detect Cursor changing their site — that is the manual
  * pre-release canary.
  */
-import { test, type TestContext } from 'node:test'
+import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { ProviderUsage } from '../src/providers/common.js'
 
@@ -40,18 +40,25 @@ import {
   type CursorCredentialService,
 } from '../src/providers/cursor-auth.js'
 import { fetchCursorUsage } from '../src/providers/cursor-usage.js'
-import { FAKE_CURSOR_IDENTITY, installFakeCursor, type FakeCursor } from './fakes/fake-cursor.js'
+import { FAKE_CURSOR_IDENTITY, installFakeCursor } from './fakes/fake-cursor.js'
 
 /** The real CursorAuth wired to an in-memory credential store. */
-function virtualAuth(): { auth: CursorAuth; credentials: CursorCredentialService } {
+function virtualAuth(): {
+  auth: CursorAuth
+  credentials: CursorCredentialService
+} {
   const store = new Map<unknown, string>()
   const credentials: CursorCredentialService = {
     resolve: async (ref) => {
       const value = store.get(ref)
       return value === undefined ? undefined : { value }
     },
-    set: async (ref, value) => { store.set(ref, value) },
-    unset: async (ref) => { store.delete(ref) },
+    set: async (ref, value) => {
+      store.set(ref, value)
+    },
+    unset: async (ref) => {
+      store.delete(ref)
+    },
   }
   const auth = new CursorAuth(credentials, globalThis.fetch)
   return { auth, credentials }
@@ -61,7 +68,7 @@ function virtualAuth(): { auth: CursorAuth; credentials: CursorCredentialService
 async function awaitAuthenticated(auth: CursorAuth): Promise<void> {
   for (let attempt = 0; attempt < 40; attempt += 1) {
     if ((await auth.status()).authenticated) return
-    await new Promise(resolve => setTimeout(resolve, 500))
+    await new Promise((resolve) => setTimeout(resolve, 500))
   }
   throw new Error('virtual Cursor login never completed')
 }
@@ -71,7 +78,10 @@ test('cursor: browser login polls to approval and yields a JWT', async (t) => {
   const { auth } = virtualAuth()
   assert.equal((await auth.status()).authenticated, false)
   const { authorizeUrl } = await auth.login()
-  assert.ok(authorizeUrl.startsWith('https://cursor.com/loginDeepControl?'), 'the real login URL goes to cursor.com')
+  assert.ok(
+    authorizeUrl.startsWith('https://cursor.com/loginDeepControl?'),
+    'the real login URL goes to cursor.com',
+  )
 
   // The virtual provider answers 404 twice before the simulated user
   // approves; the real poll loop rides through them.
@@ -79,12 +89,16 @@ test('cursor: browser login polls to approval and yields a JWT', async (t) => {
   assert.equal((await auth.status()).busy, false)
 
   const access = await auth.accessToken()
-  const payload = JSON.parse(Buffer.from(access.split('.')[1], 'base64url').toString('utf8')) as Record<string, unknown>
+  const payload = JSON.parse(
+    Buffer.from(access.split('.')[1], 'base64url').toString('utf8'),
+  ) as Record<string, unknown>
   assert.equal(payload.sub, `auth0|${FAKE_CURSOR_IDENTITY.userId}`)
   assert.ok(typeof payload.exp === 'number' && payload.exp * 1000 > Date.now())
 
   // The poll went to the real poll URL with the PKCE verifier in the query.
-  const pollCall = fake.calls.find(call => call.url.startsWith('https://api2.cursor.sh/auth/poll'))
+  const pollCall = fake.calls.find((call) =>
+    call.url.startsWith('https://api2.cursor.sh/auth/poll'),
+  )
   assert.ok(pollCall !== undefined)
   const pollUrl = new URL(pollCall.url)
   assert.ok(pollUrl.searchParams.get('uuid') !== null)
@@ -99,24 +113,40 @@ test('cursor: expired access token triggers refresh through the exchange endpoin
 
   const stored = await credentials.resolve(CURSOR_CREDENTIAL_REF)
   assert.ok(stored !== undefined)
-  const credential = JSON.parse(stored.value) as { access: string; refresh: string; expires: number }
+  const credential = JSON.parse(stored.value) as {
+    access: string
+    refresh: string
+    expires: number
+  }
   assert.equal(credential.refresh, 'fake-cursor-refresh-1')
 
   // Backdate the stored expiry: the real accessToken() decodes, notices the
   // expiry, and rotates via the exchange endpoint.
-  await credentials.set(CURSOR_CREDENTIAL_REF, JSON.stringify({ ...credential, expires: Date.now() - 1_000 }))
+  await credentials.set(
+    CURSOR_CREDENTIAL_REF,
+    JSON.stringify({ ...credential, expires: Date.now() - 1_000 }),
+  )
   const rotated = await auth.accessToken()
   assert.notEqual(rotated, credential.access)
-  const payload = JSON.parse(Buffer.from(rotated.split('.')[1], 'base64url').toString('utf8')) as Record<string, unknown>
+  const payload = JSON.parse(
+    Buffer.from(rotated.split('.')[1], 'base64url').toString('utf8'),
+  ) as Record<string, unknown>
   assert.equal(payload.sub, `auth0|${FAKE_CURSOR_IDENTITY.userId}`)
 
-  const refreshCall = fake.calls.find(call => call.url === 'https://api2.cursor.sh/auth/exchange_user_api_key')
+  const refreshCall = fake.calls.find(
+    (call) => call.url === 'https://api2.cursor.sh/auth/exchange_user_api_key',
+  )
   assert.ok(refreshCall !== undefined)
   assert.equal(refreshCall.method, 'POST')
-  assert.equal(refreshCall.headers['authorization'], `Bearer ${credential.refresh}`)
+  assert.equal(
+    refreshCall.headers['authorization'],
+    `Bearer ${credential.refresh}`,
+  )
 
   // The rotated pair is persisted for the next call.
-  const next = JSON.parse((await credentials.resolve(CURSOR_CREDENTIAL_REF))!.value) as { access: string }
+  const next = JSON.parse(
+    (await credentials.resolve(CURSOR_CREDENTIAL_REF))!.value,
+  ) as { access: string }
   assert.equal(next.access, rotated)
 })
 
@@ -132,7 +162,10 @@ test('cursor: usage reader converts the dashboard quota to windows', async (t) =
   const windows = usage.windows ?? []
   // The dashboard percentages all surface as kind 'other', distinguished by
   // scope; the legacy /api/usage endpoint returns no buckets in the fake.
-  assert.deepEqual(windows.map(w => w.scope), ['Included', 'Cursor Models', 'Other Models'])
+  assert.deepEqual(
+    windows.map((w) => w.scope),
+    ['Included', 'Cursor Models', 'Other Models'],
+  )
   assert.equal(windows[0].usedPercent, 25)
   assert.equal(windows[1].usedPercent, 10)
   assert.equal(windows[2].usedPercent, 5)
@@ -140,10 +173,15 @@ test('cursor: usage reader converts the dashboard quota to windows', async (t) =
 
   // The usage reader authenticates with the WorkOS session cookie derived
   // from the JWT — never an Authorization header.
-  const summaryCall = fake.calls.find(call => call.url === 'https://cursor.com/api/usage-summary')
+  const summaryCall = fake.calls.find(
+    (call) => call.url === 'https://cursor.com/api/usage-summary',
+  )
   assert.ok(summaryCall !== undefined)
   const cookie = summaryCall.headers['cookie'] ?? ''
-  assert.equal(cookie, `WorkosCursorSessionToken=${FAKE_CURSOR_IDENTITY.userId}::${access}`)
+  assert.equal(
+    cookie,
+    `WorkosCursorSessionToken=${FAKE_CURSOR_IDENTITY.userId}::${access}`,
+  )
   assert.equal(summaryCall.headers['authorization'], undefined)
   assert.equal(summaryCall.headers['origin'], 'https://cursor.com')
 })
@@ -155,10 +193,20 @@ test('cursor: usable-models discovery decodes the protobuf catalog', async (t) =
   await awaitAuthenticated(auth)
   const access = await auth.accessToken()
   const models = await fetchUsableModels(access, { fetch: globalThis.fetch })
-  assert.deepEqual(models.map(m => m.id), ['composer-1', 'gpt-5.3'])
-  assert.deepEqual(models.map(m => m.name), ['Composer 1', 'GPT-5.3'])
+  assert.deepEqual(
+    models.map((m) => m.id),
+    ['composer-1', 'gpt-5.3'],
+  )
+  assert.deepEqual(
+    models.map((m) => m.name),
+    ['Composer 1', 'GPT-5.3'],
+  )
 
-  const modelsCall = fake.calls.find(call => call.url === 'https://api2.cursor.sh/agent.v1.AgentService/GetUsableModels')
+  const modelsCall = fake.calls.find(
+    (call) =>
+      call.url ===
+      'https://api2.cursor.sh/agent.v1.AgentService/GetUsableModels',
+  )
   assert.ok(modelsCall !== undefined)
   assert.equal(modelsCall.method, 'POST')
   assert.equal(modelsCall.headers['authorization'], `Bearer ${access}`)

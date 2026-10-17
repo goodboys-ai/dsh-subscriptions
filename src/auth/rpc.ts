@@ -16,7 +16,10 @@ import { PROVIDER_IDS, type ProviderId } from './store.js'
 import type { ProviderUsage } from '../providers/common.js'
 import type { CliVersion } from '../providers/npm-cli-version.js'
 import { EXTERNAL_USAGE_SOURCES } from '../providers/external-usage-controller.js'
-import type { ExternalUsageSource, ExternalUsageStatus } from '../providers/external-usage-controller.js'
+import type {
+  ExternalUsageSource,
+  ExternalUsageStatus,
+} from '../providers/external-usage-controller.js'
 import { validateOllamaBaseURL } from '../providers/ollama-settings.js'
 import type { CursorAuthStatus } from '../providers/cursor-auth.js'
 
@@ -32,19 +35,45 @@ export const SUBSCRIPTIONS_AUTH_PREFIX = 'subscriptions-auth.'
  * Kept in one place so the route table and the switch cannot drift apart.
  */
 export const SUBSCRIPTIONS_AUTH_ENDPOINTS = [
-  'providerSettings', 'setProviderSettings',
-  'status', 'login', 'manual', 'cancel', 'logout', 'setDefault', 'usage',
-  'externalStatus', 'externalUsage',
-  'cursorStatus', 'cursorLogin', 'cursorCancel', 'cursorLogout', 'cursorUsage', 'cursorModels',
-  'cursorSettings', 'cursorSetSettings',
-  'ollamaSettings', 'ollamaSetSettings', 'ollamaModels',
-  'image', 'video', 'prepareReset', 'consumeReset',
-  'speed', 'setSpeed',
-  'modelDefaults', 'setModelDefault',
+  'providerSettings',
+  'setProviderSettings',
+  'status',
+  'login',
+  'manual',
+  'cancel',
+  'logout',
+  'setDefault',
+  'usage',
+  'externalStatus',
+  'externalUsage',
+  'cursorStatus',
+  'cursorLogin',
+  'cursorCancel',
+  'cursorLogout',
+  'cursorUsage',
+  'cursorModels',
+  'cursorSettings',
+  'cursorSetSettings',
+  'ollamaSettings',
+  'ollamaSetSettings',
+  'ollamaModels',
+  'image',
+  'video',
+  'prepareReset',
+  'consumeReset',
+  'speed',
+  'setSpeed',
+  'modelDefaults',
+  'setModelDefault',
 ] as const
 
 /** Media types the attachment store accepts (ImageMediaType). */
-const IMAGE_MEDIA_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'] as const
+const IMAGE_MEDIA_TYPES = [
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'image/gif',
+] as const
 
 /** Decoded image bytes returned by the `image` endpoint. */
 export interface ImageBytesResult {
@@ -148,13 +177,21 @@ export interface ModelDefaultsController {
   /** Per-provider picker state for the Settings page. */
   catalog(force?: boolean): Promise<ModelDefaultsCatalog[]>
   /** Set one model's configured default effort; undefined clears the override. */
-  set(provider: ProviderId, model: string, effort: string | undefined): Promise<void>
+  set(
+    provider: ProviderId,
+    model: string,
+    effort: string | undefined,
+  ): Promise<void>
 }
 
 /** Provider-agnostic auth operations the RPC handler delegates to. */
 export interface AuthController {
   prepareReset?(account: string, signal: AbortSignal): Promise<unknown>
-  consumeReset?(account: string, ticket: string, signal: AbortSignal): Promise<void>
+  consumeReset?(
+    account: string,
+    ticket: string,
+    signal: AbortSignal,
+  ): Promise<void>
   /** Current status of one provider. */
   status(provider: ProviderId): Promise<ProviderStatus>
   /**
@@ -167,7 +204,10 @@ export interface AuthController {
    *   (copilot) also return the `userCode` the user types at that URL.
    * @throws when an attempt is already running for this provider.
    */
-  login(provider: ProviderId, method?: LoginMethod): Promise<{ authorizeUrl: string; userCode?: string }>
+  login(
+    provider: ProviderId,
+    method?: LoginMethod,
+  ): Promise<{ authorizeUrl: string; userCode?: string }>
   /**
    * Feed a pasted callback URL or bare code into the pending attempt.
    * @throws when no attempt is pending or the input is unusable.
@@ -187,7 +227,12 @@ export interface AuthController {
    * @returns `{ supported: false }` when the provider has no usage endpoint.
    * @throws when logged out or the usage lookup fails.
    */
-  usage(provider: ProviderId, account: string, signal: AbortSignal, force?: boolean): Promise<ProviderUsage>
+  usage(
+    provider: ProviderId,
+    account: string,
+    signal: AbortSignal,
+    force?: boolean,
+  ): Promise<ProviderUsage>
   /**
    * Read one image attachment's bytes for inline display.
    * @param ref - the full durable reference (`readImage` verifies against it).
@@ -195,7 +240,10 @@ export interface AuthController {
    * @returns the media type and base64-encoded bytes.
    * @throws when no attachment service is mounted or the read fails.
    */
-  readImage(ref: ImageAttachmentRef, signal: AbortSignal): Promise<ImageBytesResult>
+  readImage(
+    ref: ImageAttachmentRef,
+    signal: AbortSignal,
+  ): Promise<ImageBytesResult>
   /**
    * Read one generated video's bytes for inline playback.
    * @param name - bare MP4 file name inside the plugin's videos directory
@@ -213,7 +261,10 @@ export class BadRequest extends Error {}
 /** Credential-backed quota readers for model providers already in DSH. */
 export interface ExternalUsageRpcController {
   status(): Promise<Record<ExternalUsageSource, ExternalUsageStatus>>
-  usage(source: ExternalUsageSource, signal: AbortSignal): Promise<ProviderUsage>
+  usage(
+    source: ExternalUsageSource,
+    signal: AbortSignal,
+  ): Promise<ProviderUsage>
 }
 
 /** Cursor account actions; OAuth tokens remain in the host credential service. */
@@ -223,7 +274,10 @@ export interface CursorRpcController {
   cancel(): Promise<void>
   logout(): Promise<void>
   usage(signal: AbortSignal): Promise<ProviderUsage>
-  models(force: boolean, signal: AbortSignal): Promise<{ id: string; name: string }[]>
+  models(
+    force: boolean,
+    signal: AbortSignal,
+  ): Promise<{ id: string; name: string }[]>
   settings(force: boolean, signal: AbortSignal): Promise<unknown>
   setSettings(input: unknown): Promise<void>
 }
@@ -284,7 +338,10 @@ export interface OllamaRpcController {
    *   key is used for this listing only and never persisted.
    * @param signal - caller cancellation from the RPC transport.
    */
-  models(input: { apiKey?: string; baseURL?: string }, signal: AbortSignal): Promise<{ models: OllamaCloudCandidate[] }>
+  models(
+    input: { apiKey?: string; baseURL?: string },
+    signal: AbortSignal,
+  ): Promise<{ models: OllamaCloudCandidate[] }>
 }
 
 /**
@@ -305,7 +362,11 @@ interface FetchRouteCompat {
 type FetchRegisterCompat = (route: FetchRouteCompat) => () => Promise<void>
 
 /** The private exact-route bridge uses only the endpoint, payload, and signal. */
-type ConnectionRpcHandler = (endpoint: string, payload: unknown, signal: AbortSignal) => Promise<RpcResult<unknown>>
+type ConnectionRpcHandler = (
+  endpoint: string,
+  payload: unknown,
+  signal: AbortSignal,
+) => Promise<RpcResult<unknown>>
 
 /** Connection `client-request` envelope, as the browser rpc caller sends it. */
 interface ClientRequestEnvelope {
@@ -318,8 +379,18 @@ interface ClientRequestEnvelope {
 function readEnvelope(body: unknown): ClientRequestEnvelope | undefined {
   if (typeof body !== 'object' || body === null) return undefined
   const record = body as Record<string, unknown>
-  if (record.type !== 'client-request' || typeof record.rpcId !== 'string' || typeof record.method !== 'string') return undefined
-  return { type: 'client-request', rpcId: record.rpcId, method: record.method, payload: record.payload }
+  if (
+    record.type !== 'client-request' ||
+    typeof record.rpcId !== 'string' ||
+    typeof record.method !== 'string'
+  )
+    return undefined
+  return {
+    type: 'client-request',
+    rpcId: record.rpcId,
+    method: record.method,
+    payload: record.payload,
+  }
 }
 
 function serverResponse(rpcId: string, result: RpcResult<unknown>): Response {
@@ -334,15 +405,26 @@ function serverResponse(rpcId: string, result: RpcResult<unknown>): Response {
  * `rpc.call('/api', 'subscriptions-auth.<endpoint>', payload)` keeps working
  * unchanged on the browser side.
  */
-function fetchRouteFor(endpoint: string, handler: ConnectionRpcHandler): FetchRouteCompat {
+function fetchRouteFor(
+  endpoint: string,
+  handler: ConnectionRpcHandler,
+): FetchRouteCompat {
   const method = `${SUBSCRIPTIONS_AUTH_PREFIX}${endpoint}`
   return {
     path: `/api/${method}`,
     methods: ['POST'],
     requestBody: 'buffered',
     fetch: async (request) => {
-      if (request.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase() !== 'application/json') {
-        return new Response('content type must be application/json', { status: 415 })
+      if (
+        request.headers
+          .get('content-type')
+          ?.split(';', 1)[0]
+          ?.trim()
+          .toLowerCase() !== 'application/json'
+      ) {
+        return new Response('content type must be application/json', {
+          status: 415,
+        })
       }
       let body: unknown
       try {
@@ -353,10 +435,17 @@ function fetchRouteFor(endpoint: string, handler: ConnectionRpcHandler): FetchRo
       const envelope = readEnvelope(body)
       if (envelope === undefined) {
         const rawId = (body as Record<string, unknown> | null)?.rpcId
-        return serverResponse(typeof rawId === 'string' ? rawId : 'invalid-request', {
-          ok: false,
-          error: { code: 'gateway/bad-request', message: 'invalid client-request message', details: { issues: [] } },
-        })
+        return serverResponse(
+          typeof rawId === 'string' ? rawId : 'invalid-request',
+          {
+            ok: false,
+            error: {
+              code: 'gateway/bad-request',
+              message: 'invalid client-request message',
+              details: { issues: [] },
+            },
+          },
+        )
       }
       if (envelope.method !== method) {
         return serverResponse(envelope.rpcId, {
@@ -368,7 +457,10 @@ function fetchRouteFor(endpoint: string, handler: ConnectionRpcHandler): FetchRo
           },
         })
       }
-      return serverResponse(envelope.rpcId, await handler(endpoint, envelope.payload, request.signal))
+      return serverResponse(
+        envelope.rpcId,
+        await handler(endpoint, envelope.payload, request.signal),
+      )
     },
   }
 }
@@ -381,16 +473,25 @@ function failure(error: unknown): RpcResult<unknown> {
   const message = error instanceof Error ? error.message : String(error)
   if (error instanceof BadRequest) {
     // The issues array is zod-shaped upstream; this channel validates by hand.
-    return { ok: false, error: { code: 'bad-request', message, details: { issues: [] } } }
+    return {
+      ok: false,
+      error: { code: 'bad-request', message, details: { issues: [] } },
+    }
   }
   return { ok: false, error: { code: 'internal', message, details: {} } }
 }
 
 function readProvider(payload: unknown): ProviderId {
-  if (typeof payload !== 'object' || payload === null) throw new BadRequest('payload must be an object')
+  if (typeof payload !== 'object' || payload === null)
+    throw new BadRequest('payload must be an object')
   const provider = (payload as Record<string, unknown>).provider
-  if (typeof provider !== 'string' || !(PROVIDER_IDS as readonly string[]).includes(provider)) {
-    throw new BadRequest(`payload.provider must be one of ${PROVIDER_IDS.join(', ')}`)
+  if (
+    typeof provider !== 'string' ||
+    !(PROVIDER_IDS as readonly string[]).includes(provider)
+  ) {
+    throw new BadRequest(
+      `payload.provider must be one of ${PROVIDER_IDS.join(', ')}`,
+    )
   }
   return provider as ProviderId
 }
@@ -404,25 +505,37 @@ function readString(payload: unknown, field: string): string {
 }
 
 /** Read a field that may be omitted, rejecting an empty or non-string value. */
-function readOptionalString(payload: unknown, field: string): string | undefined {
-  if (typeof payload !== 'object' || payload === null) throw new BadRequest('payload must be an object')
+function readOptionalString(
+  payload: unknown,
+  field: string,
+): string | undefined {
+  if (typeof payload !== 'object' || payload === null)
+    throw new BadRequest('payload must be an object')
   const value = (payload as Record<string, unknown>)[field]
   if (value === undefined) return undefined
   if (typeof value !== 'string' || value.trim().length === 0) {
-    throw new BadRequest(`payload.${field} must be a non-empty string when present`)
+    throw new BadRequest(
+      `payload.${field} must be a non-empty string when present`,
+    )
   }
   return value
 }
 
 /** Validate the `setModelDefault` endpoint's payload. */
-function readModelDefaultInput(payload: unknown): { provider: ProviderId; model: string; effort?: string } {
+function readModelDefaultInput(payload: unknown): {
+  provider: ProviderId
+  model: string
+  effort?: string
+} {
   const provider = readProvider(payload)
   const model = readString(payload, 'model')
   const record = payload as Record<string, unknown>
   let effort: string | undefined
   if (record.effort !== undefined) {
     if (typeof record.effort !== 'string' || record.effort.length === 0) {
-      throw new BadRequest('payload.effort must be a non-empty string when present')
+      throw new BadRequest(
+        'payload.effort must be a non-empty string when present',
+      )
     }
     effort = record.effort
   }
@@ -434,10 +547,14 @@ function readModelDefaultInput(payload: unknown): { provider: ProviderId; model:
 }
 
 /** Validate the optional Claude login method. */
-function readLoginMethod(payload: unknown, provider: ProviderId): LoginMethod | undefined {
+function readLoginMethod(
+  payload: unknown,
+  provider: ProviderId,
+): LoginMethod | undefined {
   const method = (payload as Record<string, unknown>).method
   if (method === undefined) return undefined
-  if (provider !== 'claude') throw new BadRequest('payload.method is only valid for claude')
+  if (provider !== 'claude')
+    throw new BadRequest('payload.method is only valid for claude')
   if (method !== 'oauth' && method !== 'keychain') {
     throw new BadRequest('payload.method must be "oauth" or "keychain"')
   }
@@ -455,15 +572,21 @@ function readSpeedTier(payload: unknown): SpeedTier {
 
 /** Validate the `image` endpoint's payload into a full attachment reference. */
 function readImageRef(payload: unknown): ImageAttachmentRef {
-  if (typeof payload !== 'object' || payload === null) throw new BadRequest('payload must be an object')
+  if (typeof payload !== 'object' || payload === null)
+    throw new BadRequest('payload must be an object')
   const record = payload as Record<string, unknown>
   const attachmentId = record.attachmentId
   if (typeof attachmentId !== 'string' || attachmentId.length === 0) {
     throw new BadRequest('payload.attachmentId must be a non-empty string')
   }
   const mediaType = record.mediaType
-  if (typeof mediaType !== 'string' || !(IMAGE_MEDIA_TYPES as readonly string[]).includes(mediaType)) {
-    throw new BadRequest(`payload.mediaType must be one of ${IMAGE_MEDIA_TYPES.join(', ')}`)
+  if (
+    typeof mediaType !== 'string' ||
+    !(IMAGE_MEDIA_TYPES as readonly string[]).includes(mediaType)
+  ) {
+    throw new BadRequest(
+      `payload.mediaType must be one of ${IMAGE_MEDIA_TYPES.join(', ')}`,
+    )
   }
   for (const field of ['bytes', 'width', 'height'] as const) {
     const value = record[field]
@@ -481,7 +604,7 @@ function readImageRef(payload: unknown): ImageAttachmentRef {
     bytes: record.bytes as number,
     width: record.width as number,
     height: record.height as number,
-    ...name === undefined ? {} : { name: name as string },
+    ...(name === undefined ? {} : { name: name as string }),
   }
 }
 
@@ -491,7 +614,8 @@ function readImageRef(payload: unknown): ImageAttachmentRef {
  * inside the plugin's videos directory.
  */
 function readVideoName(payload: unknown): string {
-  if (typeof payload !== 'object' || payload === null) throw new BadRequest('payload must be an object')
+  if (typeof payload !== 'object' || payload === null)
+    throw new BadRequest('payload must be an object')
   const name = (payload as Record<string, unknown>).name
   if (typeof name !== 'string' || !VIDEO_NAME_PATTERN.test(name)) {
     throw new BadRequest('payload.name must be a bare .mp4 file name')
@@ -504,13 +628,15 @@ function readForce(payload: unknown): boolean {
   if (typeof payload !== 'object' || payload === null) return false
   const force = (payload as Record<string, unknown>).force
   if (force === undefined) return false
-  if (typeof force !== 'boolean') throw new BadRequest('payload.force must be a boolean when present')
+  if (typeof force !== 'boolean')
+    throw new BadRequest('payload.force must be a boolean when present')
   return force
 }
 
 /** Validate the session id both speed endpoints carry. */
 function readSessionId(payload: unknown): string {
-  if (typeof payload !== 'object' || payload === null) throw new BadRequest('payload must be an object')
+  if (typeof payload !== 'object' || payload === null)
+    throw new BadRequest('payload must be an object')
   return readString(payload, 'sessionId')
 }
 
@@ -528,30 +654,49 @@ async function dispatch(
 ): Promise<RpcResult<unknown>> {
   switch (endpoint) {
     case 'providerSettings':
-      if (!providerSettings) throw new BadRequest('provider settings are unavailable')
-      return ok(await providerSettings.get(readProvider(payload), readForce(payload)))
+      if (!providerSettings)
+        throw new BadRequest('provider settings are unavailable')
+      return ok(
+        await providerSettings.get(readProvider(payload), readForce(payload)),
+      )
     case 'setProviderSettings': {
-      if (!providerSettings) throw new BadRequest('provider settings are unavailable')
+      if (!providerSettings)
+        throw new BadRequest('provider settings are unavailable')
       const provider = readProvider(payload)
-      await providerSettings.set(provider, (payload as Record<string, unknown>).settings)
+      await providerSettings.set(
+        provider,
+        (payload as Record<string, unknown>).settings,
+      )
       return ok({ ok: true })
     }
     case 'status': {
       // One provider's failure (a corrupt store entry, a broken flow) must not
       // blind the whole page: it degrades to an error detail on that provider
       // while the others still report their real status.
-      const entries = await Promise.all(PROVIDER_IDS.map(
-        async provider => [provider, await controller.status(provider).catch((error: unknown) => ({
-          busy: false,
-          accounts: [],
-          detail: error instanceof Error ? error.message : String(error),
-        }) satisfies ProviderStatus)] as const,
-      ))
+      const entries = await Promise.all(
+        PROVIDER_IDS.map(
+          async (provider) =>
+            [
+              provider,
+              await controller.status(provider).catch(
+                (error: unknown) =>
+                  ({
+                    busy: false,
+                    accounts: [],
+                    detail:
+                      error instanceof Error ? error.message : String(error),
+                  }) satisfies ProviderStatus,
+              ),
+            ] as const,
+        ),
+      )
       return ok({ providers: Object.fromEntries(entries) })
     }
     case 'login': {
       const provider = readProvider(payload)
-      return ok(await controller.login(provider, readLoginMethod(payload, provider)))
+      return ok(
+        await controller.login(provider, readLoginMethod(payload, provider)),
+      )
     }
     case 'manual': {
       const provider = readProvider(payload)
@@ -573,7 +718,14 @@ async function dispatch(
     }
     case 'usage': {
       const provider = readProvider(payload)
-      return ok(await controller.usage(provider, readString(payload, 'account'), signal, readForce(payload)))
+      return ok(
+        await controller.usage(
+          provider,
+          readString(payload, 'account'),
+          signal,
+          readForce(payload),
+        ),
+      )
     }
     case 'externalStatus':
       if (!externalUsage) throw new BadRequest('external usage is unavailable')
@@ -582,9 +734,13 @@ async function dispatch(
       if (!externalUsage) throw new BadRequest('external usage is unavailable')
       const source = readString(payload, 'source')
       if (!(EXTERNAL_USAGE_SOURCES as readonly string[]).includes(source)) {
-        throw new BadRequest(`payload.source must be one of ${EXTERNAL_USAGE_SOURCES.join(', ')}`)
+        throw new BadRequest(
+          `payload.source must be one of ${EXTERNAL_USAGE_SOURCES.join(', ')}`,
+        )
       }
-      return ok(await externalUsage.usage(source as ExternalUsageSource, signal))
+      return ok(
+        await externalUsage.usage(source as ExternalUsageSource, signal),
+      )
     }
     case 'cursorStatus':
       if (!cursor) throw new BadRequest('Cursor account is unavailable')
@@ -611,7 +767,8 @@ async function dispatch(
       return ok(await cursor.settings(readForce(payload), signal))
     case 'cursorSetSettings':
       if (!cursor) throw new BadRequest('Cursor account is unavailable')
-      if (payload === null || typeof payload !== 'object') throw new BadRequest('payload must be an object')
+      if (payload === null || typeof payload !== 'object')
+        throw new BadRequest('payload must be an object')
       await cursor.setSettings((payload as Record<string, unknown>).settings)
       return ok({ ok: true })
     case 'ollamaSettings':
@@ -619,7 +776,8 @@ async function dispatch(
       return ok(await ollama.settings())
     case 'ollamaSetSettings':
       if (!ollama) throw new BadRequest('Ollama settings are unavailable')
-      if (payload === null || typeof payload !== 'object') throw new BadRequest('payload must be an object')
+      if (payload === null || typeof payload !== 'object')
+        throw new BadRequest('payload must be an object')
       await ollama.setSettings((payload as Record<string, unknown>).settings)
       return ok({ ok: true })
     case 'ollamaModels': {
@@ -633,20 +791,35 @@ async function dispatch(
         try {
           baseURL = validateOllamaBaseURL(rawBaseURL)
         } catch (error) {
-          throw new BadRequest(error instanceof Error ? error.message : String(error))
+          throw new BadRequest(
+            error instanceof Error ? error.message : String(error),
+          )
         }
       }
-      return ok(await ollama.models({
-        ...apiKey === undefined ? {} : { apiKey },
-        ...baseURL === undefined ? {} : { baseURL },
-      }, signal))
+      return ok(
+        await ollama.models(
+          {
+            ...(apiKey === undefined ? {} : { apiKey }),
+            ...(baseURL === undefined ? {} : { baseURL }),
+          },
+          signal,
+        ),
+      )
     }
     case 'prepareReset':
-      if (!controller.prepareReset) throw new BadRequest('Reset redemption unavailable')
-      return ok(await controller.prepareReset(readString(payload, 'account'), signal))
+      if (!controller.prepareReset)
+        throw new BadRequest('Reset redemption unavailable')
+      return ok(
+        await controller.prepareReset(readString(payload, 'account'), signal),
+      )
     case 'consumeReset':
-      if (!controller.consumeReset) throw new BadRequest('Reset redemption unavailable')
-      await controller.consumeReset(readString(payload, 'account'), readString(payload, 'ticket'), signal)
+      if (!controller.consumeReset)
+        throw new BadRequest('Reset redemption unavailable')
+      await controller.consumeReset(
+        readString(payload, 'account'),
+        readString(payload, 'ticket'),
+        signal,
+      )
       return ok({ ok: true })
     case 'image':
       return ok(await controller.readImage(readImageRef(payload), signal))
@@ -658,11 +831,13 @@ async function dispatch(
       await speed.setSpeed(readSessionId(payload), readSpeedTier(payload))
       return ok({ ok: true })
     case 'modelDefaults': {
-      if (modelDefaults === undefined) throw new BadRequest('model defaults are unavailable')
+      if (modelDefaults === undefined)
+        throw new BadRequest('model defaults are unavailable')
       return ok(await modelDefaults.catalog(readForce(payload)))
     }
     case 'setModelDefault':
-      if (modelDefaults === undefined) throw new BadRequest('model defaults are unavailable')
+      if (modelDefaults === undefined)
+        throw new BadRequest('model defaults are unavailable')
       {
         const input = readModelDefaultInput(payload)
         await modelDefaults.set(input.provider, input.model, input.effort)
@@ -710,7 +885,18 @@ export function registerAuthRpc(
     const connection = ctx.get('connection') as HostConnectionHandle
     const handler: ConnectionRpcHandler = async (endpoint, payload, signal) => {
       try {
-        return await dispatch(controller, speed, modelDefaults, endpoint, payload, signal, providerSettings, externalUsage, cursor, ollama)
+        return await dispatch(
+          controller,
+          speed,
+          modelDefaults,
+          endpoint,
+          payload,
+          signal,
+          providerSettings,
+          externalUsage,
+          cursor,
+          ollama,
+        )
       } catch (error) {
         return failure(error)
       }

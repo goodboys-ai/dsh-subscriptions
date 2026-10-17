@@ -1,92 +1,182 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { fetchKimiCodeUsage, fetchOllamaUsage, fetchOpenCodeGoUsage } from '../src/providers/external-usage.js'
+import {
+  fetchKimiCodeUsage,
+  fetchOllamaUsage,
+  fetchOpenCodeGoUsage,
+} from '../src/providers/external-usage.js'
 
 test('OpenCode Go usage maps all three windows and sends the key only upstream', async () => {
   const http = (async (url: string | URL | Request, init?: RequestInit) => {
     assert.equal(url, 'https://opencode.ai/zen/go/v1/usage')
-    assert.equal((init?.headers as Record<string, string>).authorization, 'Bearer secret')
-    return Response.json({ usage: {
-      rolling: { status: 'ok', percent: 25, resetsAt: '2026-09-28T08:00:00Z' },
-      weekly: { status: 'ok', percent: 50, resetsAt: '2026-10-01T00:00:00Z' },
-      monthly: { status: 'ok', percent: 75, resetsAt: '2026-10-28T00:00:00Z' },
-    } })
+    assert.equal(
+      (init?.headers as Record<string, string>).authorization,
+      'Bearer secret',
+    )
+    return Response.json({
+      usage: {
+        rolling: {
+          status: 'ok',
+          percent: 25,
+          resetsAt: '2026-09-28T08:00:00Z',
+        },
+        weekly: { status: 'ok', percent: 50, resetsAt: '2026-10-01T00:00:00Z' },
+        monthly: {
+          status: 'ok',
+          percent: 75,
+          resetsAt: '2026-10-28T00:00:00Z',
+        },
+      },
+    })
   }) as typeof fetch
   assert.deepEqual(await fetchOpenCodeGoUsage('secret', http), {
     supported: true,
     plan: 'OpenCode Go',
     windows: [
-      { kind: 'session', usedPercent: 25, fixedWindow: true, windowDurationMs: 18_000_000, resetsAt: Date.parse('2026-09-28T08:00:00Z') },
-      { kind: 'weekly', usedPercent: 50, fixedWindow: true, windowDurationMs: 604_800_000, resetsAt: Date.parse('2026-10-01T00:00:00Z') },
-      { kind: 'other', scope: 'Monthly', usedPercent: 75, resetsAt: Date.parse('2026-10-28T00:00:00Z'),
-        displayStartsAt: Math.min(Date.parse('2026-10-28T00:00:00Z') - 30 * 86_400_000, Date.now()) },
+      {
+        kind: 'session',
+        usedPercent: 25,
+        fixedWindow: true,
+        windowDurationMs: 18_000_000,
+        resetsAt: Date.parse('2026-09-28T08:00:00Z'),
+      },
+      {
+        kind: 'weekly',
+        usedPercent: 50,
+        fixedWindow: true,
+        windowDurationMs: 604_800_000,
+        resetsAt: Date.parse('2026-10-01T00:00:00Z'),
+      },
+      {
+        kind: 'other',
+        scope: 'Monthly',
+        usedPercent: 75,
+        resetsAt: Date.parse('2026-10-28T00:00:00Z'),
+        displayStartsAt: Math.min(
+          Date.parse('2026-10-28T00:00:00Z') - 30 * 86_400_000,
+          Date.now(),
+        ),
+      },
     ],
   })
 })
 
 test('OpenCode Go HTTP errors do not disclose the key', async () => {
   const http = (async () => new Response('', { status: 401 })) as typeof fetch
-  await assert.rejects(() => fetchOpenCodeGoUsage('go-secret', http), error => {
-    assert.ok(error instanceof Error)
-    assert.match(error.message, /HTTP 401/)
-    assert.ok(!error.message.includes('go-secret'))
-    return true
-  })
+  await assert.rejects(
+    () => fetchOpenCodeGoUsage('go-secret', http),
+    (error) => {
+      assert.ok(error instanceof Error)
+      assert.match(error.message, /HTTP 401/)
+      assert.ok(!error.message.includes('go-secret'))
+      return true
+    },
+  )
 })
 
 test('OpenCode Go rejects a malformed response instead of showing empty quota', async () => {
-  const http = (async () => Response.json({ usage: { rolling: { percent: '25' } } })) as typeof fetch
-  await assert.rejects(() => fetchOpenCodeGoUsage('secret', http), /no valid windows/)
+  const http = (async () =>
+    Response.json({ usage: { rolling: { percent: '25' } } })) as typeof fetch
+  await assert.rejects(
+    () => fetchOpenCodeGoUsage('secret', http),
+    /no valid windows/,
+  )
 })
 
 test('Kimi Code usage maps present ratio pools and tolerates absent windows', async () => {
   const http = (async (url: string | URL | Request, init?: RequestInit) => {
     assert.equal(url, 'https://api.kimi.com/coding/v1/usages')
-    assert.equal((init?.headers as Record<string, string>).authorization, 'Bearer sk-kimi-secret')
-    return Response.json({ usages: {
-      limit_5h: { used_ratio: 0, reset_time: '2026-09-28T08:00:00Z' },
-      limit_month_total: { used_ratio: 0.42, reset_time: '2026-10-17T00:00:00Z' },
-      limit_month_code: { used_ratio: 0.7, reset_time: '2026-10-17T00:00:00Z' },
-    } })
+    assert.equal(
+      (init?.headers as Record<string, string>).authorization,
+      'Bearer sk-kimi-secret',
+    )
+    return Response.json({
+      usages: {
+        limit_5h: { used_ratio: 0, reset_time: '2026-09-28T08:00:00Z' },
+        limit_month_total: {
+          used_ratio: 0.42,
+          reset_time: '2026-10-17T00:00:00Z',
+        },
+        limit_month_code: {
+          used_ratio: 0.7,
+          reset_time: '2026-10-17T00:00:00Z',
+        },
+      },
+    })
   }) as typeof fetch
   assert.deepEqual(await fetchKimiCodeUsage('sk-kimi-secret', http), {
     supported: true,
     plan: 'Kimi Code',
     windows: [
-      { kind: 'session', usedPercent: 0, resetsAt: Date.parse('2026-09-28T08:00:00Z') },
-      { kind: 'other', scope: 'Monthly', usedPercent: 42, resetsAt: Date.parse('2026-10-17T00:00:00Z'),
-        displayStartsAt: Math.min(Date.parse('2026-10-17T00:00:00Z') - 30 * 86_400_000, Date.now()) },
+      {
+        kind: 'session',
+        usedPercent: 0,
+        resetsAt: Date.parse('2026-09-28T08:00:00Z'),
+      },
+      {
+        kind: 'other',
+        scope: 'Monthly',
+        usedPercent: 42,
+        resetsAt: Date.parse('2026-10-17T00:00:00Z'),
+        displayStartsAt: Math.min(
+          Date.parse('2026-10-17T00:00:00Z') - 30 * 86_400_000,
+          Date.now(),
+        ),
+      },
     ],
   })
 })
 
 test('Kimi official CLI shape: summary assumes weekly, explicit durations win', async () => {
-  const http = (async () => Response.json({
-    usage: { limit: '100', remaining: '60', reset_at: '2026-10-01T00:00:00Z' },
-    limits: [
-      { window: { duration: 300, timeUnit: 'MINUTE' }, detail: { limit: 100, used: 25 } },
-      { window: { duration: 7, timeUnit: 'DAY' }, detail: { limit: 100, remaining: 50 } },
-    ],
-  })) as typeof fetch
+  const http = (async () =>
+    Response.json({
+      usage: {
+        limit: '100',
+        remaining: '60',
+        reset_at: '2026-10-01T00:00:00Z',
+      },
+      limits: [
+        {
+          window: { duration: 300, timeUnit: 'MINUTE' },
+          detail: { limit: 100, used: 25 },
+        },
+        {
+          window: { duration: 7, timeUnit: 'DAY' },
+          detail: { limit: 100, remaining: 50 },
+        },
+      ],
+    })) as typeof fetch
   const usage = await fetchKimiCodeUsage('key', http)
   assert.deepEqual(usage.windows, [
     // No period fields: the official CLI labels this summary the weekly limit.
     // Its marker assumes seven days back from the reset (display only).
-    { kind: 'weekly', usedPercent: 40, resetsAt: Date.parse('2026-10-01T00:00:00Z'),
-      displayStartsAt: Date.parse('2026-10-01T00:00:00Z') - 604_800_000 },
+    {
+      kind: 'weekly',
+      usedPercent: 40,
+      resetsAt: Date.parse('2026-10-01T00:00:00Z'),
+      displayStartsAt: Date.parse('2026-10-01T00:00:00Z') - 604_800_000,
+    },
     { kind: 'session', usedPercent: 25, windowDurationMs: 18_000_000 },
-    { kind: 'weekly', usedPercent: 50, windowDurationMs: 604_800_000, fixedWindow: true },
+    {
+      kind: 'weekly',
+      usedPercent: 50,
+      windowDurationMs: 604_800_000,
+      fixedWindow: true,
+    },
   ])
 })
 
 test('Kimi Code HTTP errors do not disclose the key', async () => {
   const http = (async () => new Response('', { status: 401 })) as typeof fetch
-  await assert.rejects(() => fetchKimiCodeUsage('sk-kimi-secret', http), error => {
-    assert.ok(error instanceof Error)
-    assert.match(error.message, /HTTP 401/)
-    assert.ok(!error.message.includes('secret'))
-    return true
-  })
+  await assert.rejects(
+    () => fetchKimiCodeUsage('sk-kimi-secret', http),
+    (error) => {
+      assert.ok(error instanceof Error)
+      assert.match(error.message, /HTTP 401/)
+      assert.ok(!error.message.includes('secret'))
+      return true
+    },
+  )
 })
 
 for (const [name, read] of [
@@ -94,53 +184,85 @@ for (const [name, read] of [
   ['Kimi Code', fetchKimiCodeUsage],
 ] as const) {
   test(`${name} usage rejects a malformed body without quoting it`, async () => {
-    const http = (async () => new Response('sk-live-ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789')) as typeof fetch
-    await assert.rejects(() => read('secret', http), (error: unknown) => {
-      assert.ok(error instanceof SyntaxError)
-      assert.equal(error.cause, undefined)
-      assert.equal(error.message, 'external usage: invalid JSON: [provider response body omitted]')
-      return true
-    })
+    const http = (async () =>
+      new Response(
+        'sk-live-ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
+      )) as typeof fetch
+    await assert.rejects(
+      () => read('secret', http),
+      (error: unknown) => {
+        assert.ok(error instanceof SyntaxError)
+        assert.equal(error.cause, undefined)
+        assert.equal(
+          error.message,
+          'external usage: invalid JSON: [provider response body omitted]',
+        )
+        return true
+      },
+    )
   })
 }
 
 test('Ollama Cloud usage maps the included allowance against its balance', async () => {
   const http = (async (url: string | URL | Request, init?: RequestInit) => {
     assert.equal(url, 'https://ollama.com/api/balance')
-    assert.equal((init?.headers as Record<string, string>).authorization, 'Bearer secret')
+    assert.equal(
+      (init?.headers as Record<string, string>).authorization,
+      'Bearer secret',
+    )
     // Shape per the official balance endpoint.
-    return Response.json({ included: {
-      balance_usd: 12,
-      allowance_usd: 100,
-      period: { from: '2026-09-15T09:30:00Z', until: '2026-10-15T09:30:00Z' },
-    } })
+    return Response.json({
+      included: {
+        balance_usd: 12,
+        allowance_usd: 100,
+        period: { from: '2026-09-15T09:30:00Z', until: '2026-10-15T09:30:00Z' },
+      },
+    })
   }) as typeof fetch
-  assert.deepEqual(await fetchOllamaUsage('secret', 'https://ollama.com/api', http), {
-    supported: true,
-    plan: 'Ollama Cloud',
-    windows: [
-      { kind: 'other', scope: 'Credits', usedPercent: 88,
-        resetsAt: Date.parse('2026-10-15T09:30:00Z'), startsAt: Date.parse('2026-09-15T09:30:00Z') },
-    ],
-  })
+  assert.deepEqual(
+    await fetchOllamaUsage('secret', 'https://ollama.com/api', http),
+    {
+      supported: true,
+      plan: 'Ollama Cloud',
+      windows: [
+        {
+          kind: 'other',
+          scope: 'Credits',
+          usedPercent: 88,
+          resetsAt: Date.parse('2026-10-15T09:30:00Z'),
+          startsAt: Date.parse('2026-09-15T09:30:00Z'),
+        },
+      ],
+    },
+  )
 })
 
 test('Ollama Cloud 404 means unsupported, other errors throw without the key', async () => {
-  const missing = (async () => new Response('', { status: 404 })) as typeof fetch
-  assert.deepEqual(await fetchOllamaUsage('secret', 'https://ollama.com/api', missing), { supported: false })
+  const missing = (async () =>
+    new Response('', { status: 404 })) as typeof fetch
+  assert.deepEqual(
+    await fetchOllamaUsage('secret', 'https://ollama.com/api', missing),
+    { supported: false },
+  )
   const denied = (async () => new Response('', { status: 401 })) as typeof fetch
-  await assert.rejects(() => fetchOllamaUsage('ollama-secret', 'https://ollama.com/api', denied), error => {
-    assert.ok(error instanceof Error)
-    assert.match(error.message, /HTTP 401/)
-    assert.ok(!error.message.includes('ollama-secret'))
-    return true
-  })
+  await assert.rejects(
+    () => fetchOllamaUsage('ollama-secret', 'https://ollama.com/api', denied),
+    (error) => {
+      assert.ok(error instanceof Error)
+      assert.match(error.message, /HTTP 401/)
+      assert.ok(!error.message.includes('ollama-secret'))
+      return true
+    },
+  )
 })
 
 test('a balance reply in the E2E fixture shape parses to its percent', async () => {
   // Same shape the E2E fixture serves; if either side drifts, this fails.
   // Fixture rule: served percent = allowance − balance; percent 88.
-  const http = (async () => Response.json({ included: { balance_usd: 12, allowance_usd: 100 } })) as typeof fetch
+  const http = (async () =>
+    Response.json({
+      included: { balance_usd: 12, allowance_usd: 100 },
+    })) as typeof fetch
   const usage = await fetchOllamaUsage('secret', 'https://ollama.com/api', http)
   assert.equal(usage.windows?.[0]?.usedPercent, 88)
 })

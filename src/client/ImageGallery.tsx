@@ -56,42 +56,93 @@ export interface MessageImageLabels {
  * `object-fit: cover` — and never upscaled past the image's natural size. The
  * crop anchor keeps the top of very tall images and the left of very wide
  * ones, where the informative content usually starts. */
-function singleFit(attachment: ImageAttachmentRef): { width: number; height: number; objectPosition: string } {
+function singleFit(attachment: ImageAttachmentRef): {
+  width: number
+  height: number
+  objectPosition: string
+} {
   const natural = attachment.width / attachment.height
   const ratio = Math.min(4, Math.max(0.25, natural))
-  const box = ratio >= 1 ? { width: 240, height: 240 / ratio } : { width: 240 * ratio, height: 240 }
-  const scale = Math.min(1, attachment.width / box.width, attachment.height / box.height)
+  const box =
+    ratio >= 1
+      ? { width: 240, height: 240 / ratio }
+      : { width: 240 * ratio, height: 240 }
+  const scale = Math.min(
+    1,
+    attachment.width / box.width,
+    attachment.height / box.height,
+  )
   return {
     width: Math.max(1, Math.round(box.width * scale)),
     height: Math.max(1, Math.round(box.height * scale)),
-    objectPosition: natural < 0.25 ? 'center top' : natural > 4 ? 'left center' : 'center',
+    objectPosition:
+      natural < 0.25 ? 'center top' : natural > 4 ? 'left center' : 'center',
   }
 }
 
 const styles: Record<string, CSSProperties> = {
-  gallery: { display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-start' },
+  gallery: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: 8,
+    justifyContent: 'flex-start',
+  },
   frame: {
-    display: 'grid', placeItems: 'center', overflow: 'hidden', padding: 0,
-    border: '1px solid var(--dsw-alias-border-l2-darkmode-thin)', borderRadius: 8,
-    background: 'var(--dsw-alias-interactive-bg-hover-solid)', cursor: 'zoom-in',
+    display: 'grid',
+    placeItems: 'center',
+    overflow: 'hidden',
+    padding: 0,
+    border: '1px solid var(--dsw-alias-border-l2-darkmode-thin)',
+    borderRadius: 8,
+    background: 'var(--dsw-alias-interactive-bg-hover-solid)',
+    cursor: 'zoom-in',
   },
   tile: { width: 64, height: 64 },
   img: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' },
-  loading: { fontSize: 12, color: 'var(--dsw-alias-label-tertiary)', padding: '0 8px' },
+  loading: {
+    fontSize: 12,
+    color: 'var(--dsw-alias-label-tertiary)',
+    padding: '0 8px',
+  },
   error: {
-    fontSize: 12, color: 'var(--dsw-alias-state-error-primary)', cursor: 'pointer',
-    border: '1px solid var(--dsw-alias-border-l2-darkmode-thin)', borderRadius: 8,
-    background: 'transparent', padding: '6px 10px',
+    fontSize: 12,
+    color: 'var(--dsw-alias-state-error-primary)',
+    cursor: 'pointer',
+    border: '1px solid var(--dsw-alias-border-l2-darkmode-thin)',
+    borderRadius: 8,
+    background: 'transparent',
+    padding: '6px 10px',
   },
   overlay: {
-    position: 'fixed', inset: 0, zIndex: 1000, display: 'grid', placeItems: 'center',
-    background: 'rgba(0, 0, 0, 0.72)', padding: 24,
+    position: 'fixed',
+    inset: 0,
+    zIndex: 1000,
+    display: 'grid',
+    placeItems: 'center',
+    background: 'rgba(0, 0, 0, 0.72)',
+    padding: 24,
   },
-  overlayImg: { maxWidth: '92vw', maxHeight: '92vh', objectFit: 'contain', borderRadius: 4 },
+  overlayImg: {
+    maxWidth: '92vw',
+    maxHeight: '92vh',
+    objectFit: 'contain',
+    borderRadius: 4,
+  },
   close: {
-    position: 'absolute', top: 12, right: 12, width: 32, height: 32, display: 'grid',
-    placeItems: 'center', border: 'none', borderRadius: '50%', cursor: 'pointer',
-    background: 'rgba(255, 255, 255, 0.16)', color: '#fff', fontSize: 16, lineHeight: 1,
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 32,
+    height: 32,
+    display: 'grid',
+    placeItems: 'center',
+    border: 'none',
+    borderRadius: '50%',
+    cursor: 'pointer',
+    background: 'rgba(255, 255, 255, 0.16)',
+    color: '#fff',
+    fontSize: 16,
+    lineHeight: 1,
   },
 }
 
@@ -100,21 +151,49 @@ const styles: Record<string, CSSProperties> = {
  * Escape all dismiss; the image itself is inert so a click on it does not
  * fall through to the backdrop dismissal.
  */
-function ImageLightbox({ src, alt, labels, onClose }: {
+function ImageLightbox({
+  src,
+  alt,
+  labels,
+  onClose,
+}: {
   src: string
   alt: string
   labels: ImageLightboxLabels
   onClose: () => void
 }) {
   useEffect(() => {
-    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
     window.addEventListener('keydown', onKey)
-    return () => { window.removeEventListener('keydown', onKey) }
+    return () => {
+      window.removeEventListener('keydown', onKey)
+    }
   }, [onClose])
   return (
-    <div role="dialog" aria-label={labels.dialog} style={styles.overlay} onClick={onClose}>
-      <img src={src} alt={alt} style={styles.overlayImg} onClick={event => { event.stopPropagation() }} />
-      <button type="button" aria-label={labels.close} style={styles.close} onClick={onClose}>×</button>
+    <div
+      role="dialog"
+      aria-label={labels.dialog}
+      style={styles.overlay}
+      onClick={onClose}
+    >
+      <img
+        src={src}
+        alt={alt}
+        style={styles.overlayImg}
+        onClick={(event) => {
+          event.stopPropagation()
+        }}
+      />
+      <button
+        type="button"
+        aria-label={labels.close}
+        style={styles.close}
+        onClick={onClose}
+      >
+        ×
+      </button>
     </div>
   )
 }
@@ -124,7 +203,12 @@ function ImageLightbox({ src, alt, labels, onClose }: {
  * preview. A lone image renders at its `singleFit` size; an image among
  * several renders as a fixed 64px square tile.
  */
-export function MessageImage({ attachment, load, variant, labels }: {
+export function MessageImage({
+  attachment,
+  load,
+  variant,
+  labels,
+}: {
   attachment: ImageAttachmentRef
   load: ImageLoader
   variant: 'single' | 'tile'
@@ -136,8 +220,12 @@ export function MessageImage({ attachment, load, variant, labels }: {
   // Retry re-arms the one load effect below, so every attempt — first load or
   // retry — runs under the same liveness guard and the same reset.
   const [attempt, setAttempt] = useState(0)
-  const retry = useCallback(() => { setAttempt(a => a + 1) }, [])
-  const close = useCallback(() => { setOpen(false) }, [])
+  const retry = useCallback(() => {
+    setAttempt((a) => a + 1)
+  }, [])
+  const close = useCallback(() => {
+    setOpen(false)
+  }, [])
   const fit = useMemo(
     () => (variant === 'single' ? singleFit(attachment) : undefined),
     [attachment, variant],
@@ -147,15 +235,28 @@ export function MessageImage({ attachment, load, variant, labels }: {
     let live = true
     setError(false)
     setSrc(null)
-    void load(attachment).then((url) => { if (live) setSrc(url) }).catch(() => { if (live) setError(true) })
-    return () => { live = false }
+    void load(attachment)
+      .then((url) => {
+        if (live) setSrc(url)
+      })
+      .catch(() => {
+        if (live) setError(true)
+      })
+    return () => {
+      live = false
+    }
   }, [attachment, load, attempt])
 
   const label = attachment.name ?? labels.image
   if (error) {
-    return <button type="button" style={styles.error} onClick={retry}>{labels.loadFailed}</button>
+    return (
+      <button type="button" style={styles.error} onClick={retry}>
+        {labels.loadFailed}
+      </button>
+    )
   }
-  const box = fit === undefined ? styles.tile : { width: fit.width, height: fit.height }
+  const box =
+    fit === undefined ? styles.tile : { width: fit.width, height: fit.height }
   return (
     <>
       <button
@@ -163,20 +264,39 @@ export function MessageImage({ attachment, load, variant, labels }: {
         style={{ ...styles.frame, ...box }}
         title={labels.open}
         aria-label={labels.openNamed(label)}
-        onClick={() => { if (src !== null) setOpen(true) }}
+        onClick={() => {
+          if (src !== null) setOpen(true)
+        }}
       >
-        {src === null
-          ? <span style={styles.loading}>{labels.loading}</span>
-          : <img src={src} alt={label} style={{ ...styles.img, objectPosition: fit?.objectPosition }} />}
+        {src === null ? (
+          <span style={styles.loading}>{labels.loading}</span>
+        ) : (
+          <img
+            src={src}
+            alt={label}
+            style={{ ...styles.img, objectPosition: fit?.objectPosition }}
+          />
+        )}
       </button>
-      {open && src !== null && <ImageLightbox src={src} alt={label} labels={labels.lightbox} onClose={close} />}
+      {open && src !== null && (
+        <ImageLightbox
+          src={src}
+          alt={label}
+          labels={labels.lightbox}
+          onClose={close}
+        />
+      )}
     </>
   )
 }
 
 /** Wrapping image group: a lone image renders large, several render as 64px
  * square tiles (same rule as the platform gallery). */
-export function ImageGallery({ images, load, labels }: {
+export function ImageGallery({
+  images,
+  load,
+  labels,
+}: {
   images: readonly { attachment: ImageAttachmentRef }[]
   load: ImageLoader
   labels: MessageImageLabels
@@ -186,7 +306,13 @@ export function ImageGallery({ images, load, labels }: {
   return (
     <div style={styles.gallery}>
       {images.map((image, index) => (
-        <MessageImage key={`${image.attachment.attachmentId}:${index}`} attachment={image.attachment} load={load} variant={variant} labels={labels} />
+        <MessageImage
+          key={`${image.attachment.attachmentId}:${index}`}
+          attachment={image.attachment}
+          load={load}
+          variant={variant}
+          labels={labels}
+        />
       ))}
     </div>
   )

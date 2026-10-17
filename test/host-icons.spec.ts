@@ -10,7 +10,10 @@ const legacy = () => createElement('svg', { 'data-version': 'legacy' })
 
 test('host icons resolve the DSH 0.1.7 name first, then the older 16px name', (t) => {
   const warn = t.mock.method(console, 'warn', () => {})
-  assert.equal(hostIcon({ IconSparkleRegular: modern, IconSparkle16: legacy }, 'Sparkle'), modern)
+  assert.equal(
+    hostIcon({ IconSparkleRegular: modern, IconSparkle16: legacy }, 'Sparkle'),
+    modern,
+  )
   assert.equal(hostIcon({ IconSparkleRegular: modern }, 'Sparkle'), modern)
   assert.equal(hostIcon({ IconSparkle16: legacy }, 'Sparkle'), legacy)
   assert.equal(warn.mock.callCount(), 0)

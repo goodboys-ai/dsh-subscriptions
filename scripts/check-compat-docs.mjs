@@ -52,9 +52,10 @@ function readWindow() {
   }
   const versions = text
     .split('\n')
-    .map(line => line.trim())
-    .filter(line => line !== '' && !line.startsWith('#'))
-  if (versions.length === 0) throw new SetupFailure('dsh-versions.txt lists no version')
+    .map((line) => line.trim())
+    .filter((line) => line !== '' && !line.startsWith('#'))
+  if (versions.length === 0)
+    throw new SetupFailure('dsh-versions.txt lists no version')
   return versions
 }
 
@@ -72,7 +73,10 @@ function readWindow() {
 function expectedPeerRange(window) {
   const newest = window[window.length - 1]
   const match = /^(\d+)\.(\d+)\./.exec(newest)
-  if (match === null) throw new SetupFailure(`the newest window entry ${JSON.stringify(newest)} is not a version`)
+  if (match === null)
+    throw new SetupFailure(
+      `the newest window entry ${JSON.stringify(newest)} is not a version`,
+    )
   const nextMinor = `${match[1]}.${Number(match[2]) + 1}.0`
   return `>=${window[0]} <${nextMinor}-0`
 }
@@ -90,7 +94,8 @@ function read(rel) {
 const unwrap = (text) => text.replace(/\s+/g, ' ')
 
 /** Every backtick-quoted token in a string. */
-const backticks = (text) => [...text.matchAll(/`([^`]+)`/g)].map(match => match[1])
+const backticks = (text) =>
+  [...text.matchAll(/`([^`]+)`/g)].map((match) => match[1])
 
 const failures = []
 const fail = (what, expected, actual) => {
@@ -102,7 +107,10 @@ const sorted = (list) => [...list].sort()
 
 // --- package.json: the six @deepseek-ai/dsh-* peers -------------------------
 
-const peersOf = (pkg) => Object.entries(pkg.peerDependencies ?? {}).filter(([name]) => name.startsWith('@deepseek-ai/dsh-'))
+const peersOf = (pkg) =>
+  Object.entries(pkg.peerDependencies ?? {}).filter(([name]) =>
+    name.startsWith('@deepseek-ai/dsh-'),
+  )
 
 function checkPackagePeers(window, expectedRange) {
   let pkg
@@ -113,9 +121,11 @@ function checkPackagePeers(window, expectedRange) {
     throw new SetupFailure('package.json is not valid JSON')
   }
   const peers = peersOf(pkg)
-  if (peers.length === 0) throw new SetupFailure('package.json declares no @deepseek-ai/dsh-* peer')
+  if (peers.length === 0)
+    throw new SetupFailure('package.json declares no @deepseek-ai/dsh-* peer')
   for (const [name, range] of peers) {
-    if (range !== expectedRange) fail(`package.json peer ${name}`, expectedRange, range)
+    if (range !== expectedRange)
+      fail(`package.json peer ${name}`, expectedRange, range)
   }
 }
 
@@ -130,14 +140,21 @@ function checkPackagePeers(window, expectedRange) {
  */
 function parseReadme(text) {
   const readme = unwrap(text)
-  const sentence = /Current source is tested with DSH (.*?)\.(?=\s|$)/.exec(readme)
-  if (sentence === null) throw new SetupFailure("README.md has no 'Current source is tested with DSH …' sentence")
-  const listed = backticks(sentence[1]).filter(token => /^\d/.test(token))
-  if (listed.length === 0) throw new SetupFailure('the README sentence names no version')
+  const sentence = /Current source is tested with DSH (.*?)\.(?=\s|$)/.exec(
+    readme,
+  )
+  if (sentence === null)
+    throw new SetupFailure(
+      "README.md has no 'Current source is tested with DSH …' sentence",
+    )
+  const listed = backticks(sentence[1]).filter((token) => /^\d/.test(token))
+  if (listed.length === 0)
+    throw new SetupFailure('the README sentence names no version')
   // The peer range in README carries the comparison operators, so it is the
   // backticked token that starts with `>=`.
-  const range = backticks(readme).find(token => token.startsWith('>='))
-  if (range === undefined) throw new SetupFailure('README.md names no `>=… <…` peer range')
+  const range = backticks(readme).find((token) => token.startsWith('>='))
+  if (range === undefined)
+    throw new SetupFailure('README.md names no `>=… <…` peer range')
   return { listed, range }
 }
 
@@ -146,7 +163,8 @@ function checkReadme(window, expectedRange) {
   if (sorted(listed).join(' ') !== sorted(window).join(' ')) {
     fail('README.md tested-with versions', window.join(', '), listed.join(', '))
   }
-  if (range !== expectedRange) fail('README.md peer range', expectedRange, range)
+  if (range !== expectedRange)
+    fail('README.md peer range', expectedRange, range)
 }
 
 // --- docs/compatibility.md: the table rows and the peers sentence -----------
@@ -164,19 +182,28 @@ function parseTableVersions(text) {
 /** The peer range in the sentence above the table ("Current source version …, peers `…`"). */
 function parsePeersSentence(text) {
   const match = /peers\s+`([^`]+)`/.exec(unwrap(text))
-  if (match === null) throw new SetupFailure("docs/compatibility.md has no 'peers `…`' sentence")
+  if (match === null)
+    throw new SetupFailure("docs/compatibility.md has no 'peers `…`' sentence")
   return match[1]
 }
 
 function checkCompatibilityDoc(window, expectedRange) {
   const text = read('docs/compatibility.md')
   const versions = parseTableVersions(text)
-  if (versions.length === 0) throw new SetupFailure('docs/compatibility.md has no compatibility table rows')
+  if (versions.length === 0)
+    throw new SetupFailure(
+      'docs/compatibility.md has no compatibility table rows',
+    )
   if (sorted(versions).join(' ') !== sorted(window).join(' ')) {
-    fail('docs/compatibility.md table versions', window.join(', '), versions.join(', '))
+    fail(
+      'docs/compatibility.md table versions',
+      window.join(', '),
+      versions.join(', '),
+    )
   }
   const range = parsePeersSentence(text)
-  if (range !== expectedRange) fail('docs/compatibility.md peers sentence', expectedRange, range)
+  if (range !== expectedRange)
+    fail('docs/compatibility.md peers sentence', expectedRange, range)
 }
 
 // --- the plugin's own version, stated twice in docs/compatibility.md -------
@@ -184,18 +211,26 @@ function checkCompatibilityDoc(window, expectedRange) {
 /**
  * The two sentences that name the plugin version rather than the DSH window.
  * Both are matched by their shape so a reworded sentence reports "the check did
- * not run" instead of passing.
+ * not run" instead of passing. Line breaks are collapsed first: Prettier wraps
+ * the paragraph, and the shape is the sentence, not which source line it uses.
  * @returns {{ label: string, version: string }[]}
  */
 function readStatedPluginVersions() {
-  const text = read('docs/compatibility.md')
+  const text = unwrap(read('docs/compatibility.md'))
   const statements = [
-    { label: 'docs/compatibility.md source target', pattern: /The source targets `([^`]+)`/ },
-    { label: 'docs/compatibility.md current source version', pattern: /current source version `([^`]+)` supports/ },
+    {
+      label: 'docs/compatibility.md source target',
+      pattern: /The source targets `([^`]+)`/,
+    },
+    {
+      label: 'docs/compatibility.md current source version',
+      pattern: /current source version `([^`]+)` supports/,
+    },
   ]
   return statements.map(({ label, pattern }) => {
     const match = pattern.exec(text)
-    if (match === null) throw new SetupFailure(`${label} is missing from docs/compatibility.md`)
+    if (match === null)
+      throw new SetupFailure(`${label} is missing from docs/compatibility.md`)
     return { label, version: match[1] }
   })
 }
@@ -243,7 +278,9 @@ try {
 }
 
 if (failures.length > 0) {
-  console.error('check-compat-docs: the compatibility statements disagree with dsh-versions.txt:')
+  console.error(
+    'check-compat-docs: the compatibility statements disagree with dsh-versions.txt:',
+  )
   for (const { what, expected, actual } of failures) {
     console.error(`  ${what}`)
     console.error(`    expected: ${expected}`)
@@ -253,4 +290,6 @@ if (failures.length > 0) {
   process.exit(1)
 }
 
-console.log(`check-compat-docs: ok — window ${window.join(', ')}, peers ${expectedRange}, consistent across dsh-versions.txt, package.json, README.md, and docs/compatibility.md, and docs/compatibility.md names the plugin version package.json declares.`)
+console.log(
+  `check-compat-docs: ok — window ${window.join(', ')}, peers ${expectedRange}, consistent across dsh-versions.txt, package.json, README.md, and docs/compatibility.md, and docs/compatibility.md names the plugin version package.json declares.`,
+)

@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { test, type TestContext } from 'node:test'
@@ -9,7 +15,13 @@ import { fileURLToPath } from 'node:url'
 const budget = 300 * 1024
 // Compiled to lib-test/test/, so the repository root is two levels up, the way
 // test/host-contract.spec.ts locates src/client.
-const script = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', 'scripts', 'check-image-budget.mjs')
+const script = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  '..',
+  '..',
+  'scripts',
+  'check-image-budget.mjs',
+)
 
 function fixture(t: TestContext) {
   const root = mkdtempSync(join(tmpdir(), 'dsh-image-budget-'))
@@ -33,7 +45,8 @@ function file(root: string, path: string, size: number) {
 function check(root: string) {
   // Exercise the CLI because scripts/*.mjs are not part of the TS test build.
   const result = spawnSync(process.execPath, [script, '--dir', root], {
-    encoding: 'utf8', timeout: 10_000,
+    encoding: 'utf8',
+    timeout: 10_000,
   })
   assert.ifError(result.error)
   return result

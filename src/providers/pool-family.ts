@@ -65,8 +65,14 @@ export function buildAccountPools(
   sources: Partial<Record<ProviderId, ProviderPoolSource>>,
 ): Map<string, PoolDefinition> {
   const pools = new Map<string, PoolDefinition>()
-  for (const [provider, source] of Object.entries(sources) as [ProviderId, ProviderPoolSource][]) {
-    const byModel = new Map<string, { members: PoolMemberRef[]; info: LlmModelInfo }>()
+  for (const [provider, source] of Object.entries(sources) as [
+    ProviderId,
+    ProviderPoolSource,
+  ][]) {
+    const byModel = new Map<
+      string,
+      { members: PoolMemberRef[]; info: LlmModelInfo }
+    >()
     for (const catalog of source.catalogs) {
       for (const model of catalog.models) {
         let entry = byModel.get(model.id)
@@ -74,14 +80,22 @@ export function buildAccountPools(
           entry = { members: [], info: model }
           byModel.set(model.id, entry)
         }
-        entry.members.push({ provider, account: catalog.account, model: model.id })
+        entry.members.push({
+          provider,
+          account: catalog.account,
+          model: model.id,
+        })
       }
     }
     for (const [id, { members, info }] of byModel) {
       pools.set(poolKey(provider, id), {
         members,
-        ...info.name === undefined || info.name === id ? {} : { name: info.name },
-        ...info.description === undefined ? {} : { description: info.description },
+        ...(info.name === undefined || info.name === id
+          ? {}
+          : { name: info.name }),
+        ...(info.description === undefined
+          ? {}
+          : { description: info.description }),
       })
     }
   }

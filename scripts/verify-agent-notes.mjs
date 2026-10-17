@@ -67,13 +67,15 @@ function checkNote(rel, lifecycle) {
   if (statusLines.length !== 1 || !want.test(statusLines[0])) {
     fail(
       `${rel}: must carry exactly one \`Status:\` line matching its folder ` +
-        `(\`${want.source.replace(/^\^|\$$/g, '')}\`)`
+        `(\`${want.source.replace(/^\^|\$$/g, '')}\`)`,
     )
   }
 
   const h2s = lines.filter((l) => l.startsWith('## ')).map((l) => l.trimEnd())
   if (h2s[0] !== '## Problem') {
-    fail(`${rel}: the first section must be \`## Problem\` (got ${JSON.stringify(h2s[0] ?? '<none>')})`)
+    fail(
+      `${rel}: the first section must be \`## Problem\` (got ${JSON.stringify(h2s[0] ?? '<none>')})`,
+    )
   }
   const required =
     lifecycle === 'implemented' || lifecycle === 'archived'
@@ -82,7 +84,8 @@ function checkNote(rel, lifecycle) {
         ? ['## Proposal', '## Acceptance criteria', '## Risks']
         : []
   for (const section of required) {
-    if (!h2s.includes(section)) fail(`${rel}: missing the required \`${section}\` section`)
+    if (!h2s.includes(section))
+      fail(`${rel}: missing the required \`${section}\` section`)
   }
   if (!h2s.includes('## Alternatives considered')) {
     fail(`${rel}: missing the mandatory \`## Alternatives considered\` section`)
@@ -93,7 +96,9 @@ function checkNote(rel, lifecycle) {
 // silently escape the tree.
 for (const legacy of ['docs/rfc', 'docs/rfcs', 'docs/adr']) {
   if (existsSync(join(repoRoot, legacy))) {
-    fail(`legacy-path: ${legacy}/ is forbidden — put Agent Notes under .agents/notes/`)
+    fail(
+      `legacy-path: ${legacy}/ is forbidden — put Agent Notes under .agents/notes/`,
+    )
   }
 }
 
@@ -106,12 +111,16 @@ let count = 0
 for (const entry of readdirSync(notesRoot, { withFileTypes: true })) {
   if (!entry.isDirectory()) {
     if (entry.name !== 'AGENTS.md') {
-      fail(`structure: ${entry.name} — only AGENTS.md may live directly under .agents/notes/`)
+      fail(
+        `structure: ${entry.name} — only AGENTS.md may live directly under .agents/notes/`,
+      )
     }
     continue
   }
   if (!LIFECYCLES.includes(entry.name)) {
-    fail(`structure: ${entry.name}/ — unknown lifecycle folder (allowed: ${LIFECYCLES.join(', ')})`)
+    fail(
+      `structure: ${entry.name}/ — unknown lifecycle folder (allowed: ${LIFECYCLES.join(', ')})`,
+    )
     continue
   }
   const lifecycleDir = join(notesRoot, entry.name)
@@ -129,7 +138,9 @@ for (const entry of readdirSync(notesRoot, { withFileTypes: true })) {
   walk(lifecycleDir, '')
   for (const relPath of found.sort()) {
     if (relPath === 'INDEX.md' || relPath.endsWith('/INDEX.md')) {
-      fail(`structure: ${entry.name}/${relPath} — centralized index files are forbidden; the tree is the index`)
+      fail(
+        `structure: ${entry.name}/${relPath} — centralized index files are forbidden; the tree is the index`,
+      )
       continue
     }
     const segs = relPath.split('/')
@@ -138,7 +149,7 @@ for (const entry of readdirSync(notesRoot, { withFileTypes: true })) {
     if (segs.length !== 2 || !CLASSES.includes(cls) || !DATE_FILE.test(base)) {
       fail(
         `structure: ${entry.name}/${relPath} — expected {lifecycle}/{class}/YYYY-MM-DD-topic.md ` +
-          `(class in: ${CLASSES.join(', ')})`
+          `(class in: ${CLASSES.join(', ')})`,
       )
       continue
     }
@@ -153,4 +164,6 @@ if (errors.length > 0) {
   process.exit(1)
 }
 
-console.log(`verify-agent-notes: ${count} Agent Note(s) checked, all conform to .agents/notes/AGENTS.md.`)
+console.log(
+  `verify-agent-notes: ${count} Agent Note(s) checked, all conform to .agents/notes/AGENTS.md.`,
+)

@@ -32,7 +32,11 @@ import {
   fetchClaudeUsage,
   refreshClaude,
 } from '../src/providers/claude.js'
-import { FAKE_CLAUDE_IDENTITY, installFakeClaude, type FakeClaude } from './fakes/fake-claude.js'
+import {
+  FAKE_CLAUDE_IDENTITY,
+  installFakeClaude,
+  type FakeClaude,
+} from './fakes/fake-claude.js'
 
 const cliVersion = async (): Promise<string> => CLAUDE_CLI_FALLBACK_VERSION
 
@@ -66,13 +70,21 @@ async function virtualLogin(t: TestContext): Promise<VirtualLogin> {
   assert.equal(callback.status, 200)
   assert.match(await callback.text(), /Login successful/)
   const code = await attempt.waitCode()
-  const session = await exchangeClaudeCode(code, attempt.pkce.verifier, attempt.redirectUri, attempt.state)
+  const session = await exchangeClaudeCode(
+    code,
+    attempt.pkce.verifier,
+    attempt.redirectUri,
+    attempt.state,
+  )
   return { fake, session, attempt }
 }
 
 test('claude: full OAuth login flow against the virtual provider', async (t) => {
   const { fake, session, attempt } = await virtualLogin(t)
-  assert.ok(fake.issuedCodes.size <= 1, 'the issued code was consumed by the exchange')
+  assert.ok(
+    fake.issuedCodes.size <= 1,
+    'the issued code was consumed by the exchange',
+  )
   assert.equal(session.emailAddress, FAKE_CLAUDE_IDENTITY.email)
   assert.equal(session.subscriptionType, FAKE_CLAUDE_IDENTITY.subscriptionType)
   assert.ok(session.accessToken.length > 0)
@@ -80,7 +92,7 @@ test('claude: full OAuth login flow against the virtual provider', async (t) => 
   assert.ok(session.expiresAt > Date.now())
 
   // The exchange used the real JSON grant against the real token URL.
-  const tokenCall = fake.calls.find(call => call.url === CLAUDE_TOKEN_URL)
+  const tokenCall = fake.calls.find((call) => call.url === CLAUDE_TOKEN_URL)
   assert.ok(tokenCall !== undefined)
   assert.equal(tokenCall.method, 'POST')
   assert.match(tokenCall.headers['content-type'] ?? '', /application\/json/)
@@ -113,10 +125,16 @@ test('claude: refresh rotates tokens and keeps identity', async (t) => {
   // The virtual refresh omits refresh_token: the stored one must survive.
   assert.equal(refreshed.refreshToken, session.refreshToken)
   assert.equal(refreshed.emailAddress, FAKE_CLAUDE_IDENTITY.email)
-  assert.equal(refreshed.subscriptionType, FAKE_CLAUDE_IDENTITY.subscriptionType)
+  assert.equal(
+    refreshed.subscriptionType,
+    FAKE_CLAUDE_IDENTITY.subscriptionType,
+  )
 
-  const refreshCall = fake.calls.find(call =>
-    call.url === CLAUDE_TOKEN_URL && JSON.parse(call.bodyText).grant_type === 'refresh_token')
+  const refreshCall = fake.calls.find(
+    (call) =>
+      call.url === CLAUDE_TOKEN_URL &&
+      JSON.parse(call.bodyText).grant_type === 'refresh_token',
+  )
   assert.ok(refreshCall !== undefined)
   const body = JSON.parse(refreshCall.bodyText) as Record<string, unknown>
   assert.equal(body.refresh_token, session.refreshToken)
@@ -125,33 +143,62 @@ test('claude: refresh rotates tokens and keeps identity', async (t) => {
 
 test('claude: usage limits array is classified into windows', async (t) => {
   const { fake, session } = await virtualLogin(t)
-  const usage = await fetchClaudeUsage(session, undefined, undefined, cliVersion)
+  const usage = await fetchClaudeUsage(
+    session,
+    undefined,
+    undefined,
+    cliVersion,
+  )
   assert.equal(usage.supported, true)
   const windows = usage.windows ?? []
-  assert.deepEqual(windows.map(w => w.kind), ['session', 'weekly'])
+  assert.deepEqual(
+    windows.map((w) => w.kind),
+    ['session', 'weekly'],
+  )
   assert.equal(windows[0].usedPercent, 35)
   assert.equal(windows[1].usedPercent, 12)
   assert.ok((windows[1].resetsAt ?? 0) > Date.now())
 
-  const usageCall = fake.calls.find(call => call.url === `${CLAUDE_USAGE_URL}?cedar_ember=1`)
+  const usageCall = fake.calls.find(
+    (call) => call.url === `${CLAUDE_USAGE_URL}?cedar_ember=1`,
+  )
   assert.ok(usageCall !== undefined)
-  assert.equal(usageCall.headers['authorization'], `Bearer ${session.accessToken}`)
+  assert.equal(
+    usageCall.headers['authorization'],
+    `Bearer ${session.accessToken}`,
+  )
   assert.match(usageCall.headers['user-agent'] ?? '', /claude/)
 })
 
 test('claude: catalog discovery parses capabilities and ceilings', async (t) => {
   const { fake, session } = await virtualLogin(t)
-  const models = await fetchClaudeModels(session, undefined, undefined, cliVersion)
-  assert.deepEqual(models.map(m => m.id), ['claude-opus-4-6', 'claude-sonnet-4-6'])
+  const models = await fetchClaudeModels(
+    session,
+    undefined,
+    undefined,
+    cliVersion,
+  )
+  assert.deepEqual(
+    models.map((m) => m.id),
+    ['claude-opus-4-6', 'claude-sonnet-4-6'],
+  )
   assert.equal(models[0].name, 'Claude Opus 4.6')
   assert.equal(models[0].contextWindow, 200_000)
   assert.equal(models[0].maxOutputTokens, 32_000)
   assert.equal(models[0].thinkingType, 'enabled')
-  assert.deepEqual(models[0].reasoning?.efforts.map(e => e.id), ['medium', 'high'])
+  assert.deepEqual(
+    models[0].reasoning?.efforts.map((e) => e.id),
+    ['medium', 'high'],
+  )
 
-  const modelsCall = fake.calls.find(call => call.url.startsWith(CLAUDE_MODELS_URL))
+  const modelsCall = fake.calls.find((call) =>
+    call.url.startsWith(CLAUDE_MODELS_URL),
+  )
   assert.ok(modelsCall !== undefined)
-  assert.equal(modelsCall.headers['authorization'], `Bearer ${session.accessToken}`)
+  assert.equal(
+    modelsCall.headers['authorization'],
+    `Bearer ${session.accessToken}`,
+  )
 })
 
 test('claude: a model run streams text through the real adapter', async (t) => {
@@ -159,7 +206,11 @@ test('claude: a model run streams text through the real adapter', async (t) => {
   const tokens = new AccountTokenManager({
     provider: 'claude',
     displayName: 'Virtual Claude',
-    makeOptions: () => ({ preemptMs: 0, refresh: async () => session, isPermanent: () => false }),
+    makeOptions: () => ({
+      preemptMs: 0,
+      refresh: async () => session,
+      isPermanent: () => false,
+    }),
     io: {
       list: async () => [{ key: 'acct', session }],
       get: async () => session,
@@ -177,12 +228,14 @@ test('claude: a model run streams text through the real adapter', async (t) => {
     provider: 'claude',
     model: 'claude-opus-4-6',
     sessionId: 'virtual-run' as NonNullable<GenerateOptions['sessionId']>,
-    messages: [{
-      id: MessageId('user'),
-      role: 'user',
-      source: { kind: 'user' },
-      content: [{ type: 'text', text: 'hello' }],
-    }],
+    messages: [
+      {
+        id: MessageId('user'),
+        role: 'user',
+        source: { kind: 'user' },
+        content: [{ type: 'text', text: 'hello' }],
+      },
+    ],
   }
   let text = ''
   let finish: unknown
@@ -193,10 +246,13 @@ test('claude: a model run streams text through the real adapter', async (t) => {
   assert.equal(text, 'Hello, world!')
   assert.deepEqual(finish, { kind: 'stop' })
 
-  const apiCall = fake.calls.find(call => call.url === CLAUDE_API_URL)
+  const apiCall = fake.calls.find((call) => call.url === CLAUDE_API_URL)
   assert.ok(apiCall !== undefined)
   assert.equal(apiCall.method, 'POST')
-  assert.equal(apiCall.headers['authorization'], `Bearer ${session.accessToken}`)
+  assert.equal(
+    apiCall.headers['authorization'],
+    `Bearer ${session.accessToken}`,
+  )
   const body = JSON.parse(apiCall.bodyText) as Record<string, unknown>
   assert.equal(body.model, 'claude-opus-4-6')
   assert.equal(body.stream, true)

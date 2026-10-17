@@ -18,14 +18,16 @@ export function readUsageBadgeMode(): UsageBadgeMode {
     const value = window.localStorage.getItem(MODE_KEY)
     return value === 'hidden' || value === 'always' ? value : 'recent'
   } catch (error) {
-    if (!(error instanceof DOMException) || error.name !== 'SecurityError') throw error
+    if (!(error instanceof DOMException) || error.name !== 'SecurityError')
+      throw error
     return 'recent'
   }
 }
 
 /** Save first, then notify; the settings control reports a rejected write. */
 export function setUsageBadgeMode(mode: UsageBadgeMode): void {
-  if (mode !== 'recent' && mode !== 'always' && mode !== 'hidden') throw new TypeError('Invalid subscription usage display mode')
+  if (mode !== 'recent' && mode !== 'always' && mode !== 'hidden')
+    throw new TypeError('Invalid subscription usage display mode')
   window.localStorage.setItem(MODE_KEY, mode)
   window.dispatchEvent(new Event(MODE_EVENT))
 }
@@ -45,5 +47,9 @@ export function subscribeUsageBadgeMode(notify: () => void): () => void {
 
 /** Shared React snapshot used by the settings control and every mounted badge. */
 export function useUsageBadgeMode(): UsageBadgeMode {
-  return useSyncExternalStore(subscribeUsageBadgeMode, readUsageBadgeMode, () => 'recent')
+  return useSyncExternalStore(
+    subscribeUsageBadgeMode,
+    readUsageBadgeMode,
+    () => 'recent',
+  )
 }

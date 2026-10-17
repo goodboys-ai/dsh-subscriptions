@@ -1,20 +1,20 @@
 # PR #66 verification
 
-Verified on 2026-09-05 against the PR changes combined with main, including
-the orphaned tool-call repair from #45. No live requests are part of the
-automated test suite.
+Verified on 2026-09-05 against the PR changes combined with main, including the
+orphaned tool-call repair from #45. No live requests are part of the automated
+test suite.
 
 ## Live endpoint comparison
 
-Existing local subscription credentials were used without including them in
-this report. Grok's expired session was refreshed through the existing OAuth
-refresh implementation and saved through the auth store before testing.
-Models were selected from each account's live model catalog.
+Existing local subscription credentials were used without including them in this
+report. Grok's expired session was refreshed through the existing OAuth refresh
+implementation and saved through the auth store before testing. Models were
+selected from each account's live model catalog.
 
-| Provider / model | Old tool-less body | Fixed tool-less body | Fixed body with tools |
-| --- | --- | --- | --- |
-| Grok / `grok-4.20-0309-non-reasoning` | HTTP 400, `invalid-argument` | HTTP 200, `response.completed` | HTTP 200, `response.completed` |
-| Codex / `gpt-5.6-luna` | HTTP 200, `response.completed` | HTTP 200, `response.completed` | HTTP 200, `response.completed` |
+| Provider / model                      | Old tool-less body             | Fixed tool-less body           | Fixed body with tools          |
+| ------------------------------------- | ------------------------------ | ------------------------------ | ------------------------------ |
+| Grok / `grok-4.20-0309-non-reasoning` | HTTP 400, `invalid-argument`   | HTTP 200, `response.completed` | HTTP 200, `response.completed` |
+| Codex / `gpt-5.6-luna`                | HTTP 200, `response.completed` | HTTP 200, `response.completed` | HTTP 200, `response.completed` |
 
 Requests used the provider request-body builders and the plugin's configured
 HTTP/proxy transport, targeting `https://api.x.ai/v1/responses` and
@@ -31,11 +31,11 @@ argument; no tool was executed. The successful cases reached
 requests declaring tools, not an end-to-end tool execution round trip.
 
 These results establish the reported failure for the tested Grok model and
-account. They do not establish that every xAI model rejects the old shape.
-Codex accepted both shapes: its change is consistency, not a demonstrated
-Codex bug fix. Live empty-array behavior was not separately tested because
-the builders omit all three fields for both absent and empty tools; offline
-tests cover both inputs through actual adapter dispatch.
+account. They do not establish that every xAI model rejects the old shape. Codex
+accepted both shapes: its change is consistency, not a demonstrated Codex bug
+fix. Live empty-array behavior was not separately tested because the builders
+omit all three fields for both absent and empty tools; offline tests cover both
+inputs through actual adapter dispatch.
 
 ## Automated validation
 

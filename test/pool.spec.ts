@@ -8,12 +8,26 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import './keep-alive.js'
-import { LlmAdapter, LlmError, QUOTA_EXCEEDED_CODE, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
-import type { GenerateOptions, LlmModelInfo, LlmResolvedModelInfo, StreamChunk } from '@deepseek-ai/dsh-llm'
+import {
+  LlmAdapter,
+  LlmError,
+  QUOTA_EXCEEDED_CODE,
+  ReasoningEffortId,
+} from '@deepseek-ai/dsh-llm'
+import type {
+  GenerateOptions,
+  LlmModelInfo,
+  LlmResolvedModelInfo,
+  StreamChunk,
+} from '@deepseek-ai/dsh-llm'
 import { PoolAdapter } from '../src/providers/pool.js'
 import { unionAccountCatalogs } from '../src/providers/accounts.js'
 import { buildAccountPools, poolKey } from '../src/providers/pool-family.js'
-import type { PoolDefinition, PoolMemberRef, ProviderPoolSource } from '../src/providers/pool-family.js'
+import type {
+  PoolDefinition,
+  PoolMemberRef,
+  ProviderPoolSource,
+} from '../src/providers/pool-family.js'
 import { memberKey, PoolHealthRegistry } from '../src/providers/pool-health.js'
 import { PoolUsageTracker } from '../src/providers/pool-usage.js'
 import { httpLlmError, OAuthEndpointError } from '../src/providers/common.js'
@@ -30,14 +44,28 @@ const OPTIONS: GenerateOptions = { provider: 'codex', model: 'm', messages: [] }
 test('pool canonicalizes legacy aliases before deduplication', async () => {
   const adapter = new FakeAdapter(() => serveOk())
   const pool = new PoolAdapter({
-    adapters: { codex: adapter }, health: new PoolHealthRegistry(),
-    usage: new PoolUsageTracker(() => undefined), strategy: 'priority', switchMargin: 2,
+    adapters: { codex: adapter },
+    health: new PoolHealthRegistry(),
+    usage: new PoolUsageTracker(() => undefined),
+    strategy: 'priority',
+    switchMargin: 2,
     defaultAccount: async () => 'canonical',
-    resolveAccount: async (_provider, account) => account === 'legacy' ? 'canonical' : account,
-    families: async () => new Map([[poolKey('codex', 'm'), { members: [
-      { provider: 'codex', model: 'm', account: 'legacy' },
-      { provider: 'codex', model: 'm', account: 'canonical' },
-    ] }]]), tiers: {}, onWarn: () => {},
+    resolveAccount: async (_provider, account) =>
+      account === 'legacy' ? 'canonical' : account,
+    families: async () =>
+      new Map([
+        [
+          poolKey('codex', 'm'),
+          {
+            members: [
+              { provider: 'codex', model: 'm', account: 'legacy' },
+              { provider: 'codex', model: 'm', account: 'canonical' },
+            ],
+          },
+        ],
+      ]),
+    tiers: {},
+    onWarn: () => {},
   })
   await collect(pool.stream(OPTIONS))
   assert.deepEqual(adapter.accounts, ['canonical'])
@@ -46,21 +74,45 @@ test('pool canonicalizes legacy aliases before deduplication', async () => {
 test('pool context intersects each account and each model, including same-provider tiers', async () => {
   const adapter = new FakeAdapter(() => serveOk())
   const visited: string[] = []
-  adapter.resolveOwnModel = async (provider: string, model: string, account?: string) => {
+  adapter.resolveOwnModel = async (
+    provider: string,
+    model: string,
+    account?: string,
+  ) => {
     visited.push(`${model}/${account}`)
-    return { provider, id: model, name: model, context: { contextWindow: account === 'small' ? 300000 : 872000 } }
+    return {
+      provider,
+      id: model,
+      name: model,
+      context: { contextWindow: account === 'small' ? 300000 : 872000 },
+    }
   }
   const pool = new PoolAdapter({
-    adapters: { codex: adapter }, health: new PoolHealthRegistry(),
-    usage: new PoolUsageTracker(() => undefined), strategy: 'priority', switchMargin: 2,
-    defaultAccount: async () => 'large', onWarn: () => {},
-    families: async () => new Map([[poolKey('codex', 'm'), { members: [
-      { provider: 'codex', model: 'm', account: 'large' },
-      { provider: 'codex', model: 'm', account: 'small' },
-    ] }]]),
+    adapters: { codex: adapter },
+    health: new PoolHealthRegistry(),
+    usage: new PoolUsageTracker(() => undefined),
+    strategy: 'priority',
+    switchMargin: 2,
+    defaultAccount: async () => 'large',
+    onWarn: () => {},
+    families: async () =>
+      new Map([
+        [
+          poolKey('codex', 'm'),
+          {
+            members: [
+              { provider: 'codex', model: 'm', account: 'large' },
+              { provider: 'codex', model: 'm', account: 'small' },
+            ],
+          },
+        ],
+      ]),
     tiers: {},
   })
-  assert.equal((await pool.resolveModel('codex', 'm')).context?.contextWindow, 300000)
+  assert.equal(
+    (await pool.resolveModel('codex', 'm')).context?.contextWindow,
+    300000,
+  )
   assert.deepEqual(visited, ['m/large', 'm/small'])
 })
 
@@ -72,19 +124,33 @@ class FakeAdapter extends LlmAdapter implements AccountAwareAdapter {
   directResolves = 0
 
   constructor(
-    private readonly serve: (options: GenerateOptions, account: string) => AsyncIterable<StreamChunk>,
+    private readonly serve: (
+      options: GenerateOptions,
+      account: string,
+    ) => AsyncIterable<StreamChunk>,
     private readonly resolved: Partial<LlmResolvedModelInfo> = {},
   ) {
     super()
   }
 
-  override resolveModel(provider: string, model: string): Promise<LlmResolvedModelInfo> {
+  override resolveModel(
+    provider: string,
+    model: string,
+  ): Promise<LlmResolvedModelInfo> {
     this.directResolves += 1
     return this.resolveOwnModel(provider, model)
   }
 
-  resolveOwnModel(provider: string, model: string): Promise<LlmResolvedModelInfo> {
-    return Promise.resolve({ provider, id: model, name: model, ...this.resolved })
+  resolveOwnModel(
+    provider: string,
+    model: string,
+  ): Promise<LlmResolvedModelInfo> {
+    return Promise.resolve({
+      provider,
+      id: model,
+      name: model,
+      ...this.resolved,
+    })
   }
 
   listOwnModels(): Promise<readonly LlmModelInfo[]> {
@@ -97,11 +163,17 @@ class FakeAdapter extends LlmAdapter implements AccountAwareAdapter {
     yield* this.streamCore(options, 'default')
   }
 
-  streamAccount(options: GenerateOptions, account: string): AsyncIterable<StreamChunk> {
+  streamAccount(
+    options: GenerateOptions,
+    account: string,
+  ): AsyncIterable<StreamChunk> {
     return this.streamCore(options, account)
   }
 
-  private async *streamCore(options: GenerateOptions, account: string): AsyncIterable<StreamChunk> {
+  private async *streamCore(
+    options: GenerateOptions,
+    account: string,
+  ): AsyncIterable<StreamChunk> {
     this.calls += 1
     this.accounts.push(account)
     yield* this.serve(options, account)
@@ -113,6 +185,7 @@ async function* serveOk(text = 'hi'): AsyncIterable<StreamChunk> {
   yield { type: 'finish', reason: { kind: 'stop' } }
 }
 
+// eslint-disable-next-line require-yield -- the failure is the first event, before a chunk
 async function* serveFail(error: LlmError): AsyncIterable<StreamChunk> {
   throw error
 }
@@ -126,7 +199,9 @@ async function* serveEmpty(): AsyncIterable<StreamChunk> {
   // A stream that ends without a single chunk.
 }
 
-async function collect(iterable: AsyncIterable<StreamChunk>): Promise<StreamChunk[]> {
+async function collect(
+  iterable: AsyncIterable<StreamChunk>,
+): Promise<StreamChunk[]> {
   const chunks: StreamChunk[] = []
   for await (const chunk of iterable) chunks.push(chunk)
   return chunks
@@ -134,12 +209,17 @@ async function collect(iterable: AsyncIterable<StreamChunk>): Promise<StreamChun
 
 /** Two Codex accounts of one catalog model (the default account-pool shape). */
 const freshAccounts = (): Map<string, PoolDefinition> =>
-  new Map([[poolKey('codex', 'm'), {
-    members: [
-      { provider: 'codex', account: 'a1', model: 'm' },
-      { provider: 'codex', account: 'a2', model: 'm' },
+  new Map([
+    [
+      poolKey('codex', 'm'),
+      {
+        members: [
+          { provider: 'codex', account: 'a1', model: 'm' },
+          { provider: 'codex', account: 'a2', model: 'm' },
+        ],
+      },
     ],
-  }]])
+  ])
 
 interface PoolHarness {
   pool: PoolAdapter
@@ -153,7 +233,10 @@ function makePool(
   options: {
     strategy?: 'priority' | 'quota_aware'
     switchMargin?: number
-    usage?: (provider: ProviderId, account: string) => (() => Promise<ProviderUsage>) | undefined
+    usage?: (
+      provider: ProviderId,
+      account: string,
+    ) => (() => Promise<ProviderUsage>) | undefined
     families?: Map<string, PoolDefinition>
     tiers?: Record<string, PoolMemberRef[]>
     defaultAccount?: string
@@ -170,65 +253,122 @@ function makePool(
     strategy: options.strategy ?? 'priority',
     switchMargin: options.switchMargin ?? 2,
     defaultAccount: () => Promise.resolve(options.defaultAccount ?? 'a1'),
-    families: options.familiesFn ?? (() => Promise.resolve(options.families ?? freshAccounts())),
+    families:
+      options.familiesFn ??
+      (() => Promise.resolve(options.families ?? freshAccounts())),
     tiers: options.tiers ?? {},
-    onWarn: message => { warnings.push(message) },
+    onWarn: (message) => {
+      warnings.push(message)
+    },
   })
   return { pool, health, usage, warnings }
 }
 
 /** A one-or-more-account pool source (every account sees the same catalog). */
-function source(provider: ProviderId, ids: string[], accounts: readonly string[] = ['a1']): ProviderPoolSource {
-  const models = ids.map(id => ({ provider, id, name: id }))
-  return { catalogs: accounts.map(account => ({ account, models })) }
+function source(
+  provider: ProviderId,
+  ids: string[],
+  accounts: readonly string[] = ['a1'],
+): ProviderPoolSource {
+  const models = ids.map((id) => ({ provider, id, name: id }))
+  return { catalogs: accounts.map((account) => ({ account, models })) }
 }
 
-test('unionAccountCatalogs keeps the first account\'s row and appends unique ids', async () => {
-  const models = await unionAccountCatalogs(['plus', 'max'], account => Promise.resolve(
-    account === 'plus'
-      ? [{ provider: 'claude', id: 'sonnet', name: 'Sonnet' }]
-      : [
-          { provider: 'claude', id: 'sonnet', name: 'Sonnet from Max' },
-          { provider: 'claude', id: 'opus', name: 'Opus' },
-        ],
-  ))
-  assert.deepEqual(models.map(model => model.id), ['sonnet', 'opus'])
+test("unionAccountCatalogs keeps the first account's row and appends unique ids", async () => {
+  const models = await unionAccountCatalogs(['plus', 'max'], (account) =>
+    Promise.resolve(
+      account === 'plus'
+        ? [{ provider: 'claude', id: 'sonnet', name: 'Sonnet' }]
+        : [
+            { provider: 'claude', id: 'sonnet', name: 'Sonnet from Max' },
+            { provider: 'claude', id: 'opus', name: 'Opus' },
+          ],
+    ),
+  )
+  assert.deepEqual(
+    models.map((model) => model.id),
+    ['sonnet', 'opus'],
+  )
   assert.equal(models[0].name, 'Sonnet')
 })
 
 test('unionAccountCatalogs reorders by catalog priority after the merge', async () => {
-  const models = await unionAccountCatalogs(['plus', 'pro'], account => Promise.resolve(
-    account === 'plus'
-      ? [
-          { provider: 'codex', id: 'gpt-5.6-terra', name: 'Terra', priority: 2 } as LlmModelInfo,
-          { provider: 'codex', id: 'gpt-5.6-luna', name: 'Luna', priority: 3 } as LlmModelInfo,
-          { provider: 'codex', id: 'gpt-5.5', name: 'GPT-5.5', priority: 7 } as LlmModelInfo,
-          { provider: 'codex', id: 'gpt-5.4-mini', name: 'Mini', priority: 23 } as LlmModelInfo,
-        ]
-      : [
-          { provider: 'codex', id: 'gpt-5.6-sol', name: 'Sol', priority: 1 } as LlmModelInfo,
-          { provider: 'codex', id: 'gpt-5.6-terra', name: 'Terra', priority: 2 } as LlmModelInfo,
-          { provider: 'codex', id: 'gpt-5.4', name: 'GPT-5.4', priority: 8 } as LlmModelInfo,
-        ],
-  ))
-  assert.deepEqual(models.map(model => model.id), [
-    'gpt-5.6-sol',
-    'gpt-5.6-terra',
-    'gpt-5.6-luna',
-    'gpt-5.5',
-    'gpt-5.4',
-    'gpt-5.4-mini',
-  ])
+  const models = await unionAccountCatalogs(['plus', 'pro'], (account) =>
+    Promise.resolve(
+      account === 'plus'
+        ? [
+            {
+              provider: 'codex',
+              id: 'gpt-5.6-terra',
+              name: 'Terra',
+              priority: 2,
+            } as LlmModelInfo,
+            {
+              provider: 'codex',
+              id: 'gpt-5.6-luna',
+              name: 'Luna',
+              priority: 3,
+            } as LlmModelInfo,
+            {
+              provider: 'codex',
+              id: 'gpt-5.5',
+              name: 'GPT-5.5',
+              priority: 7,
+            } as LlmModelInfo,
+            {
+              provider: 'codex',
+              id: 'gpt-5.4-mini',
+              name: 'Mini',
+              priority: 23,
+            } as LlmModelInfo,
+          ]
+        : [
+            {
+              provider: 'codex',
+              id: 'gpt-5.6-sol',
+              name: 'Sol',
+              priority: 1,
+            } as LlmModelInfo,
+            {
+              provider: 'codex',
+              id: 'gpt-5.6-terra',
+              name: 'Terra',
+              priority: 2,
+            } as LlmModelInfo,
+            {
+              provider: 'codex',
+              id: 'gpt-5.4',
+              name: 'GPT-5.4',
+              priority: 8,
+            } as LlmModelInfo,
+          ],
+    ),
+  )
+  assert.deepEqual(
+    models.map((model) => model.id),
+    [
+      'gpt-5.6-sol',
+      'gpt-5.6-terra',
+      'gpt-5.6-luna',
+      'gpt-5.5',
+      'gpt-5.4',
+      'gpt-5.4-mini',
+    ],
+  )
 })
 
 test('unionAccountCatalogs sits out an account that throws so siblings still list', async () => {
-  const models = await unionAccountCatalogs(
-    ['expired', 'ok'],
-    account => account === 'ok'
-      ? Promise.resolve([{ provider: 'codex', id: 'gpt-5.6-sol', name: 'GPT-5.6 Sol' }])
+  const models = await unionAccountCatalogs(['expired', 'ok'], (account) =>
+    account === 'ok'
+      ? Promise.resolve([
+          { provider: 'codex', id: 'gpt-5.6-sol', name: 'GPT-5.6 Sol' },
+        ])
       : Promise.reject(new Error('refresh failed')),
   )
-  assert.deepEqual(models.map(model => model.id), ['gpt-5.6-sol'])
+  assert.deepEqual(
+    models.map((model) => model.id),
+    ['gpt-5.6-sol'],
+  )
 })
 
 test('unionAccountCatalogs sits out an account that exceeds the timeout', async () => {
@@ -237,17 +377,26 @@ test('unionAccountCatalogs sits out an account that exceeds the timeout', async 
     ['plus', 'max'],
     (account, signal) => {
       if (account === 'plus') {
-        return Promise.resolve([{ provider: 'claude', id: 'sonnet', name: 'Sonnet' }])
+        return Promise.resolve([
+          { provider: 'claude', id: 'sonnet', name: 'Sonnet' },
+        ])
       }
       return new Promise<never>((_resolve, reject) => {
-        signal?.addEventListener('abort', () => {
-          reject(signal.reason ?? new DOMException('Aborted', 'AbortError'))
-        }, { once: true })
+        signal?.addEventListener(
+          'abort',
+          () => {
+            reject(signal.reason ?? new DOMException('Aborted', 'AbortError'))
+          },
+          { once: true },
+        )
       })
     },
     { timeoutMs: 20 },
   )
-  assert.deepEqual(models.map(model => model.id), ['sonnet'])
+  assert.deepEqual(
+    models.map((model) => model.id),
+    ['sonnet'],
+  )
   assert.ok(Date.now() - started < 500)
 })
 
@@ -255,10 +404,21 @@ test('buildAccountPools pools two accounts of one provider under the wire id', (
   const pools = buildAccountPools({
     claude: source('claude', ['claude-sonnet-4-5-20250929'], ['alice', 'bob']),
   })
-  assert.deepEqual(pools.get(poolKey('claude', 'claude-sonnet-4-5-20250929'))?.members, [
-    { provider: 'claude', account: 'alice', model: 'claude-sonnet-4-5-20250929' },
-    { provider: 'claude', account: 'bob', model: 'claude-sonnet-4-5-20250929' },
-  ])
+  assert.deepEqual(
+    pools.get(poolKey('claude', 'claude-sonnet-4-5-20250929'))?.members,
+    [
+      {
+        provider: 'claude',
+        account: 'alice',
+        model: 'claude-sonnet-4-5-20250929',
+      },
+      {
+        provider: 'claude',
+        account: 'bob',
+        model: 'claude-sonnet-4-5-20250929',
+      },
+    ],
+  )
 })
 
 test('buildAccountPools does not cross providers or invent a family key', () => {
@@ -268,8 +428,18 @@ test('buildAccountPools does not cross providers or invent a family key', () => 
     claude: source('claude', ['claude-sonnet-4-5-20250929']),
   })
   // Each model stays on its own provider — even when the wire id matches.
-  assert.deepEqual(pools.get(poolKey('codex', 'gpt-5.4'))?.members.map(member => member.provider), ['codex'])
-  assert.deepEqual(pools.get(poolKey('copilot', 'gpt-5.4'))?.members.map(member => member.provider), ['copilot'])
+  assert.deepEqual(
+    pools
+      .get(poolKey('codex', 'gpt-5.4'))
+      ?.members.map((member) => member.provider),
+    ['codex'],
+  )
+  assert.deepEqual(
+    pools
+      .get(poolKey('copilot', 'gpt-5.4'))
+      ?.members.map((member) => member.provider),
+    ['copilot'],
+  )
   assert.equal(pools.has(poolKey('claude', 'claude-sonnet-4.5')), false)
   assert.equal(pools.has(poolKey('claude', 'claude-sonnet-4-5-20250929')), true)
 })
@@ -278,11 +448,17 @@ test('buildAccountPools only pools accounts whose catalog lists the model', () =
   const pools = buildAccountPools({
     claude: {
       catalogs: [
-        { account: 'plus', models: [{ provider: 'claude', id: 'sonnet', name: 'Sonnet' }] },
-        { account: 'max', models: [
-          { provider: 'claude', id: 'sonnet', name: 'Sonnet' },
-          { provider: 'claude', id: 'opus', name: 'Opus' },
-        ] },
+        {
+          account: 'plus',
+          models: [{ provider: 'claude', id: 'sonnet', name: 'Sonnet' }],
+        },
+        {
+          account: 'max',
+          models: [
+            { provider: 'claude', id: 'sonnet', name: 'Sonnet' },
+            { provider: 'claude', id: 'opus', name: 'Opus' },
+          ],
+        },
       ],
     },
   })
@@ -310,26 +486,39 @@ test('buildAccountPools records a single-account model as a one-member route', (
 test('modelsForProvider lists only extra tiers, not account pools', async () => {
   const { pool } = makePool(
     { codex: new FakeAdapter(() => serveOk()) },
-    { tiers: { smart: [{ provider: 'codex', account: 'a1', model: 'other' }] } },
+    {
+      tiers: { smart: [{ provider: 'codex', account: 'a1', model: 'other' }] },
+    },
   )
   const extras = await pool.modelsForProvider('codex')
-  assert.deepEqual(extras.map(model => model.id), ['smart'])
+  assert.deepEqual(
+    extras.map((model) => model.id),
+    ['smart'],
+  )
   assert.equal(extras[0].provider, 'codex')
   // The account pool reuses the catalog row — it is not listed again.
-  assert.equal(extras.some(model => model.id === 'm'), false)
+  assert.equal(
+    extras.some((model) => model.id === 'm'),
+    false,
+  )
   assert.deepEqual(await pool.modelsForProvider('claude'), [])
 })
 
 test('a model listed by one account is pinned to that account', async () => {
   const family = new Map<string, PoolDefinition>([
-    [poolKey('codex', 'pro-only'), {
-      members: [{ provider: 'codex', account: 'max', model: 'pro-only' }],
-    }],
+    [
+      poolKey('codex', 'pro-only'),
+      {
+        members: [{ provider: 'codex', account: 'max', model: 'pro-only' }],
+      },
+    ],
   ])
   const codex = new FakeAdapter((_options, account) => serveOk(account))
   const { pool } = makePool({ codex }, { families: family })
   assert.equal(await pool.owns('codex', 'pro-only'), true)
-  const chunks = await collect(pool.stream({ provider: 'codex', model: 'pro-only', messages: [] }))
+  const chunks = await collect(
+    pool.stream({ provider: 'codex', model: 'pro-only', messages: [] }),
+  )
   assert.equal((chunks[0] as { text: string }).text, 'max')
   assert.deepEqual(codex.accounts, ['max'])
 })
@@ -343,13 +532,22 @@ test('owns recognizes the account pool on its provider and catalog id', async ()
 
 test('a tier overriding an account-pool id wins with a single warning', async () => {
   const { pool, warnings } = makePool(
-    { codex: new FakeAdapter(() => serveOk()), claude: new FakeAdapter(() => serveOk()) },
+    {
+      codex: new FakeAdapter(() => serveOk()),
+      claude: new FakeAdapter(() => serveOk()),
+    },
     { tiers: { m: [{ provider: 'codex', account: 'a1', model: 'other' }] } },
   )
   const extras = await pool.modelsForProvider('codex')
-  assert.deepEqual(extras.map(model => model.id), ['m'])
+  assert.deepEqual(
+    extras.map((model) => model.id),
+    ['m'],
+  )
   await pool.modelsForProvider('codex')
-  assert.equal(warnings.filter(message => message.includes('overrides')).length, 1)
+  assert.equal(
+    warnings.filter((message) => message.includes('overrides')).length,
+    1,
+  )
 })
 
 test('invalidate drops the pools snapshot so the next read reassembles', async () => {
@@ -358,7 +556,10 @@ test('invalidate drops the pools snapshot so the next read reassembles', async (
     reads += 1
     return freshAccounts()
   }
-  const { pool } = makePool({ codex: new FakeAdapter(() => serveOk()) }, { familiesFn })
+  const { pool } = makePool(
+    { codex: new FakeAdapter(() => serveOk()) },
+    { familiesFn },
+  )
   await pool.owns('codex', 'm')
   await pool.owns('codex', 'm')
   assert.equal(reads, 1)
@@ -379,9 +580,20 @@ test('priority: the first healthy account serves', async () => {
 test('priority: a configured member without an account uses the default account', async () => {
   const codex = new FakeAdapter(() => serveOk('codex'))
   const family = new Map<string, PoolDefinition>([
-    [poolKey('codex', 'm'), { members: [{ provider: 'codex', model: 'm' }, { provider: 'codex', account: 'bob', model: 'm' }] }],
+    [
+      poolKey('codex', 'm'),
+      {
+        members: [
+          { provider: 'codex', model: 'm' },
+          { provider: 'codex', account: 'bob', model: 'm' },
+        ],
+      },
+    ],
   ])
-  const { pool } = makePool({ codex }, { families: family, defaultAccount: 'alice' })
+  const { pool } = makePool(
+    { codex },
+    { families: family, defaultAccount: 'alice' },
+  )
   await collect(pool.stream(OPTIONS))
   assert.deepEqual(codex.accounts, ['alice'])
 })
@@ -410,7 +622,10 @@ test('priority: a sticky session keeps its account after the leader recovers', a
 
 /** Usage fetchers reading a mutable snapshot, keyed by provider or provider/account. */
 function usageFetchers(data: Record<string, ProviderUsage>) {
-  return (provider: ProviderId, account: string): (() => Promise<ProviderUsage>) | undefined => {
+  return (
+    provider: ProviderId,
+    account: string,
+  ): (() => Promise<ProviderUsage>) | undefined => {
     const snapshot = data[`${provider}/${account}`] ?? data[provider]
     return snapshot === undefined ? undefined : () => Promise.resolve(snapshot)
   }
@@ -420,32 +635,40 @@ function usageFetchers(data: Record<string, ProviderUsage>) {
 function windowUsage(usedPercent: number, horizonMs: number): ProviderUsage {
   return {
     supported: true,
-    windows: [{ kind: 'session', usedPercent, resetsAt: Date.now() + horizonMs }],
+    windows: [
+      { kind: 'session', usedPercent, resetsAt: Date.now() + horizonMs },
+    ],
   }
 }
 
 test('quota_aware: the most urgent window (soon reset, plenty left) wins', async () => {
   const codex = new FakeAdapter((_options, account) => serveOk(account))
-  const { pool } = makePool({ codex }, {
-    strategy: 'quota_aware',
-    usage: usageFetchers({
-      'codex/a1': windowUsage(50, 5 * 60 * 60_000),
-      'codex/a2': windowUsage(10, 30 * 60_000),
-    }),
-  })
+  const { pool } = makePool(
+    { codex },
+    {
+      strategy: 'quota_aware',
+      usage: usageFetchers({
+        'codex/a1': windowUsage(50, 5 * 60 * 60_000),
+        'codex/a2': windowUsage(10, 30 * 60_000),
+      }),
+    },
+  )
   const chunks = await collect(pool.stream(OPTIONS))
   assert.equal((chunks[0] as { text: string }).text, 'a2')
 })
 
 test('quota_aware: a window past the full mark gates its account out', async () => {
   const codex = new FakeAdapter((_options, account) => serveOk(account))
-  const { pool } = makePool({ codex }, {
-    strategy: 'quota_aware',
-    usage: usageFetchers({
-      'codex/a1': windowUsage(50, 5 * 60 * 60_000),
-      'codex/a2': windowUsage(96, 30 * 60_000),
-    }),
-  })
+  const { pool } = makePool(
+    { codex },
+    {
+      strategy: 'quota_aware',
+      usage: usageFetchers({
+        'codex/a1': windowUsage(50, 5 * 60 * 60_000),
+        'codex/a2': windowUsage(96, 30 * 60_000),
+      }),
+    },
+  )
   await collect(pool.stream(OPTIONS))
   assert.deepEqual(codex.accounts, ['a1'])
 })
@@ -453,19 +676,25 @@ test('quota_aware: a window past the full mark gates its account out', async () 
 test('quota_aware: an account without telemetry sinks behind a measured one', async () => {
   const copilot = new FakeAdapter((_options, account) => serveOk(account))
   const family = new Map<string, PoolDefinition>([
-    [poolKey('copilot', 'm'), {
-      members: [
-        { provider: 'copilot', account: 'a1', model: 'm' },
-        { provider: 'copilot', account: 'a2', model: 'm' },
-      ],
-    }],
+    [
+      poolKey('copilot', 'm'),
+      {
+        members: [
+          { provider: 'copilot', account: 'a1', model: 'm' },
+          { provider: 'copilot', account: 'a2', model: 'm' },
+        ],
+      },
+    ],
   ])
-  const { pool } = makePool({ copilot }, {
-    strategy: 'quota_aware',
-    families: family,
-    // a1 has no fetcher (urgency 0); a2 is measured — even 90% used wins.
-    usage: usageFetchers({ 'copilot/a2': windowUsage(90, 60 * 60_000) }),
-  })
+  const { pool } = makePool(
+    { copilot },
+    {
+      strategy: 'quota_aware',
+      families: family,
+      // a1 has no fetcher (urgency 0); a2 is measured — even 90% used wins.
+      usage: usageFetchers({ 'copilot/a2': windowUsage(90, 60 * 60_000) }),
+    },
+  )
   await collect(pool.stream({ ...OPTIONS, provider: 'copilot' }))
   assert.deepEqual(copilot.accounts, ['a2'])
 })
@@ -477,7 +706,10 @@ test('quota_aware: hysteresis holds the sticky account until the margin is beate
   }
   const usage = usageFetchers(data)
   const codex = new FakeAdapter((_options, account) => serveOk(account))
-  const { pool, usage: tracker } = makePool({ codex }, { strategy: 'quota_aware', switchMargin: 2, usage })
+  const { pool, usage: tracker } = makePool(
+    { codex },
+    { strategy: 'quota_aware', switchMargin: 2, usage },
+  )
   const options = { ...OPTIONS, sessionId: SessionId('s1') }
 
   await collect(pool.stream(options))
@@ -499,17 +731,25 @@ test('stream: a pre-chunk quota failure cools the whole account and fails over',
   const usageCalls: string[] = []
   const codex = new FakeAdapter((_options, account) =>
     account === 'a1'
-      ? serveFail(new LlmError('limited', 'RATE_LIMIT', { providerRetryAfterMs: 42_000 }))
-      : serveOk('a2'))
-  const { pool, health, usage, warnings } = makePool({ codex }, {
-    usage: (provider, account) => {
-      if (provider !== 'codex' || account !== 'a1') return undefined
-      return () => {
-        usageCalls.push(account)
-        return Promise.resolve(windowUsage(10, 60 * 60_000))
-      }
+      ? serveFail(
+          new LlmError('limited', 'RATE_LIMIT', {
+            providerRetryAfterMs: 42_000,
+          }),
+        )
+      : serveOk('a2'),
+  )
+  const { pool, health, usage, warnings } = makePool(
+    { codex },
+    {
+      usage: (provider, account) => {
+        if (provider !== 'codex' || account !== 'a1') return undefined
+        return () => {
+          usageCalls.push(account)
+          return Promise.resolve(windowUsage(10, 60 * 60_000))
+        }
+      },
     },
-  })
+  )
   const member = { provider: 'codex' as const, account: 'a1', model: 'm' }
   await usage.quotaFor(member)
   assert.equal(usageCalls.length, 1)
@@ -519,41 +759,61 @@ test('stream: a pre-chunk quota failure cools the whole account and fails over',
   assert.equal(health.isMemberAvailable('codex', 'a1', 'm'), false)
   assert.equal(health.isMemberAvailable('codex', 'a1', 'other-model'), false)
   assert.equal(health.isMemberAvailable('codex', 'a2', 'm'), true)
-  assert.equal(warnings.some(message => message.includes('trying the next member')), true)
+  assert.equal(
+    warnings.some((message) => message.includes('trying the next member')),
+    true,
+  )
   await usage.quotaFor(member)
   assert.equal(usageCalls.length, 2)
 })
 
 test('stream: a claude quota failure cools only the failing member', async () => {
   const claude = new FakeAdapter((_options, account) =>
-    account === 'a1' ? serveFail(new LlmError('lane full', 'QUOTA')) : serveOk('a2'))
+    account === 'a1'
+      ? serveFail(new LlmError('lane full', 'QUOTA'))
+      : serveOk('a2'),
+  )
   const family = new Map<string, PoolDefinition>([
-    [poolKey('claude', 'claude-opus-5'), {
-      members: [
-        { provider: 'claude', account: 'a1', model: 'claude-opus-5' },
-        { provider: 'claude', account: 'a2', model: 'claude-opus-5' },
-      ],
-    }],
+    [
+      poolKey('claude', 'claude-opus-5'),
+      {
+        members: [
+          { provider: 'claude', account: 'a1', model: 'claude-opus-5' },
+          { provider: 'claude', account: 'a2', model: 'claude-opus-5' },
+        ],
+      },
+    ],
   ])
   const { pool, health } = makePool({ claude }, { families: family })
-  await collect(pool.stream({ provider: 'claude', model: 'claude-opus-5', messages: [] }))
+  await collect(
+    pool.stream({ provider: 'claude', model: 'claude-opus-5', messages: [] }),
+  )
   assert.equal(health.isMemberAvailable('claude', 'a1', 'claude-opus-5'), false)
-  assert.equal(health.isMemberAvailable('claude', 'a1', 'claude-sonnet-5'), true)
+  assert.equal(
+    health.isMemberAvailable('claude', 'a1', 'claude-sonnet-5'),
+    true,
+  )
 })
 
 test('stream: a transient failure does not invalidate the usage snapshot', async () => {
   const usageCalls: string[] = []
   const codex = new FakeAdapter((_options, account) =>
-    account === 'a1' ? serveFail(new LlmError('boom', 'SERVER')) : serveOk('a2'))
-  const { pool, usage } = makePool({ codex }, {
-    usage: (provider, account) => {
-      if (provider !== 'codex' || account !== 'a1') return undefined
-      return () => {
-        usageCalls.push(account)
-        return Promise.resolve(windowUsage(10, 60 * 60_000))
-      }
+    account === 'a1'
+      ? serveFail(new LlmError('boom', 'SERVER'))
+      : serveOk('a2'),
+  )
+  const { pool, usage } = makePool(
+    { codex },
+    {
+      usage: (provider, account) => {
+        if (provider !== 'codex' || account !== 'a1') return undefined
+        return () => {
+          usageCalls.push(account)
+          return Promise.resolve(windowUsage(10, 60 * 60_000))
+        }
+      },
     },
-  })
+  )
   const member = { provider: 'codex' as const, account: 'a1', model: 'm' }
   await usage.quotaFor(member)
   assert.equal(usageCalls.length, 1)
@@ -569,19 +829,34 @@ test('stream: quota_aware selection never re-hits a usage endpoint still cooling
   // inside the retry-after window pushes the next one further out — so
   // retrying it on every request permanently locks the account out.
   const usageCalls: string[] = []
-  const error = new OAuthEndpointError('claude usage token endpoint error (HTTP 429)', 429, undefined, 60_000)
+  const error = new OAuthEndpointError(
+    'claude usage token endpoint error (HTTP 429)',
+    429,
+    undefined,
+    60_000,
+  )
   const codex = new FakeAdapter((_options, account) => serveOk(account))
-  const { pool } = makePool({ codex }, {
-    strategy: 'quota_aware',
-    usage: (provider, account) => {
-      if (provider !== 'codex' || account !== 'a1') return undefined
-      return () => { usageCalls.push(account); return Promise.reject(error) }
+  const { pool } = makePool(
+    { codex },
+    {
+      strategy: 'quota_aware',
+      usage: (provider, account) => {
+        if (provider !== 'codex' || account !== 'a1') return undefined
+        return () => {
+          usageCalls.push(account)
+          return Promise.reject(error)
+        }
+      },
     },
-  })
+  )
   await collect(pool.stream(OPTIONS))
   await collect(pool.stream(OPTIONS))
   await collect(pool.stream(OPTIONS))
-  assert.equal(usageCalls.length, 1, 'three requests in a row must cost at most one usage-endpoint hit')
+  assert.equal(
+    usageCalls.length,
+    1,
+    'three requests in a row must cost at most one usage-endpoint hit',
+  )
 })
 
 test('stream: a caller abandoning the stream closes the member stream', async () => {
@@ -605,7 +880,10 @@ test('stream: a caller abandoning the stream closes the member stream', async ()
 
 test('stream: a post-chunk failure propagates without switching accounts', async () => {
   const codex = new FakeAdapter((_options, account) =>
-    account === 'a1' ? servePartial(new LlmError('boom', 'SERVER')) : serveOk('a2'))
+    account === 'a1'
+      ? servePartial(new LlmError('boom', 'SERVER'))
+      : serveOk('a2'),
+  )
   const { pool } = makePool({ codex })
   await assert.rejects(
     collect(pool.stream(OPTIONS)),
@@ -618,11 +896,13 @@ test('stream: request-fault failures rethrow without trying other accounts', asy
   const codex = new FakeAdapter((_options, account) =>
     account === 'a1'
       ? serveFail(new LlmError('too long', 'CONTEXT_WINDOW_EXCEEDED'))
-      : serveOk('a2'))
+      : serveOk('a2'),
+  )
   const { pool, health } = makePool({ codex })
   await assert.rejects(
     collect(pool.stream(OPTIONS)),
-    (error: unknown) => error instanceof LlmError && error.code === 'CONTEXT_WINDOW_EXCEEDED',
+    (error: unknown) =>
+      error instanceof LlmError && error.code === 'CONTEXT_WINDOW_EXCEEDED',
   )
   assert.deepEqual(codex.accounts, ['a1'])
   assert.equal(health.isAvailable(memberKey('codex', 'a1', 'm')), true)
@@ -630,20 +910,42 @@ test('stream: request-fault failures rethrow without trying other accounts', asy
 
 test('stream: an empty first stream counts as a transient failure', async () => {
   const codex = new FakeAdapter((_options, account) =>
-    account === 'a1' ? serveEmpty() : serveOk('a2'))
+    account === 'a1' ? serveEmpty() : serveOk('a2'),
+  )
   const { pool } = makePool({ codex })
   const chunks = await collect(pool.stream(OPTIONS))
   assert.equal((chunks[0] as { text: string }).text, 'a2')
 })
 
 test('stream: pool failure reporting preserves a single member failure', async () => {
-  for (const code of ['TRANSPORT', 'AUTH', 'INVALID_CREDENTIAL', 'MISSING_CREDENTIAL', 'SERVER', 'TIMEOUT', 'HTTP_402', 'HTTP_404']) {
-    const cause = new OAuthEndpointError('token refresh refused', 401, 'invalid_grant')
-    const failure = new LlmError(`member failed: ${code}`, code, { cause, status: 503 })
+  for (const code of [
+    'TRANSPORT',
+    'AUTH',
+    'INVALID_CREDENTIAL',
+    'MISSING_CREDENTIAL',
+    'SERVER',
+    'TIMEOUT',
+    'HTTP_402',
+    'HTTP_404',
+  ]) {
+    const cause = new OAuthEndpointError(
+      'token refresh refused',
+      401,
+      'invalid_grant',
+    )
+    const failure = new LlmError(`member failed: ${code}`, code, {
+      cause,
+      status: 503,
+    })
     const codex = new FakeAdapter(() => serveFail(failure))
-    const families = new Map<string, PoolDefinition>([[poolKey('codex', 'm'), {
-      members: [{ provider: 'codex', account: 'a1', model: 'm' }],
-    }]])
+    const families = new Map<string, PoolDefinition>([
+      [
+        poolKey('codex', 'm'),
+        {
+          members: [{ provider: 'codex', account: 'a1', model: 'm' }],
+        },
+      ],
+    ])
     const { pool, health } = makePool({ codex }, { families })
     await assert.rejects(collect(pool.stream(OPTIONS)), (error: unknown) => {
       assert.equal(error, failure)
@@ -653,12 +955,15 @@ test('stream: pool failure reporting preserves a single member failure', async (
       assert.equal(failure.failure.status, 503)
       return true
     })
-    assert.equal(health.isMemberAvailable('codex', 'a1', 'm'), code === 'TRANSPORT')
+    assert.equal(
+      health.isMemberAvailable('codex', 'a1', 'm'),
+      code === 'TRANSPORT',
+    )
     assert.deepEqual(codex.accounts, ['a1'])
   }
 })
 
-test('stream: recovery hint revision uses scoped recovery before the member hint without replacing the error', async t => {
+test('stream: recovery hint revision uses scoped recovery before the member hint without replacing the error', async (t) => {
   t.mock.method(Date, 'now', () => 1000)
   for (const [code, ownHint, expected] of [
     ['SERVER', undefined, 60_000],
@@ -670,16 +975,29 @@ test('stream: recovery hint revision uses scoped recovery before the member hint
   ] as const) {
     const cause = new Error('fixture connection failure')
     const failure = new LlmError('member failed', code, {
-      status: 503, cause,
-      ...ownHint === undefined ? {} : { providerRetryAfterMs: ownHint },
+      status: 503,
+      cause,
+      ...(ownHint === undefined ? {} : { providerRetryAfterMs: ownHint }),
     })
     const originalFacts = failure.failure
-    const families = new Map<string, PoolDefinition>([[poolKey('codex', 'm'), {
-      members: [{ provider: 'codex', account: 'a1', model: 'm' }],
-    }]])
-    const { pool, health } = makePool({ codex: new FakeAdapter(() => serveFail(failure)) }, { families })
+    const families = new Map<string, PoolDefinition>([
+      [
+        poolKey('codex', 'm'),
+        {
+          members: [{ provider: 'codex', account: 'a1', model: 'm' }],
+        },
+      ],
+    ])
+    const { pool, health } = makePool(
+      { codex: new FakeAdapter(() => serveFail(failure)) },
+      { families },
+    )
     // An unrelated pool's sooner recovery must not supply or replace this hint.
-    health.markUnavailable(memberKey('codex', 'unrelated', 'other'), 1000, 'SERVER')
+    health.markUnavailable(
+      memberKey('codex', 'unrelated', 'other'),
+      1000,
+      'SERVER',
+    )
     await assert.rejects(collect(pool.stream(OPTIONS)), (error: unknown) => {
       assert.equal(error, failure)
       assert.equal(failure.code, code)
@@ -694,24 +1012,33 @@ test('stream: recovery hint revision uses scoped recovery before the member hint
   }
 })
 
-test('stream: recovery hint revision uses the earliest member recovery despite a late AUTH cooldown', async t => {
+test('stream: recovery hint revision uses the earliest member recovery despite a late AUTH cooldown', async (t) => {
   t.mock.method(Date, 'now', () => 1000)
   for (const earliest of [60_000, 30_000]) {
     const cause = new Error('fixture outage')
     const failure = new LlmError('provider temporarily unavailable', 'SERVER', {
-      status: 503, cause, providerRetryAfterMs: 120_000,
+      status: 503,
+      cause,
+      providerRetryAfterMs: 120_000,
     })
     const codex = new FakeAdapter(() => serveFail(failure))
     const families = freshAccounts()
     if (earliest === 30_000) {
-      families.set(poolKey('codex', 'm'), { members: [
-        ...families.get(poolKey('codex', 'm'))!.members,
-        { provider: 'codex', account: 'a3', model: 'm' },
-      ] })
+      families.set(poolKey('codex', 'm'), {
+        members: [
+          ...families.get(poolKey('codex', 'm'))!.members,
+          { provider: 'codex', account: 'a3', model: 'm' },
+        ],
+      })
     }
     const { pool, health } = makePool({ codex }, { families })
-    health.markUnavailable(memberKey('codex', 'a1', 'm'), 24 * 60 * 60_000, 'AUTH')
-    if (earliest === 30_000) health.markUnavailable(memberKey('codex', 'a3', 'm'), 30_000, 'SERVER')
+    health.markUnavailable(
+      memberKey('codex', 'a1', 'm'),
+      24 * 60 * 60_000,
+      'AUTH',
+    )
+    if (earliest === 30_000)
+      health.markUnavailable(memberKey('codex', 'a3', 'm'), 30_000, 'SERVER')
     await assert.rejects(collect(pool.stream(OPTIONS)), (error: unknown) => {
       assert.equal(error, failure)
       assert.equal(failure.failure.providerRetryAfterMs, earliest)
@@ -722,7 +1049,7 @@ test('stream: recovery hint revision uses the earliest member recovery despite a
   }
 })
 
-test('stream: a single member keeps the shared safe message and gains the pool recovery hint', async t => {
+test('stream: a single member keeps the shared safe message and gains the pool recovery hint', async (t) => {
   t.mock.method(Date, 'now', () => 1000)
   // Real shared error conversion, fake Response only: no network and no pool-local
   // sanitizer. The shared converter owns the message text, the pool owns the hint.
@@ -730,19 +1057,33 @@ test('stream: a single member keeps the shared safe message and gains the pool r
   const token = 'sk-fixture-only-not-a-real-token'
   const body = JSON.stringify({ message: secret, access_token: token })
   let failure: LlmError | undefined
-  const codex = new FakeAdapter(async function* () {
-    failure = await httpLlmError(new Response(body, { status: 503 }), 'codex API')
-    throw failure
-  })
-  const families = new Map<string, PoolDefinition>([[poolKey('codex', 'm'), {
-    members: [{ provider: 'codex', account: 'a1', model: 'm' }],
-  }]])
+  const codex = new FakeAdapter(
+    // eslint-disable-next-line require-yield -- the stream fails as soon as the error is classified
+    async function* () {
+      failure = await httpLlmError(
+        new Response(body, { status: 503 }),
+        'codex API',
+      )
+      throw failure
+    },
+  )
+  const families = new Map<string, PoolDefinition>([
+    [
+      poolKey('codex', 'm'),
+      {
+        members: [{ provider: 'codex', account: 'a1', model: 'm' }],
+      },
+    ],
+  ])
   const { pool } = makePool({ codex }, { families })
   await assert.rejects(collect(pool.stream(OPTIONS)), (error: unknown) => {
     assert.ok(error instanceof LlmError)
     assert.equal(error, failure)
     assert.equal(error.code, 'SERVER')
-    assert.equal(error.message, 'codex API error (HTTP 503, SERVER): [provider response body omitted]')
+    assert.equal(
+      error.message,
+      'codex API error (HTTP 503, SERVER): [provider response body omitted]',
+    )
     assert.equal(error.failure.message, error.message)
     // The shared converter must not leak the body, and neither must the pass-through.
     // The marker is the contract, so a return to excerpting fails here rather than
@@ -763,17 +1104,31 @@ test('stream: a single member keeps the shared safe message and gains the pool r
 test('stream: pool failure reporting distinguishes no resolved account from a rate limit', async () => {
   const codex = new FakeAdapter(() => serveOk())
   const pool = new PoolAdapter({
-    adapters: { codex }, health: new PoolHealthRegistry(),
-    usage: new PoolUsageTracker(() => undefined), strategy: 'priority', switchMargin: 2,
+    adapters: { codex },
+    health: new PoolHealthRegistry(),
+    usage: new PoolUsageTracker(() => undefined),
+    strategy: 'priority',
+    switchMargin: 2,
     defaultAccount: async () => undefined,
-    families: async () => new Map([[poolKey('codex', 'm'), {
-      members: [{ provider: 'codex', model: 'm' }],
-    }]]), tiers: {}, onWarn: () => {},
+    families: async () =>
+      new Map([
+        [
+          poolKey('codex', 'm'),
+          {
+            members: [{ provider: 'codex', model: 'm' }],
+          },
+        ],
+      ]),
+    tiers: {},
+    onWarn: () => {},
   })
   await assert.rejects(collect(pool.stream(OPTIONS)), (error: unknown) => {
     assert.ok(error instanceof LlmError)
     assert.equal(error.code, 'NO_ADAPTER')
-    assert.equal(error.message, 'pool "m" has no usable member: no account could be resolved')
+    assert.equal(
+      error.message,
+      'pool "m" has no usable member: no account could be resolved',
+    )
     assert.equal(error.failure.providerRetryAfterMs, undefined)
     assert.equal(error.cause, undefined)
     return true
@@ -781,20 +1136,30 @@ test('stream: pool failure reporting distinguishes no resolved account from a ra
   assert.equal(codex.calls, 0)
 })
 
-test('stream: pool failure reporting pins quota exhaustion on the first and cooling requests', async t => {
+test('stream: pool failure reporting pins quota exhaustion on the first and cooling requests', async (t) => {
   t.mock.method(Date, 'now', () => 1000)
   for (const code of [QUOTA_EXCEEDED_CODE, 'RATE_LIMIT']) {
-    const failure = new LlmError('usage window exhausted', code, { providerRetryAfterMs: 42_000 })
+    const failure = new LlmError('usage window exhausted', code, {
+      providerRetryAfterMs: 42_000,
+    })
     const codex = new FakeAdapter(() => serveFail(failure))
-    const families = new Map<string, PoolDefinition>([[poolKey('codex', 'm'), {
-      members: [{ provider: 'codex', account: 'a1', model: 'm' }],
-    }]])
+    const families = new Map<string, PoolDefinition>([
+      [
+        poolKey('codex', 'm'),
+        {
+          members: [{ provider: 'codex', account: 'a1', model: 'm' }],
+        },
+      ],
+    ])
     const { pool, health } = makePool({ codex }, { families })
     for (let request = 0; request < 2; request += 1) {
       await assert.rejects(collect(pool.stream(OPTIONS)), (error: unknown) => {
         assert.ok(error instanceof LlmError)
         assert.equal(error.code, 'RATE_LIMIT')
-        assert.equal(error.message, 'pool "m" exhausted: every member is unavailable or failed')
+        assert.equal(
+          error.message,
+          'pool "m" exhausted: every member is unavailable or failed',
+        )
         const retryAfter = error.failure.providerRetryAfterMs
         assert.equal(retryAfter, 42_000)
         assert.equal(error.cause, request === 0 ? failure : undefined)
@@ -811,7 +1176,8 @@ test('stream: pool failure reporting uses non-quota cooldown reasons without ret
   for (const code of ['AUTH', 'SERVER']) {
     const codex = new FakeAdapter(() => serveOk())
     const { pool, health } = makePool({ codex })
-    for (const account of ['a1', 'a2']) health.markUnavailable(memberKey('codex', account, 'm'), 60_000, code)
+    for (const account of ['a1', 'a2'])
+      health.markUnavailable(memberKey('codex', account, 'm'), 60_000, code)
     await assert.rejects(collect(pool.stream(OPTIONS)), (error: unknown) => {
       assert.ok(error instanceof LlmError)
       assert.equal(error.code, code)
@@ -831,7 +1197,10 @@ test('stream: terminal exhaustion is warned once, naming the pool model and the 
   const failure = new LlmError('socket hang up', 'TRANSPORT')
   const codex = new FakeAdapter(() => serveFail(failure))
   const single = new Map<string, PoolDefinition>([
-    [poolKey('codex', 'm'), { members: [{ provider: 'codex', account: 'a1', model: 'm' }] }],
+    [
+      poolKey('codex', 'm'),
+      { members: [{ provider: 'codex', account: 'a1', model: 'm' }] },
+    ],
   ])
   const { pool, warnings } = makePool({ codex }, { families: single })
   await assert.rejects(collect(pool.stream(OPTIONS)), (error: unknown) => {
@@ -840,15 +1209,19 @@ test('stream: terminal exhaustion is warned once, naming the pool model and the 
     assert.equal(error.message, 'socket hang up')
     return true
   })
-  const exhaustion = warnings.filter(message => message.includes('exhausted'))
+  const exhaustion = warnings.filter((message) => message.includes('exhausted'))
   assert.equal(exhaustion.length, 1, 'exactly one terminal-exhaustion line')
-  assert.match(exhaustion[0]!, /^pool "m": exhausted \(TRANSPORT: socket hang up\)$/)
+  assert.match(
+    exhaustion[0]!,
+    /^pool "m": exhausted \(TRANSPORT: socket hang up\)$/,
+  )
 })
 
 test('stream: exhaustion from cooling members is warned with the thrown error', async () => {
   const codex = new FakeAdapter(() => serveOk())
   const { pool, health, warnings } = makePool({ codex })
-  for (const account of ['a1', 'a2']) health.markUnavailable(memberKey('codex', account, 'm'), 60_000, 'SERVER')
+  for (const account of ['a1', 'a2'])
+    health.markUnavailable(memberKey('codex', account, 'm'), 60_000, 'SERVER')
   await assert.rejects(collect(pool.stream(OPTIONS)), (error: unknown) => {
     assert.ok(error instanceof LlmError)
     assert.equal(error.code, 'SERVER')
@@ -856,22 +1229,45 @@ test('stream: exhaustion from cooling members is warned with the thrown error', 
     return true
   })
   assert.equal(codex.calls, 0)
-  const exhaustion = warnings.filter(message => message.includes('exhausted'))
+  const exhaustion = warnings.filter((message) => message.includes('exhausted'))
   assert.equal(exhaustion.length, 1, 'exactly one terminal-exhaustion line')
-  assert.ok(exhaustion[0]!.startsWith('pool "m": exhausted (SERVER: pool "m" unavailable:'))
+  assert.ok(
+    exhaustion[0]!.startsWith(
+      'pool "m": exhausted (SERVER: pool "m" unavailable:',
+    ),
+  )
 })
 
 test('stream: pool failure reporting summarizes distinct failures and retains every cause', async () => {
-  for (const codes of [['AUTH', 'SERVER', 'RATE_LIMIT'], ['RATE_LIMIT', 'SERVER', 'AUTH']]) {
-    const failures = codes.map(code => new LlmError(`provider failure: ${code}`, code))
-    const codex = new FakeAdapter((_options, account) => serveFail(failures[Number(account)]))
-    const families = new Map<string, PoolDefinition>([[poolKey('codex', 'm'), {
-      members: failures.map((_error, index) => ({ provider: 'codex', account: String(index), model: 'm' })),
-    }]])
+  for (const codes of [
+    ['AUTH', 'SERVER', 'RATE_LIMIT'],
+    ['RATE_LIMIT', 'SERVER', 'AUTH'],
+  ]) {
+    const failures = codes.map(
+      (code) => new LlmError(`provider failure: ${code}`, code),
+    )
+    const codex = new FakeAdapter((_options, account) =>
+      serveFail(failures[Number(account)]),
+    )
+    const families = new Map<string, PoolDefinition>([
+      [
+        poolKey('codex', 'm'),
+        {
+          members: failures.map((_error, index) => ({
+            provider: 'codex',
+            account: String(index),
+            model: 'm',
+          })),
+        },
+      ],
+    ])
     const { pool } = makePool({ codex }, { families })
     await assert.rejects(collect(pool.stream(OPTIONS)), (error: unknown) => {
       assert.ok(error instanceof LlmError)
-      assert.equal(error.code, codes.filter(code => code !== 'RATE_LIMIT').at(-1))
+      assert.equal(
+        error.code,
+        codes.filter((code) => code !== 'RATE_LIMIT').at(-1),
+      )
       assert.match(error.message, /3 members failed/)
       assert.match(error.message, /AUTH: authentication failed/)
       assert.match(error.message, /SERVER: provider server failed/)
@@ -886,14 +1282,30 @@ test('stream: pool failure reporting summarizes distinct failures and retains ev
 
 test('stream: pool failure reporting bounds summaries without copying payloads or nested credentials', async () => {
   const secret = 'fixture-secret-not-for-display'
-  const failures = Array.from({ length: 20 }, (_value, index) => new LlmError(
-    `provider payload ${secret} ${'x'.repeat(10_000)}`, index % 2 === 0 ? 'AUTH' : 'SERVER',
-    { cause: new OAuthEndpointError(`access_token=${secret}`, 401) },
-  ))
-  const codex = new FakeAdapter((_options, account) => serveFail(failures[Number(account)]))
-  const families = new Map<string, PoolDefinition>([[poolKey('codex', 'm'), {
-    members: failures.map((_error, index) => ({ provider: 'codex', account: String(index), model: 'm' })),
-  }]])
+  const failures = Array.from(
+    { length: 20 },
+    (_value, index) =>
+      new LlmError(
+        `provider payload ${secret} ${'x'.repeat(10_000)}`,
+        index % 2 === 0 ? 'AUTH' : 'SERVER',
+        { cause: new OAuthEndpointError(`access_token=${secret}`, 401) },
+      ),
+  )
+  const codex = new FakeAdapter((_options, account) =>
+    serveFail(failures[Number(account)]),
+  )
+  const families = new Map<string, PoolDefinition>([
+    [
+      poolKey('codex', 'm'),
+      {
+        members: failures.map((_error, index) => ({
+          provider: 'codex',
+          account: String(index),
+          model: 'm',
+        })),
+      },
+    ],
+  ])
   const { pool } = makePool({ codex }, { families })
   await assert.rejects(collect(pool.stream(OPTIONS)), (error: unknown) => {
     assert.ok(error instanceof LlmError)
@@ -909,7 +1321,9 @@ test('stream: pool failure reporting bounds summaries without copying payloads o
 })
 
 test('stream: mixed cooldowns do not turn a fresh quota failure into pure rate-limit exhaustion', async () => {
-  const failure = new LlmError('window full', 'RATE_LIMIT', { providerRetryAfterMs: 42_000 })
+  const failure = new LlmError('window full', 'RATE_LIMIT', {
+    providerRetryAfterMs: 42_000,
+  })
   const codex = new FakeAdapter(() => serveFail(failure))
   const { pool, health } = makePool({ codex })
   health.markUnavailable(memberKey('codex', 'a1', 'm'), 60_000, 'AUTH')
@@ -925,42 +1339,54 @@ test('stream: mixed cooldowns do not turn a fresh quota failure into pure rate-l
   assert.deepEqual(codex.accounts, ['a2'])
 })
 
-test('stream: an exhausted pool throws RATE_LIMIT with the earliest recovery hint', async t => {
+test('stream: an exhausted pool throws RATE_LIMIT with the earliest recovery hint', async (t) => {
   t.mock.method(Date, 'now', () => 1000)
   const failures = [
-    new LlmError('first window full', 'RATE_LIMIT', { providerRetryAfterMs: 42_000 }),
-    new LlmError('second window full', 'RATE_LIMIT', { providerRetryAfterMs: 90_000 }),
+    new LlmError('first window full', 'RATE_LIMIT', {
+      providerRetryAfterMs: 42_000,
+    }),
+    new LlmError('second window full', 'RATE_LIMIT', {
+      providerRetryAfterMs: 90_000,
+    }),
   ]
-  const codex = new FakeAdapter((_options, account) => serveFail(failures[account === 'a1' ? 0 : 1]))
-  const { pool } = makePool({ codex })
-  await assert.rejects(
-    collect(pool.stream(OPTIONS)),
-    (error: unknown) => {
-      assert.ok(error instanceof LlmError)
-      assert.equal(error.code, 'RATE_LIMIT')
-      assert.equal(error.message, 'pool "m" exhausted: every member is unavailable or failed')
-      assert.ok(error.cause instanceof AggregateError)
-      assert.deepEqual(error.cause.errors, failures)
-      assert.match(error.cause.message, /2 pool members failed/)
-      const retryAfter = error.failure.providerRetryAfterMs
-      assert.equal(retryAfter, 42_000)
-      return true
-    },
+  const codex = new FakeAdapter((_options, account) =>
+    serveFail(failures[account === 'a1' ? 0 : 1]),
   )
+  const { pool } = makePool({ codex })
+  await assert.rejects(collect(pool.stream(OPTIONS)), (error: unknown) => {
+    assert.ok(error instanceof LlmError)
+    assert.equal(error.code, 'RATE_LIMIT')
+    assert.equal(
+      error.message,
+      'pool "m" exhausted: every member is unavailable or failed',
+    )
+    assert.ok(error.cause instanceof AggregateError)
+    assert.deepEqual(error.cause.errors, failures)
+    assert.match(error.cause.message, /2 pool members failed/)
+    const retryAfter = error.failure.providerRetryAfterMs
+    assert.equal(retryAfter, 42_000)
+    return true
+  })
 })
 
 test('resolveModel uses the pool display name', async () => {
   const family = new Map<string, PoolDefinition>([
-    [poolKey('codex', 'm'), {
-      members: [
-        { provider: 'codex', account: 'a1', model: 'm' },
-        { provider: 'codex', account: 'a2', model: 'm' },
-      ],
-      name: 'GPT-5.4',
-      description: 'Latest frontier model.',
-    }],
+    [
+      poolKey('codex', 'm'),
+      {
+        members: [
+          { provider: 'codex', account: 'a1', model: 'm' },
+          { provider: 'codex', account: 'a2', model: 'm' },
+        ],
+        name: 'GPT-5.4',
+        description: 'Latest frontier model.',
+      },
+    ],
   ])
-  const { pool } = makePool({ codex: new FakeAdapter(() => serveOk()) }, { families: family })
+  const { pool } = makePool(
+    { codex: new FakeAdapter(() => serveOk()) },
+    { families: family },
+  )
   const resolved = await pool.resolveModel('codex', 'm')
   assert.equal(resolved.name, 'GPT-5.4')
   assert.equal(resolved.description, 'Latest frontier model.')
@@ -993,19 +1419,28 @@ test('resolveModel intersects member capabilities conservatively', async () => {
     inputModalities: ['text'],
   })
   const family = new Map<string, PoolDefinition>([
-    [poolKey('codex', 'smart'), {
-      members: [
-        { provider: 'codex', account: 'a1', model: 'big' },
-        { provider: 'claude', account: 'a1', model: 'small' },
-      ],
-      extra: true,
-    }],
+    [
+      poolKey('codex', 'smart'),
+      {
+        members: [
+          { provider: 'codex', account: 'a1', model: 'big' },
+          { provider: 'claude', account: 'a1', model: 'small' },
+        ],
+        extra: true,
+      },
+    ],
   ])
-  const { pool } = makePool({ codex: first, claude: second }, { families: family })
+  const { pool } = makePool(
+    { codex: first, claude: second },
+    { families: family },
+  )
   const resolved = await pool.resolveModel('codex', 'smart')
   assert.equal(resolved.context?.contextWindow, 100_000)
   assert.equal(resolved.defaultMaxTokens, 64_000)
-  assert.deepEqual(resolved.reasoning?.efforts.map(effort => effort.id), ['medium', 'high'])
+  assert.deepEqual(
+    resolved.reasoning?.efforts.map((effort) => effort.id),
+    ['medium', 'high'],
+  )
   assert.equal(resolved.reasoning?.defaultEffort, 'high')
   assert.deepEqual(resolved.inputModalities, ['text'])
 })
@@ -1022,20 +1457,31 @@ class FailingResolveAdapter extends FakeAdapter {
 }
 
 test('resolveModel skips a member that fails to resolve and warns once', async () => {
-  const ok = new FakeAdapter(() => serveOk(), { context: { contextWindow: 200_000 } })
+  const ok = new FakeAdapter(() => serveOk(), {
+    context: { contextWindow: 200_000 },
+  })
   const family = new Map<string, PoolDefinition>([
-    [poolKey('codex', 'smart'), {
-      members: [
-        { provider: 'codex', account: 'a1', model: 'm' },
-        { provider: 'claude', account: 'a1', model: 'm' },
-      ],
-    }],
+    [
+      poolKey('codex', 'smart'),
+      {
+        members: [
+          { provider: 'codex', account: 'a1', model: 'm' },
+          { provider: 'claude', account: 'a1', model: 'm' },
+        ],
+      },
+    ],
   ])
-  const { pool, warnings } = makePool({ codex: ok, claude: new FailingResolveAdapter() }, { families: family })
+  const { pool, warnings } = makePool(
+    { codex: ok, claude: new FailingResolveAdapter() },
+    { families: family },
+  )
   const resolved = await pool.resolveModel('codex', 'smart')
   assert.equal(resolved.context?.contextWindow, 200_000)
   await pool.resolveModel('codex', 'smart')
-  assert.equal(warnings.filter(message => message.includes('failed to resolve')).length, 1)
+  assert.equal(
+    warnings.filter((message) => message.includes('failed to resolve')).length,
+    1,
+  )
 })
 
 test('resolveModel throws NO_ADAPTER only when every member fails to resolve', async () => {
@@ -1044,31 +1490,44 @@ test('resolveModel throws NO_ADAPTER only when every member fails to resolve', a
   })
   await assert.rejects(
     pool.resolveModel('codex', 'm'),
-    (error: unknown) => error instanceof LlmError && error.code === 'NO_ADAPTER',
+    (error: unknown) =>
+      error instanceof LlmError && error.code === 'NO_ADAPTER',
   )
 })
 
 test('resolveModel reports unknown modalities when members share none', async () => {
   const family = new Map<string, PoolDefinition>([
-    [poolKey('codex', 'smart'), {
-      members: [
-        { provider: 'codex', account: 'a1', model: 'vision' },
-        { provider: 'claude', account: 'a1', model: 'text' },
-      ],
-    }],
+    [
+      poolKey('codex', 'smart'),
+      {
+        members: [
+          { provider: 'codex', account: 'a1', model: 'vision' },
+          { provider: 'claude', account: 'a1', model: 'text' },
+        ],
+      },
+    ],
   ])
-  const { pool } = makePool({
-    codex: new FakeAdapter(() => serveOk(), { inputModalities: ['image'] }),
-    claude: new FakeAdapter(() => serveOk(), { inputModalities: ['text'] }),
-  }, { families: family })
+  const { pool } = makePool(
+    {
+      codex: new FakeAdapter(() => serveOk(), { inputModalities: ['image'] }),
+      claude: new FakeAdapter(() => serveOk(), { inputModalities: ['text'] }),
+    },
+    { families: family },
+  )
   const resolved = await pool.resolveModel('codex', 'smart')
   assert.equal(resolved.inputModalities, undefined)
 })
 
 test('resolveModel: a pool id equal to the catalog wire id cannot recurse', async () => {
-  const codex = new FakeAdapter(() => serveOk(), { context: { contextWindow: 100_000 } })
+  const codex = new FakeAdapter(() => serveOk(), {
+    context: { contextWindow: 100_000 },
+  })
   const { pool } = makePool({ codex })
   const resolved = await pool.resolveModel('codex', 'm')
   assert.equal(resolved.context?.contextWindow, 100_000)
-  assert.equal(codex.directResolves, 0, 'member resolution went through resolveOwnModel')
+  assert.equal(
+    codex.directResolves,
+    0,
+    'member resolution went through resolveOwnModel',
+  )
 })

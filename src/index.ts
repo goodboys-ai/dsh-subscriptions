@@ -12,7 +12,6 @@ import z from '@deepseek-ai/schemastery'
 import { errorChain } from '@deepseek-ai/dsh-llm'
 import type {
   AdapterRegistrationHandle,
-  LlmAdapter,
   LlmModelInfo,
   LlmResolvedModelInfo,
 } from '@deepseek-ai/dsh-llm'
@@ -20,12 +19,18 @@ import type {
 import type {} from '@deepseek-ai/dsh-tools'
 // Type-only: activates the `ctx.web` Context merge for optional registration.
 import type {} from '@deepseek-ai/dsh-web'
-import type { AttachmentStore, ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
+import type {
+  AttachmentStore,
+  ImageAttachmentRef,
+} from '@deepseek-ai/dsh-attachment'
 import { OAuthFlowManager, type OAuthAttempt } from './auth/oauth-flow.js'
 import { DeviceFlowManager, type DeviceAttempt } from './auth/device-flow.js'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { readClaudeCodeCredentials, refreshClaudeSynced } from './auth/claude-code-creds.js'
+import {
+  readClaudeCodeCredentials,
+  refreshClaudeSynced,
+} from './auth/claude-code-creds.js'
 import { ResetRedemption } from './providers/reset-redemption.js'
 import { BadRequest, registerAuthRpc } from './auth/rpc.js'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
@@ -42,9 +47,18 @@ import {
   OLLAMA_PULL_TIMEOUT_MS,
 } from './providers/ollama.js'
 import type { OllamaDiscoveredModel } from './providers/ollama.js'
-import { OllamaWebFetchProvider, OllamaWebSearchProvider } from './providers/ollama-web.js'
-import { CursorModelSettingsStore, validateCursorModelSettings } from './providers/cursor-model-settings.js'
-import { OllamaSettingsStore, validateOllamaSettings } from './providers/ollama-settings.js'
+import {
+  OllamaWebFetchProvider,
+  OllamaWebSearchProvider,
+} from './providers/ollama-web.js'
+import {
+  CursorModelSettingsStore,
+  validateCursorModelSettings,
+} from './providers/cursor-model-settings.js'
+import {
+  OllamaSettingsStore,
+  validateOllamaSettings,
+} from './providers/ollama-settings.js'
 import type { OllamaModelSetting } from './providers/ollama-settings.js'
 import type {
   AuthController,
@@ -53,8 +67,6 @@ import type {
   ModelDefaultsCatalog,
   ModelDefaultsController,
   ModelDefaultView,
-  OllamaCloudCandidate,
-  OllamaModelView,
   ProviderStatus,
   SpeedController,
   SpeedTier,
@@ -83,22 +95,41 @@ import type {
   ProviderId,
   StoredSession,
 } from './auth/store.js'
-import { DISCOVERY_TIMEOUT_MS, effortDisplayName, validateModels, withTimeout } from './providers/common.js'
+import {
+  DISCOVERY_TIMEOUT_MS,
+  effortDisplayName,
+  validateModels,
+  withTimeout,
+} from './providers/common.js'
 import type { ModelEntry, ProviderUsage } from './providers/common.js'
 import { AccountTokenManager } from './providers/accounts.js'
 import type { AccountAwareAdapter } from './providers/accounts.js'
-import { DEFAULT_RATE_LIMIT_MAX_WAIT_MS, resolveRateLimitWait } from './providers/rate-limit.js'
+import {
+  DEFAULT_RATE_LIMIT_MAX_WAIT_MS,
+  resolveRateLimitWait,
+} from './providers/rate-limit.js'
 import type { RateLimitConfig } from './providers/rate-limit.js'
 import { DEFAULT_PROMPT_CACHE_TTL } from './translate/anthropic.js'
 import type { PromptCacheTtl } from './translate/anthropic.js'
 import { accountCatalogStore, catalogStore } from './providers/catalog-store.js'
 import { ClaudeCliVersionCache } from './providers/claude-cli-version.js'
-import type { CliVersion, NpmCliVersionCache } from './providers/npm-cli-version.js'
+import type {
+  CliVersion,
+  NpmCliVersionCache,
+} from './providers/npm-cli-version.js'
 import { CodexClientVersionCache } from './providers/codex-client-version.js'
 import { CodexWebSearchProvider } from './providers/codex-search.js'
 import { PoolAdapter } from './providers/pool.js'
-import { AccountPreferencesAdapter, accountAllowsPool, accountModelId, parseAccountModelId } from './providers/account-preferences.js'
-export type { AccountPreferences, ProviderPreferences } from './provider-settings.js'
+import {
+  AccountPreferencesAdapter,
+  accountAllowsPool,
+  accountModelId,
+  parseAccountModelId,
+} from './providers/account-preferences.js'
+export type {
+  AccountPreferences,
+  ProviderPreferences,
+} from './provider-settings.js'
 import { ImageAccountPool } from './providers/image-pool.js'
 import { registerWithAlias } from './tools/registration.js'
 import { buildAccountPools, poolKey } from './providers/pool-family.js'
@@ -156,14 +187,36 @@ import {
 import type { AntigravityRuntimeConfig } from './providers/antigravity.js'
 import { createXSearchTool } from './tools/x-search.js'
 import { createImageGenerateTool } from './tools/image-generate.js'
-import { createVideoGenerateTool, videosDirectory } from './tools/video-generate.js'
-import { ensureConnectAttemptTimeout, hostFetch, restoreConnectAttemptTimeout } from './http.js'
-import { ProviderSettingsStore, PROVIDER_TOOLS, validatePreferences } from './provider-settings.js'
+import {
+  createVideoGenerateTool,
+  videosDirectory,
+} from './tools/video-generate.js'
+import {
+  ensureConnectAttemptTimeout,
+  hostFetch,
+  restoreConnectAttemptTimeout,
+} from './http.js'
+import {
+  ProviderSettingsStore,
+  PROVIDER_TOOLS,
+  validatePreferences,
+} from './provider-settings.js'
 
-export type { ModelEntry, ProviderUsage, UsageWindow } from './providers/common.js'
+export type {
+  ModelEntry,
+  ProviderUsage,
+  UsageWindow,
+} from './providers/common.js'
 export type { RateLimitConfig, RateLimitWait } from './providers/rate-limit.js'
 export type { ProviderStatus } from './auth/rpc.js'
-export type { AntigravitySession, ClaudeSession, CodexSession, CopilotSession, GrokSession, ProviderId } from './auth/store.js'
+export type {
+  AntigravitySession,
+  ClaudeSession,
+  CodexSession,
+  CopilotSession,
+  GrokSession,
+  ProviderId,
+} from './auth/store.js'
 
 export const name = 'dsh-subscriptions'
 export const inject = ['llm']
@@ -252,7 +305,13 @@ export interface Config {
   }
 }
 
-const providerIdSchema = z.union(['codex', 'claude', 'grok', 'copilot', 'antigravity'])
+const providerIdSchema = z.union([
+  'codex',
+  'claude',
+  'grok',
+  'copilot',
+  'antigravity',
+])
 const modelEntrySchema: z<ModelEntry> = z.object({
   id: z.string().required(),
   name: z.string(),
@@ -269,9 +328,14 @@ const poolMemberSchema: z<PoolMemberRef> = z.object({
 })
 
 export const Config: z<Config> = z.object({
-  providers: z.array(providerIdSchema).default(['codex', 'claude', 'grok', 'copilot', 'antigravity']),
+  providers: z
+    .array(providerIdSchema)
+    .default(['codex', 'claude', 'grok', 'copilot', 'antigravity']),
   codexClientVersion: z.string(),
-  streamIdleTimeoutMs: z.number().min(1).default(DEFAULT_STREAM_IDLE_TIMEOUT_MS),
+  streamIdleTimeoutMs: z
+    .number()
+    .min(1)
+    .default(DEFAULT_STREAM_IDLE_TIMEOUT_MS),
   claudePromptCacheTtl: z.union(['5m', '1h']).default(DEFAULT_PROMPT_CACHE_TTL),
   rateLimit: z.object({
     wait: z.boolean().default(true),
@@ -321,11 +385,35 @@ const DEFAULT_MODELS: Record<ProviderId, ModelEntry[]> = {
     { id: 'gpt-5.5', name: 'GPT-5.5', contextWindow: 272_000 },
   ],
   claude: [
-    { id: 'claude-opus-5-5', name: 'Claude Opus 5.5', maxTokens: 128_000, contextWindow: 1_000_000 },
-    { id: 'claude-opus-5', name: 'Claude Opus 5', maxTokens: 128_000, contextWindow: 1_000_000 },
-    { id: 'claude-sonnet-5', name: 'Claude Sonnet 5', maxTokens: 128_000, contextWindow: 1_000_000 },
-    { id: 'claude-fable-5', name: 'Claude Fable 5', maxTokens: 128_000, contextWindow: 1_000_000 },
-    { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', maxTokens: 64_000 },
+    {
+      id: 'claude-opus-5-5',
+      name: 'Claude Opus 5.5',
+      maxTokens: 128_000,
+      contextWindow: 1_000_000,
+    },
+    {
+      id: 'claude-opus-5',
+      name: 'Claude Opus 5',
+      maxTokens: 128_000,
+      contextWindow: 1_000_000,
+    },
+    {
+      id: 'claude-sonnet-5',
+      name: 'Claude Sonnet 5',
+      maxTokens: 128_000,
+      contextWindow: 1_000_000,
+    },
+    {
+      id: 'claude-fable-5',
+      name: 'Claude Fable 5',
+      maxTokens: 128_000,
+      contextWindow: 1_000_000,
+    },
+    {
+      id: 'claude-haiku-4-5-20251001',
+      name: 'Claude Haiku 4.5',
+      maxTokens: 64_000,
+    },
   ],
   grok: [
     { id: 'grok-4', name: 'Grok 4' },
@@ -337,26 +425,67 @@ const DEFAULT_MODELS: Record<ProviderId, ModelEntry[]> = {
   // 2026-10-01: Copilot now carries the GPT-6 family, which — like the
   // gpt-5.5/5.6 families — only speaks /responses.
   copilot: [
-    { id: 'gpt-6-sol', name: 'GPT-6 Sol', inputModalities: ['text', 'image'], wire: 'responses' },
-    { id: 'gpt-6-luna', name: 'GPT-6 Luna', inputModalities: ['text', 'image'], wire: 'responses' },
-    { id: 'gpt-5.5', name: 'GPT-5.5', inputModalities: ['text', 'image'], wire: 'responses' },
-    { id: 'claude-haiku-4.5', name: 'Claude Haiku 4.5', inputModalities: ['text', 'image'] },
+    {
+      id: 'gpt-6-sol',
+      name: 'GPT-6 Sol',
+      inputModalities: ['text', 'image'],
+      wire: 'responses',
+    },
+    {
+      id: 'gpt-6-luna',
+      name: 'GPT-6 Luna',
+      inputModalities: ['text', 'image'],
+      wire: 'responses',
+    },
+    {
+      id: 'gpt-5.5',
+      name: 'GPT-5.5',
+      inputModalities: ['text', 'image'],
+      wire: 'responses',
+    },
+    {
+      id: 'claude-haiku-4.5',
+      name: 'Claude Haiku 4.5',
+      inputModalities: ['text', 'image'],
+    },
   ],
   // Static fallback only; the authenticated fetchAvailableModels response wins.
   antigravity: [
-    { id: 'gemini-3-flash', name: 'Gemini 3 Flash', inputModalities: ['text', 'image'] },
-    { id: 'gemini-3.1-pro-high', name: 'Gemini 3.1 Pro High', inputModalities: ['text', 'image'] },
-    { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', inputModalities: ['text', 'image'] },
-    { id: 'claude-opus-4-6-thinking', name: 'Claude Opus 4.6 Thinking', inputModalities: ['text', 'image'] },
+    {
+      id: 'gemini-3-flash',
+      name: 'Gemini 3 Flash',
+      inputModalities: ['text', 'image'],
+    },
+    {
+      id: 'gemini-3.1-pro-high',
+      name: 'Gemini 3.1 Pro High',
+      inputModalities: ['text', 'image'],
+    },
+    {
+      id: 'claude-sonnet-4-6',
+      name: 'Claude Sonnet 4.6',
+      inputModalities: ['text', 'image'],
+    },
+    {
+      id: 'claude-opus-4-6-thinking',
+      name: 'Claude Opus 4.6 Thinking',
+      inputModalities: ['text', 'image'],
+    },
   ],
 }
 
 /** Validate and detach the model catalog for every provider. */
-function resolveCatalog(models: Config['models']): Record<ProviderId, ModelEntry[]> {  const resolve = (provider: ProviderId): ModelEntry[] => {
+function resolveCatalog(
+  models: Config['models'],
+): Record<ProviderId, ModelEntry[]> {
+  const resolve = (provider: ProviderId): ModelEntry[] => {
     // Schemastery injects `[]` for omitted array fields, so an empty list
     // cannot be told apart from an absent one: both mean the built-ins.
     const configured = models?.[provider]
-    const entries = configured !== undefined && configured.length > 0 ? configured : DEFAULT_MODELS[provider]
+    const entries =
+      configured !== undefined && configured.length > 0
+        ? configured
+        : DEFAULT_MODELS[provider]
     return validateModels(entries, `${name}: models.${provider}`)
   }
   return {
@@ -369,34 +498,57 @@ function resolveCatalog(models: Config['models']): Record<ProviderId, ModelEntry
 }
 
 /** The display account of a stored session, for the status endpoint. */
-function accountOf(provider: ProviderId, session: StoredSession | undefined): string | undefined {
+function accountOf(
+  provider: ProviderId,
+  session: StoredSession | undefined,
+): string | undefined {
   if (session === undefined) return undefined
   switch (provider) {
     case 'codex': {
       const codex = session as CodexSession
       // Sessions stored before identity claims were persisted still carry the
       // id token: decode the email on the fly instead of forcing a re-login.
-      return codex.emailAddress ?? codexProfileClaims(codex.idToken).emailAddress ?? codex.accountId
+      return (
+        codex.emailAddress ??
+        codexProfileClaims(codex.idToken).emailAddress ??
+        codex.accountId
+      )
     }
-    case 'claude': return (session as ClaudeSession).emailAddress
-    case 'grok': return (session as GrokSession).account
-    case 'copilot': return (session as CopilotSession).account
-    case 'antigravity': return (session as AntigravitySession).account
+    case 'claude':
+      return (session as ClaudeSession).emailAddress
+    case 'grok':
+      return (session as GrokSession).account
+    case 'copilot':
+      return (session as CopilotSession).account
+    case 'antigravity':
+      return (session as AntigravitySession).account
   }
 }
 
 /** The plan name a stored session carries, when the provider told us. */
-function planOf(provider: ProviderId, session: StoredSession): string | undefined {
+function planOf(
+  provider: ProviderId,
+  session: StoredSession,
+): string | undefined {
   switch (provider) {
-    case 'codex': return (session as CodexSession).planType
-    case 'claude': return (session as ClaudeSession).subscriptionType
-    case 'grok': return undefined
-    case 'copilot': return undefined
+    case 'codex':
+      return (session as CodexSession).planType
+    case 'claude':
+      return (session as ClaudeSession).subscriptionType
+    case 'grok':
+      return undefined
+    case 'copilot':
+      return undefined
   }
 }
 
 /** Per-provider per-account usage lookup; providers without a usage endpoint are absent. */
-type UsageFetchers = Partial<Record<ProviderId, (account: string, signal: AbortSignal) => Promise<ProviderUsage>>>
+type UsageFetchers = Partial<
+  Record<
+    ProviderId,
+    (account: string, signal: AbortSignal) => Promise<ProviderUsage>
+  >
+>
 
 /**
  * Auth operations behind the `/subscriptions-auth` RPC channel: start/complete
@@ -452,7 +604,10 @@ export class SubscriptionsAuthController implements AuthController {
     /** Device-flow attempts (copilot); polled in the background like the loopback flows. */
     private readonly deviceFlows: DeviceFlowManager,
     /** Announces an auth-state change so catalog readers re-query (fires `llm/adapters-updated`). */
-    private readonly onAuthChanged: (provider: ProviderId, account?: string) => void,
+    private readonly onAuthChanged: (
+      provider: ProviderId,
+      account?: string,
+    ) => void,
     /** Lazy attachment-store lookup for the `image` endpoint. */
     private readonly resolveAttachments: () => AttachmentStore | undefined,
     /** Usage lookups for providers that expose a usage endpoint. */
@@ -462,7 +617,8 @@ export class SubscriptionsAuthController implements AuthController {
      * tests can drive both login paths without a real credential store; the
      * plugin itself always uses the default.
      */
-    private readonly readClaudeCreds: () => ClaudeSession | undefined = readClaudeCodeCredentials,
+    private readonly readClaudeCreds: () =>
+      ClaudeSession | undefined = readClaudeCodeCredentials,
     /**
      * The pool's usage cache, when the pool is enabled. Routing `usage`
      * through it (instead of the raw fetcher) means the Settings page shares
@@ -474,7 +630,9 @@ export class SubscriptionsAuthController implements AuthController {
     /** Antigravity OAuth/runtime configuration. */
     private readonly antigravityConfig: Config['antigravity'] = {},
     /** The CLI version each route presents, shown beside the provider in Settings. */
-    private readonly clientVersions: Partial<Record<ProviderId, () => Promise<CliVersion | undefined>>> = {},
+    private readonly clientVersions: Partial<
+      Record<ProviderId, () => Promise<CliVersion | undefined>>
+    > = {},
     private readonly resetRedemption?: ResetRedemption,
     /**
      * Runs on a manual (forced) usage refresh of one account. The plugin
@@ -482,20 +640,41 @@ export class SubscriptionsAuthController implements AuthController {
      * button is the user's "retry now" — a stale cooldown left by a transient
      * failure must not outlive an explicit re-check.
      */
-    private readonly onUsageForced?: (provider: ProviderId, account: string) => void,
+    private readonly onUsageForced?: (
+      provider: ProviderId,
+      account: string,
+    ) => void,
   ) {}
 
   prepareReset(account: string, signal: AbortSignal) {
-    if (!this.resetRedemption) throw new BadRequest('Reset redemption unavailable')
-    return this.resetRedemption.prepare(account, AbortSignal.any([signal, AbortSignal.timeout(20_000)]))
+    if (!this.resetRedemption)
+      throw new BadRequest('Reset redemption unavailable')
+    return this.resetRedemption.prepare(
+      account,
+      AbortSignal.any([signal, AbortSignal.timeout(20_000)]),
+    )
   }
 
-  async consumeReset(account: string, ticket: string, signal: AbortSignal): Promise<void> {
-    if (!this.resetRedemption) throw new BadRequest('Reset redemption unavailable')
-    await this.resetRedemption.redeem(account, ticket, AbortSignal.any([signal, AbortSignal.timeout(20_000)]))
+  async consumeReset(
+    account: string,
+    ticket: string,
+    signal: AbortSignal,
+  ): Promise<void> {
+    if (!this.resetRedemption)
+      throw new BadRequest('Reset redemption unavailable')
+    await this.resetRedemption.redeem(
+      account,
+      ticket,
+      AbortSignal.any([signal, AbortSignal.timeout(20_000)]),
+    )
   }
 
-  usage(provider: ProviderId, account: string, signal: AbortSignal, force = false): Promise<ProviderUsage> {
+  usage(
+    provider: ProviderId,
+    account: string,
+    signal: AbortSignal,
+    force = false,
+  ): Promise<ProviderUsage> {
     if (force) this.onUsageForced?.(provider, account)
     const fetcher = this.usageFetchers[provider]
     if (fetcher === undefined) return Promise.resolve({ supported: false })
@@ -503,16 +682,27 @@ export class SubscriptionsAuthController implements AuthController {
     return this.poolUsage.snapshotFor(provider, account, force)
   }
 
-  async readImage(ref: ImageAttachmentRef, signal: AbortSignal): Promise<ImageBytesResult> {
+  async readImage(
+    ref: ImageAttachmentRef,
+    signal: AbortSignal,
+  ): Promise<ImageBytesResult> {
     const attachments = this.resolveAttachments()
     if (attachments === undefined) {
-      throw new Error('no attachment service is mounted; generated-image bytes are unavailable')
+      throw new Error(
+        'no attachment service is mounted; generated-image bytes are unavailable',
+      )
     }
     const stored = await attachments.readImage(ref, signal)
-    return { mediaType: stored.ref.mediaType, dataBase64: Buffer.from(stored.data).toString('base64') }
+    return {
+      mediaType: stored.ref.mediaType,
+      dataBase64: Buffer.from(stored.data).toString('base64'),
+    }
   }
 
-  async readVideo(name: string, signal: AbortSignal): Promise<VideoBytesResult> {
+  async readVideo(
+    name: string,
+    signal: AbortSignal,
+  ): Promise<VideoBytesResult> {
     // The RPC layer validated `name` down to a bare file name, so this join
     // cannot escape the videos directory.
     const data = await readFile(join(videosDirectory(), name), { signal })
@@ -525,7 +715,10 @@ export class SubscriptionsAuthController implements AuthController {
     const detail = this.lastError.get(provider)
     const clientVersion = await this.clientVersions[provider]?.()
     return {
-      busy: this.flows.isBusy(provider) || this.deviceFlows.isBusy(provider) || this.finalizing.has(provider),
+      busy:
+        this.flows.isBusy(provider) ||
+        this.deviceFlows.isBusy(provider) ||
+        this.finalizing.has(provider),
       accounts: entries.map(({ key, session }, index) => {
         const account = accountOf(provider, session)
         const plan = planOf(provider, session)
@@ -533,16 +726,19 @@ export class SubscriptionsAuthController implements AuthController {
           key,
           isDefault: index === 0,
           expiresAt: session.expiresAt,
-          ...account === undefined ? {} : { account },
-          ...plan === undefined ? {} : { plan },
+          ...(account === undefined ? {} : { account }),
+          ...(plan === undefined ? {} : { plan }),
         }
       }),
-      ...detail === undefined ? {} : { detail },
-      ...clientVersion === undefined ? {} : { clientVersion },
+      ...(detail === undefined ? {} : { detail }),
+      ...(clientVersion === undefined ? {} : { clientVersion }),
     }
   }
 
-  async login(provider: ProviderId, method?: LoginMethod): Promise<{ authorizeUrl: string; userCode?: string }> {
+  async login(
+    provider: ProviderId,
+    method?: LoginMethod,
+  ): Promise<{ authorizeUrl: string; userCode?: string }> {
     if (provider === 'claude' && method !== 'oauth') {
       const imported = this.readClaudeCreds()
       if (imported !== undefined) {
@@ -562,37 +758,57 @@ export class SubscriptionsAuthController implements AuthController {
         return { authorizeUrl: '' }
       }
       if (method === 'keychain') {
-        throw new Error('no Claude Code credentials found; run `claude` and log in first, or choose the browser flow')
+        throw new Error(
+          'no Claude Code credentials found; run `claude` and log in first, or choose the browser flow',
+        )
       }
       // No Claude Code CLI / credential store — fall back to interactive OAuth.
       const attempt = await this.flows.start('claude', claudeFlow)
-      this.completions.set('claude', this.complete('claude', attempt, this.claim('claude')))
+      this.completions.set(
+        'claude',
+        this.complete('claude', attempt, this.claim('claude')),
+      )
       return { authorizeUrl: attempt.authorizeUrl }
     }
     if (provider === 'claude') {
       // Explicit browser flow: skip the credential import entirely.
       const attempt = await this.flows.start('claude', claudeFlow)
-      this.completions.set('claude', this.complete('claude', attempt, this.claim('claude')))
+      this.completions.set(
+        'claude',
+        this.complete('claude', attempt, this.claim('claude')),
+      )
       return { authorizeUrl: attempt.authorizeUrl }
     }
     if (provider === 'copilot') {
       // Device flow: no redirect URI — the UI shows the user code while the
       // background task polls GitHub for the token.
-      const attempt = await this.deviceFlows.start(provider, copilotDeviceFlow())
+      const attempt = await this.deviceFlows.start(
+        provider,
+        copilotDeviceFlow(),
+      )
       this.beginFinalizing(provider)
       void this.completeDevice(provider, attempt)
-      return { authorizeUrl: attempt.verificationUrl, userCode: attempt.userCode }
+      return {
+        authorizeUrl: attempt.verificationUrl,
+        userCode: attempt.userCode,
+      }
     }
-    const spec = provider === 'grok'
-      ? await grokFlow()
-      : provider === 'antigravity'
-        ? antigravityFlow(resolveAntigravityOAuthConfig(this.antigravityConfig))
-        : codexFlow
+    const spec =
+      provider === 'grok'
+        ? await grokFlow()
+        : provider === 'antigravity'
+          ? antigravityFlow(
+              resolveAntigravityOAuthConfig(this.antigravityConfig),
+            )
+          : codexFlow
     const attempt = await this.flows.start(provider, spec)
     // Claimed only once the attempt exists: a rejected `start()` (one attempt
     // per provider) must not supersede the attempt already running.
     this.beginFinalizing(provider)
-    this.completions.set(provider, this.complete(provider, attempt, this.claim(provider)))
+    this.completions.set(
+      provider,
+      this.complete(provider, attempt, this.claim(provider)),
+    )
     return { authorizeUrl: attempt.authorizeUrl }
   }
 
@@ -613,7 +829,11 @@ export class SubscriptionsAuthController implements AuthController {
    * flow manager as soon as its code arrives — so the result is stored only
    * while `claim` still owns the provider's session.
    */
-  private async complete(provider: ProviderId, attempt: OAuthAttempt, claim: number): Promise<void> {
+  private async complete(
+    provider: ProviderId,
+    attempt: OAuthAttempt,
+    claim: number,
+  ): Promise<void> {
     try {
       const code = await attempt.waitCode()
       const session = await this.exchange(provider, code, attempt)
@@ -645,7 +865,10 @@ export class SubscriptionsAuthController implements AuthController {
   }
 
   /** Drive one device-flow attempt to a stored session (the copilot path of {@link complete}). */
-  private async completeDevice(provider: ProviderId, attempt: DeviceAttempt): Promise<void> {
+  private async completeDevice(
+    provider: ProviderId,
+    attempt: DeviceAttempt,
+  ): Promise<void> {
     try {
       const githubToken = await attempt.waitToken()
       const session = await completeCopilotLogin(githubToken)
@@ -663,17 +886,39 @@ export class SubscriptionsAuthController implements AuthController {
   }
 
   /** Token exchange for one OAuth code; `protected` so tests can stand in for the provider endpoint. */
-  protected exchange(provider: ProviderId, code: string, attempt: OAuthAttempt): Promise<StoredSession> {
+  protected exchange(
+    provider: ProviderId,
+    code: string,
+    attempt: OAuthAttempt,
+  ): Promise<StoredSession> {
     switch (provider) {
       case 'codex':
-        return exchangeCodexCode(code, attempt.pkce.verifier, attempt.redirectUri)
+        return exchangeCodexCode(
+          code,
+          attempt.pkce.verifier,
+          attempt.redirectUri,
+        )
       case 'claude':
-        return exchangeClaudeCode(code, attempt.pkce.verifier, attempt.redirectUri, attempt.state)
+        return exchangeClaudeCode(
+          code,
+          attempt.pkce.verifier,
+          attempt.redirectUri,
+          attempt.state,
+        )
       case 'grok':
-        return exchangeGrokCode(code, attempt.pkce.verifier, attempt.redirectUri, attempt.pkce.challenge)
+        return exchangeGrokCode(
+          code,
+          attempt.pkce.verifier,
+          attempt.redirectUri,
+          attempt.pkce.challenge,
+        )
       case 'copilot':
         // Device flow: exchange happens in completeDevice, never here.
-        return Promise.reject(new Error('copilot uses the device flow; no authorization code to exchange'))
+        return Promise.reject(
+          new Error(
+            'copilot uses the device flow; no authorization code to exchange',
+          ),
+        )
       case 'antigravity':
         return exchangeAntigravityCode(
           code,
@@ -688,7 +933,11 @@ export class SubscriptionsAuthController implements AuthController {
   private persist(provider: ProviderId, session: StoredSession): Promise<void> {
     // Keyed by the account's stable identity: re-logging the same account
     // updates in place, a different account appends.
-    return saveAccountSession(provider, accountKeyOf(provider, session), session as never)
+    return saveAccountSession(
+      provider,
+      accountKeyOf(provider, session),
+      session as never,
+    )
   }
 
   /**
@@ -705,7 +954,9 @@ export class SubscriptionsAuthController implements AuthController {
   manual(provider: ProviderId, input: string): Promise<void> {
     const attempt = this.flows.pending(provider)
     if (attempt === undefined) {
-      return Promise.reject(new Error(`no ${provider} login attempt is in progress`))
+      return Promise.reject(
+        new Error(`no ${provider} login attempt is in progress`),
+      )
     }
     attempt.manual(input)
     return Promise.resolve()
@@ -756,8 +1007,12 @@ export function presentedVersion(
     let timer: ReturnType<typeof setTimeout> | undefined
     await Promise.race([
       cache.resolve(),
-      new Promise<void>(resolve => { timer = setTimeout(resolve, waitMs) }),
-    ]).finally(() => { clearTimeout(timer) })
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, waitMs)
+      }),
+    ]).finally(() => {
+      clearTimeout(timer)
+    })
     return cache.current()
   }
 }
@@ -767,20 +1022,31 @@ export function apply(ctx: Context, config: Config): void {
   // refresh) must survive links where one TCP handshake exceeds Node's 250ms
   // Happy Eyeballs attempt budget; see MIN_CONNECT_ATTEMPT_TIMEOUT_MS.
   const previousAttemptTimeout = ensureConnectAttemptTimeout()
-  ctx.effect(() => () => { restoreConnectAttemptTimeout(previousAttemptTimeout) }, 'dsh-subscriptions: connect attempt timeout')
+  ctx.effect(
+    () => () => {
+      restoreConnectAttemptTimeout(previousAttemptTimeout)
+    },
+    'dsh-subscriptions: connect attempt timeout',
+  )
   const preferences = new ProviderSettingsStore()
   const cursorModelSettings = new CursorModelSettingsStore()
-  const ollamaSettings = new OllamaSettingsStore(undefined, message => { ctx.logger.warn(`${name}: ${message}`) })
+  const ollamaSettings = new OllamaSettingsStore(undefined, (message) => {
+    ctx.logger.warn(`${name}: ${message}`)
+  })
   const codexVersion = new CodexClientVersionCache()
   const claudeVersion = new ClaudeCliVersionCache()
   const providers = [...new Set(config.providers ?? [...PROVIDER_IDS])]
-  const streamIdleTimeoutMs = config.streamIdleTimeoutMs ?? DEFAULT_STREAM_IDLE_TIMEOUT_MS
+  const streamIdleTimeoutMs =
+    config.streamIdleTimeoutMs ?? DEFAULT_STREAM_IDLE_TIMEOUT_MS
   if (!Number.isFinite(streamIdleTimeoutMs) || streamIdleTimeoutMs <= 0) {
-    throw new Error(`${name}: streamIdleTimeoutMs must be a positive finite number`)
+    throw new Error(
+      `${name}: streamIdleTimeoutMs must be a positive finite number`,
+    )
   }
   // The schema rejects anything else in the settings UI, but `apply` is also
   // called with a plain object (tests, `--patch` overlays), so check here too.
-  const claudePromptCacheTtl = config.claudePromptCacheTtl ?? DEFAULT_PROMPT_CACHE_TTL
+  const claudePromptCacheTtl =
+    config.claudePromptCacheTtl ?? DEFAULT_PROMPT_CACHE_TTL
   if (claudePromptCacheTtl !== '5m' && claudePromptCacheTtl !== '1h') {
     throw new Error(`${name}: claudePromptCacheTtl must be '5m' or '1h'`)
   }
@@ -790,7 +1056,9 @@ export function apply(ctx: Context, config: Config): void {
   // discovery entirely (schemastery injects [] for omitted arrays, so only a
   // non-empty list counts as configured).
   const overridden = new Set<ProviderId>(
-    PROVIDER_IDS.filter(provider => (config.models?.[provider]?.length ?? 0) > 0),
+    PROVIDER_IDS.filter(
+      (provider) => (config.models?.[provider]?.length ?? 0) > 0,
+    ),
   )
   const flows = new OAuthFlowManager()
   const deviceFlows = new DeviceFlowManager()
@@ -810,21 +1078,32 @@ export function apply(ctx: Context, config: Config): void {
   // function: a save on the card must reach chat, usage, discovery, and web
   // without a restart.
   const ollamaBaseURL = (): string =>
-    ollamaSettings.baseURL() ?? config.ollama?.baseURL ?? DEFAULT_OLLAMA_BASE_URL
+    ollamaSettings.baseURL() ??
+    config.ollama?.baseURL ??
+    DEFAULT_OLLAMA_BASE_URL
   const ollamaApiKeyRef = (): string =>
-    ollamaSettings.apiKeyRef() ?? config.ollama?.apiKeyRef ?? DEFAULT_OLLAMA_API_KEY_REF
+    ollamaSettings.apiKeyRef() ??
+    config.ollama?.apiKeyRef ??
+    DEFAULT_OLLAMA_API_KEY_REF
   const ollamaWebEnabled = (): boolean =>
     ollamaSettings.web() ?? config.ollama?.web ?? false
-  const ollamaModelsOverridden = (): boolean => (config.ollama?.models?.length ?? 0) > 0
+  const ollamaModelsOverridden = (): boolean =>
+    (config.ollama?.models?.length ?? 0) > 0
   const ollamaCatalog = (): readonly OllamaModelSetting[] => {
     const override = config.ollama?.models
     if (override !== undefined && override.length > 0) {
-      return override.map(entry => ({
+      return override.map((entry) => ({
         id: entry.id,
-        ...entry.name === undefined ? {} : { name: entry.name },
-        ...entry.contextWindow === undefined ? {} : { contextWindow: entry.contextWindow },
-        ...entry.maxTokens === undefined ? {} : { maxTokens: entry.maxTokens },
-        ...entry.inputModalities?.includes('image') === true ? { vision: true } : {},
+        ...(entry.name === undefined ? {} : { name: entry.name }),
+        ...(entry.contextWindow === undefined
+          ? {}
+          : { contextWindow: entry.contextWindow }),
+        ...(entry.maxTokens === undefined
+          ? {}
+          : { maxTokens: entry.maxTokens }),
+        ...(entry.inputModalities?.includes('image') === true
+          ? { vision: true }
+          : {}),
       }))
     }
     // No stored override and no config override means no catalog at all: the
@@ -839,7 +1118,10 @@ export function apply(ctx: Context, config: Config): void {
   // The constructed adapters, for the pool route to fail over between.
   const adapters = new Map<ProviderId, AccountAwareAdapter>()
   // Per-provider account token managers; also the pool's account lists.
-  const accountTokens = new Map<ProviderId, AccountTokenManager<StoredSession>>()
+  const accountTokens = new Map<
+    ProviderId,
+    AccountTokenManager<StoredSession>
+  >()
   // Pool state, assigned when the pool route registers below; read here so an
   // auth change immediately recovers the account's cooling members and
   // refreshes its quota snapshot.
@@ -847,11 +1129,14 @@ export function apply(ctx: Context, config: Config): void {
   let poolUsage: PoolUsageTracker | undefined
   let poolAdapter: PoolAdapter | undefined
   const imagePool = new ImageAccountPool({
-    enabled: config.pool?.enabled !== false && (config.pool?.autoAccounts ?? config.pool?.autoFamilies ?? true),
+    enabled:
+      config.pool?.enabled !== false &&
+      (config.pool?.autoAccounts ?? config.pool?.autoFamilies ?? true),
     onWarn,
   })
   const authChanged = (provider: ProviderId, account?: string): void => {
-    if (provider === 'codex' || provider === 'grok') imagePool.clear(provider, account)
+    if (provider === 'codex' || provider === 'grok')
+      imagePool.clear(provider, account)
     // Login, logout, and credential death all pass through here; a copilot
     // auth transition also drops the adapter's captured reasoning replay
     // state (isolation is already account-scoped — this is memory hygiene).
@@ -886,10 +1171,22 @@ export function apply(ctx: Context, config: Config): void {
   // reasoning) never survives an account switch in memory.
   let copilotAdapter: CopilotAdapter | undefined
   const memberAdapters = new Map<ProviderId, AccountAwareAdapter>()
-  const register = (provider: ProviderId, adapter: AccountAwareAdapter): AdapterRegistrationHandle => {
+  const register = (
+    provider: ProviderId,
+    adapter: AccountAwareAdapter,
+  ): AdapterRegistrationHandle => {
     const route = new AccountPreferencesAdapter({
-      provider, adapter, settings: preferences, pool: () => poolAdapter,
-      accounts: async () => (await accountTokens.get(provider)?.list() ?? []).map(({ key, session }) => ({ key, label: accountOf(provider, session) ?? key })),
+      provider,
+      adapter,
+      settings: preferences,
+      pool: () => poolAdapter,
+      accounts: async () =>
+        ((await accountTokens.get(provider)?.list()) ?? []).map(
+          ({ key, session }) => ({
+            key,
+            label: accountOf(provider, session) ?? key,
+          }),
+        ),
     })
     memberAdapters.set(provider, route.poolMember())
     return ctx.llm.registerAdapter([provider], route)
@@ -905,7 +1202,9 @@ export function apply(ctx: Context, config: Config): void {
             refresh: refreshCodex,
             isPermanent: isCodexPermanentRefreshError,
           }),
-          onAccountRemoved: account => { authChanged('codex', account) },
+          onAccountRemoved: (account) => {
+            authChanged('codex', account)
+          },
         })
         codexTokens = tokens
         accountTokens.set('codex', tokens as AccountTokenManager<StoredSession>)
@@ -913,7 +1212,11 @@ export function apply(ctx: Context, config: Config): void {
           const session = await tokens.session(account)
           const usage = await fetchCodexUsage(session, hostFetch, signal)
           try {
-            const resetCredits = await fetchCodexResetCredits(session, hostFetch, signal)
+            const resetCredits = await fetchCodexResetCredits(
+              session,
+              hostFetch,
+              signal,
+            )
             return { ...usage, resetCredits }
           } catch {
             // Reset credits are an optional private endpoint, so a failure here
@@ -921,12 +1224,16 @@ export function apply(ctx: Context, config: Config): void {
             // message is not carried into the result: this string is rendered
             // in Settings, and a private endpoint echoing a token would put it
             // on screen. The consume path takes the same posture.
-            return { ...usage, resetCreditsError: 'the usage-limit reset lookup did not answer' }
+            return {
+              ...usage,
+              resetCreditsError: 'the usage-limit reset lookup did not answer',
+            }
           }
         }
-        let adapter!: CodexAdapter
-        adapter = new CodexAdapter({
-          ...config.codexClientVersion === undefined ? {} : { clientVersion: config.codexClientVersion },
+        const adapter = new CodexAdapter({
+          ...(config.codexClientVersion === undefined
+            ? {}
+            : { clientVersion: config.codexClientVersion }),
           resolveClientVersion: () => codexVersion.resolve(),
           models: catalog.codex,
           streamIdleTimeoutMs,
@@ -938,14 +1245,18 @@ export function apply(ctx: Context, config: Config): void {
           // Durable catalog: capability metadata (reasoning efforts) survives
           // restarts, so a resumed session's selected effort keeps resolving.
           catalogStore: catalogStore('codex'),
-          accountCatalogStore: account => accountCatalogStore('codex', account),
+          accountCatalogStore: (account) =>
+            accountCatalogStore('codex', account),
           defaultEffortOf: (model: string) => defaultEffortOf('codex', model),
-          contextWindowOf: model => preferences.contextWindow(model),
+          contextWindowOf: (model) => preferences.contextWindow(model),
           pool: () => poolAdapter,
-          speedFor: (sessionId: string | undefined, model: string): boolean | Promise<boolean> =>
-            sessionId !== undefined
-            && speedBySession.get(sessionId) === 'fast'
-            && adapter.supportsFastTier(model),
+          speedFor: (
+            sessionId: string | undefined,
+            model: string,
+          ): boolean | Promise<boolean> =>
+            sessionId !== undefined &&
+            speedBySession.get(sessionId) === 'fast' &&
+            adapter.supportsFastTier(model),
         })
         codexAdapter = adapter
         adapters.set('codex', adapter)
@@ -961,16 +1272,28 @@ export function apply(ctx: Context, config: Config): void {
             // Only keychain-imported accounts sync with Claude Code's own
             // credential store; OAuth accounts refresh standalone so several
             // accounts never fight over the Keychain entry.
-            refresh: session =>
-              session.keychainBound === true ? refreshClaudeSynced(session, refreshClaude) : refreshClaude(session),
+            refresh: (session) =>
+              session.keychainBound === true
+                ? refreshClaudeSynced(session, refreshClaude)
+                : refreshClaude(session),
             isPermanent: isClaudePermanentRefreshError,
           }),
-          onAccountRemoved: account => { authChanged('claude', account) },
+          onAccountRemoved: (account) => {
+            authChanged('claude', account)
+          },
         })
         claudeTokens = tokens
-        accountTokens.set('claude', tokens as AccountTokenManager<StoredSession>)
+        accountTokens.set(
+          'claude',
+          tokens as AccountTokenManager<StoredSession>,
+        )
         usageFetchers.claude = async (account, signal) =>
-          fetchClaudeUsage(await tokens.session(account), hostFetch, signal, () => claudeVersion.resolve())
+          fetchClaudeUsage(
+            await tokens.session(account),
+            hostFetch,
+            signal,
+            () => claudeVersion.resolve(),
+          )
         const adapter = new ClaudeAdapter({
           models: catalog.claude,
           streamIdleTimeoutMs,
@@ -981,7 +1304,8 @@ export function apply(ctx: Context, config: Config): void {
           resolveAttachments,
           catalogStore: catalogStore('claude'),
           defaultEffortOf: (model: string) => defaultEffortOf('claude', model),
-          contextWindowOf: model => preferences.contextWindow(model, 'claude'),
+          contextWindowOf: (model) =>
+            preferences.contextWindow(model, 'claude'),
           resolveCliVersion: () => claudeVersion.resolve(),
           promptCacheTtl: claudePromptCacheTtl,
           // The Manage dialog's per-route override, re-read from the settings
@@ -1003,7 +1327,9 @@ export function apply(ctx: Context, config: Config): void {
             refresh: refreshGrok,
             isPermanent: isGrokPermanentRefreshError,
           }),
-          onAccountRemoved: account => { authChanged('grok', account) },
+          onAccountRemoved: (account) => {
+            authChanged('grok', account)
+          },
         })
         grokTokens = tokens
         accountTokens.set('grok', tokens as AccountTokenManager<StoredSession>)
@@ -1036,9 +1362,14 @@ export function apply(ctx: Context, config: Config): void {
             refresh: refreshCopilot,
             isPermanent: isCopilotPermanentRefreshError,
           }),
-          onAccountRemoved: account => { authChanged('copilot', account) },
+          onAccountRemoved: (account) => {
+            authChanged('copilot', account)
+          },
         })
-        accountTokens.set('copilot', tokens as AccountTokenManager<StoredSession>)
+        accountTokens.set(
+          'copilot',
+          tokens as AccountTokenManager<StoredSession>,
+        )
         copilotAdapter = new CopilotAdapter({
           models: catalog.copilot,
           streamIdleTimeoutMs,
@@ -1063,26 +1394,41 @@ export function apply(ctx: Context, config: Config): void {
           displayName: 'Google Antigravity',
           makeOptions: () => ({
             preemptMs: ANTIGRAVITY_PREEMPT_MS,
-            refresh: session => refreshAntigravity(session, resolveAntigravityOAuthConfig(config.antigravity)),
+            refresh: (session) =>
+              refreshAntigravity(
+                session,
+                resolveAntigravityOAuthConfig(config.antigravity),
+              ),
             isPermanent: isAntigravityPermanentRefreshError,
           }),
-          onAccountRemoved: account => { authChanged('antigravity', account) },
+          onAccountRemoved: (account) => {
+            authChanged('antigravity', account)
+          },
         })
-        accountTokens.set('antigravity', tokens as AccountTokenManager<StoredSession>)
-        usageFetchers.antigravity = async (account, signal) => fetchAntigravityUsage(
-          await tokens.session(account), config.antigravity, hostFetch, signal,
+        accountTokens.set(
+          'antigravity',
+          tokens as AccountTokenManager<StoredSession>,
         )
+        usageFetchers.antigravity = async (account, signal) =>
+          fetchAntigravityUsage(
+            await tokens.session(account),
+            config.antigravity,
+            hostFetch,
+            signal,
+          )
         const adapter = new AntigravityAdapter({
           models: catalog.antigravity,
           streamIdleTimeoutMs,
           rateLimit,
           tokens,
           discovery: !overridden.has('antigravity'),
-          ...config.antigravity === undefined ? {} : { runtime: config.antigravity },
+          ...(config.antigravity === undefined
+            ? {}
+            : { runtime: config.antigravity }),
           onWarn,
           resolveAttachments,
           catalogStore: catalogStore('antigravity'),
-          defaultEffortOf: model => defaultEffortOf('antigravity', model),
+          defaultEffortOf: (model) => defaultEffortOf('antigravity', model),
           pool: () => poolAdapter,
         })
         adapters.set('antigravity', adapter)
@@ -1097,42 +1443,60 @@ export function apply(ctx: Context, config: Config): void {
   // Configured tiers are extra picker rows. Built whenever enabled; a
   // provider with fewer than two accounts simply has nothing to pool.
   const poolConfig = config.pool
-  const autoAccounts = poolConfig?.autoAccounts ?? poolConfig?.autoFamilies ?? true
+  const autoAccounts =
+    poolConfig?.autoAccounts ?? poolConfig?.autoFamilies ?? true
   if (poolConfig?.enabled !== false && adapters.size >= 1) {
     // Every poll gets a hard timeout: a cold usage cache AWAITS the first
     // fetch during member selection, and a hanging usage endpoint must
     // degrade the strategy (zero urgency), not stall the user's request.
     // Copilot has no usage endpoint, so its accounts resolve no fetcher and
     // score zero urgency — the natural last resort.
-    const fetcherFor = (provider: ProviderId, account: string): (() => Promise<ProviderUsage>) | undefined => {
+    const fetcherFor = (
+      provider: ProviderId,
+      account: string,
+    ): (() => Promise<ProviderUsage>) | undefined => {
       switch (provider) {
         case 'codex': {
           // Settings shares this cache; keep optional reset credits and errors.
           const fetcher = usageFetchers.codex
-          return fetcher === undefined ? undefined : () =>
-            fetcher(account, AbortSignal.timeout(POOL_USAGE_TIMEOUT_MS))
+          return fetcher === undefined
+            ? undefined
+            : () => fetcher(account, AbortSignal.timeout(POOL_USAGE_TIMEOUT_MS))
         }
         case 'claude': {
           const tokens = claudeTokens
-          return tokens === undefined ? undefined : async () =>
-            fetchClaudeUsage(
-              await tokens.session(account),
-              hostFetch,
-              AbortSignal.timeout(POOL_USAGE_TIMEOUT_MS),
-              () => claudeVersion.resolve(),
-            )
+          return tokens === undefined
+            ? undefined
+            : async () =>
+                fetchClaudeUsage(
+                  await tokens.session(account),
+                  hostFetch,
+                  AbortSignal.timeout(POOL_USAGE_TIMEOUT_MS),
+                  () => claudeVersion.resolve(),
+                )
         }
         case 'grok': {
           const tokens = grokTokens
-          return tokens === undefined ? undefined : async () =>
-            fetchGrokUsage(await tokens.session(account), hostFetch, AbortSignal.timeout(POOL_USAGE_TIMEOUT_MS))
+          return tokens === undefined
+            ? undefined
+            : async () =>
+                fetchGrokUsage(
+                  await tokens.session(account),
+                  hostFetch,
+                  AbortSignal.timeout(POOL_USAGE_TIMEOUT_MS),
+                )
         }
         case 'antigravity': {
           const tokens = accountTokens.get('antigravity')
-          return tokens === undefined ? undefined : async () => fetchAntigravityUsage(
-            await tokens.session(account) as AntigravitySession, config.antigravity, hostFetch,
-            AbortSignal.timeout(POOL_USAGE_TIMEOUT_MS),
-          )
+          return tokens === undefined
+            ? undefined
+            : async () =>
+                fetchAntigravityUsage(
+                  (await tokens.session(account)) as AntigravitySession,
+                  config.antigravity,
+                  hostFetch,
+                  AbortSignal.timeout(POOL_USAGE_TIMEOUT_MS),
+                )
         }
         case 'copilot':
           return undefined
@@ -1147,32 +1511,54 @@ export function apply(ctx: Context, config: Config): void {
         // accounts that actually list it (Plus is not asked to serve Pro-only
         // models). A hang or discovery failure sits that account out.
         const sources: Parameters<typeof buildAccountPools>[0] = {}
-        await Promise.all([...adapters].map(async ([provider, adapter]) => {
-          try {
-            const accounts = (await accountTokens.get(provider)?.list() ?? []).map(entry => entry.key)
-            if (accounts.length === 0) return
-            const catalogs = (await Promise.all(accounts.map(async account => {
-              const models = await withTimeout(
-                signal => adapter.listOwnModels(provider, account, signal),
-                POOL_USAGE_TIMEOUT_MS,
-              )
-              const settings = preferences.get(provider).accounts
-              const policy = settings && Object.hasOwn(settings, account) ? settings[account] : undefined
-              return models === undefined ? undefined : { account, models: models.filter(model => accountAllowsPool(policy, model.id)) }
-            }))).filter(entry => entry !== undefined)
-            if (catalogs.length > 0) sources[provider] = { catalogs }
-          } catch {
-            // Discovery failures are already reported by the owning adapter.
-          }
-        }))
-        for (const [key, definition] of buildAccountPools(sources)) pools.set(key, definition)
+        await Promise.all(
+          [...adapters].map(async ([provider, adapter]) => {
+            try {
+              const accounts = (
+                (await accountTokens.get(provider)?.list()) ?? []
+              ).map((entry) => entry.key)
+              if (accounts.length === 0) return
+              const catalogs = (
+                await Promise.all(
+                  accounts.map(async (account) => {
+                    const models = await withTimeout(
+                      (signal) =>
+                        adapter.listOwnModels(provider, account, signal),
+                      POOL_USAGE_TIMEOUT_MS,
+                    )
+                    const settings = preferences.get(provider).accounts
+                    const policy =
+                      settings && Object.hasOwn(settings, account)
+                        ? settings[account]
+                        : undefined
+                    return models === undefined
+                      ? undefined
+                      : {
+                          account,
+                          models: models.filter((model) =>
+                            accountAllowsPool(policy, model.id),
+                          ),
+                        }
+                  }),
+                )
+              ).filter((entry) => entry !== undefined)
+              if (catalogs.length > 0) sources[provider] = { catalogs }
+            } catch {
+              // Discovery failures are already reported by the owning adapter.
+            }
+          }),
+        )
+        for (const [key, definition] of buildAccountPools(sources))
+          pools.set(key, definition)
       }
       for (const [id, members] of Object.entries(poolConfig?.families ?? {})) {
         if (members.length === 0) continue
         const owner = members[0].provider
-        const kept = members.filter(member => member.provider === owner)
+        const kept = members.filter((member) => member.provider === owner)
         if (kept.length < members.length) {
-          onWarn(`pool "${id}": cross-provider members are ignored; only ${owner} accounts are pooled`)
+          onWarn(
+            `pool "${id}": cross-provider members are ignored; only ${owner} accounts are pooled`,
+          )
         }
         pools.set(poolKey(owner, id), { members: kept })
       }
@@ -1184,8 +1570,12 @@ export function apply(ctx: Context, config: Config): void {
       usage: poolUsage,
       strategy: poolConfig?.strategy ?? 'quota_aware',
       switchMargin: poolConfig?.switchMargin ?? 2,
-      defaultAccount: provider => accountTokens.get(provider)?.defaultAccount() ?? Promise.resolve(undefined),
-      resolveAccount: (provider, account) => accountTokens.get(provider)?.resolveAccount(account) ?? Promise.resolve(account),
+      defaultAccount: (provider) =>
+        accountTokens.get(provider)?.defaultAccount() ??
+        Promise.resolve(undefined),
+      resolveAccount: (provider, account) =>
+        accountTokens.get(provider)?.resolveAccount(account) ??
+        Promise.resolve(account),
       families,
       tiers: poolConfig?.tiers ?? {},
       onWarn,
@@ -1193,22 +1583,34 @@ export function apply(ctx: Context, config: Config): void {
   }
 
   // Keep the full catalog for the editor and routing; filter only picker enumeration.
-  const fullCatalogs = new Map<ProviderId, (provider: string) => Promise<readonly LlmModelInfo[]>>()
+  const fullCatalogs = new Map<
+    ProviderId,
+    (provider: string) => Promise<readonly LlmModelInfo[]>
+  >()
   for (const [provider, adapter] of adapters) {
     const list = adapter.listModels.bind(adapter)
     fullCatalogs.set(provider, list)
-    adapter.listModels = async route => (await list(route)).filter(model => preferences.visible(provider, model.id))
+    adapter.listModels = async (route) =>
+      (await list(route)).filter((model) =>
+        preferences.visible(provider, model.id),
+      )
   }
 
   const speed: SpeedController = {
     async speed(sessionId) {
-      const fastModels = await codexAdapter?.fastCapableModels() ?? []
+      const fastModels = (await codexAdapter?.fastCapableModels()) ?? []
       const accountPreferences = preferences.get('codex').accounts
-      for (const { key } of await codexTokens?.list() ?? []) {
-        if (!accountPreferences || !Object.hasOwn(accountPreferences, key) || accountPreferences[key].independentEntry !== true) continue
+      for (const { key } of (await codexTokens?.list()) ?? []) {
+        if (
+          !accountPreferences ||
+          !Object.hasOwn(accountPreferences, key) ||
+          accountPreferences[key].independentEntry !== true
+        )
+          continue
         for (const model of [...fastModels]) {
           if (parseAccountModelId(model)) continue
-          if (await codexAdapter?.supportsFastTier(model, key)) fastModels.push(accountModelId(key, model))
+          if (await codexAdapter?.supportsFastTier(model, key))
+            fastModels.push(accountModelId(key, model))
         }
       }
       return {
@@ -1236,11 +1638,13 @@ export function apply(ctx: Context, config: Config): void {
         poolAdapter?.invalidate()
         for (const [route, handle] of handles) handle.replace([route])
       }
-      const visible = new Set((await ctx.llm.listProviders()).map(provider => provider.id))
+      const visible = new Set(
+        (await ctx.llm.listProviders()).map((provider) => provider.id),
+      )
       const catalog: ModelDefaultsCatalog[] = []
       for (const provider of PROVIDER_IDS) {
         if (!visible.has(provider)) continue
-        let models: readonly { id: string; name: string }[] = []
+        let models: readonly { id: string; name: string }[]
         try {
           models = await ctx.llm.listModels(provider)
         } catch {
@@ -1253,7 +1657,8 @@ export function apply(ctx: Context, config: Config): void {
         let tierIds: ReadonlySet<string> = new Set()
         try {
           const tiers = await poolAdapter?.modelsForProvider(provider)
-          if (tiers !== undefined) tierIds = new Set(tiers.map(tier => tier.id))
+          if (tiers !== undefined)
+            tierIds = new Set(tiers.map((tier) => tier.id))
         } catch {
           // A pool that cannot enumerate leaves every row listed; the worst
           // case is the pre-existing behaviour, not a missing card.
@@ -1274,8 +1679,12 @@ export function apply(ctx: Context, config: Config): void {
           views.push({
             id: model.id,
             name: model.name,
-            efforts: info.reasoning?.efforts.map(effort => ({ id: effort.id, name: effort.name })) ?? [],
-            ...override === undefined ? {} : { configured: override },
+            efforts:
+              info.reasoning?.efforts.map((effort) => ({
+                id: effort.id,
+                name: effort.name,
+              })) ?? [],
+            ...(override === undefined ? {} : { configured: override }),
           })
         }
         catalog.push({ provider, models: views })
@@ -1297,8 +1706,13 @@ export function apply(ctx: Context, config: Config): void {
           // here would make every write fail during an outage.
         }
         const offered = info?.reasoning?.efforts ?? []
-        if (offered.length > 0 && !offered.some(entry => entry.id === effort)) {
-          throw new BadRequest(`model ${model} does not advertise a "${effort}" reasoning effort`)
+        if (
+          offered.length > 0 &&
+          !offered.some((entry) => entry.id === effort)
+        ) {
+          throw new BadRequest(
+            `model ${model} does not advertise a "${effort}" reasoning effort`,
+          )
         }
       }
       await setDefaultEffort(provider, model, effort)
@@ -1307,7 +1721,8 @@ export function apply(ctx: Context, config: Config): void {
       handles.get(provider)?.replace([provider])
     },
   }
-  let resolveExternalCredential: ((name: string) => Promise<{ value: string } | undefined>) | undefined
+  let resolveExternalCredential:
+    ((name: string) => Promise<{ value: string } | undefined>) | undefined
   let cursorAuth: CursorAuth | undefined
   let cursorAdapter: CursorCompatAdapter | undefined
   let cursorHandle: AdapterRegistrationHandle | undefined
@@ -1315,29 +1730,39 @@ export function apply(ctx: Context, config: Config): void {
   let cursorAttachments: AttachmentStore | undefined
   let ollamaAdapter: OllamaAdapter | undefined
   let ollamaHandle: AdapterRegistrationHandle | undefined
-  ctx.inject(['attachments'], attachmentsCtx => { cursorAttachments = attachmentsCtx.attachments })
-  ctx.inject(['credentials'], credentialsCtx => {
-    resolveExternalCredential = name => credentialsCtx.credentials.resolve(credentialRef(name))
+  ctx.inject(['attachments'], (attachmentsCtx) => {
+    cursorAttachments = attachmentsCtx.attachments
+  })
+  ctx.inject(['credentials'], (credentialsCtx) => {
+    resolveExternalCredential = (name) =>
+      credentialsCtx.credentials.resolve(credentialRef(name))
     cursorAuth = new CursorAuth(credentialsCtx.credentials, hostFetch)
     cursorAdapter = new CursorCompatAdapter({
       auth: cursorAuth,
       resolveAttachments: () => cursorAttachments,
       visibleModels: () => cursorModelSettings.visibleModels(),
     })
-    cursorHandle = credentialsCtx.llm.registerAdapter(['cursor-subscription'], cursorAdapter)
+    cursorHandle = credentialsCtx.llm.registerAdapter(
+      ['cursor-subscription'],
+      cursorAdapter,
+    )
     // Ollama Cloud rides beside cursor: a key-based route with no OAuth
     // session. Every setting is read through the live getters above, so a
     // Settings save reaches the next request without a restart; the stored
     // catalog is the only source of models.
     ollamaAdapter = new OllamaAdapter({
-      apiKey: async () => (await resolveExternalCredential?.(ollamaApiKeyRef()))?.value,
+      apiKey: async () =>
+        (await resolveExternalCredential?.(ollamaApiKeyRef()))?.value,
       baseURL: ollamaBaseURL,
       catalog: ollamaCatalog,
       resolveAttachments: () => cursorAttachments,
       streamIdleTimeoutMs,
       onWarn,
     })
-    ollamaHandle = credentialsCtx.llm.registerAdapter([OLLAMA_CLOUD_ROUTE], ollamaAdapter)
+    ollamaHandle = credentialsCtx.llm.registerAdapter(
+      [OLLAMA_CLOUD_ROUTE],
+      ollamaAdapter,
+    )
   })
   // The web providers gate on the live effective switch, so a Settings save
   // enables or disables them without re-registering: registration alone does
@@ -1349,22 +1774,26 @@ export function apply(ctx: Context, config: Config): void {
     ollamaWebRegistered = true
     const ollamaApiKey = async (): Promise<string | undefined> =>
       (await resolveExternalCredential?.(ollamaApiKeyRef()))?.value
-    ctx.inject(['web'], webCtx => {
-      webCtx.web.registerSearchProvider(new OllamaWebSearchProvider({
-        apiKey: ollamaApiKey,
-        baseURL: ollamaBaseURL,
-        enabled: ollamaWebEnabled,
-      }))
-      webCtx.web.registerFetchProvider(new OllamaWebFetchProvider({
-        apiKey: ollamaApiKey,
-        baseURL: ollamaBaseURL,
-        enabled: ollamaWebEnabled,
-      }))
+    ctx.inject(['web'], (webCtx) => {
+      webCtx.web.registerSearchProvider(
+        new OllamaWebSearchProvider({
+          apiKey: ollamaApiKey,
+          baseURL: ollamaBaseURL,
+          enabled: ollamaWebEnabled,
+        }),
+      )
+      webCtx.web.registerFetchProvider(
+        new OllamaWebFetchProvider({
+          apiKey: ollamaApiKey,
+          baseURL: ollamaBaseURL,
+          enabled: ollamaWebEnabled,
+        }),
+      )
     })
   }
   syncOllamaWeb()
   const externalUsage = new ExternalUsageController(
-    async name => resolveExternalCredential?.(name),
+    async (name) => resolveExternalCredential?.(name),
     hostFetch,
     // A custom ollama ref must reach usage status too, or chat and the
     // quota card would read different credentials. Both values are live so a
@@ -1379,215 +1808,350 @@ export function apply(ctx: Context, config: Config): void {
     },
     async (account, creditId, requestId, signal) => {
       if (!codexTokens) throw new BadRequest('Codex unavailable')
-      await consumeCodexResetCredit(await codexTokens.session(account), creditId, requestId, hostFetch, signal)
+      await consumeCodexResetCredit(
+        await codexTokens.session(account),
+        creditId,
+        requestId,
+        hostFetch,
+        signal,
+      )
     },
-    account => poolUsage?.invalidate('codex', account),
+    (account) => poolUsage?.invalidate('codex', account),
     // The browser may name the account by canonical id, legacy key, email, or
     // workspace id. The guards must key on the stored account's key — the same
     // one the usage cache uses — so an alias cannot slip past a parked
     // outcome, and an invalidation actually clears that account's cache.
-    async account => resolveAccountKey('codex', account),
+    async (account) => resolveAccountKey('codex', account),
   )
-  registerAuthRpc(ctx, new SubscriptionsAuthController(
-    flows, deviceFlows, authChanged, resolveAttachments, usageFetchers, undefined, poolUsage, config.antigravity,
+  registerAuthRpc(
+    ctx,
+    new SubscriptionsAuthController(
+      flows,
+      deviceFlows,
+      authChanged,
+      resolveAttachments,
+      usageFetchers,
+      undefined,
+      poolUsage,
+      config.antigravity,
+      {
+        ...(providers.includes('codex')
+          ? {
+              codex:
+                config.codexClientVersion === undefined
+                  ? presentedVersion(codexVersion)
+                  : async () => ({
+                      version: config.codexClientVersion!,
+                      source: 'config' as const,
+                    }),
+            }
+          : {}),
+        ...(providers.includes('claude')
+          ? { claude: presentedVersion(claudeVersion) }
+          : {}),
+      },
+      resetRedemption,
+      (provider, account) => poolHealth?.clear(provider, account),
+    ),
+    speed,
+    modelDefaults,
     {
-      ...providers.includes('codex') ? {
-        codex: config.codexClientVersion === undefined
-          ? presentedVersion(codexVersion)
-          : async () => ({ version: config.codexClientVersion!, source: 'config' as const }),
-      } : {},
-      ...providers.includes('claude') ? { claude: presentedVersion(claudeVersion) } : {},
-    },
-    resetRedemption,
-    (provider, account) => poolHealth?.clear(provider, account),
-  ), speed, modelDefaults, {
-    async get(provider, force) {
-      await loadModelDefaults()
-      const adapter = adapters.get(provider)
-      if (!adapter) throw new BadRequest(`provider ${provider} is not configured`)
-      if (force) {
-        if (provider === 'codex') codexVersion.invalidate()
-        if (provider === 'claude') claudeVersion.invalidate()
-        adapter.clearAccountCatalog()
-        poolAdapter?.invalidate()
-        handles.get(provider)?.replace([provider])
-      }
-      const models = await fullCatalogs.get(provider)!(provider)
-      // Enumerate each account once, with the same bounds used by pool discovery.
-      const accounts = await accountTokens.get(provider)?.list() ?? []
-      const accountCatalogs = await Promise.all(accounts.map(async account => ({
-        account: account.key,
-        models: await withTimeout(signal => adapter.listOwnModels(provider, account.key, signal), DISCOVERY_TIMEOUT_MS).catch(() => undefined),
-      })))
-      const tierIds = new Set((await poolAdapter?.modelsForProvider(provider).catch(() => []) ?? []).map(model => model.id))
-      const rows = await Promise.all(models.map(async model => {
-        const contexts: { default: number; max: number }[] = []
-        if (provider === 'codex' && codexAdapter) {
-          for (const account of accountCatalogs) {
-            if (account.models?.some(entry => entry.id === model.id)) {
-              const limits = await codexAdapter.contextLimits(model.id, account.account).catch(() => undefined)
-              if (limits) contexts.push(limits)
-            }
-          }
+      async get(provider, force) {
+        await loadModelDefaults()
+        const adapter = adapters.get(provider)
+        if (!adapter)
+          throw new BadRequest(`provider ${provider} is not configured`)
+        if (force) {
+          if (provider === 'codex') codexVersion.invalidate()
+          if (provider === 'claude') claudeVersion.invalidate()
+          adapter.clearAccountCatalog()
+          poolAdapter?.invalidate()
+          handles.get(provider)?.replace([provider])
         }
-        if (provider === 'claude' && claudeAdapter) {
-          for (const account of accountCatalogs) {
-            if (account.models?.some(entry => entry.id === model.id)) {
-              const limits = await claudeAdapter.contextLimits(model.id, account.account).catch(() => undefined)
-              if (limits) contexts.push(limits)
+        const models = await fullCatalogs.get(provider)!(provider)
+        // Enumerate each account once, with the same bounds used by pool discovery.
+        const accounts = (await accountTokens.get(provider)?.list()) ?? []
+        const accountCatalogs = await Promise.all(
+          accounts.map(async (account) => ({
+            account: account.key,
+            models: await withTimeout(
+              (signal) => adapter.listOwnModels(provider, account.key, signal),
+              DISCOVERY_TIMEOUT_MS,
+            ).catch(() => undefined),
+          })),
+        )
+        const tierIds = new Set(
+          (
+            (await poolAdapter?.modelsForProvider(provider).catch(() => [])) ??
+            []
+          ).map((model) => model.id),
+        )
+        const rows = await Promise.all(
+          models.map(async (model) => {
+            const contexts: { default: number; max: number }[] = []
+            if (provider === 'codex' && codexAdapter) {
+              for (const account of accountCatalogs) {
+                if (account.models?.some((entry) => entry.id === model.id)) {
+                  const limits = await codexAdapter
+                    .contextLimits(model.id, account.account)
+                    .catch(() => undefined)
+                  if (limits) contexts.push(limits)
+                }
+              }
             }
-          }
-        }
-        // A model with unavailable capabilities can still be hidden or restored.
-        const info = await withTimeout(() => adapter.resolveModel(provider, model.id), DISCOVERY_TIMEOUT_MS).catch(() => undefined)
+            if (provider === 'claude' && claudeAdapter) {
+              for (const account of accountCatalogs) {
+                if (account.models?.some((entry) => entry.id === model.id)) {
+                  const limits = await claudeAdapter
+                    .contextLimits(model.id, account.account)
+                    .catch(() => undefined)
+                  if (limits) contexts.push(limits)
+                }
+              }
+            }
+            // A model with unavailable capabilities can still be hidden or restored.
+            const info = await withTimeout(
+              () => adapter.resolveModel(provider, model.id),
+              DISCOVERY_TIMEOUT_MS,
+            ).catch(() => undefined)
+            return {
+              id: model.id,
+              name: model.name,
+              contextWindow: info?.context?.contextWindow,
+              efforts: tierIds.has(model.id)
+                ? []
+                : (info?.reasoning?.efforts.map(({ id, name }) => ({
+                    id,
+                    name,
+                  })) ?? []),
+              configured: defaultEffortOf(provider, model.id),
+              ...(contexts.length
+                ? {
+                    defaultContextWindow: Math.min(
+                      ...contexts.map((entry) => entry.default),
+                    ),
+                    maxContextWindow: Math.min(
+                      ...contexts.map((entry) => entry.max),
+                    ),
+                  }
+                : {}),
+            }
+          }),
+        )
         return {
-          id: model.id, name: model.name,
-          contextWindow: info?.context?.contextWindow,
-          efforts: tierIds.has(model.id) ? [] : info?.reasoning?.efforts.map(({ id, name }) => ({ id, name })) ?? [],
-          configured: defaultEffortOf(provider, model.id),
-          ...(contexts.length ? {
-            defaultContextWindow: Math.min(...contexts.map(entry => entry.default)),
-            maxContextWindow: Math.min(...contexts.map(entry => entry.max)),
-          } : {}),
+          provider,
+          settings: preferences.get(provider),
+          models: rows,
+          tools: PROVIDER_TOOLS[provider],
+          accounts: accounts.map(({ key, session }) => {
+            const catalog = accountCatalogs.find(
+              (entry) => entry.account === key,
+            )?.models
+            return {
+              key,
+              label: accountOf(provider, session) ?? key,
+              models: (catalog ?? []).map(({ id, name }) => ({ id, name })),
+              ...(catalog === undefined ? { unavailable: true } : {}),
+            }
+          }),
         }
-      }))
-      return {
-        provider, settings: preferences.get(provider), models: rows, tools: PROVIDER_TOOLS[provider],
-        accounts: accounts.map(({ key, session }) => {
-          const catalog = accountCatalogs.find(entry => entry.account === key)?.models
-          return { key, label: accountOf(provider, session) ?? key, models: (catalog ?? []).map(({ id, name }) => ({ id, name })), ...(catalog === undefined ? { unavailable: true } : {}) }
-        }),
-      }
+      },
+      async set(provider, settings) {
+        if (!adapters.has(provider))
+          throw new BadRequest(`provider ${provider} is not configured`)
+        let validated
+        try {
+          validated = validatePreferences(provider, settings)
+        } catch (error) {
+          throw new BadRequest(
+            error instanceof Error ? error.message : String(error),
+          )
+        }
+        await preferences.set(provider, validated)
+        poolAdapter?.invalidate()
+        for (const [route, handle] of handles) handle.replace([route])
+      },
     },
-    async set(provider, settings) {
-      if (!adapters.has(provider)) throw new BadRequest(`provider ${provider} is not configured`)
-      let validated
-      try { validated = validatePreferences(provider, settings) } catch (error) {
-        throw new BadRequest(error instanceof Error ? error.message : String(error))
-      }
-      await preferences.set(provider, validated)
-      poolAdapter?.invalidate()
-      for (const [route, handle] of handles) handle.replace([route])
-    },
-  }, externalUsage, {
-    status: async () => {
-      const status = cursorAuth === undefined
-        ? { authenticated: false, busy: false } : await cursorAuth.status()
-      if (cursorAuthenticated !== status.authenticated) {
-        cursorAuthenticated = status.authenticated
+    externalUsage,
+    {
+      status: async () => {
+        const status =
+          cursorAuth === undefined
+            ? { authenticated: false, busy: false }
+            : await cursorAuth.status()
+        if (cursorAuthenticated !== status.authenticated) {
+          cursorAuthenticated = status.authenticated
+          cursorAdapter?.invalidateModels()
+          cursorHandle?.replace(['cursor-subscription'])
+        }
+        return status
+      },
+      login: () => {
+        if (cursorAuth === undefined)
+          throw new Error('DSH credentials are unavailable')
+        return cursorAuth.login()
+      },
+      cancel: async () => {
+        await cursorAuth?.cancel()
+      },
+      logout: async () => {
+        await cursorAuth?.logout()
+        cursorAuthenticated = false
         cursorAdapter?.invalidateModels()
         cursorHandle?.replace(['cursor-subscription'])
-      }
-      return status
+      },
+      usage: async (signal) => {
+        if (cursorAuth === undefined)
+          throw new Error('DSH credentials are unavailable')
+        return fetchCursorUsage(
+          await cursorAuth.accessToken({ signal }),
+          hostFetch,
+          signal,
+        )
+      },
+      models: async (force, signal) => {
+        if (cursorAdapter === undefined)
+          throw new Error('Cursor model provider is unavailable')
+        if (force) cursorAdapter.invalidateModels()
+        const models = await cursorAdapter.listModelsForRpc({ force, signal })
+        if (force) cursorHandle?.replace(['cursor-subscription'])
+        return models
+      },
+      settings: async (force, signal) => {
+        const status =
+          cursorAuth === undefined
+            ? { authenticated: false }
+            : await cursorAuth.status()
+        const models =
+          status.authenticated && cursorAdapter !== undefined
+            ? await cursorAdapter.listModelsForRpc({ force, signal })
+            : []
+        if (force && status.authenticated)
+          cursorHandle?.replace(['cursor-subscription'])
+        return {
+          provider: 'cursor-subscription',
+          settings: cursorModelSettings.get(),
+          models: models.map(({ id, name }) => ({ id, name, efforts: [] })),
+          tools: [],
+          accounts: status.authenticated
+            ? [{ key: 'cursor', label: 'Cursor', models }]
+            : [],
+        }
+      },
+      setSettings: async (input) => {
+        let validated
+        try {
+          validated = validateCursorModelSettings(input)
+        } catch (error) {
+          throw new BadRequest(
+            error instanceof Error ? error.message : String(error),
+          )
+        }
+        await cursorModelSettings.set(validated)
+        cursorHandle?.replace(['cursor-subscription'])
+      },
     },
-    login: () => {
-      if (cursorAuth === undefined) throw new Error('DSH credentials are unavailable')
-      return cursorAuth.login()
-    },
-    cancel: async () => { await cursorAuth?.cancel() },
-    logout: async () => {
-      await cursorAuth?.logout()
-      cursorAuthenticated = false
-      cursorAdapter?.invalidateModels()
-      cursorHandle?.replace(['cursor-subscription'])
-    },
-    usage: async signal => {
-      if (cursorAuth === undefined) throw new Error('DSH credentials are unavailable')
-      return fetchCursorUsage(await cursorAuth.accessToken({ signal }), hostFetch, signal)
-    },
-    models: async (force, signal) => {
-      if (cursorAdapter === undefined) throw new Error('Cursor model provider is unavailable')
-      if (force) cursorAdapter.invalidateModels()
-      const models = await cursorAdapter.listModelsForRpc({ force, signal })
-      if (force) cursorHandle?.replace(['cursor-subscription'])
-      return models
-    },
-    settings: async (force, signal) => {
-      const status = cursorAuth === undefined ? { authenticated: false } : await cursorAuth.status()
-      const models = status.authenticated && cursorAdapter !== undefined
-        ? await cursorAdapter.listModelsForRpc({ force, signal }) : []
-      if (force && status.authenticated) cursorHandle?.replace(['cursor-subscription'])
-      return {
-        provider: 'cursor-subscription', settings: cursorModelSettings.get(),
-        models: models.map(({ id, name }) => ({ id, name, efforts: [] })),
-        tools: [],
-        accounts: status.authenticated ? [{ key: 'cursor', label: 'Cursor', models }] : [],
-      }
-    },
-    setSettings: async input => {
-      let validated
-      try { validated = validateCursorModelSettings(input) } catch (error) {
-        throw new BadRequest(error instanceof Error ? error.message : String(error))
-      }
-      await cursorModelSettings.set(validated)
-      cursorHandle?.replace(['cursor-subscription'])
-    },
-  }, {
-    settings: async () => ({
-      provider: 'ollama-cloud',
-      settings: ollamaSettings.get(),
-      effective: { baseURL: ollamaBaseURL(), apiKeyRef: ollamaApiKeyRef(), web: ollamaWebEnabled() },
-      // The picker's catalog, so the dialog can show what it is editing even
-      // while a config override keeps the store out of the effective list.
-      models: ollamaCatalog().map(entry => ({
-        id: entry.id,
-        name: entry.name ?? entry.id,
-        vision: entry.vision === true,
-        // A stored row may carry efforts without the flag (a hand-written
-        // row); either one means the model thinks.
-        thinking: entry.thinking === true || (entry.efforts?.length ?? 0) > 0,
-        ...entry.contextWindow === undefined ? {} : { contextWindow: entry.contextWindow },
-        // The effort set the resolver serves this row (vendor levels win
-        // over the stored list at resolve time, so the dialog pools the
-        // stored row and its enrichment here only).
-        ...(entry.efforts === undefined ? {} : {
-          efforts: entry.efforts.map(effort => ({ id: effort, name: effortDisplayName(effort) })),
-        }),
-        ...entry.defaultEffort === undefined ? {} : { defaultEffort: entry.defaultEffort },
-      })),
-      configOverridesModels: ollamaModelsOverridden(),
-    }),
-    setSettings: async input => {
-      let validated
-      try { validated = validateOllamaSettings(input) } catch (error) {
-        throw new BadRequest(error instanceof Error ? error.message : String(error))
-      }
-      await ollamaSettings.set(validated)
-      // The saved catalog and base URL replace what the adapter cached: drop
-      // the discovery snapshot, re-announce the route so the picker re-queries
-      // `listModels`, and let a web toggle take effect.
-      ollamaAdapter?.invalidateModels()
-      ollamaHandle?.replace([OLLAMA_CLOUD_ROUTE])
-      syncOllamaWeb()
-    },
-    models: async (input, signal) => {
-      const baseURL = input.baseURL ?? ollamaBaseURL()
-      // A typed key rides this listing only: it is never written to the store
-      // and never echoed back in the reply.
-      const apiKey = input.apiKey ?? (await resolveExternalCredential?.(ollamaApiKeyRef()))?.value
-      const timeout = AbortSignal.timeout(OLLAMA_PULL_TIMEOUT_MS)
-      const combined = AbortSignal.any([signal, timeout])
-      let discovered: OllamaDiscoveredModel[]
-      try {
-        discovered = await fetchOllamaModels({ baseURL, apiKey, signal: combined })
-      } catch (error) {
-        if (timeout.aborted) throw new Error(`Ollama model listing timed out after ${OLLAMA_PULL_TIMEOUT_MS}ms`)
-        throw error
-      }
-      return {
-        models: discovered.map(row => ({
-          id: row.id,
-          rawId: row.rawId,
-          name: row.rawId,
-          vision: row.inputModalities?.includes('image') === true,
-          thinking: row.thinking,
-          ...row.contextWindow === undefined ? {} : { contextWindow: row.contextWindow },
-          efforts: row.reasoning?.efforts.map(effort => String(effort.id)) ?? [],
-          ...row.reasoning?.defaultEffort === undefined ? {} : { defaultEffort: String(row.reasoning.defaultEffort) },
+    {
+      settings: async () => ({
+        provider: 'ollama-cloud',
+        settings: ollamaSettings.get(),
+        effective: {
+          baseURL: ollamaBaseURL(),
+          apiKeyRef: ollamaApiKeyRef(),
+          web: ollamaWebEnabled(),
+        },
+        // The picker's catalog, so the dialog can show what it is editing even
+        // while a config override keeps the store out of the effective list.
+        models: ollamaCatalog().map((entry) => ({
+          id: entry.id,
+          name: entry.name ?? entry.id,
+          vision: entry.vision === true,
+          // A stored row may carry efforts without the flag (a hand-written
+          // row); either one means the model thinks.
+          thinking: entry.thinking === true || (entry.efforts?.length ?? 0) > 0,
+          ...(entry.contextWindow === undefined
+            ? {}
+            : { contextWindow: entry.contextWindow }),
+          // The effort set the resolver serves this row (vendor levels win
+          // over the stored list at resolve time, so the dialog pools the
+          // stored row and its enrichment here only).
+          ...(entry.efforts === undefined
+            ? {}
+            : {
+                efforts: entry.efforts.map((effort) => ({
+                  id: effort,
+                  name: effortDisplayName(effort),
+                })),
+              }),
+          ...(entry.defaultEffort === undefined
+            ? {}
+            : { defaultEffort: entry.defaultEffort }),
         })),
-      }
+        configOverridesModels: ollamaModelsOverridden(),
+      }),
+      setSettings: async (input) => {
+        let validated
+        try {
+          validated = validateOllamaSettings(input)
+        } catch (error) {
+          throw new BadRequest(
+            error instanceof Error ? error.message : String(error),
+          )
+        }
+        await ollamaSettings.set(validated)
+        // The saved catalog and base URL replace what the adapter cached: drop
+        // the discovery snapshot, re-announce the route so the picker re-queries
+        // `listModels`, and let a web toggle take effect.
+        ollamaAdapter?.invalidateModels()
+        ollamaHandle?.replace([OLLAMA_CLOUD_ROUTE])
+        syncOllamaWeb()
+      },
+      models: async (input, signal) => {
+        const baseURL = input.baseURL ?? ollamaBaseURL()
+        // A typed key rides this listing only: it is never written to the store
+        // and never echoed back in the reply.
+        const apiKey =
+          input.apiKey ??
+          (await resolveExternalCredential?.(ollamaApiKeyRef()))?.value
+        const timeout = AbortSignal.timeout(OLLAMA_PULL_TIMEOUT_MS)
+        const combined = AbortSignal.any([signal, timeout])
+        let discovered: OllamaDiscoveredModel[]
+        try {
+          discovered = await fetchOllamaModels({
+            baseURL,
+            apiKey,
+            signal: combined,
+          })
+        } catch (error) {
+          if (timeout.aborted) {
+            // The host renders error.cause. This timeout replaces the abort.
+            // eslint-disable-next-line preserve-caught-error -- the replacement is the message the host shows
+            throw new Error(
+              `Ollama model listing timed out after ${OLLAMA_PULL_TIMEOUT_MS}ms`,
+            )
+          }
+          throw error
+        }
+        return {
+          models: discovered.map((row) => ({
+            id: row.id,
+            rawId: row.rawId,
+            name: row.rawId,
+            vision: row.inputModalities?.includes('image') === true,
+            thinking: row.thinking,
+            ...(row.contextWindow === undefined
+              ? {}
+              : { contextWindow: row.contextWindow }),
+            efforts:
+              row.reasoning?.efforts.map((effort) => String(effort.id)) ?? [],
+            ...(row.reasoning?.defaultEffort === undefined
+              ? {}
+              : { defaultEffort: String(row.reasoning.defaultEffort) }),
+          })),
+        }
+      },
     },
-  })
+  )
 
   // Proactively keep keychain-bound Claude accounts synced with Claude Code's
   // own store (Keychain/file) every 5 minutes, so a session left idle between
@@ -1597,16 +2161,24 @@ export function apply(ctx: Context, config: Config): void {
   if (claudeTokens !== undefined) {
     const tokens = claudeTokens
     const syncTimer = setInterval(() => {
-      void tokens.list().then((accounts) => {
-        for (const { key, session } of accounts) {
-          if (session.keychainBound !== true) continue
-          tokens.session(key).catch(() => {
-            // Best-effort: TokenManager already surfaces failures via onRemoved.
-          })
-        }
-      }, () => undefined)
+      void tokens.list().then(
+        (accounts) => {
+          for (const { key, session } of accounts) {
+            if (session.keychainBound !== true) continue
+            tokens.session(key).catch(() => {
+              // Best-effort: TokenManager already surfaces failures via onRemoved.
+            })
+          }
+        },
+        () => undefined,
+      )
     }, 5 * 60_000)
-    ctx.effect(() => () => { clearInterval(syncTimer) }, 'dsh-subscriptions: claude background sync timer')
+    ctx.effect(
+      () => () => {
+        clearInterval(syncTimer)
+      },
+      'dsh-subscriptions: claude background sync timer',
+    )
   }
 
   // `web` is optional on headless/minimal compositions. Register Codex behind
@@ -1620,12 +2192,14 @@ export function apply(ctx: Context, config: Config): void {
   // provider in the composition.
   if (codexTokens !== undefined) {
     const tokens = codexTokens
-    ctx.inject(['web'], webCtx => {
-      webCtx.web.registerSearchProvider(new CodexWebSearchProvider({
-        tokens,
-        enabled: () => preferences.toolEnabled('codex', 'web_search'),
-        fetchFn: hostFetch,
-      }))
+    ctx.inject(['web'], (webCtx) => {
+      webCtx.web.registerSearchProvider(
+        new CodexWebSearchProvider({
+          tokens,
+          enabled: () => preferences.toolEnabled('codex', 'web_search'),
+          fetchFn: hostFetch,
+        }),
+      )
     })
   }
 
@@ -1641,19 +2215,25 @@ export function apply(ctx: Context, config: Config): void {
         createVideoGenerateTool({ tokens: grokTokens }),
       ]) {
         const result = registerWithAlias(toolsCtx.tools, definition)
-        if (result !== undefined) registeredNames.set(definition.name, result.name)
+        if (result !== undefined)
+          registeredNames.set(definition.name, result.name)
       }
     }
     if (codexTokens !== undefined || grokTokens !== undefined) {
-      const result = registerWithAlias(toolsCtx.tools, createImageGenerateTool({
-        imagePool,
-        ...codexTokens === undefined ? {} : { codexTokens },
-        ...grokTokens === undefined ? {} : { grokTokens },
-        resolveAttachments,
-        resolveLlm: () => ctx.get('llm'),
-        providerEnabled: (provider, createdAt) => preferences.toolEnabled(provider, 'image_generate', createdAt),
-      }))
-      if (result !== undefined) registeredNames.set('image_generate', result.name)
+      const result = registerWithAlias(
+        toolsCtx.tools,
+        createImageGenerateTool({
+          imagePool,
+          ...(codexTokens === undefined ? {} : { codexTokens }),
+          ...(grokTokens === undefined ? {} : { grokTokens }),
+          resolveAttachments,
+          resolveLlm: () => ctx.get('llm'),
+          providerEnabled: (provider, createdAt) =>
+            preferences.toolEnabled(provider, 'image_generate', createdAt),
+        }),
+      )
+      if (result !== undefined)
+        registeredNames.set('image_generate', result.name)
     }
     // Restrictions are scoped to each agent. Keep global definitions registered
     // so already-open sessions retain both their schemas and execution path.
@@ -1663,12 +2243,24 @@ export function apply(ctx: Context, config: Config): void {
       if (grokTokens !== undefined) {
         for (const tool of ['x_search', 'video_generate'] as const) {
           const registered = registeredNames.get(tool)
-          if (registered !== undefined && !preferences.toolEnabled('grok', tool, at)) deny.push(registered)
+          if (
+            registered !== undefined &&
+            !preferences.toolEnabled('grok', tool, at)
+          )
+            deny.push(registered)
         }
       }
-      if ((codexTokens !== undefined || grokTokens !== undefined)
-        && !(codexTokens !== undefined && preferences.toolEnabled('codex', 'image_generate', at))
-        && !(grokTokens !== undefined && preferences.toolEnabled('grok', 'image_generate', at))) {
+      if (
+        (codexTokens !== undefined || grokTokens !== undefined) &&
+        !(
+          codexTokens !== undefined &&
+          preferences.toolEnabled('codex', 'image_generate', at)
+        ) &&
+        !(
+          grokTokens !== undefined &&
+          preferences.toolEnabled('grok', 'image_generate', at)
+        )
+      ) {
         const registered = registeredNames.get('image_generate')
         if (registered !== undefined) deny.push(registered)
       }

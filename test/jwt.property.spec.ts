@@ -26,21 +26,37 @@ function base64url(text: string, padded: boolean): string {
     : buffer.toString('base64url')
 }
 
-const jwtFor = (claims: string): fc.Arbitrary<string> => fc
-  .tuple(fc.boolean(), fc.boolean(), fc.string({ unit: fc.constantFrom('a', 'B', '0', '-', '_'), maxLength: 12 }))
-  .map(([padded, withSignature, signature]) => {
-    const head = base64url('{"alg":"none"}', padded)
-    const body = base64url(claims, padded)
-    return withSignature ? `${head}.${body}.${signature}` : `${head}.${body}`
-  })
+const jwtFor = (claims: string): fc.Arbitrary<string> =>
+  fc
+    .tuple(
+      fc.boolean(),
+      fc.boolean(),
+      fc.string({
+        unit: fc.constantFrom('a', 'B', '0', '-', '_'),
+        maxLength: 12,
+      }),
+    )
+    .map(([padded, withSignature, signature]) => {
+      const head = base64url('{"alg":"none"}', padded)
+      const body = base64url(claims, padded)
+      return withSignature ? `${head}.${body}.${signature}` : `${head}.${body}`
+    })
 
 test('decodeJwtPayload: object payloads round-trip through base64url, padded or not', () => {
   fc.assert(
-    fc.property(payload.chain(claims => fc.tuple(fc.constant(claims), jwtFor(JSON.stringify(claims)))), ([claims, token]) => {
-      // fc.dictionary keys live on a null-prototype object; the JSON round
-      // trip is the equal footing the decode shares with JSON.parse.
-      assert.deepEqual(decodeJwtPayload(token), JSON.parse(JSON.stringify(claims)))
-    }),
+    fc.property(
+      payload.chain((claims) =>
+        fc.tuple(fc.constant(claims), jwtFor(JSON.stringify(claims))),
+      ),
+      ([claims, token]) => {
+        // fc.dictionary keys live on a null-prototype object; the JSON round
+        // trip is the equal footing the decode shares with JSON.parse.
+        assert.deepEqual(
+          decodeJwtPayload(token),
+          JSON.parse(JSON.stringify(claims)),
+        )
+      },
+    ),
     { numRuns: 200 },
   )
 })
@@ -54,9 +70,12 @@ test('decodeJwtPayload: non-object payloads are rejected', () => {
     fc.constant(null),
   )
   fc.assert(
-    fc.property(nonObject.chain(value => jwtFor(JSON.stringify(value))), (token) => {
-      assert.equal(decodeJwtPayload(token), undefined)
-    }),
+    fc.property(
+      nonObject.chain((value) => jwtFor(JSON.stringify(value))),
+      (token) => {
+        assert.equal(decodeJwtPayload(token), undefined)
+      },
+    ),
     { numRuns: 200 },
   )
 })
@@ -66,7 +85,10 @@ test('decodeJwtPayload: arbitrary strings never throw and never return a non-obj
     fc.property(fc.string({ maxLength: 300 }), (token) => {
       const decoded = decodeJwtPayload(token)
       assert.ok(
-        decoded === undefined || (typeof decoded === 'object' && decoded !== null && !Array.isArray(decoded)),
+        decoded === undefined ||
+          (typeof decoded === 'object' &&
+            decoded !== null &&
+            !Array.isArray(decoded)),
         'malformed tokens must decode to undefined, never crash or return a non-object',
       )
     }),

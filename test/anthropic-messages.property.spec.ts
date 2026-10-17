@@ -21,10 +21,15 @@ import {
   toAnthropicSystem,
   type AnthropicMessage,
 } from '../src/translate/anthropic.js'
-import type { TranslatableBlock, TranslatableMessage } from '../src/translate/resolved.js'
+import type {
+  TranslatableBlock,
+  TranslatableMessage,
+} from '../src/translate/resolved.js'
 import { ToolCallId } from '../src/compat.js'
 
-const textBlock = fc.string({ maxLength: 40 }).map((text): TranslatableBlock => ({ type: 'text', text }))
+const textBlock = fc
+  .string({ maxLength: 40 })
+  .map((text): TranslatableBlock => ({ type: 'text', text }))
 
 /** One tool call an assistant turn makes; ids are assigned at materialization. */
 interface CallSpec {
@@ -33,9 +38,13 @@ interface CallSpec {
 }
 
 const callSpec: fc.Arbitrary<CallSpec> = fc.record({
-  name: fc.string({ unit: fc.constantFrom('a', 'b', 'c', 'r', 'w', '_'), minLength: 1, maxLength: 8 }),
+  name: fc.string({
+    unit: fc.constantFrom('a', 'b', 'c', 'r', 'w', '_'),
+    minLength: 1,
+    maxLength: 8,
+  }),
   args: fc.oneof(
-    fc.jsonValue({ maxDepth: 2 }).map(value => JSON.stringify(value ?? {})),
+    fc.jsonValue({ maxDepth: 2 }).map((value) => JSON.stringify(value ?? {})),
     // Malformed model JSON must degrade to `{}`, never crash the pairing.
     fc.constant('{bad'),
   ),
@@ -50,18 +59,27 @@ const callSpec: fc.Arbitrary<CallSpec> = fc.record({
 type Turn =
   | { kind: 'user'; blocks: TranslatableBlock[] }
   | { kind: 'system'; blocks: TranslatableBlock[] }
-  | { kind: 'agent'; blocks: TranslatableBlock[]; calls: CallSpec[]; splice: boolean }
+  | {
+      kind: 'agent'
+      blocks: TranslatableBlock[]
+      calls: CallSpec[]
+      splice: boolean
+    }
 
 const turn: fc.Arbitrary<Turn> = fc.oneof(
-  fc.array(textBlock, { minLength: 1, maxLength: 2 })
+  fc
+    .array(textBlock, { minLength: 1, maxLength: 2 })
     .map((blocks): Turn => ({ kind: 'user', blocks })),
-  fc.array(textBlock, { minLength: 1, maxLength: 2 })
+  fc
+    .array(textBlock, { minLength: 1, maxLength: 2 })
     .map((blocks): Turn => ({ kind: 'system', blocks })),
-  fc.record({
-    blocks: fc.array(textBlock, { maxLength: 2 }),
-    calls: fc.array(callSpec, { maxLength: 3 }),
-    splice: fc.boolean(),
-  }).map((turnSpec): Turn => ({ kind: 'agent', ...turnSpec })),
+  fc
+    .record({
+      blocks: fc.array(textBlock, { maxLength: 2 }),
+      calls: fc.array(callSpec, { maxLength: 3 }),
+      splice: fc.boolean(),
+    })
+    .map((turnSpec): Turn => ({ kind: 'agent', ...turnSpec })),
 )
 
 interface Materialized {
@@ -91,14 +109,17 @@ function materialize(turns: readonly Turn[]): Materialized {
       if (blocks.length === 0) continue
       messages.push({ role: 'assistant', content: blocks })
       if (ids.length === 0) continue
-      const results: TranslatableMessage[] = ids.map(id => ({
+      const results: TranslatableMessage[] = ids.map((id) => ({
         role: 'tool',
         toolCallId: id,
         content: [{ type: 'text', text: `result for ${id}` }],
       }))
       if (turnSpec.splice) {
         const at = results.length > 1 ? 1 : 0
-        results.splice(at, 0, { role: 'user', content: [{ type: 'text', text: 'spliced context' }] })
+        results.splice(at, 0, {
+          role: 'user',
+          content: [{ type: 'text', text: 'spliced context' }],
+        })
       }
       messages.push(...results)
     } else {
@@ -109,11 +130,15 @@ function materialize(turns: readonly Turn[]): Materialized {
 }
 
 function toolUseIds(message: AnthropicMessage): string[] {
-  return message.content.filter(block => block.type === 'tool_use').map(block => String(block['id']))
+  return message.content
+    .filter((block) => block.type === 'tool_use')
+    .map((block) => String(block['id']))
 }
 
 function toolResultIds(message: AnthropicMessage): string[] {
-  return message.content.filter(block => block.type === 'tool_result').map(block => String(block['tool_use_id']))
+  return message.content
+    .filter((block) => block.type === 'tool_result')
+    .map((block) => String(block['tool_use_id']))
 }
 
 /** Multiset equality of two id lists. */
@@ -129,7 +154,11 @@ test('toAnthropicMessages: every tool_use is answered and no tool_result is orph
 
       // Merging guarantees strict role alternation, which the API requires.
       for (let index = 1; index < out.length; index++) {
-        assert.notEqual(out[index].role, out[index - 1].role, `adjacent ${out[index].role} messages at ${index}`)
+        assert.notEqual(
+          out[index].role,
+          out[index - 1].role,
+          `adjacent ${out[index].role} messages at ${index}`,
+        )
       }
 
       const allUseIds: string[] = []
@@ -137,13 +166,17 @@ test('toAnthropicMessages: every tool_use is answered and no tool_result is orph
       for (const [index, message] of out.entries()) {
         if (message.role === 'user') {
           // A replayed tool call rides as text; `tool_use` is assistant-only.
-          assert.ok(!message.content.some(block => block.type === 'tool_use'))
+          assert.ok(!message.content.some((block) => block.type === 'tool_use'))
           // Results lead the message in one run: a non-result block may never
           // sit before or between them (the #22 400 shape).
-          const firstOther = message.content.findIndex(block => block.type !== 'tool_result')
+          const firstOther = message.content.findIndex(
+            (block) => block.type !== 'tool_result',
+          )
           assert.ok(
-            firstOther === -1
-              || !message.content.slice(firstOther).some(block => block.type === 'tool_result'),
+            firstOther === -1 ||
+              !message.content
+                .slice(firstOther)
+                .some((block) => block.type === 'tool_result'),
             'tool_result blocks must form one leading run',
           )
           const resultIds = toolResultIds(message)
@@ -152,24 +185,47 @@ test('toAnthropicMessages: every tool_use is answered and no tool_result is orph
             // Every result answers a call of the immediately preceding
             // assistant message — never an older one and never a stranger.
             const previous = out[index - 1]
-            assert.ok(previous !== undefined, 'tool results must follow an assistant message')
-            assert.equal(previous.role, 'assistant', 'tool results must follow an assistant message')
-            assert.ok(sameIds(resultIds, toolUseIds(previous)), 'result ids must match the preceding calls')
+            assert.ok(
+              previous !== undefined,
+              'tool results must follow an assistant message',
+            )
+            assert.equal(
+              previous.role,
+              'assistant',
+              'tool results must follow an assistant message',
+            )
+            assert.ok(
+              sameIds(resultIds, toolUseIds(previous)),
+              'result ids must match the preceding calls',
+            )
           }
         } else {
           const useIds = toolUseIds(message)
           allUseIds.push(...useIds)
           if (useIds.length > 0) {
             const next = out[index + 1]
-            assert.ok(next !== undefined, 'calls must be answered by the next message')
-            assert.equal(next.role, 'user', 'calls must be answered by the next message')
-            assert.ok(sameIds(useIds, toolResultIds(next)), 'every call must be answered exactly once')
+            assert.ok(
+              next !== undefined,
+              'calls must be answered by the next message',
+            )
+            assert.equal(
+              next.role,
+              'user',
+              'calls must be answered by the next message',
+            )
+            assert.ok(
+              sameIds(useIds, toolResultIds(next)),
+              'every call must be answered exactly once',
+            )
           }
         }
       }
 
       // Nothing lost and nothing invented across the whole conversation.
-      assert.ok(sameIds(allUseIds, callIds), 'every generated call reaches the wire once')
+      assert.ok(
+        sameIds(allUseIds, callIds),
+        'every generated call reaches the wire once',
+      )
       assert.ok(sameIds(allResultIds, callIds), 'every call is answered once')
     }),
     { numRuns: 200 },
@@ -183,24 +239,41 @@ test('markMessageCache + toAnthropicSystem: breakpoints never exceed the Anthrop
       // length, so the expected mark positions are exact.
       fc.integer({ min: 0, max: 130 }),
       (blockCount) => {
-        const messages: TranslatableMessage[] = Array.from({ length: blockCount }, (_, index) => ({
-          role: index % 2 === 0 ? 'user' : 'assistant',
-          content: [{ type: 'text', text: `block ${index}` }],
-        }))
+        const messages: TranslatableMessage[] = Array.from(
+          { length: blockCount },
+          (_, index) => ({
+            role: index % 2 === 0 ? 'user' : 'assistant',
+            content: [{ type: 'text', text: `block ${index}` }],
+          }),
+        )
         const out = toAnthropicMessages(messages)
         markMessageCache(out)
 
-        const flat = out.flatMap(message => message.content)
-        const marked = flat.flatMap((block, index) => (block['cache_control'] === undefined ? [] : [index]))
+        const flat = out.flatMap((message) => message.content)
+        const marked = flat.flatMap((block, index) =>
+          block['cache_control'] === undefined ? [] : [index],
+        )
         const expected = Array.from(
           { length: MESSAGE_CACHE_BREAKPOINTS },
           (_, mark) => flat.length - 1 - mark * CACHE_BLOCK_STRIDE,
-        ).filter(at => at >= 0).sort((left, right) => left - right)
-        assert.deepEqual(marked, expected, 'marks sit at the last block, then one stride back each')
+        )
+          .filter((at) => at >= 0)
+          .sort((left, right) => left - right)
+        assert.deepEqual(
+          marked,
+          expected,
+          'marks sit at the last block, then one stride back each',
+        )
 
         const system = toAnthropicSystem(undefined, messages)
-        const systemMarks = system.filter(block => block['cache_control'] !== undefined)
-        assert.equal(systemMarks.length, 1, 'the system tier marks exactly its last block')
+        const systemMarks = system.filter(
+          (block) => block['cache_control'] !== undefined,
+        )
+        assert.equal(
+          systemMarks.length,
+          1,
+          'the system tier marks exactly its last block',
+        )
         assert.ok(
           marked.length + systemMarks.length <= 4,
           'system plus message breakpoints must stay within the Anthropic limit of 4',

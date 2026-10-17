@@ -23,7 +23,13 @@
  * shape this check cannot read, so it says nothing about the host.
  */
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -42,7 +48,7 @@ function contractPackages() {
     ...Object.keys(HOST_CONTRACT.exports),
     ...Object.values(HOST_CONTRACT.slots),
     ...Object.values(HOST_CONTRACT.services),
-    ...Object.values(HOST_CONTRACT.markers).map(marker => marker.package),
+    ...Object.values(HOST_CONTRACT.markers).map((marker) => marker.package),
   ])
   return [...names].sort()
 }
@@ -61,23 +67,41 @@ function installHost(version) {
   const wanted = `${version}\n${packages.join('\n')}\n`
   if (!existsSync(marker) || readFileSync(marker, 'utf8') !== wanted) {
     mkdirSync(dir, { recursive: true })
-    console.log(`installing ${packages.length} host packages for DSH ${version} ...`)
+    console.log(
+      `installing ${packages.length} host packages for DSH ${version} ...`,
+    )
     // Only the published files are read, never executed, so dependencies are skipped.
     try {
-      execFileSync('npm', [
-        'install', '--no-save', '--no-audit', '--no-fund', '--no-package-lock', '--ignore-scripts',
-        '--omit=peer', '--legacy-peer-deps', '--prefix', dir,
-        ...packages.map(name => `${name}@${version}`),
-      ], { stdio: ['ignore', 'ignore', 'pipe'] })
+      execFileSync(
+        'npm',
+        [
+          'install',
+          '--no-save',
+          '--no-audit',
+          '--no-fund',
+          '--no-package-lock',
+          '--ignore-scripts',
+          '--omit=peer',
+          '--legacy-peer-deps',
+          '--prefix',
+          dir,
+          ...packages.map((name) => `${name}@${version}`),
+        ],
+        { stdio: ['ignore', 'ignore', 'pipe'] },
+      )
     } catch (error) {
       const stderr = error.stderr?.toString() ?? ''
       process.stderr.write(stderr)
       // A package missing at this version is a finding about the host.
       // Anything else (network, registry) only means the check did not run.
       if (/\bcode (?:ETARGET|E404)\b/.test(stderr)) {
-        throw new MissingHostPackage(`a host package in src/client/host-contract.ts is not published at DSH ${version}`)
+        throw new MissingHostPackage(
+          `a host package in src/client/host-contract.ts is not published at DSH ${version}`,
+        )
       }
-      throw new SetupFailure(`npm could not install the host packages for DSH ${version}`)
+      throw new SetupFailure(
+        `npm could not install the host packages for DSH ${version}`,
+      )
     }
     writeFileSync(marker, wanted)
   }
@@ -95,12 +119,16 @@ function shippedCode(modules, name) {
   let code = ''
   for (const dir of dirs) {
     for (const file of readdirSync(dir, { recursive: true })) {
-      if (/\.[cm]?js$/.test(file) && !file.split(/[\\/]/).includes('node_modules')) {
+      if (
+        /\.[cm]?js$/.test(file) &&
+        !file.split(/[\\/]/).includes('node_modules')
+      ) {
         code += readFileSync(join(dir, file), 'utf8') + '\n'
       }
     }
   }
-  if (code === '') throw new Error(`${name} ships no JavaScript under lib/ or dist/`)
+  if (code === '')
+    throw new Error(`${name} ships no JavaScript under lib/ or dist/`)
   return code
 }
 
@@ -109,7 +137,10 @@ function namedExports(modules, name) {
   const entry = join(modules, name, 'lib', 'index.js')
   const source = readFileSync(entry, 'utf8')
   const statements = [...source.matchAll(/^export \{([^}]*)\};?$/gm)]
-  if (statements.length === 0) throw new Error(`${name}/lib/index.js has no export { … } statement to read`)
+  if (statements.length === 0)
+    throw new Error(
+      `${name}/lib/index.js has no export { … } statement to read`,
+    )
   const names = new Set()
   for (const [, list] of statements) {
     for (const item of list.split(',')) {
@@ -124,10 +155,18 @@ function namedExports(modules, name) {
 /** Keys of the shell's static module table: `staticModules:<fn>()` returning an object literal. */
 function staticModuleKeys(code) {
   const call = /staticModules:([A-Za-z_$][\w$]*)\(\)/.exec(code)
-  if (call === null) throw new Error('dsh-web-frontend has no staticModules:<fn>() call')
-  const body = new RegExp(`function ${call[1].replace(/\$/g, '\\$')}\\(\\)\\{return\\{([^}]*)\\}`).exec(code)
-  if (body === null) throw new Error(`dsh-web-frontend: cannot read the body of ${call[1]}()`)
-  return new Set([...body[1].matchAll(/(?:"([^"]+)"|([A-Za-z_$][\w$]*)):/g)].map(m => m[1] ?? m[2]))
+  if (call === null)
+    throw new Error('dsh-web-frontend has no staticModules:<fn>() call')
+  const body = new RegExp(
+    `function ${call[1].replace(/\$/g, '\\$')}\\(\\)\\{return\\{([^}]*)\\}`,
+  ).exec(code)
+  if (body === null)
+    throw new Error(`dsh-web-frontend: cannot read the body of ${call[1]}()`)
+  return new Set(
+    [...body[1].matchAll(/(?:"([^"]+)"|([A-Za-z_$][\w$]*)):/g)].map(
+      (m) => m[1] ?? m[2],
+    ),
+  )
 }
 
 /**
@@ -139,18 +178,25 @@ function staticModuleKeys(code) {
  */
 function bundleRequires() {
   const bundle = join(root, 'lib', 'client.js')
-  if (!existsSync(bundle)) throw new SetupFailure('lib/client.js is missing; run `pnpm build` first')
+  if (!existsSync(bundle))
+    throw new SetupFailure('lib/client.js is missing; run `pnpm build` first')
   const code = readFileSync(bundle, 'utf8')
   const patterns = [
     /\b(?:require|import)\(\s*(['"`])([^'"`]+)\1\s*\)/g,
     /\b(?:import|export)\s[^'"`;]*?\bfrom\s*(['"])([^'"]+)\1/g,
     /\bimport\s*(['"])([^'"]+)\1/g,
   ]
-  const specifiers = new Set(patterns.flatMap(pattern => [...code.matchAll(pattern)].map(m => m[2])))
+  const specifiers = new Set(
+    patterns.flatMap((pattern) => [...code.matchAll(pattern)].map((m) => m[2])),
+  )
   if (!specifiers.has(HOST_CONTRACT.icons.package)) {
-    throw new SetupFailure(`lib/client.js: found no load of ${HOST_CONTRACT.icons.package}; the bundle format is not one this check reads`)
+    throw new SetupFailure(
+      `lib/client.js: found no load of ${HOST_CONTRACT.icons.package}; the bundle format is not one this check reads`,
+    )
   }
-  return [...specifiers].filter(specifier => !specifier.startsWith('.')).sort()
+  return [...specifiers]
+    .filter((specifier) => !specifier.startsWith('.'))
+    .sort()
 }
 
 /** Check one DSH version. Returns the list of failures (empty when it holds). */
@@ -183,44 +229,79 @@ function checkVersion(version) {
 
   const primitives = namedExports(modules, HOST_CONTRACT.icons.package)
   for (const icon of HOST_CONTRACT.icons.names) {
-    expect(primitives.has(`Icon${icon}Regular`) || primitives.has(`Icon${icon}16`), `icon ${icon}`,
-      `${HOST_CONTRACT.icons.package} exports neither Icon${icon}Regular nor Icon${icon}16`)
+    expect(
+      primitives.has(`Icon${icon}Regular`) || primitives.has(`Icon${icon}16`),
+      `icon ${icon}`,
+      `${HOST_CONTRACT.icons.package} exports neither Icon${icon}Regular nor Icon${icon}16`,
+    )
   }
 
   for (const [slot, owner] of Object.entries(HOST_CONTRACT.slots)) {
-    expect(codeOf(owner).includes(`renderSlot("${slot}"`), `slot ${slot}`,
-      `${owner} no longer renders an outlet for it (renderSlot("${slot}", …)); entries registered there never mount`)
+    expect(
+      codeOf(owner).includes(`renderSlot("${slot}"`),
+      `slot ${slot}`,
+      `${owner} no longer renders an outlet for it (renderSlot("${slot}", …)); entries registered there never mount`,
+    )
   }
 
   for (const [service, owner] of Object.entries(HOST_CONTRACT.services)) {
     const source = codeOf(owner)
-    expect(source.includes(`super(ctx, "${service}")`) || source.includes(`ctx.provide("${service}"`), `service ${service}`,
-      `${owner} neither provides nor declares a service named "${service}"`)
+    expect(
+      source.includes(`super(ctx, "${service}")`) ||
+        source.includes(`ctx.provide("${service}"`),
+      `service ${service}`,
+      `${owner} neither provides nor declares a service named "${service}"`,
+    )
   }
 
   // A marker lists the attribute spellings across host generations; one
   // host build renders exactly one spelling, so shipping any of them
   // satisfies the marker.
   for (const [key, marker] of Object.entries(HOST_CONTRACT.markers)) {
-    expect(marker.attributes.some(attribute => codeOf(marker.package).includes(`"${attribute}"`)), `marker ${key}`,
-      `${marker.package} renders none of ${marker.attributes.join(', ')}`)
+    expect(
+      marker.attributes.some((attribute) =>
+        codeOf(marker.package).includes(`"${attribute}"`),
+      ),
+      `marker ${key}`,
+      `${marker.package} renders none of ${marker.attributes.join(', ')}`,
+    )
   }
 
   const renderer = codeOf(HOST_CONTRACT.diagnostics.package)
   const { crashLog, errorAttribute, slotAttribute } = HOST_CONTRACT.diagnostics
-  expect(renderer.includes(crashLog), 'diagnostic crash log', `${HOST_CONTRACT.diagnostics.package} no longer logs "${crashLog}"; the host E2E cannot see slot crashes`)
-  expect(renderer.includes(`"${errorAttribute}"`), 'diagnostic error attribute', `${HOST_CONTRACT.diagnostics.package} no longer renders ${errorAttribute}`)
-  expect(renderer.includes(`"${slotAttribute}"`), 'diagnostic slot attribute', `${HOST_CONTRACT.diagnostics.package} no longer renders ${slotAttribute}`)
+  expect(
+    renderer.includes(crashLog),
+    'diagnostic crash log',
+    `${HOST_CONTRACT.diagnostics.package} no longer logs "${crashLog}"; the host E2E cannot see slot crashes`,
+  )
+  expect(
+    renderer.includes(`"${errorAttribute}"`),
+    'diagnostic error attribute',
+    `${HOST_CONTRACT.diagnostics.package} no longer renders ${errorAttribute}`,
+  )
+  expect(
+    renderer.includes(`"${slotAttribute}"`),
+    'diagnostic slot attribute',
+    `${HOST_CONTRACT.diagnostics.package} no longer renders ${slotAttribute}`,
+  )
 
   const theme = codeOf(HOST_CONTRACT.tokens.package)
-  const undefinedTokens = HOST_CONTRACT.tokens.names.filter(token => !theme.includes(`${token}:`))
-  expect(undefinedTokens.length === 0, `tokens (${HOST_CONTRACT.tokens.names.length})`,
-    `${HOST_CONTRACT.tokens.package} does not define ${undefinedTokens.join(', ')}; those styles fall back to nothing`)
+  const undefinedTokens = HOST_CONTRACT.tokens.names.filter(
+    (token) => !theme.includes(`${token}:`),
+  )
+  expect(
+    undefinedTokens.length === 0,
+    `tokens (${HOST_CONTRACT.tokens.names.length})`,
+    `${HOST_CONTRACT.tokens.package} does not define ${undefinedTokens.join(', ')}; those styles fall back to nothing`,
+  )
 
   const table = staticModuleKeys(codeOf(HOST_CONTRACT.moduleTable))
   for (const specifier of bundleRequires()) {
-    expect(table.has(specifier), `bundle require ${specifier}`,
-      `lib/client.js requires it but the shell's module table only serves ${[...table].join(', ')}`)
+    expect(
+      table.has(specifier),
+      `bundle require ${specifier}`,
+      `lib/client.js requires it but the shell's module table only serves ${[...table].join(', ')}`,
+    )
   }
 
   return { passes, failures }
@@ -231,7 +312,9 @@ function main() {
   let versions
   if (args.includes('--all')) {
     versions = readFileSync(join(root, 'dsh-versions.txt'), 'utf8')
-      .split('\n').map(line => line.trim()).filter(line => line && !line.startsWith('#'))
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line && !line.startsWith('#'))
   } else {
     const i = args.indexOf('--dsh')
     if (i === -1 || !args[i + 1]) {
@@ -250,20 +333,27 @@ function main() {
       console.log(`DSH ${version}: ok (${passes.length} host contract entries)`)
     } else {
       broken.push(version)
-      console.log(`DSH ${version}: FAIL (${failures.length} of ${passes.length + failures.length} host contract entries)`)
+      console.log(
+        `DSH ${version}: FAIL (${failures.length} of ${passes.length + failures.length} host contract entries)`,
+      )
       for (const failure of failures) console.log(`  - ${failure}`)
     }
   }
   if (broken.length > 0) {
-    console.error(`\nsrc/client/host-contract.ts does not hold for DSH ${broken.join(', ')}`)
+    console.error(
+      `\nsrc/client/host-contract.ts does not hold for DSH ${broken.join(', ')}`,
+    )
     process.exit(1)
   }
 }
 
 /** Findings are returned, never thrown, so any exception means the check did not run. */
 function setupExit(error) {
-  console.error(`SETUP FAILURE: ${error instanceof Error ? error.message : String(error)}`)
-  if (!(error instanceof SetupFailure) && error instanceof Error) console.error(error.stack)
+  console.error(
+    `SETUP FAILURE: ${error instanceof Error ? error.message : String(error)}`,
+  )
+  if (!(error instanceof SetupFailure) && error instanceof Error)
+    console.error(error.stack)
   process.exit(2)
 }
 process.on('uncaughtException', setupExit)

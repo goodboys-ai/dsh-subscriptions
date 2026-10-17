@@ -56,7 +56,11 @@ export const FAKE_CLAUDE_IDENTITY = {
 } as const
 
 function fakeAccessToken(suffix: string): string {
-  return mintFakeJwt({ sub: 'virtual-claude-user', exp: Math.floor(Date.now() / 1000) + 3600, jti: suffix })
+  return mintFakeJwt({
+    sub: 'virtual-claude-user',
+    exp: Math.floor(Date.now() / 1000) + 3600,
+    jti: suffix,
+  })
 }
 
 /** One observed request, for assertions. */
@@ -78,15 +82,59 @@ const LOOPBACK_RE = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/
 
 function anthropicSseBody(): string {
   const events: [string, Record<string, unknown>][] = [
-    ['message_start', { type: 'message_start', message: { id: 'msg_1', type: 'message', role: 'assistant', model: 'claude-opus-4-6', usage: { input_tokens: 8, output_tokens: 1 } } }],
-    ['content_block_start', { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } }],
-    ['content_block_delta', { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'Hello, ' } }],
-    ['content_block_delta', { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'world!' } }],
+    [
+      'message_start',
+      {
+        type: 'message_start',
+        message: {
+          id: 'msg_1',
+          type: 'message',
+          role: 'assistant',
+          model: 'claude-opus-4-6',
+          usage: { input_tokens: 8, output_tokens: 1 },
+        },
+      },
+    ],
+    [
+      'content_block_start',
+      {
+        type: 'content_block_start',
+        index: 0,
+        content_block: { type: 'text', text: '' },
+      },
+    ],
+    [
+      'content_block_delta',
+      {
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'text_delta', text: 'Hello, ' },
+      },
+    ],
+    [
+      'content_block_delta',
+      {
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'text_delta', text: 'world!' },
+      },
+    ],
     ['content_block_stop', { type: 'content_block_stop', index: 0 }],
-    ['message_delta', { type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { output_tokens: 5 } }],
+    [
+      'message_delta',
+      {
+        type: 'message_delta',
+        delta: { stop_reason: 'end_turn' },
+        usage: { output_tokens: 5 },
+      },
+    ],
     ['message_stop', { type: 'message_stop' }],
   ]
-  return events.map(([event, data]) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`).join('')
+  return events
+    .map(
+      ([event, data]) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`,
+    )
+    .join('')
 }
 
 /**
@@ -99,15 +147,22 @@ export function installFakeClaude(t: TestContext): FakeClaude {
   const realFetch = globalThis.fetch.bind(globalThis)
   let tokenSerial = 0
 
-  const router = async (input: unknown, init?: RequestInit): Promise<Response> => {
+  const router = async (
+    input: unknown,
+    init?: RequestInit,
+  ): Promise<Response> => {
     const url = input instanceof Request ? input.url : String(input)
     if (LOOPBACK_RE.test(url)) return realFetch(input as RequestInfo, init)
 
-    const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase()
+    const method = (
+      init?.method ?? (input instanceof Request ? input.method : 'GET')
+    ).toUpperCase()
     const headers: Record<string, string> = {}
     const rawHeaders = init?.headers
     if (rawHeaders !== undefined) {
-      new Headers(rawHeaders).forEach((v, k) => { headers[k.toLowerCase()] = v })
+      new Headers(rawHeaders).forEach((v, k) => {
+        headers[k.toLowerCase()] = v
+      })
     }
     let bodyText = ''
     if (init?.body !== undefined) {
@@ -149,7 +204,8 @@ export function installFakeClaude(t: TestContext): FakeClaude {
         })
       }
       if (body.grant_type === 'refresh_token') {
-        const refreshToken = typeof body.refresh_token === 'string' ? body.refresh_token : ''
+        const refreshToken =
+          typeof body.refresh_token === 'string' ? body.refresh_token : ''
         if (!refreshToken.startsWith('fake-claude-refresh-')) {
           return Response.json({ error: 'invalid_grant' }, { status: 400 })
         }
@@ -170,7 +226,11 @@ export function installFakeClaude(t: TestContext): FakeClaude {
       })
     }
 
-    if ((url === CLAUDE_USAGE_URL || url === `${CLAUDE_USAGE_URL}?cedar_ember=1`) && method === 'GET') {
+    if (
+      (url === CLAUDE_USAGE_URL ||
+        url === `${CLAUDE_USAGE_URL}?cedar_ember=1`) &&
+      method === 'GET'
+    ) {
       const now = Date.now()
       return Response.json({
         limits: [
@@ -216,9 +276,14 @@ export function installFakeClaude(t: TestContext): FakeClaude {
     }
 
     if (url === CLAUDE_API_URL && method === 'POST') {
-      return new Response(anthropicSseBody(), { headers: { 'content-type': 'text/event-stream' } })
+      return new Response(anthropicSseBody(), {
+        headers: { 'content-type': 'text/event-stream' },
+      })
     }
-    return new Response(`virtual claude provider has no route for ${method} ${url}`, { status: 404 })
+    return new Response(
+      `virtual claude provider has no route for ${method} ${url}`,
+      { status: 404 },
+    )
   }
 
   t.mock.method(globalThis, 'fetch', router)

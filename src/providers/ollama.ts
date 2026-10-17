@@ -38,7 +38,11 @@ import type { DiscoveredModel, FetchFn } from './common.js'
 import type { OllamaModelSetting } from './ollama-settings.js'
 import { hostFetch } from '../http.js'
 import { resolveImages } from '../translate/resolved.js'
-import { streamChatCompletions, toChatMessages, toChatTools } from '../translate/chat-completions.js'
+import {
+  streamChatCompletions,
+  toChatMessages,
+  toChatTools,
+} from '../translate/chat-completions.js'
 import type { AttachmentStore } from '@deepseek-ai/dsh-attachment'
 
 /** Route id owned by this adapter. Not a member of the OAuth `PROVIDER_IDS`. */
@@ -78,16 +82,28 @@ const MAX_DISCOVERY_BYTES = 4 * 1024 * 1024
  * `efforts` always win, and a row outside these families with no stored
  * levels carries no reasoning block.
  */
-const OLLAMA_REASONING_FAMILIES: readonly { prefix: string; efforts: readonly string[]; defaultEffort: string }[] = [
+const OLLAMA_REASONING_FAMILIES: readonly {
+  prefix: string
+  efforts: readonly string[]
+  defaultEffort: string
+}[] = [
   // Recorded before the endpoint's level list was read: the thinking values
   // ride as `off`/`low`/`high`/`max` (`off` maps to the wire spelling
   // `none`), and the vendor publishes no `medium` level.
-  { prefix: 'deepseek-v4.1-flash', efforts: ['off', 'low', 'high', 'max'], defaultEffort: 'high' },
+  {
+    prefix: 'deepseek-v4.1-flash',
+    efforts: ['off', 'low', 'high', 'max'],
+    defaultEffort: 'high',
+  },
   { prefix: 'glm-5.3', efforts: ['low', 'high', 'max'], defaultEffort: 'max' },
 ]
 
-function reasoningFamily(id: string): { efforts: readonly string[]; defaultEffort: string } | undefined {
-  return OLLAMA_REASONING_FAMILIES.find(family => id.startsWith(family.prefix))
+function reasoningFamily(
+  id: string,
+): { efforts: readonly string[]; defaultEffort: string } | undefined {
+  return OLLAMA_REASONING_FAMILIES.find((family) =>
+    id.startsWith(family.prefix),
+  )
 }
 
 /**
@@ -173,20 +189,31 @@ export function normalizeOllamaModelId(id: string, baseURL: string): string {
  * 403 may be a transient scope denial, so it falls back to the stored
  * catalog like any other discovery miss. */
 function isUnauthorized(error: unknown): boolean {
-  return error instanceof LlmError && error.code === 'AUTH'
-    && error.failure?.status === 401
+  return (
+    error instanceof LlmError &&
+    error.code === 'AUTH' &&
+    error.failure?.status === 401
+  )
 }
 
 /**
  * Find a discovered row for a catalog id, tolerating a listing endpoint that
  * still reports bare names (`glm-5.3` for catalogued `glm-5.3:cloud`).
  */
-function discoveredFor(catalogId: string, discovered: readonly DiscoveredModel[] | undefined): DiscoveredModel | undefined {
-  return discovered?.find(row => row.id === catalogId)
-    ?? discovered?.find(row => row.id === catalogId.replace(/:cloud$/, ''))
+function discoveredFor(
+  catalogId: string,
+  discovered: readonly DiscoveredModel[] | undefined,
+): DiscoveredModel | undefined {
+  return (
+    discovered?.find((row) => row.id === catalogId) ??
+    discovered?.find((row) => row.id === catalogId.replace(/:cloud$/, ''))
+  )
 }
 
-function reasoningFor(row: OllamaCatalogRow, configuredDefault: string | undefined): DiscoveredModel['reasoning'] {
+function reasoningFor(
+  row: OllamaCatalogRow,
+  configuredDefault: string | undefined,
+): DiscoveredModel['reasoning'] {
   const family = reasoningFamily(row.id)
   const familyDefault = row.efforts.includes(family?.defaultEffort ?? '')
     ? family?.defaultEffort
@@ -194,7 +221,10 @@ function reasoningFor(row: OllamaCatalogRow, configuredDefault: string | undefin
   if (row.efforts.length === 0) return undefined
   // Every level here comes from the row or a family that named it; a
   // stored default the row does not list cannot ride the wire.
-  const efforts = row.efforts.map(effort => ({ id: ReasoningEffortId(effort), name: effortDisplayName(effort) }))
+  const efforts = row.efforts.map((effort) => ({
+    id: ReasoningEffortId(effort),
+    name: effortDisplayName(effort),
+  }))
   const storedDefault = row.efforts.includes(row.defaultEffort ?? '')
     ? row.defaultEffort
     : undefined
@@ -205,10 +235,14 @@ function reasoningFor(row: OllamaCatalogRow, configuredDefault: string | undefin
     familyDefault,
     storedDefault,
   ]
-  const defaultEffort = priority.find(entry => entry !== undefined && row.efforts.includes(entry))
+  const defaultEffort = priority.find(
+    (entry) => entry !== undefined && row.efforts.includes(entry),
+  )
   return {
     efforts,
-    ...defaultEffort === undefined ? {} : { defaultEffort: ReasoningEffortId(defaultEffort) },
+    ...(defaultEffort === undefined
+      ? {}
+      : { defaultEffort: ReasoningEffortId(defaultEffort) }),
   }
 }
 
@@ -229,14 +263,23 @@ function mergeDiscoveredReasoning(
   discovered: NonNullable<DiscoveredModel['reasoning']>,
   configuredDefault: string | undefined,
 ): DiscoveredModel['reasoning'] {
-  const vendorLevels = discovered.efforts.map(entry => String(entry.id))
+  const vendorLevels = discovered.efforts.map((entry) => String(entry.id))
   // A published vendor set is closed: the stored row and the family table
   // must not widen it. When the endpoint names no levels, the stored row
   // supplies them and only a still-empty list falls to the family table.
-  const efforts = vendorLevels.length > 0
-    ? vendorLevels
-    : [...row.efforts, ...(row.efforts.length > 0 ? [] : reasoningFamily(row.id)?.efforts ?? [])]
-  const vendorDefault = discovered.defaultEffort === undefined ? undefined : String(discovered.defaultEffort)
+  const efforts =
+    vendorLevels.length > 0
+      ? vendorLevels
+      : [
+          ...row.efforts,
+          ...(row.efforts.length > 0
+            ? []
+            : (reasoningFamily(row.id)?.efforts ?? [])),
+        ]
+  const vendorDefault =
+    discovered.defaultEffort === undefined
+      ? undefined
+      : String(discovered.defaultEffort)
   // The user's explicit choice wins only within the levels the model still
   // offers: a stored default outside a retracted vendor set must not ride
   // the wire, so it falls through to the vendor or stored fallback.
@@ -244,23 +287,30 @@ function mergeDiscoveredReasoning(
     configuredDefault,
     vendorDefault,
     // The family default is the last resort, not a user preference.
-    ...configuredDefault !== undefined || vendorDefault !== undefined
+    ...(configuredDefault !== undefined || vendorDefault !== undefined
       ? [undefined, reasoningFamily(row.id)?.defaultEffort]
-      : [row.defaultEffort, reasoningFamily(row.id)?.defaultEffort],
+      : [row.defaultEffort, reasoningFamily(row.id)?.defaultEffort]),
   ]
-  const defaultEffort = priority.find(entry => entry !== undefined && efforts.includes(entry))
+  const defaultEffort = priority.find(
+    (entry) => entry !== undefined && efforts.includes(entry),
+  )
   return {
-    efforts: efforts.map(effort => ({ id: ReasoningEffortId(effort), name: effortDisplayName(effort) })),
-    ...defaultEffort === undefined ? {} : { defaultEffort: ReasoningEffortId(defaultEffort) },
+    efforts: efforts.map((effort) => ({
+      id: ReasoningEffortId(effort),
+      name: effortDisplayName(effort),
+    })),
+    ...(defaultEffort === undefined
+      ? {}
+      : { defaultEffort: ReasoningEffortId(defaultEffort) }),
   }
 }
 
 /** Strip image blocks for models that cannot accept vision input. Runs before
  * image resolution so a text-only model never requires the attachment store. */
 function withoutImages(messages: readonly RequestMessage[]): RequestMessage[] {
-  return messages.map(message => ({
+  return messages.map((message) => ({
     ...message,
-    content: message.content.filter(block => block.type !== 'image'),
+    content: message.content.filter((block) => block.type !== 'image'),
   })) as RequestMessage[]
 }
 
@@ -281,15 +331,15 @@ export interface OllamaDiscoveredModel extends DiscoveredModel {
 
 function discoveryHeaders(apiKey: string | undefined): Record<string, string> {
   return {
-    'accept': 'application/json',
-    ...apiKey === undefined ? {} : { 'authorization': `Bearer ${apiKey}` },
+    accept: 'application/json',
+    ...(apiKey === undefined ? {} : { authorization: `Bearer ${apiKey}` }),
     ...attributionHeaders(),
   }
 }
 
 function recordOf(value: unknown): Record<string, unknown> | undefined {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? value as Record<string, unknown>
+    ? (value as Record<string, unknown>)
     : undefined
 }
 
@@ -302,14 +352,21 @@ function parseNumCtx(parameters: unknown): number | undefined {
 }
 
 /** Prefer an explicit `num_ctx`, else any `*.context_length` in model info. */
-function extractContextWindow(show: Record<string, unknown>): number | undefined {
+function extractContextWindow(
+  show: Record<string, unknown>,
+): number | undefined {
   const numCtx = parseNumCtx(show['parameters'])
   if (numCtx !== undefined) return numCtx
   const info = recordOf(show['model_info'])
   if (info !== undefined) {
     for (const [key, value] of Object.entries(info)) {
-      if (key.endsWith('context_length') && typeof value === 'number'
-        && Number.isSafeInteger(value) && value > 0) return value
+      if (
+        key.endsWith('context_length') &&
+        typeof value === 'number' &&
+        Number.isSafeInteger(value) &&
+        value > 0
+      )
+        return value
     }
   }
   return undefined
@@ -323,36 +380,59 @@ function extractContextWindow(show: Record<string, unknown>): number | undefined
  * @returns the level list and default, or `undefined` when the payload
  *   carries no usable `thinking` object.
  */
-function extractThinking(show: Record<string, unknown>): { values: string[]; default?: string } | undefined {
+function extractThinking(
+  show: Record<string, unknown>,
+): { values: string[]; default?: string } | undefined {
   const thinking = recordOf(show['thinking'])
   if (thinking === undefined) return undefined
   const rawValues = thinking['values']
   const values: string[] = []
   if (Array.isArray(rawValues)) {
     for (const entry of rawValues) {
-      const effort = entry === false ? 'off' : typeof entry === 'string' && entry.length > 0 ? entry : undefined
+      const effort =
+        entry === false
+          ? 'off'
+          : typeof entry === 'string' && entry.length > 0
+            ? entry
+            : undefined
       if (effort !== undefined && !values.includes(effort)) values.push(effort)
     }
   }
   const rawDefault = thinking['default']
   return {
     values,
-    ...typeof rawDefault === 'string' && rawDefault.length > 0 ? { default: rawDefault } : {},
+    ...(typeof rawDefault === 'string' && rawDefault.length > 0
+      ? { default: rawDefault }
+      : {}),
   }
 }
 
-function discoveredFromShow(id: string, rawId: string, show: Record<string, unknown>): OllamaDiscoveredModel {
+function discoveredFromShow(
+  id: string,
+  rawId: string,
+  show: Record<string, unknown>,
+): OllamaDiscoveredModel {
   const rawCapabilities = show['capabilities']
-  const capabilities = new Set(Array.isArray(rawCapabilities)
-    ? rawCapabilities.filter((entry): entry is string => typeof entry === 'string')
-    : [])
+  const capabilities = new Set(
+    Array.isArray(rawCapabilities)
+      ? rawCapabilities.filter(
+          (entry): entry is string => typeof entry === 'string',
+        )
+      : [],
+  )
   const vision = capabilities.has('vision')
   const thinking = capabilities.has('thinking')
   const vendor = thinking ? extractThinking(show) : undefined
   // The vendor's level list is the truth about the live model; the family
   // table only answers a model whose thinking capability came without one.
-  const family = thinking && (vendor === undefined || vendor.values.length === 0) ? reasoningFamily(id) : undefined
-  const efforts = vendor !== undefined && vendor.values.length > 0 ? vendor.values : family?.efforts ?? []
+  const family =
+    thinking && (vendor === undefined || vendor.values.length === 0)
+      ? reasoningFamily(id)
+      : undefined
+  const efforts =
+    vendor !== undefined && vendor.values.length > 0
+      ? vendor.values
+      : (family?.efforts ?? [])
   const defaultEffort = vendor?.default ?? family?.defaultEffort
   const contextWindow = extractContextWindow(show)
   return {
@@ -360,14 +440,21 @@ function discoveredFromShow(id: string, rawId: string, show: Record<string, unkn
     rawId,
     name: id,
     thinking,
-    ...contextWindow === undefined ? {} : { contextWindow },
+    ...(contextWindow === undefined ? {} : { contextWindow }),
     inputModalities: vision ? ['text', 'image'] : ['text'],
-    ...efforts.length === 0 ? {} : {
-      reasoning: {
-        efforts: efforts.map(effort => ({ id: ReasoningEffortId(effort), name: effortDisplayName(effort) })),
-        ...defaultEffort === undefined ? {} : { defaultEffort: ReasoningEffortId(defaultEffort) },
-      },
-    },
+    ...(efforts.length === 0
+      ? {}
+      : {
+          reasoning: {
+            efforts: efforts.map((effort) => ({
+              id: ReasoningEffortId(effort),
+              name: effortDisplayName(effort),
+            })),
+            ...(defaultEffort === undefined
+              ? {}
+              : { defaultEffort: ReasoningEffortId(defaultEffort) }),
+          },
+        }),
   }
 }
 
@@ -377,7 +464,9 @@ function discoveredFromShow(id: string, rawId: string, show: Record<string, unkn
  * are normalized to their wire form ({@link normalizeOllamaModelId}) while
  * `/api/show` still receives the id the endpoint published.
  */
-export async function fetchOllamaModels(options: OllamaDiscoveryOptions): Promise<OllamaDiscoveredModel[]> {
+export async function fetchOllamaModels(
+  options: OllamaDiscoveryOptions,
+): Promise<OllamaDiscoveredModel[]> {
   const fetchFn = options.fetchFn ?? hostFetch
   const base = options.baseURL.replace(/\/+$/, '')
   let tagsResponse: Response | undefined
@@ -387,7 +476,7 @@ export async function fetchOllamaModels(options: OllamaDiscoveryOptions): Promis
     try {
       tagsResponse = await fetchFn(`${base}/tags`, {
         headers: discoveryHeaders(options.apiKey),
-        ...options.signal === undefined ? {} : { signal: options.signal },
+        ...(options.signal === undefined ? {} : { signal: options.signal }),
       })
       transportError = undefined
       break
@@ -397,23 +486,35 @@ export async function fetchOllamaModels(options: OllamaDiscoveryOptions): Promis
   }
   if (tagsResponse === undefined) throw transportError
   if (!tagsResponse.ok) throw await httpLlmError(tagsResponse, 'ollama models')
-  const tags = recordOf(await readBoundedJson(tagsResponse, 'ollama models', MAX_DISCOVERY_BYTES))
+  const tags = recordOf(
+    await readBoundedJson(tagsResponse, 'ollama models', MAX_DISCOVERY_BYTES),
+  )
   const listed = tags?.['models']
-  if (!Array.isArray(listed)) throw new Error('ollama models endpoint returned no models array')
+  if (!Array.isArray(listed))
+    throw new Error('ollama models endpoint returned no models array')
   const seen = new Set<string>()
   const entries: { raw: string; wire: string }[] = []
   for (const entry of listed) {
     const record = recordOf(entry)
-    const raw = record === undefined
-      ? undefined
-      : typeof record['model'] === 'string' ? record['model'] : typeof record['name'] === 'string' ? record['name'] : undefined
+    const raw =
+      record === undefined
+        ? undefined
+        : typeof record['model'] === 'string'
+          ? record['model']
+          : typeof record['name'] === 'string'
+            ? record['name']
+            : undefined
     if (raw === undefined || raw.length === 0) continue
     const wire = normalizeOllamaModelId(raw, options.baseURL)
     if (seen.has(wire)) continue
     seen.add(wire)
     entries.push({ raw, wire })
   }
-  if (entries.length === 0) throw new LlmError('ollama models endpoint returned an empty catalog', 'DISCOVERY_FAILED')
+  if (entries.length === 0)
+    throw new LlmError(
+      'ollama models endpoint returned an empty catalog',
+      'DISCOVERY_FAILED',
+    )
   const out = new Array<OllamaDiscoveredModel>(entries.length)
   let cursor = 0
   const enrich = async (): Promise<void> => {
@@ -425,22 +526,35 @@ export async function fetchOllamaModels(options: OllamaDiscoveryOptions): Promis
       try {
         const showResponse = await fetchFn(`${base}/show`, {
           method: 'POST',
-          headers: { 'content-type': 'application/json', ...discoveryHeaders(options.apiKey) },
+          headers: {
+            'content-type': 'application/json',
+            ...discoveryHeaders(options.apiKey),
+          },
           body: JSON.stringify({ model: raw }),
-          ...options.signal === undefined ? {} : { signal: options.signal },
+          ...(options.signal === undefined ? {} : { signal: options.signal }),
         })
-        if (!showResponse.ok) throw await httpLlmError(showResponse, 'ollama model details')
-        const show = recordOf(await readBoundedJson(showResponse, 'ollama model details', MAX_DISCOVERY_BYTES))
-        out[index] = show === undefined
-          ? { id: wire, rawId: raw, name: wire, thinking: false }
-          : discoveredFromShow(wire, raw, show)
+        if (!showResponse.ok)
+          throw await httpLlmError(showResponse, 'ollama model details')
+        const show = recordOf(
+          await readBoundedJson(
+            showResponse,
+            'ollama model details',
+            MAX_DISCOVERY_BYTES,
+          ),
+        )
+        out[index] =
+          show === undefined
+            ? { id: wire, rawId: raw, name: wire, thinking: false }
+            : discoveredFromShow(wire, raw, show)
       } catch {
         // One model's enrichment never sinks the listing.
         out[index] = { id: wire, rawId: raw, name: wire, thinking: false }
       }
     }
   }
-  await Promise.all(Array.from({ length: Math.min(SHOW_CONCURRENCY, entries.length) }, enrich))
+  await Promise.all(
+    Array.from({ length: Math.min(SHOW_CONCURRENCY, entries.length) }, enrich),
+  )
   return out
 }
 
@@ -452,17 +566,22 @@ export function ollamaChatRequestBody(
   return {
     model: options.model,
     messages,
-    ...options.tools !== undefined && options.tools.length > 0
+    ...(options.tools !== undefined && options.tools.length > 0
       ? { tools: toChatTools(options.tools), tool_choice: 'auto' }
-      : {},
+      : {}),
     // Ollama takes `max_tokens`. The catalog row supplies the default
     // (32,768, matching upstream); a row without one rides without it.
-    ...maxTokens !== undefined ? { max_tokens: maxTokens } : {},
+    ...(maxTokens !== undefined ? { max_tokens: maxTokens } : {}),
     // `off` rides as `none` (upstream parity); any other effort rides
     // verbatim. Only advertised efforts ever reach this branch.
-    ...options.reasoningEffort !== undefined
-      ? { reasoning_effort: String(options.reasoningEffort) === 'off' ? 'none' : String(options.reasoningEffort) }
-      : {},
+    ...(options.reasoningEffort !== undefined
+      ? {
+          reasoning_effort:
+            String(options.reasoningEffort) === 'off'
+              ? 'none'
+              : String(options.reasoningEffort),
+        }
+      : {}),
     stream: true,
     stream_options: { include_usage: true },
   }
@@ -476,10 +595,12 @@ export class OllamaAdapter extends LlmAdapter {
   }
 
   /** Drop the discovery snapshot so the next picker pass re-reads the endpoint. */
-  invalidateModels(): void { this.catalogCache.invalidate() }
+  invalidateModels(): void {
+    this.catalogCache.invalidate()
+  }
 
   private rows(): OllamaCatalogRow[] {
-    return this.options.catalog().map(entry => {
+    return this.options.catalog().map((entry) => {
       const family = reasoningFamily(entry.id)
       return {
         id: entry.id,
@@ -488,9 +609,10 @@ export class OllamaAdapter extends LlmAdapter {
         contextOverride: entry.contextOverride,
         maxTokens: entry.maxTokens ?? OLLAMA_DEFAULT_MAX_TOKENS,
         vision: entry.vision === true,
-        efforts: entry.efforts !== undefined && entry.efforts.length > 0
-          ? [...entry.efforts]
-          : [...family?.efforts ?? []],
+        efforts:
+          entry.efforts !== undefined && entry.efforts.length > 0
+            ? [...entry.efforts]
+            : [...(family?.efforts ?? [])],
         // The family default stays out of the stored row: the resolver's
         // priority keeps it last, so a vendor change is not held back by
         // the fallback baked in during construction.
@@ -503,7 +625,9 @@ export class OllamaAdapter extends LlmAdapter {
     return { id: provider, name: 'Ollama Cloud' }
   }
 
-  override async listModels(provider: string): Promise<readonly LlmModelInfo[]> {
+  override async listModels(
+    provider: string,
+  ): Promise<readonly LlmModelInfo[]> {
     const catalog = this.rows()
     // No stored model means no catalog: the route ships no built-in rows, so
     // an empty store hides the picker entry instead of advertising models
@@ -513,15 +637,19 @@ export class OllamaAdapter extends LlmAdapter {
     // models every request would fail for.
     const apiKey = await this.options.apiKey()
     if (apiKey === undefined) return []
-    if (this.options.discovery === false) return this.staticList(provider, catalog)
+    if (this.options.discovery === false)
+      return this.staticList(provider, catalog)
     try {
       const discovered = await withTimeout(
-        signal => this.catalogCache.get(() => fetchOllamaModels({
-          baseURL: this.options.baseURL(),
-          apiKey,
-          fetchFn: this.options.fetchFn,
-          signal,
-        })),
+        (signal) =>
+          this.catalogCache.get(() =>
+            fetchOllamaModels({
+              baseURL: this.options.baseURL(),
+              apiKey,
+              fetchFn: this.options.fetchFn,
+              signal,
+            }),
+          ),
         DISCOVERY_TIMEOUT_MS,
       )
       // A timeout resolves undefined: treat it like any other discovery
@@ -530,7 +658,7 @@ export class OllamaAdapter extends LlmAdapter {
       // Discovery enriches the stored allowlist but never extends it: the
       // user adopted an exact catalog, so unmatched discoveries stay out of
       // the picker.
-      return catalog.map(entry => {
+      return catalog.map((entry) => {
         const match = discoveredFor(entry.id, discovered)
         if (match === undefined) {
           return {
@@ -547,21 +675,29 @@ export class OllamaAdapter extends LlmAdapter {
           provider,
           id: entry.id,
           name: entry.name,
-          inputModalities: match.inputModalities ?? (entry.vision ? ['text', 'image'] : ['text']),
+          inputModalities:
+            match.inputModalities ??
+            (entry.vision ? ['text', 'image'] : ['text']),
         }
       })
     } catch (error: unknown) {
       if (isDiscoveryAborted(error)) throw error
       // Keys are stateless, so any other failure falls back to the stored
       // catalog; a 401 instead hides the route like a logout.
-      if (isMissingOrInvalidCredential(error) || isUnauthorized(error)) return []
-      this.options.onWarn?.(`ollama-cloud model discovery failed; using the stored catalog (${errorChain(error)})`)
+      if (isMissingOrInvalidCredential(error) || isUnauthorized(error))
+        return []
+      this.options.onWarn?.(
+        `ollama-cloud model discovery failed; using the stored catalog (${errorChain(error)})`,
+      )
       return this.staticList(provider, catalog)
     }
   }
 
-  private staticList(provider: string, catalog: readonly OllamaCatalogRow[]): LlmModelInfo[] {
-    return catalog.map(entry => ({
+  private staticList(
+    provider: string,
+    catalog: readonly OllamaCatalogRow[],
+  ): LlmModelInfo[] {
+    return catalog.map((entry) => ({
       provider,
       id: entry.id,
       name: entry.name,
@@ -569,54 +705,93 @@ export class OllamaAdapter extends LlmAdapter {
     }))
   }
 
-  override async resolveModel(provider: string, model: string): Promise<LlmResolvedModelInfo> {
-    const entry = this.rows().find(row => row.id === model)
+  override async resolveModel(
+    provider: string,
+    model: string,
+  ): Promise<LlmResolvedModelInfo> {
+    const entry = this.rows().find((row) => row.id === model)
     // The pass-through native behavior is deliberately absent: an
     // uncatalogued id fails here instead of 404ing at the gateway.
-    if (entry === undefined) throw new LlmError(`ollama-cloud has no configured model "${model}"`, 'UNKNOWN_MODEL')
+    if (entry === undefined)
+      throw new LlmError(
+        `ollama-cloud has no configured model "${model}"`,
+        'UNKNOWN_MODEL',
+      )
     // Discovery carries the key when one exists; keyless endpoints still
     // list, and no secret rides a metadata fetch it cannot use. The fetch
     // shares the picker bound so a hung listing cannot stall resolution.
-    const discoveryKey = this.options.discovery === false ? undefined : await this.options.apiKey()
-    const discovered = this.options.discovery === false
-      ? undefined
-      : await withTimeout(
-        signal => this.catalogCache.resolve(() => fetchOllamaModels({
-          baseURL: this.options.baseURL(),
-          apiKey: discoveryKey,
-          fetchFn: this.options.fetchFn,
-          signal,
-        })),
-        DISCOVERY_TIMEOUT_MS,
-      ).then(
-        models => discoveredFor(model, models ?? undefined),
-        () => undefined,
-      )
-    const modalities = discovered?.inputModalities ?? (entry.vision ? ['text', 'image'] as const : ['text'] as const)
-    const configuredDefault = this.options.defaultEffortOf?.(model) ?? entry.defaultEffort
-    const reasoning = discovered?.reasoning === undefined
-      ? reasoningFor(entry, configuredDefault)
-      : mergeDiscoveredReasoning(entry, discovered.reasoning, configuredDefault)
+    const discoveryKey =
+      this.options.discovery === false ? undefined : await this.options.apiKey()
+    const discovered =
+      this.options.discovery === false
+        ? undefined
+        : await withTimeout(
+            (signal) =>
+              this.catalogCache.resolve(() =>
+                fetchOllamaModels({
+                  baseURL: this.options.baseURL(),
+                  apiKey: discoveryKey,
+                  fetchFn: this.options.fetchFn,
+                  signal,
+                }),
+              ),
+            DISCOVERY_TIMEOUT_MS,
+          ).then(
+            (models) => discoveredFor(model, models ?? undefined),
+            () => undefined,
+          )
+    const modalities =
+      discovered?.inputModalities ??
+      (entry.vision ? (['text', 'image'] as const) : (['text'] as const))
+    const configuredDefault =
+      this.options.defaultEffortOf?.(model) ?? entry.defaultEffort
+    const reasoning =
+      discovered?.reasoning === undefined
+        ? reasoningFor(entry, configuredDefault)
+        : mergeDiscoveredReasoning(
+            entry,
+            discovered.reasoning,
+            configuredDefault,
+          )
     return {
       provider,
       id: model,
       name: entry.name,
       inputModalities: [...modalities],
-      context: { contextWindow: effectiveContextWindow(entry, discovered?.contextWindow) },
+      context: {
+        contextWindow: effectiveContextWindow(entry, discovered?.contextWindow),
+      },
       defaultMaxTokens: entry.maxTokens,
-      ...reasoning === undefined ? {} : { reasoning },
+      ...(reasoning === undefined ? {} : { reasoning }),
     }
   }
 
   override async *stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
-    const watchdog = idleWatchdog(options.signal, this.options.streamIdleTimeoutMs ?? 300_000)
+    const watchdog = idleWatchdog(
+      options.signal,
+      this.options.streamIdleTimeoutMs ?? 300_000,
+    )
     try {
       const apiKey = await this.options.apiKey()
-      if (apiKey === undefined) throw new LlmError('ollama-cloud API key is not configured', 'MISSING_CREDENTIAL')
-      const entry = this.rows().find(row => row.id === options.model)
-      if (entry === undefined) throw new LlmError(`ollama-cloud has no configured model "${options.model}"`, 'UNKNOWN_MODEL')
-      const requestMessages = entry.vision ? options.messages : withoutImages(options.messages)
-      const resolved = await resolveImages(requestMessages, this.options.resolveAttachments?.(), watchdog.signal)
+      if (apiKey === undefined)
+        throw new LlmError(
+          'ollama-cloud API key is not configured',
+          'MISSING_CREDENTIAL',
+        )
+      const entry = this.rows().find((row) => row.id === options.model)
+      if (entry === undefined)
+        throw new LlmError(
+          `ollama-cloud has no configured model "${options.model}"`,
+          'UNKNOWN_MODEL',
+        )
+      const requestMessages = entry.vision
+        ? options.messages
+        : withoutImages(options.messages)
+      const resolved = await resolveImages(
+        requestMessages,
+        this.options.resolveAttachments?.(),
+        watchdog.signal,
+      )
       const body = ollamaChatRequestBody(
         options,
         toChatMessages(resolved, options.system),
@@ -627,8 +802,8 @@ export class OllamaAdapter extends LlmAdapter {
       const response = await fetchFn(`${chatBase}/chat/completions`, {
         method: 'POST',
         headers: {
-          'authorization': `Bearer ${apiKey}`,
-          'accept': 'text/event-stream',
+          authorization: `Bearer ${apiKey}`,
+          accept: 'text/event-stream',
           'content-type': 'application/json',
           ...attributionHeaders(),
         },
@@ -637,9 +812,14 @@ export class OllamaAdapter extends LlmAdapter {
       })
       if (!response.ok) throw await httpLlmError(response, 'ollama-cloud API')
       if (response.body === null) {
-        throw new LlmError('ollama-cloud API returned no response body', EMPTY_RESPONSE_CODE)
+        throw new LlmError(
+          'ollama-cloud API returned no response body',
+          EMPTY_RESPONSE_CODE,
+        )
       }
-      const pulse = (): void => { watchdog.pulse() }
+      const pulse = (): void => {
+        watchdog.pulse()
+      }
       yield* streamChatCompletions(response.body, pulse)
     } catch (error: unknown) {
       throw mapFetchFailure('ollama-cloud API', error, watchdog, options.signal)

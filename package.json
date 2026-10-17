@@ -71,8 +71,12 @@
     "build": "tsc && tsdown",
     "test": "tsc -p tsconfig.test.json && node --import ./test/hermetic.mjs --test \"lib-test/test/**/*.spec.js\"",
     "test:mutation": "stryker run",
-    "prepare": "tsdown -c tsdown.prepare.config.ts",
-    "prepublishOnly": "pnpm build && pnpm test"
+    "prepare": "node scripts/install-dev-hooks.mjs && tsdown -c tsdown.prepare.config.ts",
+    "prepublishOnly": "pnpm build && pnpm test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix --max-warnings 0"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "~4.0.4",
@@ -102,17 +106,35 @@
     "@deepseek-ai/dsh-tools": "0.1.7-rc.2",
     "@deepseek-ai/dsh-web": "0.1.7-rc.2",
     "@deepseek-ai/schemastery": "3.18.4",
+    "@eslint/js": "^10.0.1",
     "@stryker-mutator/core": "^10.0.0",
     "@types/node": "^24.0.0",
     "@types/react": "~18.3.1",
     "@types/react-dom": "~18.3.7",
+    "eslint": "^10.13.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "fast-check": "^4.10.2",
+    "globals": "^17.13.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.0",
+    "prettier": "^3.9.10",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "tsdown": "^0.15.0",
-    "typescript": "^5.8.0"
+    "typescript": "^5.8.0",
+    "typescript-eslint": "^8.71.2"
   },
   "publishConfig": {
     "access": "public"
+  },
+  "lint-staged": {
+    "*.{js,mjs,cjs,ts,tsx}": [
+      "eslint --fix --max-warnings 0",
+      "prettier --write"
+    ],
+    "*.{json,yml,yaml,css,md}": [
+      "prettier --write"
+    ]
   }
 }

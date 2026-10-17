@@ -77,7 +77,11 @@ function fakeIdToken(): string {
 }
 
 function fakeAccessToken(suffix: string): string {
-  return mintFakeJwt({ sub: 'virtual-user', exp: Math.floor(Date.now() / 1000) + 3600, jti: suffix })
+  return mintFakeJwt({
+    sub: 'virtual-user',
+    exp: Math.floor(Date.now() / 1000) + 3600,
+    jti: suffix,
+  })
 }
 
 /** One observed request, for assertions. */
@@ -99,18 +103,35 @@ const LOOPBACK_RE = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/
 
 function sseBody(): string {
   const events = [
-    { type: 'response.output_text.delta', delta: 'Hello, ', item_id: 'msg_1', content_index: 0 },
-    { type: 'response.output_text.delta', delta: 'world!', item_id: 'msg_1', content_index: 0 },
-    { type: 'response.completed', response: { usage: { input_tokens: 10, output_tokens: 5 } } },
+    {
+      type: 'response.output_text.delta',
+      delta: 'Hello, ',
+      item_id: 'msg_1',
+      content_index: 0,
+    },
+    {
+      type: 'response.output_text.delta',
+      delta: 'world!',
+      item_id: 'msg_1',
+      content_index: 0,
+    },
+    {
+      type: 'response.completed',
+      response: { usage: { input_tokens: 10, output_tokens: 5 } },
+    },
   ]
-  return events.map(event => `data: ${JSON.stringify(event)}\n\n`).join('')
+  return events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join('')
 }
 
 function usagePayload(): Record<string, unknown> {
   return {
     plan_type: FAKE_CODEX_IDENTITY.planType,
     rate_limit: {
-      primary_window: { used_percent: 42.5, limit_window_seconds: 18_000, reset_after_seconds: 3600 },
+      primary_window: {
+        used_percent: 42.5,
+        limit_window_seconds: 18_000,
+        reset_after_seconds: 3600,
+      },
       secondary_window: {
         used_percent: 10,
         limit_window_seconds: 604_800,
@@ -131,7 +152,9 @@ function modelsPayload(): Record<string, unknown> {
         max_context_window: 400_000,
         priority: 1,
         visibility: 'list',
-        supported_reasoning_levels: [{ effort: 'medium', description: 'Balanced.' }],
+        supported_reasoning_levels: [
+          { effort: 'medium', description: 'Balanced.' },
+        ],
         default_reasoning_level: 'medium',
         service_tiers: [{ id: 'priority', name: 'Priority' }],
       },
@@ -142,7 +165,12 @@ function modelsPayload(): Record<string, unknown> {
         visibility: 'list',
       },
       // Exercises the visibility filter: must never surface in discovery.
-      { slug: 'secret-model', display_name: 'Secret', priority: 0, visibility: 'hide' },
+      {
+        slug: 'secret-model',
+        display_name: 'Secret',
+        priority: 0,
+        visibility: 'hide',
+      },
     ],
   }
 }
@@ -157,15 +185,22 @@ export function installFakeCodex(t: TestContext): FakeCodex {
   const realFetch = globalThis.fetch.bind(globalThis)
   let tokenSerial = 0
 
-  const router = async (input: unknown, init?: RequestInit): Promise<Response> => {
+  const router = async (
+    input: unknown,
+    init?: RequestInit,
+  ): Promise<Response> => {
     const url = input instanceof Request ? input.url : String(input)
     if (LOOPBACK_RE.test(url)) return realFetch(input as RequestInfo, init)
 
-    const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase()
+    const method = (
+      init?.method ?? (input instanceof Request ? input.method : 'GET')
+    ).toUpperCase()
     const headers: Record<string, string> = {}
     const rawHeaders = init?.headers
     if (rawHeaders !== undefined) {
-      new Headers(rawHeaders).forEach((v, k) => { headers[k.toLowerCase()] = v })
+      new Headers(rawHeaders).forEach((v, k) => {
+        headers[k.toLowerCase()] = v
+      })
     }
     let bodyText = ''
     if (init?.body !== undefined) {
@@ -195,7 +230,10 @@ export function installFakeCodex(t: TestContext): FakeCodex {
       if (contentType.includes('application/x-www-form-urlencoded')) {
         const form = new URLSearchParams(bodyText)
         if (form.get('grant_type') !== 'authorization_code') {
-          return Response.json({ error: 'unsupported_grant_type' }, { status: 400 })
+          return Response.json(
+            { error: 'unsupported_grant_type' },
+            { status: 400 },
+          )
         }
         const code = form.get('code') ?? ''
         if (!fake.issuedCodes.has(code)) {
@@ -211,9 +249,15 @@ export function installFakeCodex(t: TestContext): FakeCodex {
         })
       }
       if (contentType.includes('application/json')) {
-        const body = JSON.parse(bodyText) as { grant_type?: string; refresh_token?: string }
-        if (body.grant_type !== 'refresh_token' || typeof body.refresh_token !== 'string'
-          || !body.refresh_token.startsWith('fake-refresh-')) {
+        const body = JSON.parse(bodyText) as {
+          grant_type?: string
+          refresh_token?: string
+        }
+        if (
+          body.grant_type !== 'refresh_token' ||
+          typeof body.refresh_token !== 'string' ||
+          !body.refresh_token.startsWith('fake-refresh-')
+        ) {
           return Response.json({ error: 'invalid_grant' }, { status: 400 })
         }
         tokenSerial += 1
@@ -235,9 +279,14 @@ export function installFakeCodex(t: TestContext): FakeCodex {
       return Response.json(modelsPayload())
     }
     if (url === CODEX_API_URL && method === 'POST') {
-      return new Response(sseBody(), { headers: { 'content-type': 'text/event-stream' } })
+      return new Response(sseBody(), {
+        headers: { 'content-type': 'text/event-stream' },
+      })
     }
-    return new Response(`virtual codex provider has no route for ${method} ${url}`, { status: 404 })
+    return new Response(
+      `virtual codex provider has no route for ${method} ${url}`,
+      { status: 404 },
+    )
   }
 
   t.mock.method(globalThis, 'fetch', router)

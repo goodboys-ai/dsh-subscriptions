@@ -18,7 +18,11 @@ import type { ConnectionHandle } from '@deepseek-ai/dsh-api-remotes/client'
 import type { ToolCallBlock } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import * as primitives from '@deepseek-ai/dsh-client-ui-primitives'
 import { ImageGallery } from './ImageGallery.js'
-import type { ImageAttachmentRef, ImageLoader, MessageImageLabels } from './ImageGallery.js'
+import type {
+  ImageAttachmentRef,
+  ImageLoader,
+  MessageImageLabels,
+} from './ImageGallery.js'
 import { hostIcon } from './host-icons.js'
 import { callSubscriptionsAuth } from './subscriptions-rpc.js'
 import { en } from './locales.js'
@@ -43,7 +47,11 @@ interface ToolCallOwnerProps {
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
     /** Mirror of ui-tool's keyed atomic Tool view declaration (see the module header). */
-    'tool.call.toolview': { kind: 'keyed'; scope: 'session'; owner: ToolCallOwnerProps }
+    'tool.call.toolview': {
+      kind: 'keyed'
+      scope: 'session'
+      owner: ToolCallOwnerProps
+    }
   }
 }
 
@@ -57,10 +65,12 @@ export interface ImageGenerateToolviewInjected {
  * Props delivered by the toolview outlet: the owner share plus the inject
  * face and the framework locale seat, spread flat.
  */
-export type ImageGenerateToolviewProps =
-  Partial<ToolCallOwnerProps>
-  & Partial<ImageGenerateToolviewInjected>
-  & { t?: ((key: SubscriptionsKey, params?: Record<string, unknown>) => string) | undefined }
+export type ImageGenerateToolviewProps = Partial<ToolCallOwnerProps> &
+  Partial<ImageGenerateToolviewInjected> & {
+    t?:
+      | ((key: SubscriptionsKey, params?: Record<string, unknown>) => string)
+      | undefined
+  }
 
 /** `image` endpoint result: the node half owns this shape. */
 interface ImageEndpointResult {
@@ -76,9 +86,10 @@ interface ImageEndpointResult {
 export function createImageLoader(rpc: ConnectionHandle['rpc']): ImageLoader {
   // The host validates a full ImageAttachmentRef payload (readImage takes the
   // whole ref), so forward the attachment verbatim.
-  return attachment =>
-    callSubscriptionsAuth<ImageEndpointResult>(rpc, 'image', { ...attachment })
-      .then(result => `data:${result.mediaType};base64,${result.dataBase64}`)
+  return (attachment) =>
+    callSubscriptionsAuth<ImageEndpointResult>(rpc, 'image', {
+      ...attachment,
+    }).then((result) => `data:${result.mediaType};base64,${result.dataBase64}`)
 }
 
 /**
@@ -88,7 +99,10 @@ export function createImageLoader(rpc: ConnectionHandle['rpc']): ImageLoader {
  * @param params - `{name}` template params.
  * @returns the template with params substituted.
  */
-function fallbackTranslate(key: SubscriptionsKey, params?: Record<string, unknown>): string {
+function fallbackTranslate(
+  key: SubscriptionsKey,
+  params?: Record<string, unknown>,
+): string {
   let text: string = en[key]
   for (const [name, value] of Object.entries(params ?? {})) {
     text = text.replaceAll(`{${name}}`, String(value))
@@ -108,15 +122,21 @@ function derivePrompt(argsRaw: string): string {
   let prompt: string | undefined
   if (typeof parsed === 'object' && parsed !== null) {
     const args = parsed as Record<string, unknown>
-    if (typeof args.prompt === 'string' && args.prompt !== '') prompt = args.prompt
+    if (typeof args.prompt === 'string' && args.prompt !== '')
+      prompt = args.prompt
     else {
       for (const value of Object.values(args)) {
-        if (typeof value === 'string' && value !== '') { prompt = value; break }
+        if (typeof value === 'string' && value !== '') {
+          prompt = value
+          break
+        }
       }
     }
   }
   const line = (prompt ?? argsRaw).split('\n', 1)[0] ?? ''
-  return line.length > PROMPT_MAX_LENGTH ? `${line.slice(0, PROMPT_MAX_LENGTH)}…` : line
+  return line.length > PROMPT_MAX_LENGTH
+    ? `${line.slice(0, PROMPT_MAX_LENGTH)}…`
+    : line
 }
 
 /** Flatten a settled result's text blocks (the degraded text-only route and the error line). */
@@ -126,34 +146,65 @@ function resultText(block: ToolCallBlock): string {
   for (const part of block.content) {
     if (part.type === 'text') parts.push(part.text)
   }
-  if (parts.length === 0 && block.error !== undefined) parts.push(`${block.error.name}: ${block.error.code}`)
+  if (parts.length === 0 && block.error !== undefined)
+    parts.push(`${block.error.name}: ${block.error.code}`)
   return parts.join('\n')
 }
 
 /** Image attachments of a settled result; empty while running or on the text-only route. */
-function resultImages(block: ToolCallBlock): { attachment: ImageAttachmentRef }[] {
+function resultImages(
+  block: ToolCallBlock,
+): { attachment: ImageAttachmentRef }[] {
   if (!('kind' in block)) return []
   const images: { attachment: ImageAttachmentRef }[] = []
   for (const part of block.content) {
-    if (part.type === 'image') images.push({ attachment: part.attachment as ImageAttachmentRef })
+    if (part.type === 'image')
+      images.push({ attachment: part.attachment as ImageAttachmentRef })
   }
   return images
 }
 
 const styles: Record<string, CSSProperties> = {
-  container: { display: 'flex', flexDirection: 'column', gap: 6, padding: '4px 0' },
+  container: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+    padding: '4px 0',
+  },
   row: { display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 },
-  icon: { display: 'inline-flex', flexShrink: 0, color: 'var(--dsw-alias-label-tertiary)' },
+  icon: {
+    display: 'inline-flex',
+    flexShrink: 0,
+    color: 'var(--dsw-alias-label-tertiary)',
+  },
   title: {
-    fontSize: 13, lineHeight: '20px', color: 'var(--dsw-alias-label-primary)',
-    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+    fontSize: 13,
+    lineHeight: '20px',
+    color: 'var(--dsw-alias-label-primary)',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
   },
-  subtle: { margin: 0, fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary)' },
+  subtle: {
+    margin: 0,
+    fontSize: 12,
+    lineHeight: '18px',
+    color: 'var(--dsw-alias-label-tertiary)',
+  },
   output: {
-    margin: 0, fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary)',
-    whiteSpace: 'pre-wrap', overflowWrap: 'anywhere',
+    margin: 0,
+    fontSize: 12,
+    lineHeight: '18px',
+    color: 'var(--dsw-alias-label-secondary)',
+    whiteSpace: 'pre-wrap',
+    overflowWrap: 'anywhere',
   },
-  error: { margin: 0, fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-state-error-primary)' },
+  error: {
+    margin: 0,
+    fontSize: 12,
+    lineHeight: '18px',
+    color: 'var(--dsw-alias-state-error-primary)',
+  },
 }
 
 /**
@@ -166,19 +217,27 @@ export function ImageGenerateToolview(props: ImageGenerateToolviewProps) {
   const t = props.t ?? fallbackTranslate
   if (block === undefined) return null
   const settled = 'kind' in block
-  const argsRaw = (settled ? block.call?.argsRaw : block.phase === 'start' ? block.argsRaw : undefined) ?? ''
+  const argsRaw =
+    (settled
+      ? block.call?.argsRaw
+      : block.phase === 'start'
+        ? block.argsRaw
+        : undefined) ?? ''
   let references = 0
   try {
     const args = JSON.parse(argsRaw)
-    if (Array.isArray(args?.referenceImages)) references = args.referenceImages.length
-  } catch { /* Arguments may still be streaming. */ }
+    if (Array.isArray(args?.referenceImages))
+      references = args.referenceImages.length
+  } catch {
+    /* Arguments may still be streaming. */
+  }
   const title = `image_generate${references > 0 ? ` (${references} ref)` : ''}: ${derivePrompt(argsRaw)}`
   const images = resultImages(block)
   const text = settled ? resultText(block) : ''
   const labels: MessageImageLabels = {
     image: t('image'),
     open: t('viewImage'),
-    openNamed: name => t('viewImageNamed', { name }),
+    openNamed: (name) => t('viewImageNamed', { name }),
     loading: t('imageLoading'),
     loadFailed: t('imageLoadFailed'),
     lightbox: { dialog: t('imagePreview'), close: t('imageClose') },
@@ -186,7 +245,9 @@ export function ImageGenerateToolview(props: ImageGenerateToolviewProps) {
   return (
     <div style={styles.container}>
       <div style={styles.row}>
-        <span style={styles.icon}><SparkleIcon size={14} /></span>
+        <span style={styles.icon}>
+          <SparkleIcon size={14} />
+        </span>
         <span style={styles.title}>{title}</span>
       </div>
       {!settled && <p style={styles.subtle}>{t('generating')}</p>}
