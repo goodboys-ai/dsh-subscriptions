@@ -1,7 +1,12 @@
 name: CI
 
 on:
+  # A push to an open pull request would otherwise run this matrix twice on
+  # the same commit. pull_request is the run for topic branches, including
+  # the merge with the base. Push stays on main so the merge commit still
+  # has a CI gate check-run; release.yml requires that check on the tagged SHA.
   push:
+    branches: [main]
   pull_request:
 
 permissions:

@@ -94,8 +94,8 @@ That exemption is an at-your-own-risk escape hatch, not support.
 The source targets `0.2.1`, with peers `>=0.1.7-rc.2 <0.3.0-0`. Gate results
 below were first recorded locally on 2026-09-30 and confirmed by main CI on
 2026-10-02; the `0.2.1-rc.2` row was recorded locally on 2026-10-17. The CI
-matrix runs identical gates on every push. A cell becomes ✅ only from a green
-gate run, never from "it should work".
+matrix runs identical gates on pull requests and on pushes to main. A cell
+becomes ✅ only from a green gate run, never from "it should work".
 
 | DSH          | build | tests | host exports | host contract | boot smoke | host E2E |
 | ------------ | ----- | ----- | ------------ | ------------- | ---------- | -------- |
