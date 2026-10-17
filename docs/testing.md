@@ -312,8 +312,9 @@ script:
    - the host's model picker lists the plugin's `GPT-6-Astra`;
    - a message to that model streams through the plugin's Codex adapter,
      and the canned reply renders in the transcript;
-   - the usage pill (`Codex 5h 11%`) renders inside the host's stats row
-     (`data-composer-stats`). Its dialog has one section per source, each
+   - the usage pill (`Codex 5h 11%`) renders in the host's stats row —
+     inside `data-composer-stats` through DSH 0.2.0, or in the composer
+     dock beside the `data-composer-stat` pills from 0.2.1. Its dialog has one section per source, each
      named for that source and showing only that source's fixture windows,
      with no unexpected section. The badge fills the dialog from RPCs that
      settle at their own pace, so the driver polls until it matches, and

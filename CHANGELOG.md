@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.2.1 — 2026-10-17
+
+- **DSH 0.2.1 support.** The gated support window moves to DSH
+  `0.1.7-rc.2`, `0.2.0-rc.2`, and `0.2.1-rc.2`; `0.2.0-rc.1` leaves the
+  window but still installs under the unchanged peer range
+  `>=0.1.7-rc.2 <0.3.0-0`. DSH 0.2.1 renders its composer stats pills as
+  dock entries instead of one shared stats row; the usage badge's own dock
+  entry already shares that row, so the badge now sits beside the pills in
+  place on 0.2.1 and keeps rendering into the stats row on older hosts.
+
 ## v0.2.0 — 2026-10-13
 
 - **New provider: Ollama Cloud.** Add the `ollama-cloud` route with an

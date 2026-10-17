@@ -537,13 +537,16 @@ export function SubscriptionUsageBadge({ rpc, currentModel, t, rotationMs }: Sub
     return () => { document.removeEventListener('keydown', onKeyDown) }
   }, [open])
 
-  // Sit on the host's stats row when there is one. Every dock entry is its
-  // own row in the composer bar, so a badge rendered in place lands under the
-  // shipped time/token pills; the host marks its pill row with
-  // `data-composer-stats`, and rendering into it makes the badge a third pill
-  // on that line. The marker is watched (the row mounts only once the session
-  // has steps or tokens, and unmounts with them) and older hosts without it
-  // keep the in-place row.
+  // Sit on the host's stats row when there is one. Hosts through 0.2.0 render
+  // their time/token pills in a row apart from the dock, marked
+  // `data-composer-stats`; every dock entry is its own row in the composer
+  // bar, so a badge rendered in place lands under those pills, and rendering
+  // into the row makes it a third pill on their line. The marker is watched
+  // (the row mounts only once the session has steps or tokens, and unmounts
+  // with them). From 0.2.1 the shipped pills are dock entries like this
+  // badge, each anchored `data-composer-stat`, so the in-place seat already
+  // shares their row; seeing a docked anchor ends the watch for a row that
+  // will not appear.
   const [statsRow, setStatsRow] = useState<HTMLElement | null>(null)
   useEffect(() => {
     const seat = seatRef.current
@@ -551,9 +554,15 @@ export function SubscriptionUsageBadge({ rpc, currentModel, t, rotationMs }: Sub
     const scope = statsScopeOf(seat)
     if (scope === null) return
     const find = (): HTMLElement | null => scope.querySelector<HTMLElement>('[data-composer-stats]')
-    setStatsRow(find())
-    const observer = new MutationObserver(() => { setStatsRow(find()) })
+    let observer: MutationObserver
+    const settle = (): void => {
+      const row = find()
+      setStatsRow(row)
+      if (row === null && scope.querySelector('[data-composer-stat]') !== null) observer.disconnect()
+    }
+    observer = new MutationObserver(settle)
     observer.observe(scope, { childList: true, subtree: true })
+    settle()
     return () => { observer.disconnect() }
   }, [])
 
@@ -680,13 +689,20 @@ export function SubscriptionUsageBadge({ rpc, currentModel, t, rotationMs }: Sub
 }
 
 /**
+ * Ancestor bound for the scope search in statsScopeOf below. The host E2E
+ * pill probe uses the same bound under the same name, so the check judges
+ * placement with the product's own reach.
+ */
+const COMPOSER_SCOPE_DEPTH = 4
+
+/**
  * Nearest ancestor of the dock seat that can contain the host's stats row:
  * the composer bar. Bounded so a badge in an unfamiliar layout never adopts
  * some other composer's pills.
  */
 function statsScopeOf(seat: HTMLElement): HTMLElement | null {
   let node: HTMLElement | null = seat.parentElement
-  for (let depth = 0; node !== null && depth < 4; depth++) {
+  for (let depth = 0; node !== null && depth < COMPOSER_SCOPE_DEPTH; depth++) {
     if (node.querySelector('[data-composer-stats]') !== null) return node
     node = node.parentElement
   }

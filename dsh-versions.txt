@@ -12,5 +12,5 @@
 #   - the peer range bounds: the lower bound is the floor below, the upper
 #     bound is the minor line after the newest line below
 0.1.7-rc.2
-0.2.0-rc.1
 0.2.0-rc.2
+0.2.1-rc.2

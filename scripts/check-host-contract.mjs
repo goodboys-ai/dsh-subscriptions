@@ -198,9 +198,12 @@ function checkVersion(version) {
       `${owner} neither provides nor declares a service named "${service}"`)
   }
 
+  // A marker lists the attribute spellings across host generations; one
+  // host build renders exactly one spelling, so shipping any of them
+  // satisfies the marker.
   for (const [key, marker] of Object.entries(HOST_CONTRACT.markers)) {
-    expect(codeOf(marker.package).includes(`"${marker.attribute}"`), `marker ${key}`,
-      `${marker.package} no longer renders ${marker.attribute}`)
+    expect(marker.attributes.some(attribute => codeOf(marker.package).includes(`"${attribute}"`)), `marker ${key}`,
+      `${marker.package} renders none of ${marker.attributes.join(', ')}`)
   }
 
   const renderer = codeOf(HOST_CONTRACT.diagnostics.package)

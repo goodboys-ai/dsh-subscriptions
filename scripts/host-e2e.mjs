@@ -11,8 +11,10 @@
 //   2. The host's model picker lists the plugin's Codex model.
 //   3. A message to that model streams through the plugin's adapter, and
 //      the canned reply renders in the transcript.
-//   4. The usage pill renders inside the host's stats row
-//      (`data-composer-stats`), and its dialog shows each source's name
+//   4. The usage pill renders in the host's stats row — the
+//      `data-composer-stats` row through DSH 0.2.0, or the composer dock
+//      beside the `data-composer-stat` pills from 0.2.1 — and its dialog
+//      shows each source's name
 //      with that source's own percentage and wears the host's menu
 //      material (translucent fill plus backdrop blur) in both themes,
 //      while the collapsed pill stays transparent.
@@ -66,6 +68,15 @@ const DIALOG_SETTLE_MS = 10_000
 
 /** The plugin's usage dialog, as opposed to the host's modal settings panel. */
 const USAGE_DIALOG = 'div[role="dialog"]:not([aria-modal="true"])'
+
+/**
+ * Ancestor bound for the pill probe's dock search — the same bound, under
+ * the same name, as COMPOSER_SCOPE_DEPTH in SubscriptionUsageBadge.tsx,
+ * whose statsScopeOf searches with it. The probe judges placement with the
+ * product's own reach, so the two cannot disagree about scope. Declared
+ * with the other top-level constants, for the reason THEME_LABELS gives.
+ */
+const COMPOSER_SCOPE_DEPTH = 4
 
 /**
  * Appearance-row cube labels per theme, in the driver's two locales. Declared
@@ -429,7 +440,12 @@ async function drive(cdp, page, evidence) {
 
   // Product: the host's model picker lists the plugin's Codex model.
   if (!await clickLabel(cdp, ['Select model', '选择模型'])) throw new HarnessFailure('model menu did not open')
-  if (!await clickLabel(cdp, ['Model', '模型'])) throw new HarnessFailure('model list did not open')
+  // From 0.2.1 the menu opens as the model list itself; older hosts open a
+  // menu whose Model entry expands the list. Expand only when the list is
+  // not already showing.
+  if (!await waitFor(cdp, hasText(CODEX_MODEL.name), 3_000) && !await clickLabel(cdp, ['Model', '模型'])) {
+    throw new HarnessFailure('model list did not open')
+  }
   if (!await waitFor(cdp, hasText(CODEX_MODEL.name), 20_000)) {
     throw new ProductFailure(`the host model picker does not list ${CODEX_MODEL.name}`)
   }
@@ -452,21 +468,19 @@ async function drive(cdp, page, evidence) {
   console.log('ok: a Codex message streamed through the plugin and rendered')
 
   // Product: the pill sits in the host's stats row, not on its own line.
-  const pillIn = (scope) => `(() => [...document.querySelectorAll(${JSON.stringify(`${scope} button`.trim())})]
-    .some(node => (node.getAttribute('aria-label') || '').includes(${JSON.stringify(CODEX_PILL)})))()`
-  const statsRow = `[${HOST_CONTRACT.markers.composerStats.attribute}]`
-  if (!await waitFor(cdp, pillIn(statsRow), 30_000)) {
-    const elsewhere = await cdp.evaluate(pillIn(''))
-    throw new ProductFailure(elsewhere
-      ? `the usage pill ${CODEX_PILL} rendered outside ${statsRow}`
+  const placed = `(() => { const probe = ${pillProbe()}; return probe.placement === 'row' || probe.placement === 'dock' })()`
+  if (!await waitFor(cdp, placed, 30_000)) {
+    const { placement } = await cdp.evaluate(pillProbe())
+    throw new ProductFailure(placement === 'outside'
+      ? `the usage pill ${CODEX_PILL} rendered outside the host's stats row`
       : `the usage pill ${CODEX_PILL} did not render`)
   }
-  console.log(`ok: usage pill ${CODEX_PILL} renders inside ${statsRow}`)
+  console.log(`ok: usage pill ${CODEX_PILL} renders in the host's stats row`)
 
   // Product: the dialog lists every source with its own percentage.
   const colorPreset = await cdp.evaluate(`localStorage.getItem('dsh.subscriptions.usageColorPreset')`)
   if (colorPreset !== null && colorPreset !== 'standard') throw new HarnessFailure('MiniMax zero-used marker check requires Standard usage coloring')
-  if (!await cdp.evaluate(`(() => { const button = [...document.querySelectorAll('[data-composer-stats] button[aria-haspopup="dialog"]')].find(b => b.getAttribute('aria-label')?.includes('Codex ')); if (!button) return false; button.click(); return true })()`)) throw new HarnessFailure('the usage pill could not be clicked')
+  if (!await clickPill(cdp)) throw new HarnessFailure('the usage pill could not be clicked')
   if (!await waitFor(cdp, '(() => document.querySelector(\'[role="dialog"]\') !== null)()', 10_000)) {
     throw new ProductFailure('the usage dialog did not open')
   }
@@ -550,7 +564,7 @@ async function checkSettingsSection(cdp) {
   const outlet = `${panel} [data-slot="settings.section"]`
 
   // Harness: open the settings panel through the host's trigger.
-  if (!await clickLabel(cdp, ['Settings', '设置'])) throw new HarnessFailure('the settings trigger did not open the panel')
+  if (!await openSettingsPanel(cdp)) throw new HarnessFailure('the settings trigger did not open the panel')
   if (!await waitFor(cdp, `(() => document.querySelector(${JSON.stringify(panel)}) !== null)()`, 10_000)) {
     throw new ProductFailure('the host settings panel did not open')
   }
@@ -658,7 +672,7 @@ async function checkSettingsSection(cdp) {
   await Promise.all([cdp.waitEvent('Page.loadEventFired'), cdp.send('Page.navigate', { url: origin })])
   if (!await waitFor(cdp, hasText('Send message'), 30_000)) throw new HarnessFailure('web UI did not show a composer after reload')
   await dismissOnboarding(cdp)
-  if (!await clickLabel(cdp, ['Settings', '设置'])) throw new HarnessFailure('the settings trigger did not reopen the panel after reload')
+  if (!await openSettingsPanel(cdp)) throw new HarnessFailure('the settings trigger did not reopen the panel after reload')
   if (!await waitFor(cdp, `(() => document.querySelector(${JSON.stringify(panel)}) !== null)()`, 10_000)) {
     throw new ProductFailure('the host settings panel did not reopen after reload')
   }
@@ -693,7 +707,7 @@ async function checkSettingsSection(cdp) {
 async function captureSettingsDark(cdp, outlet) {
   await applyTheme(cdp, 'dark')
   try {
-    if (!await clickLabel(cdp, ['Settings', '设置'])) throw new HarnessFailure('the settings trigger did not open the panel for the dark capture')
+    if (!await openSettingsPanel(cdp)) throw new HarnessFailure('the settings trigger did not open the panel for the dark capture')
     if (!await clickLabel(cdp, [SECTION_EN.nav, '订阅'])) throw new HarnessFailure('the settings nav lost its Subscriptions entry for the dark capture')
     // Best effort: this still exists for a person to look at, so a disclosure
     // that refuses to expand must not fail the run. Re-query first, because
@@ -854,10 +868,10 @@ async function checkDialogSurface(cdp, evidence) {
       // The trigger is measured with the dialog closed: an open dialog
       // highlights the pill on purpose, so its resting surface is the contract.
       const pill = await pillSurface(cdp)
-      if (pill.pillBackground === null) {
+      if (pill.pillBackground === null || !pill.placed) {
         throw new ProductFailure(`the usage pill is not in the stats row in the ${theme} theme`)
       }
-      if (!await cdp.evaluate(`(() => { const button = [...document.querySelectorAll('[data-composer-stats] button[aria-haspopup="dialog"]')].find(b => b.getAttribute('aria-label')?.includes('Codex ')); if (!button) return false; button.click(); return true })()`)) {
+      if (!await clickPill(cdp)) {
         throw new HarnessFailure(`the usage pill could not be clicked in the ${theme} theme`)
       }
       if (!await waitFor(cdp, `(() => document.querySelector(${JSON.stringify(USAGE_DIALOG)}) !== null)()`, 10_000)) {
@@ -906,9 +920,22 @@ async function checkDialogSurface(cdp, evidence) {
  * this exercises the theme path a user takes rather than setting the body
  * attribute behind the host's back.
  */
+/**
+ * Open the settings panel. Through 0.2.0 the sidebar foot carries a
+ * Settings trigger; from 0.2.1 the settings launcher is the sidebar
+ * account menu (the "More" button), whose Settings item opens the panel.
+ * The direct trigger gets a short probe: on 0.2.1 hosts every open would
+ * otherwise burn the full click-retry window before falling back.
+ */
+async function openSettingsPanel(cdp) {
+  if (await clickLabel(cdp, ['Settings', '设置'], 3)) return true
+  if (!await clickLabel(cdp, ['More', '更多'])) return false
+  return clickLabel(cdp, ['Settings', '设置'])
+}
+
 async function applyTheme(cdp, theme) {
   const labels = THEME_LABELS[theme]
-  if (!await clickLabel(cdp, ['Settings', '设置'])) {
+  if (!await openSettingsPanel(cdp)) {
     throw new HarnessFailure('the settings trigger did not open the panel for the theme switch')
   }
   // The Appearance row is a `settings.general.item`; the General section is
@@ -1034,18 +1061,66 @@ function dialogSurface(cdp) {
   })()`)
 }
 
+/**
+ * Click the usage pill. Several buttons carry the pill's label prefix (the
+ * transcript's session actions among them); the pill is the one that opens
+ * a dialog, so the search requires aria-haspopup="dialog".
+ */
+async function clickPill(cdp) {
+  return cdp.evaluate(`(() => {
+    const button = [...document.querySelectorAll('button[aria-haspopup="dialog"]')]
+      .find(node => (node.getAttribute('aria-label') || '').includes(${JSON.stringify(CODEX_PILL)}))
+    if (button === undefined) return false
+    button.click()
+    return true
+  })()`)
+}
+
+/**
+ * Page expression probing the usage pill: its placement ('row' inside the
+ * stats row hosts render through 0.2.0, 'dock' when its own composer-dock
+ * entry shares an ancestor with a docked stat pill, from 0.2.1, 'outside'
+ * when it rendered anywhere else, 'absent' when it did not render) and,
+ * when placed, its resting background. Several page buttons can carry the
+ * pill's label prefix (the transcript's session actions among them), so
+ * every match is classified and a placed one wins. The ancestor walk is
+ * bounded like the badge's own scope search, so a button elsewhere on the
+ * page never counts the composer dock as its row.
+ */
+function pillProbe() {
+  const [rowAttribute, statAttribute] = HOST_CONTRACT.markers.composerStats.attributes
+  return `(() => {
+    const matches = [...document.querySelectorAll('button')]
+      .filter(node => (node.getAttribute('aria-label') || '').includes(${JSON.stringify(CODEX_PILL)}))
+    const inRow = (button) => button.closest('[${rowAttribute}]') !== null
+    const inDock = (button) => {
+      for (let node = button.parentElement, depth = 0; node !== null && depth < ${COMPOSER_SCOPE_DEPTH}; node = node.parentElement, depth += 1) {
+        if (node.querySelector('[${statAttribute}]') !== null) return true
+      }
+      return false
+    }
+    const placed = matches.find(button => inRow(button)) ?? matches.find(button => inDock(button)) ?? null
+    return {
+      placement: matches.length === 0 ? 'absent' : placed === null ? 'outside' : inRow(placed) ? 'row' : 'dock',
+      pillBackground: placed === null ? null : getComputedStyle(placed).backgroundColor,
+    }
+  })()`
+}
+
 /** The collapsed pill's resting surface, judged against a transparent probe. */
 function pillSurface(cdp) {
-  const statsRow = HOST_CONTRACT.markers.composerStats.attribute
   return cdp.evaluate(`(() => {
-    const pill = [...document.querySelectorAll('[${statsRow}] button')]
-      .find(node => (node.getAttribute('aria-label') || '').includes(${JSON.stringify(CODEX_PILL)}))
-    const probe = document.createElement('div')
-    probe.style.setProperty('background', 'transparent')
-    document.body.appendChild(probe)
-    const transparent = getComputedStyle(probe).backgroundColor
-    probe.remove()
-    return { pillBackground: pill === undefined ? null : getComputedStyle(pill).backgroundColor, transparent }
+    const probe = ${pillProbe()}
+    const swatch = document.createElement('div')
+    swatch.style.setProperty('background', 'transparent')
+    document.body.appendChild(swatch)
+    const transparent = getComputedStyle(swatch).backgroundColor
+    swatch.remove()
+    return {
+      pillBackground: probe.pillBackground,
+      transparent,
+      placed: probe.placement === 'row' || probe.placement === 'dock',
+    }
   })()`)
 }
 
