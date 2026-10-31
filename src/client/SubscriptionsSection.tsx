@@ -16,6 +16,7 @@ import type { CSSProperties } from 'react'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-api-remotes/client'
 import { en } from './locales.js'
 import { resetActionBlock } from './reset-action.js'
+import { visibleUsageWindows } from './usage-window-filter.js'
 import { ProviderAccountManager } from './ProviderAccountManager.js'
 import { providerSettingsCss } from './provider-settings-styles.js'
 import { ExternalUsageCards } from './ExternalUsageCards.js'
@@ -57,6 +58,8 @@ export interface AccountStatus {
 
 /** One provider's login state as answered by the `status` endpoint. */
 export interface ProviderStatus {
+  /** Picker selection; absent follows discovery, [] hides all model quotas. */
+  visibleModels?: string[]
   busy: boolean
   accounts: AccountStatus[]
   detail?: string
@@ -867,6 +870,11 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
             {accounts.map((account) => {
               const usageKey = `${id}:${account.key}`
               const usage = usages[usageKey]
+              const shownWindows = visibleUsageWindows(
+                id,
+                usage?.windows,
+                status?.visibleModels,
+              )
               const usageError = usageErrors[usageKey]
               const display = account.account ?? account.key
               const sortedCredits = [...(usage?.resetCredits ?? [])].sort(
@@ -953,7 +961,14 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
                         usage.windows.length === 0 && (
                           <p style={styles.statusLine}>{t('usageEmpty')}</p>
                         )}
-                      {(usage?.windows ?? []).map((window, index) => {
+                      {usage?.windows !== undefined &&
+                        usage.windows.length > 0 &&
+                        shownWindows.length === 0 && (
+                          <p style={styles.statusLine}>
+                            {t('usageNoVisibleModels')}
+                          </p>
+                        )}
+                      {shownWindows.map((window, index) => {
                         const percent = displayUsedPercent(window.usedPercent)
                         return (
                           <div key={index} style={styles.usageRow}>
@@ -1067,13 +1082,16 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
                   {t('addAccount')}
                 </button>
               )}
-              <button
-                type="button"
-                aria-haspopup="dialog"
-                onClick={() => setManagedProvider({ id, name })}
-              >
-                {t('accountsManage')}
-              </button>
+              {/* Login and cancellation must not race a second settings writer. */}
+              {!busy && (
+                <button
+                  type="button"
+                  aria-haspopup="dialog"
+                  onClick={() => setManagedProvider({ id, name })}
+                >
+                  {t('accountsManage')}
+                </button>
+              )}
               {busy && (
                 <button
                   type="button"
@@ -1157,7 +1175,10 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
           name={managedProvider.name}
           rpc={rpc}
           t={t}
-          onClose={() => setManagedProvider(undefined)}
+          onClose={() => {
+            setManagedProvider(undefined)
+            void refresh()
+          }}
         />
       )}
       <style>

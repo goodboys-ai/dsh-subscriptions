@@ -11,12 +11,13 @@ prerelease (`-alpha`, `-rc`) and breaking changes are routine. This plugin
 supports a **sliding window of gated DSH releases**: the newest fully gated RC
 of each of the latest three minor lines, plus — in the newest minor line only —
 its immediately preceding gated RC as a transition entry, at most four versions.
-Only two minor lines exist so far (`0.1.x`, `0.2.x`), so the window currently
-holds three versions. A version enters the window only after the full gate
-passes on it; when a newer gated RC arrives, older RCs of that minor line drop
-until at most two remain; when a fourth minor line arrives, the oldest minor
-line drops. `dsh-versions.txt` at the repo root is the single source of truth
-for the window; the CI matrix and the table below derive from it.
+Only two minor lines exist so far (`0.1.x`, `0.2.x`); with the transition entry,
+the window currently holds four versions. A version enters the window only after
+the full gate passes on it; when a newer gated RC arrives, older RCs of that
+minor line drop until at most two remain; when a fourth minor line arrives, the
+oldest minor line drops. `dsh-versions.txt` at the repo root is the single
+source of truth for the window; the CI matrix and the table below derive from
+it.
 
 One release covers the whole window, and the install gate is wider than the
 window by design: the six `@deepseek-ai/dsh-*` `peerDependencies` are **one
@@ -40,6 +41,13 @@ pinned exact at the window floor, so the build never uses APIs newer than the
 oldest supported DSH. CI packs exactly one tarball from those pinned
 dependencies and boots that same tarball on every DSH version in the window, in
 both the boot smoke and the host E2E — there is no per-version artifact.
+
+On DSH `0.2.1`, the plugin load check uses `engines.dsh` when a package declares
+it; otherwise every `@deepseek-ai/dsh` and `@deepseek-ai/dsh-*` peer must match
+the running DSH version, with prereleases included. This package does not
+declare `engines.dsh`, so the six DSH peer ranges above determine whether it can
+load. The `cordis` and `schemastery` peers affect package-manager dependency
+resolution, not this load-time check.
 
 The rationale lives in agent notes:
 [bounded peer range](../.agents/notes/implemented/process/2026-09-30-bounded-peer-range.md)
@@ -91,17 +99,19 @@ That exemption is an at-your-own-risk escape hatch, not support.
 
 ## Compatibility table
 
-The source targets `0.2.2`, with peers `>=0.1.7-rc.2 <0.3.0-0`. Gate results
+The source targets `0.2.3`, with peers `>=0.1.7-rc.2 <0.3.0-0`. Gate results
 below were first recorded locally on 2026-09-30 and confirmed by main CI on
-2026-10-02; the `0.2.1-rc.2` row was recorded locally on 2026-10-17. The CI
-matrix runs identical gates on pull requests and on pushes to main. A cell
-becomes ✅ only from a green gate run, never from "it should work".
+2026-10-02; the `0.2.1-rc.2` and `0.2.1-rc.5` rows were recorded locally on
+2026-10-17 and 2026-10-31. The CI matrix runs identical gates on pull requests
+and on pushes to main. A cell becomes ✅ only from a green gate run, never from
+"it should work".
 
 | DSH          | build | tests | host exports | host contract | boot smoke | host E2E |
 | ------------ | ----- | ----- | ------------ | ------------- | ---------- | -------- |
 | `0.1.7-rc.2` | ✅    | ✅    | ✅           | ✅            | ✅         | ✅       |
 | `0.2.0-rc.2` | ✅    | ✅    | ✅           | ✅            | ✅         | ✅       |
 | `0.2.1-rc.2` | ✅    | ✅    | ✅           | ✅            | ✅         | ✅       |
+| `0.2.1-rc.5` | ✅    | ✅    | ✅           | ✅            | ✅         | ✅       |
 
 The boot smoke and host E2E installed the packed tarball (no `node_modules`).
 The host E2E used the host's default workspace on every version, without the
@@ -114,10 +124,10 @@ The plugin uses semver independently of DSH (`0.1.0`, `0.1.1`, …). During the
 keeps the old window, and a minor for a new provider, a breaking setting, or
 dropped DSH support. A peer-range move still requires a new plugin version and
 tag; it does not create one plugin release line per DSH minor. The current
-source version `0.2.2` supports a three-version window (`0.1.7-rc.2`,
-`0.2.0-rc.2`, `0.2.1-rc.2`), so its minor version cannot identify one DSH minor.
-The peer range and CI matrix state host compatibility; plugin patches can ship
-between DSH releases.
+source version `0.2.3` supports a four-version window (`0.1.7-rc.2`,
+`0.2.0-rc.2`, `0.2.1-rc.2`, and `0.2.1-rc.5`), so its minor version cannot
+identify one DSH minor. The peer range and CI matrix state host compatibility;
+plugin patches can ship between DSH releases.
 
 Every release tag matches `package.json` (`v0.1.0` for version `0.1.0`). Once
 that tag is published, users can pin with it. The `v0.1.0` release predates the

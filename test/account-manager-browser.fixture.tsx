@@ -26,10 +26,11 @@ const rpc = {
       value: {
         settings: structuredClone(state.settings),
         tools: ['image_generate'],
-        models: [
+        models: state.models ?? [
           {
             id: 'alpha',
             name: 'Alpha',
+            fastTier: state.supportsFast !== false,
             efforts: [
               { id: 'low', name: 'Low' },
               { id: 'high', name: 'High' },
@@ -39,7 +40,7 @@ const rpc = {
           },
           { id: 'beta', name: 'Beta' },
         ],
-        accounts: [
+        accounts: state.accounts ?? [
           {
             key: 'personal',
             label: 'personal@example.com',

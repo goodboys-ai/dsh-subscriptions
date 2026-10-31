@@ -16,6 +16,7 @@ import {
   CLAUDE_TOKEN_URL,
 } from '../src/providers/claude.js'
 import { CLAUDE_CLI_VERSION_URL } from '../src/providers/claude-cli-version.js'
+import { CODEX_VERSION_URL } from '../src/providers/codex-client-version.js'
 import { saveAccountSession } from '../src/auth/store.js'
 import * as plugin from '../src/index.js'
 import { createFakeConnection } from './fake-connection.js'
@@ -53,6 +54,15 @@ test('provider settings RPC edits picker visibility without losing the editor ca
       reasoning: { efforts: [{ id: ReasoningEffortId('high'), name: 'High' }] },
     }
   }
+  // The status RPC reads the presented CLI version; keep its public npm lookup
+  // inside the fixture instead of letting this new assertion use the network.
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input)
+    if (url === CODEX_VERSION_URL)
+      return new Response(JSON.stringify({ version: '9.9.9' }), { status: 200 })
+    throw new Error(`unexpected outbound request to ${url}`)
+  }) as typeof globalThis.fetch
   const runtime = ctx.plugin(plugin, {
     providers: ['codex', 'grok'],
     pool: { enabled: false },
@@ -98,6 +108,15 @@ test('provider settings RPC edits picker visibility without losing the editor ca
       (await adapters.get('codex')!.resolveModel('codex', 'm2')).id,
       'm2',
     )
+    const status = await call('status', {})
+    assert.ok(status.ok)
+    const providers = (
+      status.value as {
+        providers: Record<string, { visibleModels?: string[] }>
+      }
+    ).providers
+    assert.deepEqual(providers.codex.visibleModels, ['m1'])
+    assert.equal(providers.grok.visibleModels, undefined)
     unavailable = true
     const catalog = await call('providerSettings', {
       provider: 'codex',
@@ -206,6 +225,7 @@ test('provider settings RPC edits picker visibility without losing the editor ca
     )
     assert.equal((await adapters.get('codex')!.listModels('codex')).length, 2)
   } finally {
+    globalThis.fetch = originalFetch
     await runtime.dispose()
     CodexAdapter.prototype.resolveOwnModel = originalResolve
     if (previous === undefined) delete process.env.DSH_HOME

@@ -28,7 +28,12 @@ const result = await build({
   write: false,
 })
 const code = result.output.find((file) => file.type === 'chunk').code
-const browser = await chromium.launch({ headless: true })
+const browser = await chromium.launch({
+  headless: true,
+  ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
+    ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE }
+    : {}),
+})
 try {
   const page = await browser.newPage({ viewport: { width: 900, height: 900 } })
   const errors = []
@@ -229,6 +234,170 @@ try {
   await page.evaluate(() => {
     window.provider = 'codex'
   })
+  // Subagent defaults share Save/Cancel and survive a capability change.
+  await open()
+  const speed = page.getByLabel('Alpha Subagent default speed', { exact: true })
+  assert.equal(await speed.inputValue(), 'standard')
+  assert.equal(
+    await page
+      .getByLabel('Beta Subagent default speed', { exact: true })
+      .count(),
+    0,
+  )
+  await speed.selectOption('fast')
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await open()
+  assert.equal(await speed.inputValue(), 'standard')
+  await speed.selectOption('fast')
+  await page.evaluate(() => {
+    window.failSave = true
+  })
+  await page.getByRole('button', { name: 'Save changes', exact: true }).click()
+  await page
+    .getByRole('alert')
+    .filter({ hasText: 'Simulated save failure' })
+    .waitFor()
+  assert.equal(await speed.inputValue(), 'fast')
+  await page.evaluate(() => {
+    window.failSave = false
+  })
+  await page.getByRole('button', { name: 'Save changes', exact: true }).click()
+  await page.getByRole('dialog').waitFor({ state: 'detached' })
+  assert.deepEqual(await page.evaluate(() => window.settings.subagentSpeeds), {
+    alpha: 'fast',
+  })
+  await page.evaluate(() => {
+    window.supportsFast = false
+  })
+  await open()
+  assert.equal(
+    await speed.inputValue(),
+    'fast',
+    'saved preference survives a catalog capability change',
+  )
+  assert.equal(
+    await speed.locator('option[value="fast"]').getAttribute('disabled'),
+    '',
+  )
+  await speed.selectOption('standard')
+  await page.getByRole('button', { name: 'Save changes', exact: true }).click()
+  await page.getByRole('dialog').waitFor({ state: 'detached' })
+  assert.deepEqual(await page.evaluate(() => window.settings.subagentSpeeds), {
+    alpha: 'standard',
+  })
+  // Empty catalogs explain their cause and keep pre-login settings usable.
+  const settingsBeforeEmpty = await page.evaluate(() => window.settings)
+  const close = async () => {
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await page.getByRole('dialog').waitFor({ state: 'detached' })
+  }
+  await page.evaluate(() => {
+    window.models = []
+    window.accounts = []
+    window.settings = { visibleModels: [] }
+  })
+  await open()
+  await editor
+    .getByText(
+      'No connected accounts. Connect one on the provider card first.',
+      {
+        exact: true,
+      },
+    )
+    .waitFor()
+  assert.equal(
+    await editor.getByRole('textbox', { name: 'Filter models' }).count(),
+    0,
+  )
+  assert.equal(
+    await editor.getByRole('button', { name: 'Select all' }).count(),
+    0,
+  )
+  assert.equal(
+    await editor.getByRole('button', { name: 'Clear selection' }).count(),
+    0,
+  )
+  await editor
+    .getByLabel('Automatically show all models, including new models', {
+      exact: true,
+    })
+    .check()
+  await page.getByRole('button', { name: 'Save changes', exact: true }).click()
+  await page.getByRole('dialog').waitFor({ state: 'detached' })
+  assert.equal(
+    await page.evaluate(() => window.settings.visibleModels),
+    undefined,
+  )
+  await page.evaluate(() => {
+    window.provider = 'claude'
+    window.settings = {}
+  })
+  await open()
+  await page
+    .getByLabel('Prompt cache lifetime', { exact: true })
+    .selectOption('1h')
+  await page.getByRole('button', { name: 'Save changes', exact: true }).click()
+  await page.getByRole('dialog').waitFor({ state: 'detached' })
+  assert.equal(await page.evaluate(() => window.settings.promptCacheTtl), '1h')
+  await page.evaluate(() => {
+    window.provider = 'codex'
+    window.settings = {}
+    window.accounts = [{ key: 'a', label: 'A', models: [], unavailable: true }]
+  })
+  await open()
+  await editor
+    .getByText(
+      'Model discovery failed or timed out. Use Refresh to try again.',
+      {
+        exact: true,
+      },
+    )
+    .waitFor()
+  await page.evaluate(() => {
+    window.accounts = [{ key: 'a', label: 'A', models: [] }]
+  })
+  await editor.getByRole('button', { name: 'Refresh', exact: true }).click()
+  await editor
+    .getByText('This provider reports no models.', { exact: true })
+    .waitFor()
+  assert.equal(
+    await editor.getByText('No model matches “”.', { exact: true }).count(),
+    0,
+  )
+  await close()
+  // A saved speed alone keeps its undiscovered model row editable.
+  await page.evaluate(() => {
+    window.accounts = []
+    window.settings = { subagentSpeeds: { 'saved-codex': 'fast' } }
+  })
+  await open()
+  const savedSpeed = page.getByLabel('saved-codex Subagent default speed', {
+    exact: true,
+  })
+  assert.equal(await savedSpeed.inputValue(), 'fast')
+  await savedSpeed.selectOption('standard')
+  await page.getByRole('button', { name: 'Save changes', exact: true }).click()
+  await page.getByRole('dialog').waitFor({ state: 'detached' })
+  assert.deepEqual(await page.evaluate(() => window.settings.subagentSpeeds), {
+    'saved-codex': 'standard',
+  })
+  await open()
+  await editor
+    .getByRole('textbox', { name: 'Filter models' })
+    .fill('absent-model')
+  await editor
+    .getByText('No model matches “absent-model”.', { exact: true })
+    .waitFor()
+  await close()
+  await page.evaluate((settings) => {
+    delete window.models
+    delete window.accounts
+    delete window.provider
+    window.settings = settings
+  }, settingsBeforeEmpty)
+  await page.evaluate(() => {
+    window.supportsFast = true
+  })
   await open()
   await personal.locator('summary').click()
   await mkdir('output', { recursive: true })
@@ -272,6 +441,7 @@ try {
   await page.evaluate(() => {
     window.preview = true
     window.settings = {
+      subagentSpeeds: { alpha: 'fast' },
       accounts: {
         personal: {
           alias: '个人账号',
@@ -291,9 +461,22 @@ try {
   await open()
   await personal.locator('summary').click()
   await page.screenshot({ path: 'output/account-manager-preview.png' })
+  const chineseSpeed = page.getByLabel('Alpha 子代理默认速度', { exact: true })
+  await chineseSpeed.scrollIntoViewIfNeeded()
+  assert.equal(await chineseSpeed.inputValue(), 'fast')
+  await page.screenshot({ path: 'output/subagent-speed-desktop.png' })
+  await page.setViewportSize({ width: 360, height: 720 })
+  await chineseSpeed.scrollIntoViewIfNeeded()
+  assert.equal(
+    await page
+      .getByRole('dialog')
+      .evaluate((el) => el.scrollWidth <= el.clientWidth),
+    true,
+  )
+  await page.screenshot({ path: 'output/subagent-speed-mobile.png' })
   assert.deepEqual(errors, [])
   console.log(
-    'Account-manager browser checks passed: defaults, strict selection, failed-save retry, fresh-settings merge, Claude-only TTL picker, Escape/focus containment and restoration, responsive width.',
+    'Account-manager browser checks passed: defaults, strict selection, failed-save retry, fresh-settings merge, independent subagent speed, capability loss, empty-catalog reasons, pre-login settings, saved-only subagent models, Claude-only TTL picker, bilingual copy, Escape/focus containment and restoration, responsive width.',
   )
 } finally {
   await browser.close()

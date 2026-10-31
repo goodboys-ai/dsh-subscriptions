@@ -7,10 +7,10 @@
     "date": "2026-09-28"
   },
   "upstreamRef": {
-    "sha": "9930c5ee",
+    "sha": "b8023110",
     "note": "Full sha is re-derived by the check from the remote ref; recorded here for humans."
   },
-  "updatedAt": "2026-10-13",
+  "updatedAt": "2026-10-31",
   "entries": [
     {
       "upstream": "527f4d90",
@@ -272,6 +272,154 @@
         "test:ui": "test/model-defaults-view.spec.ts"
       },
       "reason": "e3fcd52 ported the config-level TTL; 9045486 adds the Manage dialog's Prompt cache lifetime picker on this fork's rewritten dialog. The choice is a Claude-only provider preference, promptCacheTtl, not a per-account one; the adapter re-reads it on every request, so a save applies from the next turn, and compaction and session-title requests stay at five minutes. 733c682 makes a models-only Save take the TTL from the freshly re-read settings instead of writing back the value the model editor loaded."
+    },
+    {
+      "upstream": "8862e454",
+      "subject": "fix(settings): name the empty provider state instead of an empty model filter（issue #147）",
+      "status": "ported",
+      "area": "settings",
+      "forkCommits": ["87d58c8"],
+      "evidence": {
+        "test": "test/model-filter.spec.ts",
+        "test:ui": "test/account-manager-browser.mjs"
+      },
+      "reason": "Reimplemented on the fork's editor using the 6ea68cb final tree. Saved visibility and subagent-speed ids remain rows; account-neutral Cursor keeps generic empty-catalog copy."
+    },
+    {
+      "upstream": "0b8631ae",
+      "subject": "fix(antigravity): Gemini 4 也要 thought_signature，重放外部工具调用不再 400（issue #148）",
+      "status": "ported",
+      "area": "antigravity",
+      "forkCommits": ["1638048"],
+      "evidence": {
+        "test": "test/antigravity.spec.ts"
+      },
+      "reason": "Uses the 3652179 final Gemini 3/4 boundary rather than the original broader predicate; signed replay remains scoped to the originating provider and model."
+    },
+    {
+      "upstream": "62105ed5",
+      "subject": "test(antigravity): pin the case fold, the version boundary and the trim",
+      "status": "ported",
+      "area": "antigravity",
+      "forkCommits": ["1638048", "bf5703d"],
+      "evidence": {
+        "test": "test/antigravity.spec.ts"
+      },
+      "reason": "Includes the final merge's signed Gemini 4 cross-provider and cross-model replay coverage."
+    },
+    {
+      "upstream": "f35b3b7b",
+      "subject": "fix: support DSH 0.2.1-rc.2",
+      "status": "already-covered",
+      "area": "host",
+      "reason": "WebRuntime provider overrides were independently adapted in 553b93bb. The fork retains its bounded peer policy rather than upstream's enumerated ranges."
+    },
+    {
+      "upstream": "e1d3f427",
+      "subject": "fix: keep the 0.2.1 alpha ranges this PR replaces",
+      "status": "not-applicable",
+      "area": "release",
+      "reason": "The fork's independent bounded range already admits 0.2.x prereleases; upstream's enumeration repair does not apply."
+    },
+    {
+      "upstream": "b2a09a09",
+      "subject": "fix(claude): advertise the current generation's 1M context and 128K output",
+      "status": "not-applicable",
+      "area": "claude",
+      "reason": "Upstream reverted this change in 0bd56951; absorbing only the superseded limits would resurrect known-broken metadata."
+    },
+    {
+      "upstream": "0bd56951",
+      "subject": "Revert \"fix(claude): advertise the current generation's 1M context and 128K output\"",
+      "status": "already-covered",
+      "area": "claude",
+      "reason": "The fork still uses the reverted 200K context and 32K output fallback and never adopted the superseded limits."
+    },
+    {
+      "upstream": "8af1cad6",
+      "subject": "fix(lock): resolve the host graph against 0.2.1-rc.2, not 0.2.0-rc.2",
+      "status": "not-applicable",
+      "area": "release",
+      "reason": "The fork's lockfile does not contain upstream's mixed host graph; development dependencies remain pinned at its own window floor."
+    },
+    {
+      "upstream": "bfaa9416",
+      "subject": "fix(peers): keep the cordis/schemastery floors and admit the 0.2.1 alphas",
+      "status": "not-applicable",
+      "area": "release",
+      "reason": "The fork does not use upstream's prerelease peer enumeration; its bounded ranges already admit these hosts without moving cordis or schemastery floors."
+    },
+    {
+      "upstream": "7bfd30a8",
+      "subject": "test: type the WebRuntime fixture as WebRuntimeConfig",
+      "status": "not-applicable",
+      "area": "host",
+      "reason": "The fork has no autoSelectConfig fixture; its independently typed WebRuntime fixture already checks the adapted provider-override path."
+    },
+    {
+      "upstream": "aedf8592",
+      "subject": "docs: clarify DSH compatibility check precedence",
+      "status": "ported",
+      "area": "release",
+      "forkCommits": ["c86fc8e"],
+      "evidence": {
+        "note": "docs/compatibility.md"
+      },
+      "reason": "Documents that engines.dsh takes precedence when declared, while this package's DSH peers determine loading and cordis/schemastery do not participate."
+    },
+    {
+      "upstream": "d73a2949",
+      "subject": "feat(codex): configure per-model default speed for subagents",
+      "status": "ported",
+      "area": "codex",
+      "forkCommits": ["87d58c8"],
+      "evidence": {
+        "test": "test/subagent-speed.spec.ts",
+        "test:settings": "test/provider-settings.spec.ts",
+        "test:ui": "test/account-manager-browser.mjs"
+      },
+      "reason": "Adds persisted Codex-only defaults, explicit child overrides, durable agent-origin lookup, current capability gates, and saved-only editor rows while preserving the fork's SpeedSelect retry/watch behavior."
+    },
+    {
+      "upstream": "a5b01068",
+      "subject": "chore: release v0.9.10",
+      "status": "not-applicable",
+      "area": "release",
+      "reason": "Upstream release line; the fork versions and publishes independently."
+    },
+    {
+      "upstream": "12bb37dd",
+      "subject": "fix: accept DSH 0.2.1-rc.3 in peer dependency ranges",
+      "status": "not-applicable",
+      "area": "release",
+      "reason": "The existing bounded peer range already admits 0.2.1-rc.3; support remains limited to the gated window."
+    },
+    {
+      "upstream": "7639ed99",
+      "subject": "chore: release v0.9.11",
+      "status": "not-applicable",
+      "area": "release",
+      "reason": "Upstream release line; no fork source or compatibility change is required."
+    },
+    {
+      "upstream": "1eb254ba",
+      "subject": "fix: filter Google usage windows by visible models",
+      "status": "ported",
+      "area": "antigravity",
+      "forkCommits": ["ac3e24c", "87d58c8"],
+      "evidence": {
+        "test": "test/usage-window-filter.spec.ts",
+        "test:rpc": "test/provider-settings-rpc.spec.ts",
+        "test:ui": "test/usage-window-filter-browser.mjs"
+      },
+      "reason": "Filters only Antigravity model-scoped windows, preserves account-wide data and other providers, and refreshes status after Manage closes so cached raw quotas re-filter without a quota refetch."
+    },
+    {
+      "upstream": "b8023110",
+      "subject": "fix: simplify DSH prerelease compatibility and release v0.9.12",
+      "status": "not-applicable",
+      "area": "release",
+      "reason": "Combines an upstream release with an unbounded peer policy; the fork deliberately retains its independently gated bounded window."
     }
   ]
 }

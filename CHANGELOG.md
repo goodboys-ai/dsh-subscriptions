@@ -1,5 +1,29 @@
 # Changelog
 
+## v0.2.3 — 2026-10-31
+
+- **DSH 0.2.1-rc.5 support.** The gated support window now covers DSH
+  `0.1.7-rc.2`, `0.2.0-rc.2`, `0.2.1-rc.2`, and `0.2.1-rc.5`. The previous
+  `0.2.1-rc.2` release remains as a transition entry. The peer range stays
+  `>=0.1.7-rc.2 <0.3.0-0`, and development dependencies stay pinned to the
+  `0.1.7-rc.2` window floor.
+- **Gemini 4 tool-call replay.** Antigravity now adds the required thought
+  signature placeholder to unsigned foreign tool-call steps on Gemini 4 as well
+  as Gemini 3, avoiding an HTTP 400 after a model switch. Model matching ignores
+  case and surrounding whitespace and remains limited to verified versions.
+- **Google usage follows visible models.** Settings hides Antigravity
+  model-scoped quota windows for models removed from the picker while retaining
+  account-wide windows. A distinct message distinguishes an empty filtered view
+  from a provider that returned no usage windows.
+- **Per-model subagent Speed defaults.** Codex model settings can save Standard
+  or Fast for subsequent subagent requests. Explicit child choices override the
+  default, parent choices do not propagate, and Fast remains subject to current
+  model support. Saved defaults survive restart; session overrides do not.
+- **Honest empty model lists.** Manage distinguishes no connected account,
+  failed discovery, a genuinely empty catalog, and a filter with no matches.
+  Saved visibility and subagent-speed rows remain editable when discovery is
+  empty, and Manage stays closed while login or cancellation is busy.
+
 ## v0.2.2 — 2026-10-17
 
 - **Composer Speed toggle stops polling.** The control calls

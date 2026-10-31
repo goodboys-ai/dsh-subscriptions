@@ -329,6 +329,7 @@ test('speed endpoints: per-session tier round trip and payload validation', asyn
   const bad = [
     ['speed', {}, /sessionId/],
     ['speed', 'nope', /object/],
+    ['speed', { sessionId: 's1', model: 1 }, /model/],
     ['setSpeed', { sessionId: 's1' }, /tier/],
     ['setSpeed', { sessionId: 's1', tier: 'ludicrous' }, /tier/],
   ] as const

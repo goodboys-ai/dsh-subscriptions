@@ -130,6 +130,55 @@ test('the Claude prompt-cache TTL persists and round-trips through a reload', as
   }
 })
 
+test('Codex subagent speed defaults persist independently and validate model keys and tiers', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'subagent-speeds-'))
+  const path = join(dir, 'settings.json')
+  try {
+    const store = new ProviderSettingsStore(path)
+    assert.equal(store.subagentSpeed('m'), 'standard')
+    await store.set('codex', {
+      subagentSpeeds: { m: 'fast', other: 'standard' },
+      contextWindows: { m: 512000 },
+    })
+    const restored = new ProviderSettingsStore(path)
+    assert.equal(restored.subagentSpeed('m'), 'fast')
+    assert.equal(restored.subagentSpeed('other'), 'standard')
+    assert.equal(restored.subagentSpeed('missing'), 'standard')
+    assert.equal(restored.contextWindow('m'), 512000)
+    const copy = restored.get('codex')
+    copy.subagentSpeeds!.m = 'standard'
+    assert.equal(restored.subagentSpeed('m'), 'fast')
+    await restored.set('codex', {
+      subagentSpeeds: JSON.parse('{"__proto__":"fast","toString":"standard"}'),
+    })
+    const safe = new ProviderSettingsStore(path)
+    assert.equal(safe.subagentSpeed('__proto__'), 'fast')
+    assert.equal(safe.subagentSpeed('toString'), 'standard')
+    assert.equal(safe.subagentSpeed('constructor'), 'standard')
+    await safe.set('codex', {})
+    assert.equal(safe.subagentSpeed('__proto__'), 'standard')
+    for (const subagentSpeeds of [
+      null,
+      [],
+      'fast',
+      { m: true },
+      { m: 'priority' },
+      { '': 'fast' },
+    ]) {
+      assert.throws(
+        () => validatePreferences('codex', { subagentSpeeds }),
+        /subagent speeds/,
+      )
+    }
+    assert.throws(
+      () => validatePreferences('claude', { subagentSpeeds: { m: 'fast' } }),
+      /only for Codex/,
+    )
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
 test('failed persistence leaves live settings unchanged and permits a later retry', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'provider-failure-'))
   const { mkdir } = await import('node:fs/promises')
@@ -137,8 +186,14 @@ test('failed persistence leaves live settings unchanged and permits a later retr
   // Put a directory at the target after construction to force atomic rename failure.
   await mkdir(store.path)
   try {
-    await assert.rejects(store.set('codex', { visibleModels: [] }))
+    await assert.rejects(
+      store.set('codex', {
+        visibleModels: [],
+        subagentSpeeds: { m: 'fast' },
+      }),
+    )
     assert.equal(store.visible('codex', 'm'), true)
+    assert.equal(store.subagentSpeed('m'), 'standard')
     await rm(store.path, { recursive: true })
     await store.set('codex', { visibleModels: [] })
     assert.equal(store.visible('codex', 'm'), false)

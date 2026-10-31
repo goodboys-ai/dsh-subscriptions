@@ -615,13 +615,13 @@ each limit honest.
 - **The unit suite runs in Node, not in a browser DOM.** `pnpm test` is
   `node --test` over the compiled specs; no jsdom or happy-dom stands in for the
   host page. The browser fixtures under `test/` (for example
-  `test/account-manager-browser.mjs`) are opt-in manual scripts driven through
-  Playwright, not part of `pnpm test`, so a client change that only misbehaves
-  against a real DOM is caught by a browser check or not at all.
-  `test/model-defaults-view.spec.ts` runs the actual model editor and account
-  manager with a hook dispatcher and fixture RPCs: it exercises effects, event
-  handlers and the collect/save path, but does not mount a browser DOM or verify
-  layout, focus or theming.
+  `test/account-manager-browser.mjs` and `test/usage-window-filter-browser.mjs`)
+  are opt-in manual scripts driven through Playwright, not part of `pnpm test`,
+  so a client change that only misbehaves against a real DOM is caught by a
+  browser check or not at all. `test/model-defaults-view.spec.ts` runs the
+  actual model editor and account manager with a hook dispatcher and fixture
+  RPCs: it exercises effects, event handlers and the collect/save path, but does
+  not mount a browser DOM or verify layout, focus or theming.
 - **The nightly workflow is an early warning, not a release gate.** Mutation and
   shuffled-repeat do not use `continue-on-error`: a failed mutation run or
   shuffled suite fails its job. Mutation thresholds only color the report; a low

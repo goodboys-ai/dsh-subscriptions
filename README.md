@@ -77,10 +77,17 @@ the composer's tool row: Standard or Fast, per session.
 ![Speed toggle with the Standard/Fast menu open](docs/images/speed-toggle.png)
 
 **Settings → Subscriptions → provider → Manage** edits account aliases, pool
-participation, model allowlists, and the per-model effort, context, and tool
-settings. A context value only lowers the window a session plans against, never
-above what the provider advertises; Codex and Claude support it, and it does not
-enlarge the API's capacity.
+participation, model allowlists, and the per-model effort, subagent speed,
+context, and tool settings. A context value only lowers the window a session
+plans against, never above what the provider advertises; Codex and Claude
+support it, and it does not enlarge the API's capacity.
+
+For Codex, **Subagent default speed** applies to subsequent subagent requests
+using that model, regardless of the parent model. An explicit Speed choice in
+the subagent session overrides the saved default, and a parent's choice never
+propagates. The default survives restart; session overrides do not. Fast still
+requires current model support, and requests without live subagent metadata use
+Standard.
 
 ![Model settings](docs/images/model-settings.png)
 
@@ -154,15 +161,16 @@ text. No live account was used to verify what Anthropic returns. See
 
 ## Install
 
-Current source is tested with DSH `0.1.7-rc.2`, `0.2.0-rc.2`, and `0.2.1-rc.2`.
-The package's peers admit `>=0.1.7-rc.2 <0.3.0-0`: untested versions inside that
-range install but are unsupported, and versions outside it need an explicit
-`dsh plugin allow-version` exemption. `dsh plugin add` checks those ranges with
-`includePrerelease` semantics, so the admitted set covers every host build from
-`0.1.7-rc.2` through the whole `0.2.x` line, prereleases included, and blocks
-the `0.3.0` line. See [docs/compatibility.md](docs/compatibility.md) for the
-support window and [docs/testing.md](docs/testing.md) for the test layers. With
-`dsh` available, install the plugin into the web profile from npm:
+Current source is tested with DSH `0.1.7-rc.2`, `0.2.0-rc.2`, `0.2.1-rc.2`, and
+`0.2.1-rc.5`. The package's peers admit `>=0.1.7-rc.2 <0.3.0-0`: untested
+versions inside that range install but are unsupported, and versions outside it
+need an explicit `dsh plugin allow-version` exemption. `dsh plugin add` checks
+those ranges with `includePrerelease` semantics, so the admitted set covers
+every host build from `0.1.7-rc.2` through the whole `0.2.x` line, prereleases
+included, and blocks the `0.3.0` line. See
+[docs/compatibility.md](docs/compatibility.md) for the support window and
+[docs/testing.md](docs/testing.md) for the test layers. With `dsh` available,
+install the plugin into the web profile from npm:
 
 ```sh
 dsh plugin --profile web add dsh-subscriptions
