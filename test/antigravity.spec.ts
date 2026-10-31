@@ -1276,7 +1276,7 @@ test('Claude streaming caps maxOutputTokens at 64000 to avoid INVALID_ARGUMENT o
   assert.equal(claudeStreamLow.request.generationConfig?.maxOutputTokens, 2048)
 })
 
-test('Gemini 3 marks unsigned foreign tool-call steps during a model switch', () => {
+test('Gemini 3 and 4 mark unsigned foreign tool-call steps during a model switch', () => {
   const foreignSource = {
     kind: 'model' as const,
     provider: 'codex',
@@ -1318,12 +1318,18 @@ test('Gemini 3 marks unsigned foreign tool-call steps during a model switch', ()
       foreignSource,
     ),
   ]
-  const calls = toAntigravityRequest(options(), messages, session.projectId)
-    .request.contents.flatMap((content) => content.parts)
-    .filter((part) => part.functionCall)
-  assert.equal(calls[0].thoughtSignature, 'skip_thought_signature_validator')
-  assert.equal(calls[1].thoughtSignature, undefined)
-  assert.equal(calls[2].thoughtSignature, 'skip_thought_signature_validator')
+  for (const model of ['gemini-3-flash', 'gemini-4-argon-low']) {
+    const calls = toAntigravityRequest(
+      { ...options(), model },
+      messages,
+      session.projectId,
+    )
+      .request.contents.flatMap((content) => content.parts)
+      .filter((part) => part.functionCall)
+    assert.equal(calls[0].thoughtSignature, 'skip_thought_signature_validator')
+    assert.equal(calls[1].thoughtSignature, undefined)
+    assert.equal(calls[2].thoughtSignature, 'skip_thought_signature_validator')
+  }
   const gemini2 = toAntigravityRequest(
     { ...options(), model: 'gemini-2.5-pro' },
     messages,
@@ -1335,6 +1341,42 @@ test('Gemini 3 marks unsigned foreign tool-call steps during a model switch', ()
       .find((part) => part.functionCall)?.thoughtSignature,
     undefined,
   )
+})
+
+test('Gemini signature matching is trimmed, case-insensitive, and limited to versions 3 and 4', () => {
+  const messages: TranslatableMessage[] = [
+    message(
+      'assistant',
+      [
+        {
+          type: 'tool-call',
+          id: ToolCallId('foreign-1'),
+          name: 'run_code',
+          arguments: '{}',
+        },
+      ],
+      { kind: 'model', provider: 'codex', model: 'gpt-5.6' },
+    ),
+  ]
+  const signatureFor = (model: string) =>
+    toAntigravityRequest({ ...options(), model }, messages, session.projectId)
+      .request.contents.flatMap((content) => content.parts)
+      .find((part) => part.functionCall)?.thoughtSignature
+  for (const [model, expected] of [
+    ['gemini-3-pro-preview', 'skip_thought_signature_validator'],
+    ['gemini-4-argon-low', 'skip_thought_signature_validator'],
+    ['gemini-4.5-pro', 'skip_thought_signature_validator'],
+    ['GEMINI-4-ARGON-LOW', 'skip_thought_signature_validator'],
+    [' gemini-4-pro ', 'skip_thought_signature_validator'],
+    ['gemini-5-pro', undefined],
+    ['gemini-10-pro', undefined],
+    ['gemini-40-pro', undefined],
+    ['gemini-4x', undefined],
+    ['gemini-2.5-pro', undefined],
+    ['gemini-pro', undefined],
+  ] as const) {
+    assert.equal(signatureFor(model), expected, model)
+  }
 })
 
 test('Antigravity replays signed text and reasoning only for the same provider and model', () => {
