@@ -153,6 +153,53 @@ describe('speed select load timing', { concurrency: false }, () => {
     assert.equal(speedCalls, 1)
   })
 
+  test('createSpeedLoader resolves a child default for the current model', async () => {
+    const requests: unknown[] = []
+    const connection = {
+      rpc: {
+        call: async (
+          _channel: string,
+          _endpoint: string,
+          payload: { model?: string },
+        ) => {
+          requests.push(payload)
+          return {
+            ok: true,
+            value: {
+              tier: payload.model === 'fast-model' ? 'fast' : 'standard',
+              fastModels: ['fast-model'],
+            },
+          }
+        },
+      },
+    } as unknown as ConnectionHandle
+    let current = { provider: 'codex', model: 'fast-model' }
+    const load = createSpeedLoader(
+      connection,
+      () => ({
+        directoryFor: (id) => {
+          assert.equal(id, 'child')
+          return { load: async () => ({ current }) }
+        },
+      }),
+      'child',
+    )
+    assert.deepEqual(await load(), { visible: true, tier: 'fast' })
+    current = { provider: 'codex', model: 'plain-model' }
+    assert.deepEqual(await load(), { visible: false, tier: 'standard' })
+    current = { provider: 'claude', model: 'fast-model' }
+    assert.deepEqual(await load(), { visible: false, tier: 'standard' })
+    assert.deepEqual(requests, [
+      { sessionId: 'child', model: 'fast-model' },
+      { sessionId: 'child', model: 'plain-model' },
+      { sessionId: 'child' },
+    ])
+    assert.deepEqual(
+      await createSpeedLoader(connection, () => undefined, 'unknown')(),
+      { visible: false, tier: 'standard' },
+    )
+  })
+
   test('SpeedSelect retries a failed mount read, then stops', async () => {
     mock.timers.enable({ apis: ['setInterval'] })
     const uninstall = installWindow()

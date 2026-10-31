@@ -14,6 +14,7 @@ export const PROVIDER_TOOLS = {
 } as const
 export type SubscriptionTool =
   'image_generate' | 'video_generate' | 'x_search' | 'web_search'
+export type SubagentSpeedTier = 'standard' | 'fast'
 export interface AccountPreferences {
   alias?: string
   /** Absent means included. */
@@ -28,6 +29,8 @@ export interface ProviderPreferences {
   /** Absent follows discovery; an explicit selection hides newly discovered models. */
   visibleModels?: string[]
   contextWindows?: Record<string, number>
+  /** Codex only: per-model defaults for subagents, independent of main-session speed. */
+  subagentSpeeds?: Record<string, SubagentSpeedTier>
   tools?: Partial<Record<SubscriptionTool, boolean>>
   /**
    * Claude only: overrides the `claudePromptCacheTtl` plugin config for this
@@ -139,6 +142,29 @@ export function validatePreferences(
     }
     result.promptCacheTtl = raw.promptCacheTtl
   }
+  if (raw.subagentSpeeds !== undefined) {
+    if (provider !== 'codex')
+      throw new Error('subagent speeds are currently supported only for Codex')
+    if (
+      !raw.subagentSpeeds ||
+      typeof raw.subagentSpeeds !== 'object' ||
+      Array.isArray(raw.subagentSpeeds)
+    ) {
+      throw new Error('subagent speeds must be a model-to-speed map')
+    }
+    result.subagentSpeeds = Object.create(null) as Record<
+      string,
+      SubagentSpeedTier
+    >
+    for (const [model, tier] of Object.entries(raw.subagentSpeeds)) {
+      if (!model.trim() || (tier !== 'standard' && tier !== 'fast')) {
+        throw new Error(
+          'subagent speeds require a model id and either "standard" or "fast"',
+        )
+      }
+      result.subagentSpeeds[model] = tier
+    }
+  }
   if (raw.tools !== undefined) {
     if (!raw.tools || typeof raw.tools !== 'object' || Array.isArray(raw.tools))
       throw new Error('tools must be an object')
@@ -216,6 +242,12 @@ export class ProviderSettingsStore {
   ): number | undefined {
     const windows = this.current.providers[provider]?.contextWindows
     return windows && Object.hasOwn(windows, model) ? windows[model] : undefined
+  }
+
+  /** Read on every request so saved changes apply to the next subagent request. */
+  subagentSpeed(model: string): SubagentSpeedTier {
+    const speeds = this.current.providers.codex?.subagentSpeeds
+    return speeds && Object.hasOwn(speeds, model) ? speeds[model] : 'standard'
   }
 
   /**

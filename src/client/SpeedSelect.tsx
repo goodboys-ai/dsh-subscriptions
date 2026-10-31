@@ -112,21 +112,23 @@ export function createSpeedLoader(
   sessionId: string,
 ): SpeedSelectInjected['loadSpeed'] {
   return async () => {
+    const directories = models()
+    let current: ModelSelectionSnapshot['current'] = null
+    if (directories !== undefined) {
+      try {
+        current = (await directories.directoryFor(sessionId).load()).current
+      } catch (error) {
+        if (!modelSelectionUnavailable(error)) throw error
+      }
+    }
     const state = await callSubscriptionsAuth<SpeedState>(
       connection.rpc,
       'speed',
-      { sessionId },
+      {
+        sessionId,
+        ...(current?.provider === 'codex' ? { model: current.model } : {}),
+      },
     )
-    const directories = models()
-    if (directories === undefined) return { visible: false, tier: state.tier }
-    let current: ModelSelectionSnapshot['current']
-    try {
-      const loaded = await directories.directoryFor(sessionId).load()
-      current = loaded.current
-    } catch (error) {
-      if (!modelSelectionUnavailable(error)) throw error
-      return { visible: false, tier: state.tier }
-    }
     const visible =
       current !== null &&
       current.provider === 'codex' &&

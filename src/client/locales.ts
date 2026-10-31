@@ -29,7 +29,7 @@ export const en = {
     'Some reasoning defaults were saved. Remaining changes are still in the draft; retry to finish.',
   modelsEdit: 'Edit model list',
   modelsHint:
-    'Configure model visibility, default reasoning effort, context and tools here; Save changes below submits them together with the account settings. Hidden models remain usable by existing sessions; tool changes apply to new sessions.',
+    'Configure model visibility, default reasoning effort, subagent speed, context and tools here; Save changes below submits them together with the account settings. Hidden models remain usable by existing sessions; tool changes apply to new sessions.',
   modelsAutomatic: 'Automatically show all models, including new models',
   modelsSelectAll: 'Select all',
   modelsSelectNone: 'Clear selection',
@@ -38,6 +38,9 @@ export const en = {
   modelsContextHint:
     'Leave blank to follow the provider. The requested window is capped by the account’s advertised maximum; account pools use the smallest member window. This controls local history and compaction, not the API’s capacity.',
   modelsContextInvalid: 'Enter a positive whole number of tokens for {model}.',
+  modelsSubagentSpeed: 'Subagent default speed',
+  modelsSubagentSpeedHint:
+    'Applies to subsequent subagent requests using this model, regardless of the parent model. Main conversations keep their own Speed setting. Fast requires model support.',
   modelsTools: 'Provider tools',
   modelsToolsHint:
     'Changes apply only to sessions created after saving. Existing sessions keep their tools. Shared tools remain available if any supporting provider is enabled.',
@@ -206,6 +209,11 @@ export const en = {
   modelDefaultsSummaryEmpty: 'No model advertises reasoning levels',
   modelDefaultsFilterPlaceholder: 'Filter models',
   modelDefaultsFilterEmpty: 'No model matches “{query}”.',
+  modelDefaultsNoModels: 'This provider reports no models.',
+  modelDefaultsNoAccount:
+    'No connected accounts. Connect one on the provider card first.',
+  modelDefaultsDiscoveryFailed:
+    'Model discovery failed or timed out. Use Refresh to try again.',
   generating: 'Generating image…',
   image: 'image',
   viewImage: 'View image',
@@ -319,7 +327,7 @@ export const zh = {
     '部分推理档已保存，其余更改仍保留在草稿中，请重试完成保存。',
   modelsEdit: '编辑模型列表',
   modelsHint:
-    '在此配置模型显示、默认推理档、上下文与工具，底部的「保存更改」会连同账号设置一起提交。隐藏模型不影响已有会话；工具开关对新建会话生效。',
+    '在此配置模型显示、默认推理档、子代理速度、上下文与工具，底部的「保存更改」会连同账号设置一起提交。隐藏模型不影响已有会话；工具开关对新建会话生效。',
   modelsAutomatic: '自动显示全部模型（包含以后新增的模型）',
   modelsSelectAll: '全选',
   modelsSelectNone: '清空选择',
@@ -328,6 +336,9 @@ export const zh = {
   modelsContextHint:
     '留空跟随服务商。配置值按账号返回的最大窗口限制；账号池取各成员的最小窗口。此设置控制本地历史保留和压缩时机，不会扩大 API 本身的容量。',
   modelsContextInvalid: '请为 {model} 输入正整数 token 数。',
+  modelsSubagentSpeed: '子代理默认速度',
+  modelsSubagentSpeedHint:
+    '对使用此模型的子代理后续请求生效，与父会话模型无关。主会话仍使用自己的速度设置；快速档仅在模型支持时生效。',
   modelsTools: 'Provider 工具',
   modelsToolsHint:
     '仅对保存后新建的会话生效，已有会话保留原工具。任一支持的服务商启用共享工具时，该工具仍会显示。',
@@ -488,6 +499,9 @@ export const zh = {
   modelDefaultsSummaryEmpty: '没有模型声明推理档',
   modelDefaultsFilterPlaceholder: '筛选模型',
   modelDefaultsFilterEmpty: '没有匹配「{query}」的模型。',
+  modelDefaultsNoModels: '这个服务商没有报告任何模型。',
+  modelDefaultsNoAccount: '还没有连接账号。请先在卡片上连接一个账号。',
+  modelDefaultsDiscoveryFailed: '模型列表发现失败或超时。可以点「刷新」重试。',
   generating: '正在生成图片…',
   image: '图片',
   viewImage: '查看图片',

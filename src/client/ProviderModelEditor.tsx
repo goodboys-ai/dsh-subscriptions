@@ -9,10 +9,13 @@ import type { CSSProperties } from 'react'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-api-remotes/client'
 import type {
   ProviderPreferences,
+  SubagentSpeedTier,
   SubscriptionTool,
 } from '../provider-settings.js'
 import type { SubscriptionProvider } from './SubscriptionsSection.js'
 import { callSubscriptionsAuth } from './subscriptions-rpc.js'
+import type { AccountCatalogRow } from './account-preferences.js'
+import { modelEditorState, savedModelIds } from './model-filter.js'
 import type { SubscriptionsKey } from './locales.js'
 
 interface ModelRow {
@@ -23,11 +26,14 @@ interface ModelRow {
   efforts?: { id: string; name: string }[]
   configured?: string
   maxContextWindow?: number
+  fastTier?: boolean
 }
 interface Catalog {
   provider: SubscriptionProvider | 'cursor-subscription'
   settings: ProviderPreferences
   models: ModelRow[]
+  /** Subscription account evidence; account-neutral editors omit this field. */
+  accounts?: AccountCatalogRow[]
   tools: SubscriptionTool[]
 }
 interface Props {
@@ -192,7 +198,8 @@ export const ProviderModelEditor = forwardRef<ProviderModelEditorHandle, Props>(
 
     const allModels = catalog?.models ?? []
     const known = new Set(allModels.map((model) => model.id))
-    const missing = (draft.visibleModels ?? [])
+    const savedIds = savedModelIds(draft.visibleModels, draft.subagentSpeeds)
+    const missing = savedIds
       .filter((id) => !known.has(id))
       .map((id) => ({ id, name: id }) as ModelRow)
     const models = [...allModels, ...missing].filter((model) =>
@@ -200,8 +207,15 @@ export const ProviderModelEditor = forwardRef<ProviderModelEditorHandle, Props>(
         .toLowerCase()
         .includes(query.trim().toLowerCase()),
     )
+    const editorState = modelEditorState({
+      discovered: allModels.length,
+      saved: missing.length,
+      matched: models.length,
+      accounts: catalog?.accounts,
+    })
     const selected = new Set(
-      draft.visibleModels ?? allModels.map((model) => model.id),
+      draft.visibleModels ??
+        [...allModels, ...missing].map((model) => model.id),
     )
     return (
       <div style={{ borderTop: border, marginTop: 12, paddingTop: 12 }}>
@@ -228,7 +242,7 @@ export const ProviderModelEditor = forwardRef<ProviderModelEditorHandle, Props>(
             </button>
             {busy && <span role="status">{t('modelDefaultsLoading')}</span>}
           </div>
-          {catalog && (
+          {!busy && catalog && (
             <fieldset
               disabled={busy || disabled}
               style={{
@@ -253,133 +267,191 @@ export const ProviderModelEditor = forwardRef<ProviderModelEditorHandle, Props>(
                 />{' '}
                 {t('modelsAutomatic')}
               </label>
-              <div style={actions}>
-                <input
-                  style={{ flex: '1 1 180px' }}
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder={t('modelDefaultsFilterPlaceholder')}
-                  aria-label={t('modelDefaultsFilterPlaceholder')}
-                />
-                <button
-                  type="button"
-                  onClick={() =>
-                    edit({
-                      ...draft,
-                      visibleModels: allModels.map((model) => model.id),
-                    })
-                  }
-                >
-                  {t('modelsSelectAll')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => edit({ ...draft, visibleModels: [] })}
-                >
-                  {t('modelsSelectNone')}
-                </button>
-              </div>
-              <div
-                style={{
-                  maxHeight: 360,
-                  overflowY: 'auto',
-                  display: 'grid',
-                  gap: 8,
-                }}
-              >
-                {models.map((model) => (
+              {editorState.listState === 'provider-empty' ? (
+                <p className="dsh-subscription-hint">
+                  {t(editorState.noticeKey)}
+                </p>
+              ) : (
+                <>
+                  <div style={actions}>
+                    <input
+                      style={{ flex: '1 1 180px' }}
+                      value={query}
+                      onChange={(event) => setQuery(event.target.value)}
+                      placeholder={t('modelDefaultsFilterPlaceholder')}
+                      aria-label={t('modelDefaultsFilterPlaceholder')}
+                    />
+                    <button
+                      type="button"
+                      onClick={() =>
+                        edit({
+                          ...draft,
+                          visibleModels: allModels.map((model) => model.id),
+                        })
+                      }
+                    >
+                      {t('modelsSelectAll')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => edit({ ...draft, visibleModels: [] })}
+                    >
+                      {t('modelsSelectNone')}
+                    </button>
+                  </div>
                   <div
-                    key={model.id}
                     style={{
-                      borderBottom: border,
-                      padding: '8px 2px',
+                      maxHeight: 360,
+                      overflowY: 'auto',
                       display: 'grid',
                       gap: 8,
                     }}
                   >
-                    <label style={{ overflowWrap: 'anywhere' }}>
-                      <input
-                        type="checkbox"
-                        checked={selected.has(model.id)}
-                        onChange={(event) => {
-                          const next = new Set(selected)
-                          if (event.target.checked) next.add(model.id)
-                          else next.delete(model.id)
-                          edit({ ...draft, visibleModels: [...next] })
+                    {models.map((model) => (
+                      <div
+                        key={model.id}
+                        style={{
+                          borderBottom: border,
+                          padding: '8px 2px',
+                          display: 'grid',
+                          gap: 8,
                         }}
-                      />{' '}
-                      {model.name}
-                      {!known.has(model.id) && ` (${t('modelsUnavailable')})`}
-                    </label>
-                    <div style={actions}>
-                      {(model.efforts?.length ?? 0) > 0 && (
-                        <label style={actions}>
-                          {t('modelDefaultsTitle')}
-                          <select
-                            aria-label={`${model.name} ${t('modelDefaultsTitle')}`}
-                            value={efforts[model.id] ?? ''}
+                      >
+                        <label style={{ overflowWrap: 'anywhere' }}>
+                          <input
+                            type="checkbox"
+                            checked={selected.has(model.id)}
                             onChange={(event) => {
-                              setEfforts({
-                                ...efforts,
-                                [model.id]: event.target.value,
-                              })
-                              setDirty(true)
+                              const next = new Set(selected)
+                              if (event.target.checked) next.add(model.id)
+                              else next.delete(model.id)
+                              edit({ ...draft, visibleModels: [...next] })
                             }}
-                          >
-                            <option value="">
-                              {t('modelDefaultsFollowProvider')}
-                            </option>
-                            {model.configured &&
-                              !model.efforts?.some(
-                                (effort) => effort.id === model.configured,
-                              ) && (
-                                <option value={model.configured} disabled>
-                                  {model.configured} ({t('modelsUnavailable')})
-                                </option>
-                              )}
-                            {model.efforts?.map((effort) => (
-                              <option key={effort.id} value={effort.id}>
-                                {effort.name}
-                              </option>
-                            ))}
-                          </select>
+                          />{' '}
+                          {model.name}
+                          {!known.has(model.id) &&
+                            ` (${t('modelsUnavailable')})`}
                         </label>
-                      )}
-                      {supportsContext(provider) &&
-                        model.maxContextWindow !== undefined && (
-                          <div style={actions}>
+                        <div style={actions}>
+                          {(model.efforts?.length ?? 0) > 0 && (
                             <label style={actions}>
-                              {t('modelsContext')}
-                              <input
-                                style={{ width: 140 }}
-                                inputMode="numeric"
-                                value={contexts[model.id] ?? ''}
-                                aria-label={`${model.name} ${t('modelsContext')}`}
-                                placeholder={String(model.defaultContextWindow)}
+                              {t('modelDefaultsTitle')}
+                              <select
+                                aria-label={`${model.name} ${t('modelDefaultsTitle')}`}
+                                value={efforts[model.id] ?? ''}
                                 onChange={(event) => {
-                                  setContexts({
-                                    ...contexts,
+                                  setEfforts({
+                                    ...efforts,
                                     [model.id]: event.target.value,
                                   })
                                   setDirty(true)
                                 }}
-                              />
+                              >
+                                <option value="">
+                                  {t('modelDefaultsFollowProvider')}
+                                </option>
+                                {model.configured &&
+                                  !model.efforts?.some(
+                                    (effort) => effort.id === model.configured,
+                                  ) && (
+                                    <option value={model.configured} disabled>
+                                      {model.configured} (
+                                      {t('modelsUnavailable')})
+                                    </option>
+                                  )}
+                                {model.efforts?.map((effort) => (
+                                  <option key={effort.id} value={effort.id}>
+                                    {effort.name}
+                                  </option>
+                                ))}
+                              </select>
                             </label>
-                            <small>
-                              {t('modelsContextBounds', {
-                                default: model.defaultContextWindow,
-                                max: model.maxContextWindow,
-                              })}
-                            </small>
-                          </div>
-                        )}
-                    </div>
+                          )}
+                          {supportsContext(provider) &&
+                            model.maxContextWindow !== undefined && (
+                              <div style={actions}>
+                                <label style={actions}>
+                                  {t('modelsContext')}
+                                  <input
+                                    style={{ width: 140 }}
+                                    inputMode="numeric"
+                                    value={contexts[model.id] ?? ''}
+                                    aria-label={`${model.name} ${t('modelsContext')}`}
+                                    placeholder={String(
+                                      model.defaultContextWindow,
+                                    )}
+                                    onChange={(event) => {
+                                      setContexts({
+                                        ...contexts,
+                                        [model.id]: event.target.value,
+                                      })
+                                      setDirty(true)
+                                    }}
+                                  />
+                                </label>
+                                <small>
+                                  {t('modelsContextBounds', {
+                                    default: model.defaultContextWindow,
+                                    max: model.maxContextWindow,
+                                  })}
+                                </small>
+                              </div>
+                            )}
+                        </div>
+                        {provider === 'codex' &&
+                          (model.fastTier === true ||
+                            Object.hasOwn(
+                              draft.subagentSpeeds ?? {},
+                              model.id,
+                            )) && (
+                            <div style={{ display: 'grid', gap: 6 }}>
+                              <label style={actions}>
+                                {t('modelsSubagentSpeed')}
+                                <select
+                                  aria-label={`${model.name} ${t('modelsSubagentSpeed')}`}
+                                  value={
+                                    Object.hasOwn(
+                                      draft.subagentSpeeds ?? {},
+                                      model.id,
+                                    )
+                                      ? draft.subagentSpeeds![model.id]
+                                      : 'standard'
+                                  }
+                                  onChange={(event) =>
+                                    edit({
+                                      ...draft,
+                                      subagentSpeeds: {
+                                        ...draft.subagentSpeeds,
+                                        [model.id]: event.target
+                                          .value as SubagentSpeedTier,
+                                      },
+                                    })
+                                  }
+                                >
+                                  <option value="standard">
+                                    {t('speedStandard')}
+                                  </option>
+                                  <option
+                                    value="fast"
+                                    disabled={!model.fastTier}
+                                  >
+                                    {t('speedFast')}
+                                    {!model.fastTier &&
+                                      ` (${t('modelsUnavailable')})`}
+                                  </option>
+                                </select>
+                              </label>
+                              <small>{t('modelsSubagentSpeedHint')}</small>
+                            </div>
+                          )}
+                      </div>
+                    ))}
+                    {models.length === 0 && (
+                      <span>{t('modelDefaultsFilterEmpty', { query })}</span>
+                    )}
                   </div>
-                ))}
-                {models.length === 0 && (
-                  <span>{t('modelDefaultsFilterEmpty', { query })}</span>
-                )}
-              </div>
+                </>
+              )}
               {supportsContext(provider) && (
                 <small>{t('modelsContextHint')}</small>
               )}

@@ -1082,13 +1082,16 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
                   {t('addAccount')}
                 </button>
               )}
-              <button
-                type="button"
-                aria-haspopup="dialog"
-                onClick={() => setManagedProvider({ id, name })}
-              >
-                {t('accountsManage')}
-              </button>
+              {/* Login and cancellation must not race a second settings writer. */}
+              {!busy && (
+                <button
+                  type="button"
+                  aria-haspopup="dialog"
+                  onClick={() => setManagedProvider({ id, name })}
+                >
+                  {t('accountsManage')}
+                </button>
+              )}
               {busy && (
                 <button
                   type="button"
@@ -1172,7 +1175,10 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
           name={managedProvider.name}
           rpc={rpc}
           t={t}
-          onClose={() => setManagedProvider(undefined)}
+          onClose={() => {
+            setManagedProvider(undefined)
+            void refresh()
+          }}
         />
       )}
       <style>
