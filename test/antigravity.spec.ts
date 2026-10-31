@@ -1379,6 +1379,54 @@ test('Gemini signature matching is trimmed, case-insensitive, and limited to ver
   }
 })
 
+test('Gemini 4 reuses a real signature only for the same provider and model', () => {
+  const source = {
+    kind: 'model' as const,
+    provider: 'antigravity',
+    model: 'gemini-4-argon-low',
+    replayState: {
+      response: { kind: 'antigravity' as const, version: 1 },
+      blocks: [{ thoughtSignature: 'real-signature' }],
+    },
+  }
+  const replay = (previous: typeof source) =>
+    toAntigravityRequest(
+      { ...options(), model: 'gemini-4-argon-low' },
+      [
+        message(
+          'assistant',
+          [
+            {
+              type: 'tool-call',
+              id: ToolCallId('call-1'),
+              name: 'bash',
+              arguments: '{}',
+            },
+          ],
+          previous,
+        ),
+      ],
+      session.projectId,
+    )
+  assert.equal(
+    replay(source)
+      .request.contents.flatMap((content) => content.parts)
+      .find((part) => part.functionCall)?.thoughtSignature,
+    'real-signature',
+  )
+  for (const previous of [
+    { provider: 'antigravity', model: 'gemini-3-flash' },
+    { provider: 'claude', model: 'gemini-4-argon-low' },
+  ]) {
+    assert.equal(
+      replay({ ...source, ...previous })
+        .request.contents.flatMap((content) => content.parts)
+        .find((part) => part.functionCall)?.thoughtSignature,
+      'skip_thought_signature_validator',
+    )
+  }
+})
+
 test('Antigravity replays signed text and reasoning only for the same provider and model', () => {
   const source = {
     kind: 'model' as const,
