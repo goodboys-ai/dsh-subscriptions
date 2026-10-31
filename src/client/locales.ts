@@ -92,6 +92,8 @@ export const en = {
   usageRefresh: 'Refresh',
   usageLoading: 'Loading usage…',
   usageEmpty: 'No usage windows reported.',
+  usageNoVisibleModels:
+    'No usage windows for the models visible in the picker.',
   usageUnsupported: 'This endpoint has no usage surface.',
   usageError: 'Usage lookup failed: {message}',
   usageSession: '5-hour window',
@@ -380,6 +382,7 @@ export const zh = {
   usageRefresh: '刷新',
   usageLoading: '用量加载中…',
   usageEmpty: '服务商未返回任何用量窗口。',
+  usageNoVisibleModels: '选择器中的可见模型没有任何用量窗口。',
   usageUnsupported: '该端点不提供用量查询。',
   usageError: '用量查询失败：{message}',
   usageSession: '5 小时窗口',

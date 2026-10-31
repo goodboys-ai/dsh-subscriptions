@@ -1856,6 +1856,7 @@ export function apply(ctx: Context, config: Config): void {
     speed,
     modelDefaults,
     {
+      visibleModels: (provider) => preferences.get(provider).visibleModels,
       async get(provider, force) {
         await loadModelDefaults()
         const adapter = adapters.get(provider)
