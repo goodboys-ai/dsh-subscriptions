@@ -1274,13 +1274,16 @@ async function checkDialogSurface(cdp, evidence) {
 
 /**
  * Open the settings panel. Through 0.2.0 the sidebar foot carries a
- * Settings trigger; from 0.2.1 the settings launcher is the sidebar
- * account menu (the "More" button), whose Settings item opens the panel.
- * The direct trigger gets a short probe: on 0.2.1 hosts every open would
- * otherwise burn the full click-retry window before falling back.
+ * Settings trigger; from 0.2.1 the settings launcher is the sidebar account
+ * menu, whose Settings item opens the panel. Its accessible name is "Account
+ * menu" in current hosts and "More" in earlier ones. Probe the specific name
+ * first so "More actions" or an unrelated "More" button cannot win the
+ * substring match. The direct trigger gets a short probe for the same reason.
  */
 async function openSettingsPanel(cdp) {
   if (await clickLabel(cdp, ['Settings', '设置'], 3)) return true
+  if (await clickLabel(cdp, ['Account menu', '账户菜单'], 3))
+    return clickLabel(cdp, ['Settings', '设置'])
   if (!(await clickLabel(cdp, ['More', '更多']))) return false
   return clickLabel(cdp, ['Settings', '设置'])
 }
