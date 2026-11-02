@@ -106,61 +106,22 @@ test('usage-only RPC reports key presence and rejects unknown sources without ex
   if (!missing.ok) assert.match(missing.error.message, /not configured/)
 })
 
-test('Cursor RPC exposes browser login and status without returning OAuth tokens', async () => {
-  const handler = await mount(undefined, { resolve: async () => undefined })
+test('removed Cursor and proxy RPC endpoints have no routes', async () => {
+  const handler = await mount()
   const signal = new AbortController().signal
-  assert.deepEqual(await handler('cursorStatus', {}, signal), {
-    ok: true,
-    value: { authenticated: false, busy: false },
-  })
-  const login = await handler('cursorLogin', {}, signal)
-  assert.equal(login.ok, true)
-  if (login.ok) {
-    const url = new URL((login.value as { authorizeUrl: string }).authorizeUrl)
-    assert.equal(url.origin, 'https://cursor.com')
-  }
-  const busy = await handler('cursorStatus', {}, signal)
-  assert.equal(busy.ok && (busy.value as { busy: boolean }).busy, true)
-  await handler('cursorCancel', {}, signal)
-  const cancelled = await handler('cursorStatus', {}, signal)
-  assert.equal(
-    cancelled.ok && (cancelled.value as { busy: boolean }).busy,
-    false,
-  )
-  const missing = await handler('cursorUsage', {}, signal)
-  assert.equal(missing.ok, false)
-  if (!missing.ok) assert.match(missing.error.message, /not signed in/)
-  const models = await handler('cursorModels', {}, signal)
-  assert.equal(models.ok, false)
-  if (!models.ok) assert.match(models.error.message, /not signed in/)
-  const catalog = await handler('cursorSettings', {}, signal)
-  assert.equal(catalog.ok, true)
-  if (catalog.ok)
-    assert.deepEqual(
-      (catalog.value as { accounts: unknown[]; models: unknown[] }).accounts,
-      [],
-    )
-  assert.deepEqual(
-    await handler(
-      'cursorSetSettings',
-      { settings: { visibleModels: ['composer-2.5'] } },
-      signal,
-    ),
-    { ok: true, value: { ok: true } },
-  )
-  const updated = await handler('cursorSettings', {}, signal)
-  if (updated.ok)
-    assert.deepEqual((updated.value as { settings: unknown }).settings, {
-      visibleModels: ['composer-2.5'],
-    })
-  const invalid = await handler(
+  for (const endpoint of [
+    'cursorStatus',
+    'cursorLogin',
+    'cursorCancel',
+    'cursorLogout',
+    'cursorUsage',
+    'cursorModels',
+    'cursorSettings',
     'cursorSetSettings',
-    { settings: { visibleModels: 'all' } },
-    signal,
-  )
-  assert.equal(invalid.ok, false)
-  if (!invalid.ok) assert.equal(invalid.error.code, 'bad-request')
-  for (const endpoint of ['proxyGet', 'proxySet', 'proxyTest']) {
+    'proxyGet',
+    'proxySet',
+    'proxyTest',
+  ]) {
     await assert.rejects(handler(endpoint, {}, signal), /no route registered/)
   }
 })

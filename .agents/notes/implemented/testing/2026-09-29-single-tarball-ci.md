@@ -23,17 +23,17 @@ artifact.
 Why the tarball and not the checkout: a raw-directory install carries
 `node_modules` and never exercises the packed layout. The tarball checks
 `@deepseek-ai/*` resolving from the host (no `node_modules` shipped), the
-`files` allowlist (`lib`, `vendor/cursor`, `cordis.patch.yml`), and the cordis
+`files` allowlist (`lib`, `cordis.patch.yml`, locale, and icon), and the cordis
 patch applying to a clean tree. `boot-smoke.sh` builds an isolated `DSH_HOME` (a
 `mktemp` dir, never the user's real profiles), installs with `dsh plugin add`,
 boots `dsh web --no-open --port 0`, and asserts the trust handshake (single-use
 `?token=` URL → 303 + session cookie → app page 200), that the served HTML
 references `subscription-hub/client.js`, that the bundle responds with non-empty
 JavaScript, that the logged-out `/api/subscriptions-auth` routes for provider
-status, external-usage status, Cursor status, and unconfigured OpenCode Go /
-Kimi Code usage answer, and that the log shows no cordis patch skips or
-module-load failures. The host E2E installs the same tarball into a signed-in
-profile; see [host contract and host E2E](2026-09-29-host-contract-and-e2e.md).
+status, external-usage status, and unconfigured OpenCode Go / Kimi Code usage
+answer, and that the log shows no cordis patch skips or module-load failures.
+The host E2E installs the same tarball into a signed-in profile; see
+[host contract and host E2E](2026-09-29-host-contract-and-e2e.md).
 
 The smoke test also exercises installer dependencies: it caught a missing pnpm
 setup in CI because `dsh plugin add` invokes pnpm (`47e05213`).

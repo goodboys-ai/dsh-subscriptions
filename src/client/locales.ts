@@ -173,25 +173,6 @@ export const en = {
   externalUsageConfigure:
     'No API key found at {ref}. Add one in Settings → Models.',
   externalUsageUnavailable: 'Usage status unavailable: {message}',
-  cursorTitle: 'Cursor',
-  cursorOpenLogin: 'Open Cursor sign-in',
-  cursorWaiting: 'Waiting for Cursor sign-in…',
-  cursorConnected: 'Connected',
-  cursorManageTitle: 'Manage Cursor',
-  cursorManageSignIn:
-    'Sign in to see the models available to this Cursor account.',
-  cursorAccountsHint:
-    'Cursor uses one connected account. Choose which of its models appear in the model picker.',
-  cursorManageHint:
-    'Choose model visibility here. Refresh fetches the current models from Cursor; Save changes updates the model picker.',
-  cursorFilterModels: 'Filter models',
-  cursorModelsLoading: 'Loading Cursor models…',
-  cursorModelsError: 'Could not load Cursor models: {message}',
-  cursorModelsCount: '{count} models available',
-  cursorIncluded: 'Included usage',
-  cursorModels: 'Cursor Models',
-  cursorOtherModels: 'Other Models',
-  cursorIncludedRequests: 'Included requests',
   modelDefaultsTitle: 'Default reasoning effort',
   modelDefaultsHint:
     'The model picker preselects this level when you switch to the model; models without levels always follow the provider.',
@@ -465,24 +446,6 @@ export const zh = {
   externalUsageConfigure:
     '未在 {ref} 找到 API 密钥。请在「设置 → 模型」中添加。',
   externalUsageUnavailable: '无法获取用量状态：{message}',
-  cursorTitle: 'Cursor',
-  cursorOpenLogin: '打开 Cursor 登录页面',
-  cursorWaiting: '等待 Cursor 登录…',
-  cursorConnected: '已连接',
-  cursorManageTitle: '管理 Cursor',
-  cursorManageSignIn: '登录后可查看此 Cursor 账号可用的模型。',
-  cursorAccountsHint:
-    'Cursor 使用一个已连接账号。可在此选择模型选择器中显示的模型。',
-  cursorManageHint:
-    '在此选择模型是否显示。刷新可从 Cursor 获取当前模型；保存更改后更新模型选择器。',
-  cursorFilterModels: '筛选模型',
-  cursorModelsLoading: '正在加载 Cursor 模型…',
-  cursorModelsError: '无法加载 Cursor 模型：{message}',
-  cursorModelsCount: '可用模型：{count} 个',
-  cursorIncluded: '套餐内用量',
-  cursorModels: 'Cursor 模型',
-  cursorOtherModels: '其他模型',
-  cursorIncludedRequests: '套餐内请求',
   modelDefaultsTitle: '默认推理档',
   modelDefaultsHint:
     '切换到该模型时，模型选择器会预选此档位；没有推理档的模型始终跟随服务商默认。',

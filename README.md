@@ -10,9 +10,9 @@ reported quota in **Settings → Subscriptions**.
 
 ## What it adds
 
-- **Six subscription model sources:** Connect ChatGPT/Codex, Claude, Grok,
-  GitHub Copilot, Google Antigravity, or Cursor and choose their models in DSH's
-  picker. These routes use account sign-in, without provider API keys.
+- **Five subscription model sources:** Connect ChatGPT/Codex, Claude, Grok,
+  GitHub Copilot, or Google Antigravity and choose their models in DSH's picker.
+  These routes use account sign-in, without provider API keys.
 - **Ollama Cloud key route:** Add the `ollama-cloud` route with an
   `OLLAMA_API_KEY` credential. The route ships no model catalog: configure it on
   the Settings → Subscriptions card, which fetches the cloud list, ticks the
@@ -46,10 +46,10 @@ reported quota in **Settings → Subscriptions**.
 
 ## Screenshots
 
-Captured against DSH 0.2.0-rc.2 in the web UI with a local stub serving frozen
-provider responses, so each image shows a product state rather than a real
-account. Identities in the images are fabricated, and the quota percentages,
-catalogs, and reset countdowns are sample data.
+Captured against DSH 0.2.0-rc.2 and 0.2.1-rc.5 in the web UI with a local stub
+serving frozen provider responses, so each image shows a product state rather
+than a real account. Identities in the images are fabricated, and the quota
+percentages, catalogs, and reset countdowns are sample data.
 
 ### Subscriptions
 
@@ -224,12 +224,6 @@ the checks and their limits.
   A manual check in an isolated `0.1.7-rc.2` web profile found the client bundle
   served and the auth and usage-status RPCs answering. Live sign-in and model
   requests on the supported DSH lines remain to be checked.
-- **Cursor:** Browser sign-in and live model discovery were verified in an
-  isolated `0.1.7-rc.2` profile. A successful live model request remains to be
-  verified. Its transport comes from
-  [orrinzeng/dsh-cursor-subscription](https://github.com/orrinzeng/dsh-cursor-subscription)
-  and uses an undocumented Cursor protocol; see the
-  [source note](docs/cursor-origin.md).
 - **OpenCode Go and Kimi Code:** Live usage responses were verified. Their API
   keys stay on the DSH host; the browser receives configured status and quota
   windows, not the keys.
@@ -238,12 +232,6 @@ the checks and their limits.
   parsing, web providers, host E2E fixtures). The card's rendering has no
   browser test. Live chat, listing, usage, and web calls against `ollama.com`
   remain to be verified with a real key.
-
-Cursor uses one connected account and a live model catalog. Its model visibility
-selection persists under the DSH home directory, and automatic display follows
-newly discovered models. It ships no fallback model list and does not import the
-local `cursor-agent` credential cache. Individual usage comes from Cursor
-dashboard endpoints; the documented Admin API covers team usage.
 
 The plugin follows DSH network settings. Its former proxy configuration and UI
 have been retired; an old plugin proxy config file is ignored.

@@ -15,25 +15,25 @@ key-based provider that must also appear in the model picker.
 ## Decision
 
 Ollama Cloud ships as a fourth shape: a key-based independent route named
-`ollama-cloud`, following the cursor precedent (own route id,
-credentials-service key, outside `PROVIDER_IDS`, no `auth.json` entry). Chat
-posts to the configured native baseURL's `/v1` sibling with `max_tokens`,
-`reasoning_effort`, and `stream_options.include_usage`; discovery and web calls
-ride the native baseURL unchanged. Only catalogued models are served: an
-unlisted id fails with `UNKNOWN_MODEL` before provider I/O, and a missing key
-hides the picker entry and fails requests with `MISSING_CREDENTIAL`. The catalog
-is user-stored, not built in: the management dialog on the Ollama card pulls the
-cloud listing, picks, and adopts rows into an OllamaSettingsStore
-(draft-then-save RPC), and an empty store hides the picker entry until models
-are adopted — zero defaults. `Config.ollama.models` remains an override that
-outranks the store. Usage joins the external-usage controller
-(`GET {base}/balance`, reading the included allowance against its remaining
-balance; the stats endpoint `GET {base}/usage` serves buckets, not quota; 404
-means unsupported), and search/fetch register under the same route id on the web
-seam, gated behind the `ollama.web` opt-in. The vendor publishes no per-model
-output ceiling, so the adapter sets no request-level cap of its own beyond the
-catalog row's default. A model row may also carry a user-chosen
-`contextOverride`, capped at the advertised window; see the
+`ollama-cloud` (own route id, credentials-service key, outside `PROVIDER_IDS`,
+no `auth.json` entry). Chat posts to the configured native baseURL's `/v1`
+sibling with `max_tokens`, `reasoning_effort`, and
+`stream_options.include_usage`; discovery and web calls ride the native baseURL
+unchanged. Only catalogued models are served: an unlisted id fails with
+`UNKNOWN_MODEL` before provider I/O, and a missing key hides the picker entry
+and fails requests with `MISSING_CREDENTIAL`. The catalog is user-stored, not
+built in: the management dialog on the Ollama card pulls the cloud listing,
+picks, and adopts rows into an OllamaSettingsStore (draft-then-save RPC), and an
+empty store hides the picker entry until models are adopted — zero defaults.
+`Config.ollama.models` remains an override that outranks the store. Usage joins
+the external-usage controller (`GET {base}/balance`, reading the included
+allowance against its remaining balance; the stats endpoint `GET {base}/usage`
+serves buckets, not quota; 404 means unsupported), and search/fetch register
+under the same route id on the web seam, gated behind the `ollama.web` opt-in.
+The vendor publishes no per-model output ceiling, so the adapter sets no
+request-level cap of its own beyond the catalog row's default. A model row may
+also carry a user-chosen `contextOverride`, capped at the advertised window; see
+the
 [context-window override note](../architecture/2026-10-11-local-context-window-override.md).
 
 ## Alternatives considered

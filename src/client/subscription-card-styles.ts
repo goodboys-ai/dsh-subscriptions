@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react'
 
-/** Shared visual language for OAuth, Cursor, and built-in provider cards. */
+/** Shared visual language for OAuth and built-in provider cards. */
 export const subscriptionCardStyles: Record<string, CSSProperties> = {
   card: {
     border: '1px solid var(--dsw-alias-border-l2)',

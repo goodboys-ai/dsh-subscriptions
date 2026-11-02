@@ -200,12 +200,8 @@ test('non-subscription selections retain only the last subscription and its mode
   assert.deepEqual(collapsedDisplays([display('codex')], anti.provider), [])
 })
 
-test('Cursor and built-in key providers participate in the session quota selection', () => {
-  for (const provider of [
-    'cursor-subscription',
-    'opencode-go',
-    'kimi-coding',
-  ] as const) {
+test('built-in key providers participate in the session quota selection', () => {
+  for (const provider of ['opencode-go', 'kimi-coding'] as const) {
     const selected = { provider, model: 'sample' }
     assert.deepEqual(retainSubscriptionSelection(undefined, selected), selected)
     assert.equal(
@@ -258,15 +254,13 @@ test('always mode pins the current provider and rotates the rest in display orde
   )
 })
 
-test('quota roster and usage calls include Cursor, OpenCode Go and Kimi while tolerating OAuth status failure', async () => {
+test('quota roster and usage calls include OpenCode Go and Kimi while tolerating OAuth status failure', async () => {
   const calls: { endpoint: string; payload: unknown }[] = []
   const rpc = {
     call: async (_channel: string, endpoint: string, payload: unknown) => {
       calls.push({ endpoint, payload })
       if (endpoint.endsWith('.status'))
         throw new Error('OAuth status unavailable')
-      if (endpoint.endsWith('.cursorStatus'))
-        return { ok: true, value: { authenticated: true } }
       if (endpoint.endsWith('.externalStatus'))
         return {
           ok: true,
@@ -287,13 +281,11 @@ test('quota roster and usage calls include Cursor, OpenCode Go and Kimi while to
   const { roster, refreshed } = await loadBadgeRoster(rpc)
   assert.deepEqual(
     roster.map((entry) => entry.provider),
-    ['cursor-subscription', 'opencode-go', 'kimi-coding'],
+    ['opencode-go', 'kimi-coding'],
   )
   assert.equal(refreshed.has('codex'), false)
-  assert.equal(refreshed.has('cursor-subscription'), true)
   await Promise.all(roster.map((entry) => usageOf(rpc, entry)))
-  assert.deepEqual(calls.slice(3), [
-    { endpoint: 'subscriptions-auth.cursorUsage', payload: {} },
+  assert.deepEqual(calls.slice(2), [
     {
       endpoint: 'subscriptions-auth.externalUsage',
       payload: { source: 'opencode-go' },

@@ -48,7 +48,6 @@ import {
   ANTIGRAVITY_USERINFO_URL,
 } from '../src/providers/antigravity.js'
 import { AccountTokenManager } from '../src/providers/accounts.js'
-import { CursorAuth } from '../src/providers/cursor-auth.js'
 import { fetchMiniMaxUsage } from '../src/providers/minimax-usage.js'
 import type {
   GrokSession,
@@ -269,28 +268,6 @@ const parseSites: ParseSite[] = [
       ],
     },
     run: (http) => fetchMiniMaxUsage('subscription-key', 'global', http),
-  },
-  {
-    origin: 'Cursor token refresh',
-    payload: { accessToken: tokenPayload.access_token, refreshToken: 'rt' },
-    run: (http) => {
-      let value = JSON.stringify({
-        type: 'oauth',
-        access: 'at',
-        refresh: 'rt',
-        expires: 0,
-      })
-      return new CursorAuth(
-        {
-          resolve: async () => ({ value }),
-          set: async (_ref, next) => {
-            value = next
-          },
-          unset: async () => {},
-        },
-        http,
-      ).accessToken()
-    },
   },
 ]
 

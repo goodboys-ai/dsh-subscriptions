@@ -7,7 +7,7 @@
 //
 // Assertions are about the plugin-host contract:
 //   1. The usage RPCs read the fixture profile and return each source's
-//      canned percentage (`usage`, `cursorUsage`, `externalUsage`).
+//      canned percentage (`usage` and `externalUsage`).
 //   2. The host's model picker lists the plugin's Codex model.
 //   3. A message to that model streams through the plugin's adapter, and
 //      the canned reply renders in the transcript.
@@ -162,9 +162,7 @@ try {
     throw new HarnessFailure('the session cookie jar is empty')
   const roster = await waitForFixture(cookies)
   await checkUsageRpcs(cookies, roster)
-  console.log(
-    'ok: usage, cursorUsage, and externalUsage return every fixture percentage',
-  )
+  console.log('ok: usage and externalUsage return every fixture percentage')
   await checkBrowser(cookies)
   checkSeenLog()
   console.log(
@@ -259,7 +257,6 @@ async function waitForFixture(cookies) {
     try {
       const status = await rpc(cookies, 'status', {})
       const external = await rpc(cookies, 'externalStatus', {})
-      const cursor = await rpc(cookies, 'cursorStatus', {})
       const providers = status?.value?.providers ?? {}
       const accounts = Object.fromEntries(
         oauth.map((id) => [
@@ -272,9 +269,8 @@ async function waitForFixture(cookies) {
         ['opencode-go', 'kimi-code', 'minimax', 'ollama-cloud'].every(
           (source) => external?.value?.[source]?.configured === true,
         ) && external?.value?.['minimax-cn']?.configured === false
-      const cursorIn = cursor?.value?.authenticated === true
-      if (signedIn && keys && cursorIn) return accounts
-      last = `oauth=${JSON.stringify(accounts)} keys=${keys} cursor=${cursorIn}`
+      if (signedIn && keys) return accounts
+      last = `oauth=${JSON.stringify(accounts)} keys=${keys}`
     } catch (error) {
       if (error instanceof ProductFailure) throw error
       last = error instanceof Error ? error.message : String(error)
@@ -299,7 +295,6 @@ async function checkUsageRpcs(cookies, accounts) {
       endpoint: 'usage',
       payload: { provider, account: accounts[provider] },
     })),
-    { source: 'cursor-subscription', endpoint: 'cursorUsage', payload: {} },
     {
       source: 'opencode-go',
       endpoint: 'externalUsage',
@@ -780,7 +775,6 @@ async function checkSettingsSection(cdp) {
       ${JSON.stringify(t.usageBadgeDisplayHint)},
       'Codex (ChatGPT)', 'Claude', 'Grok (X Premium)', 'GitHub Copilot', 'Google Antigravity',
       ${JSON.stringify(t.loggedInCount.replace('{count}', '1'))},
-      ${JSON.stringify(t.cursorTitle)},
       'OpenCode Go', 'Kimi Code', 'MiniMax',
       ${JSON.stringify(t.externalUsageConnected)},
     ]

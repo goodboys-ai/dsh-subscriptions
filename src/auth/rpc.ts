@@ -21,7 +21,6 @@ import type {
   ExternalUsageStatus,
 } from '../providers/external-usage-controller.js'
 import { validateOllamaBaseURL } from '../providers/ollama-settings.js'
-import type { CursorAuthStatus } from '../providers/cursor-auth.js'
 
 /**
  * Endpoint-name prefix under the shared `/api` channel: endpoint `status`
@@ -46,14 +45,6 @@ export const SUBSCRIPTIONS_AUTH_ENDPOINTS = [
   'usage',
   'externalStatus',
   'externalUsage',
-  'cursorStatus',
-  'cursorLogin',
-  'cursorCancel',
-  'cursorLogout',
-  'cursorUsage',
-  'cursorModels',
-  'cursorSettings',
-  'cursorSetSettings',
   'ollamaSettings',
   'ollamaSetSettings',
   'ollamaModels',
@@ -269,21 +260,6 @@ export interface ExternalUsageRpcController {
     source: ExternalUsageSource,
     signal: AbortSignal,
   ): Promise<ProviderUsage>
-}
-
-/** Cursor account actions; OAuth tokens remain in the host credential service. */
-export interface CursorRpcController {
-  status(): Promise<CursorAuthStatus>
-  login(): Promise<{ authorizeUrl: string }>
-  cancel(): Promise<void>
-  logout(): Promise<void>
-  usage(signal: AbortSignal): Promise<ProviderUsage>
-  models(
-    force: boolean,
-    signal: AbortSignal,
-  ): Promise<{ id: string; name: string }[]>
-  settings(force: boolean, signal: AbortSignal): Promise<unknown>
-  setSettings(input: unknown): Promise<void>
 }
 
 /** One model in the Ollama Cloud picker catalog, with its capability flags. */
@@ -653,7 +629,6 @@ async function dispatch(
   signal: AbortSignal,
   providerSettings?: ProviderSettingsController,
   externalUsage?: ExternalUsageRpcController,
-  cursor?: CursorRpcController,
   ollama?: OllamaRpcController,
 ): Promise<RpcResult<unknown>> {
   switch (endpoint) {
@@ -759,35 +734,6 @@ async function dispatch(
         await externalUsage.usage(source as ExternalUsageSource, signal),
       )
     }
-    case 'cursorStatus':
-      if (!cursor) throw new BadRequest('Cursor account is unavailable')
-      return ok(await cursor.status())
-    case 'cursorLogin':
-      if (!cursor) throw new BadRequest('Cursor account is unavailable')
-      return ok(await cursor.login())
-    case 'cursorCancel':
-      if (!cursor) throw new BadRequest('Cursor account is unavailable')
-      await cursor.cancel()
-      return ok({ ok: true })
-    case 'cursorLogout':
-      if (!cursor) throw new BadRequest('Cursor account is unavailable')
-      await cursor.logout()
-      return ok({ ok: true })
-    case 'cursorUsage':
-      if (!cursor) throw new BadRequest('Cursor account is unavailable')
-      return ok(await cursor.usage(signal))
-    case 'cursorModels':
-      if (!cursor) throw new BadRequest('Cursor account is unavailable')
-      return ok(await cursor.models(readForce(payload), signal))
-    case 'cursorSettings':
-      if (!cursor) throw new BadRequest('Cursor account is unavailable')
-      return ok(await cursor.settings(readForce(payload), signal))
-    case 'cursorSetSettings':
-      if (!cursor) throw new BadRequest('Cursor account is unavailable')
-      if (payload === null || typeof payload !== 'object')
-        throw new BadRequest('payload must be an object')
-      await cursor.setSettings((payload as Record<string, unknown>).settings)
-      return ok({ ok: true })
     case 'ollamaSettings':
       if (!ollama) throw new BadRequest('Ollama settings are unavailable')
       return ok(await ollama.settings())
@@ -880,7 +826,6 @@ async function dispatch(
  * @param modelDefaults - optional per-model default-effort state backing `modelDefaults`/`setModelDefault`.
  * @param providerSettings - optional OAuth provider/account preferences.
  * @param externalUsage - optional credential-backed quota readers.
- * @param cursor - optional Cursor account and model-visibility actions.
  * @param ollama - optional Ollama Cloud catalog and connection settings.
  */
 export function registerAuthRpc(
@@ -890,7 +835,6 @@ export function registerAuthRpc(
   modelDefaults: ModelDefaultsController | undefined = undefined,
   providerSettings: ProviderSettingsController | undefined = undefined,
   externalUsage: ExternalUsageRpcController | undefined = undefined,
-  cursor: CursorRpcController | undefined = undefined,
   ollama: OllamaRpcController | undefined = undefined,
 ): void {
   // `connection` is not in this plugin's inject list (headless compositions
@@ -918,7 +862,6 @@ export function registerAuthRpc(
           signal,
           providerSettings,
           externalUsage,
-          cursor,
           ollama,
         )
       } catch (error) {

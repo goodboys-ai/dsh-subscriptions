@@ -3,11 +3,11 @@
 This plugin derives from
 [V1ki/dsh-plugin-subscriptions](https://github.com/V1ki/dsh-plugin-subscriptions)
 (npm `dsh-plugin-subscriptions`). The fork rewrote the settings UI, retired the
-plugin-level proxy in favor of host-managed network routing, added the
-Cursor/OpenCode Go/Kimi Code integrations, and widened the DSH compatibility
-window — areas where a wholesale merge can never apply. Provider protocol fixes,
-auth-store robustness, and usage accounting still land upstream, though, and
-this repo tracks them selectively.
+plugin-level proxy in favor of host-managed network routing, added the OpenCode
+Go/Kimi Code integrations, and widened the DSH compatibility window — areas
+where a wholesale merge can never apply. Provider protocol fixes, auth-store
+robustness, and usage accounting still land upstream, though, and this repo
+tracks them selectively.
 
 ## Sync point
 
@@ -88,6 +88,3 @@ skipped with the reason.
 The upstream README snapshots (`docs/upstream-README.md`,
 `docs/upstream-README.zh.md`) are refreshed only when the baseline moves; their
 header comment records which tag each snapshot matches.
-
-The Cursor transport is a separate vendor record, not an upstream sync: see
-[cursor-origin.md](cursor-origin.md).

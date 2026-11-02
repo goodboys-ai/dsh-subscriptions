@@ -20,7 +20,6 @@ export const USAGE_PERCENT = {
   claude: { name: 'Claude', percent: 22 },
   grok: { name: 'Grok', percent: 33 },
   antigravity: { name: 'Antigravity', percent: 44 },
-  'cursor-subscription': { name: 'Cursor', percent: 55 },
   'opencode-go': { name: 'OpenCode Go', percent: 66 },
   'kimi-coding': { name: 'Kimi Code', percent: 77 },
   'ollama-cloud': { name: 'Ollama Cloud', percent: 88 },
@@ -28,10 +27,6 @@ export const USAGE_PERCENT = {
 
 /** The collapsed pill for the selected Codex model: the default account's 5-hour window. */
 export const CODEX_PILL = 'Codex '
-
-/** The fixture Cursor access token; its `sub` is `auth0|user_bar`. */
-const CURSOR_ACCESS =
-  'fake.eyJzdWIiOiJhdXRoMHx1c2VyX2JhciIsImV4cCI6NDEwMjQ0NDgwMH0.sig'
 
 /**
  * Every provider request the preload answers, keyed by `<METHOD> <URL>`.
@@ -194,31 +189,6 @@ export const FIXTURE_REQUESTS = {
     body: { paidTier: { name: 'Pro' } },
     required: false,
   },
-  'GET https://cursor.com/api/usage-summary': {
-    credential: [
-      'cookie',
-      `WorkosCursorSessionToken=user_bar::${CURSOR_ACCESS}`,
-    ],
-    body: {
-      membershipType: 'pro',
-      billingCycleStart: periodStart,
-      billingCycleEnd: periodEnd,
-      individualUsage: {
-        plan: {
-          totalPercentUsed: USAGE_PERCENT['cursor-subscription'].percent,
-        },
-      },
-    },
-    required: true,
-  },
-  'GET https://cursor.com/api/usage?user=user_bar': {
-    credential: [
-      'cookie',
-      `WorkosCursorSessionToken=user_bar::${CURSOR_ACCESS}`,
-    ],
-    body: { 'gpt-4': { numRequests: 0 } },
-    required: false,
-  },
   'GET https://opencode.ai/zen/go/v1/usage': {
     credential: ['authorization', 'Bearer fake-opencode-key'],
     body: {
@@ -302,9 +272,7 @@ export const FIXTURE_REQUESTS = {
  * discovery and the client-version lookups behind it. The plugin must
  * survive them offline, with the picker still built from its static model
  * list, and the driver asserts that by finding GPT-6-Astra there. A
- * refusal of anything not listed here fails the E2E. Entries ending in `:443`
- * are raw TLS hosts (the Cursor transport does not go through fetch); the
- * rest are URL prefixes.
+ * refusal of anything not listed here fails the E2E. Entries are URL prefixes.
  */
 export const EXPECTED_REFUSALS = [
   'https://chatgpt.com/backend-api/codex/models',
@@ -318,5 +286,4 @@ export const EXPECTED_REFUSALS = [
   // tests, and the driver makes no picker assertions for this route.
   'https://ollama.com/api/tags',
   'https://ollama.com/api/show',
-  'api2.cursor.sh:443',
 ]

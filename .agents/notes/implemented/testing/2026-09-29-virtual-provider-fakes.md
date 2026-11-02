@@ -11,7 +11,7 @@ exercise the full plugin flow or its request shapes.
 
 ## Decision
 
-Each of the six current provider routes has a fetch-level fake in `test/fakes/`
+Each of the five current provider routes has a fetch-level fake in `test/fakes/`
 and an integration spec in `test/`. The spec drives the real plugin flow against
 the fake: OAuth redirects, where applicable, reach a real local callback server;
 token responses carry claims read by the real session parser; and usage,
@@ -32,11 +32,8 @@ renamed constants aligned, but it cannot verify their URL values: a wrong value
 in the shared constant makes both sides agree and the test stays green.
 Independent literal URL expectations are needed to cover that gap.
 
-Cursor generation uses ConnectRPC over `node:http2`, outside the fetch router.
-Its login polling, refresh, dashboard usage, and protobuf model discovery are
-tested; its model stream is not. Grok OIDC discovery is cached per module load,
-so the spec checks the first discovery request without an order-dependent
-standalone test.
+Grok OIDC discovery is cached per module load, so the spec checks the first
+discovery request without an order-dependent standalone test.
 
 No fake proves that a provider still honors the recorded protocol. The manual
 pre-release canary remains responsible for provider-side drift.
@@ -58,5 +55,5 @@ pre-release canary remains responsible for provider-side drift.
 
 The suite catches regressions in the plugin's request construction, claim
 parsing, refresh handling, catalog filtering, and supported stream translation
-without provider credentials. Endpoint URL correctness, Cursor's HTTP/2 model
-stream, and provider-side changes remain outside this layer.
+without provider credentials. Endpoint URL correctness and provider-side changes
+remain outside this layer.

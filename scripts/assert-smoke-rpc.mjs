@@ -5,7 +5,7 @@
 //
 //   node scripts/assert-smoke-rpc.mjs <file> <endpoint> <expect>
 //
-// expect: status | external-status | cursor-status | external-usage
+// expect: status | external-status | external-usage
 //
 // Exit 1 when the body breaks the logged-out contract, and 2 when the check
 // could not run (bad arguments, or the saved body could not be read).
@@ -23,12 +23,7 @@ function setupFail(message) {
   process.exit(2)
 }
 
-const EXPECTATIONS = [
-  'status',
-  'external-status',
-  'cursor-status',
-  'external-usage',
-]
+const EXPECTATIONS = ['status', 'external-status', 'external-usage']
 if (
   file === undefined ||
   endpoint === undefined ||
@@ -107,9 +102,5 @@ if (expect === 'status') {
     value?.['ollama-cloud']?.configured !== false
   ) {
     fail(`externalStatus was ${JSON.stringify(value)}`)
-  }
-} else if (expect === 'cursor-status') {
-  if (value?.authenticated !== false) {
-    fail(`cursorStatus was ${JSON.stringify(value)}`)
   }
 }

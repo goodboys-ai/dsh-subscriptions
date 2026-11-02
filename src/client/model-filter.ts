@@ -36,7 +36,7 @@ export type ModelEditorNotice = 'noAccount' | 'discoveryFailed' | 'noModels'
 export function modelEditorNotice(
   accounts: readonly AccountCatalogRow[] | undefined,
 ): ModelEditorNotice {
-  // Account-neutral editors such as Cursor use the neutral empty-catalog copy.
+  // Missing account evidence uses the neutral empty-catalog copy.
   if (accounts === undefined) return 'noModels'
   if (accounts.length === 0) return 'noAccount'
   return accounts.every((account) => account.unavailable === true)

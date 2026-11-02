@@ -26,7 +26,7 @@ interface Catalog {
   accounts: AccountCatalogRow[]
 }
 interface Props {
-  provider: SubscriptionProvider | 'cursor-subscription'
+  provider: SubscriptionProvider
   name: string
   rpc: ConnectionHandle['rpc']
   t: (key: SubscriptionsKey, params?: Record<string, unknown>) => string
@@ -82,13 +82,7 @@ export function ProviderAccountManager({
     let current = true
     setLoading(true)
     setError('')
-    void callSubscriptionsAuth<Catalog>(
-      rpc,
-      provider === 'cursor-subscription'
-        ? 'cursorSettings'
-        : 'providerSettings',
-      { provider },
-    )
+    void callSubscriptionsAuth<Catalog>(rpc, 'providerSettings', { provider })
       .then((data) => {
         if (current) {
           setCatalog(data)
@@ -134,48 +128,38 @@ export function ProviderAccountManager({
     setSaveError('')
     let savedEfforts = 0
     try {
-      if (provider !== 'cursor-subscription') {
-        for (const { model, effort } of models.efforts) {
-          await callSubscriptionsAuth(rpc, 'setModelDefault', {
-            provider,
-            model,
-            ...(effort ? { effort } : {}),
-          })
-          savedEfforts++
-          if (!alive.current) return
-        }
+      for (const { model, effort } of models.efforts) {
+        await callSubscriptionsAuth(rpc, 'setModelDefault', {
+          provider,
+          model,
+          ...(effort ? { effort } : {}),
+        })
+        savedEfforts++
+        if (!alive.current) return
       }
       // Re-read before writing: another client may have saved since this
       // dialog loaded, and a stale snapshot must never be written back.
       const latest = await callSubscriptionsAuth<Catalog>(
         rpc,
-        provider === 'cursor-subscription'
-          ? 'cursorSettings'
-          : 'providerSettings',
+        'providerSettings',
         { provider },
       )
       if (!alive.current) return
-      if (provider === 'cursor-subscription') {
-        await callSubscriptionsAuth(rpc, 'cursorSetSettings', {
-          settings: models.settings ?? latest.settings,
-        })
-      } else {
-        const base =
-          models.settings === undefined
-            ? latest.settings
-            : mergeLatestAccounts(models.settings, latest.settings)
-        // The editor's draft carries the TTL it loaded, so the dialog always
-        // replaces it: the picker's choice when touched, otherwise the value
-        // from the freshly re-read settings.
-        const withTtl = mergePromptCacheTtl(
-          base,
-          ttlDirty ? ttlDraft : latest.settings.promptCacheTtl,
-        )
-        await callSubscriptionsAuth(rpc, 'setProviderSettings', {
-          provider,
-          settings: mergeAccountChanges(withTtl, changes),
-        })
-      }
+      const base =
+        models.settings === undefined
+          ? latest.settings
+          : mergeLatestAccounts(models.settings, latest.settings)
+      // The editor's draft carries the TTL it loaded, so the dialog always
+      // replaces it: the picker's choice when touched, otherwise the value
+      // from the freshly re-read settings.
+      const withTtl = mergePromptCacheTtl(
+        base,
+        ttlDirty ? ttlDraft : latest.settings.promptCacheTtl,
+      )
+      await callSubscriptionsAuth(rpc, 'setProviderSettings', {
+        provider,
+        settings: mergeAccountChanges(withTtl, changes),
+      })
       if (alive.current) onClose()
     } catch (error) {
       if (alive.current) {
@@ -218,11 +202,7 @@ export function ProviderAccountManager({
           </button>
         </header>
         <p id={description} className="dsh-subscription-hint">
-          {t(
-            provider === 'cursor-subscription'
-              ? 'cursorAccountsHint'
-              : 'accountsHint',
-          )}
+          {t('accountsHint')}
         </p>
         {error && <p role="alert">{error}</p>}
         {loading && (
@@ -244,218 +224,190 @@ export function ProviderAccountManager({
             style={{ ...stack, border: 0, margin: 0, padding: 0 }}
           >
             {catalog.accounts.length === 0 && (
-              <p className="dsh-subscription-hint">
-                {t(
-                  provider === 'cursor-subscription'
-                    ? 'cursorManageSignIn'
-                    : 'accountsEmpty',
-                )}
-              </p>
+              <p className="dsh-subscription-hint">{t('accountsEmpty')}</p>
             )}
-            {provider === 'cursor-subscription' &&
-              catalog.accounts.length > 0 && (
+            {catalog.accounts.map((account) => {
+              const preferences =
+                changes[account.key] ??
+                catalog.settings.accounts?.[account.key] ??
+                {}
+              const selected = accountPoolSelection(preferences, account.models)
+              const models = accountModelRows(account, preferences)
+              return (
                 <fieldset
+                  key={account.key}
                   style={{
+                    ...stack,
                     border,
                     borderRadius: 'var(--dsw-radius-lg, 12px)',
                     padding: 14,
+                    margin: 0,
                   }}
                 >
-                  <legend style={{ padding: '0 6px' }}>{name}</legend>
-                  <p className="dsh-subscription-hint">
-                    {t('cursorConnected')}
-                  </p>
-                </fieldset>
-              )}
-            {provider !== 'cursor-subscription' &&
-              catalog.accounts.map((account) => {
-                const preferences =
-                  changes[account.key] ??
-                  catalog.settings.accounts?.[account.key] ??
-                  {}
-                const selected = accountPoolSelection(
-                  preferences,
-                  account.models,
-                )
-                const models = accountModelRows(account, preferences)
-                return (
-                  <fieldset
-                    key={account.key}
+                  <legend
                     style={{
-                      ...stack,
-                      border,
-                      borderRadius: 'var(--dsw-radius-lg, 12px)',
-                      padding: 14,
-                      margin: 0,
+                      padding: '0 6px',
+                      overflowWrap: 'anywhere',
+                      maxWidth: '100%',
                     }}
                   >
-                    <legend
-                      style={{
-                        padding: '0 6px',
-                        overflowWrap: 'anywhere',
-                        maxWidth: '100%',
-                      }}
-                    >
-                      {account.label}
-                    </legend>
-                    {account.unavailable && (
-                      <p className="dsh-subscription-hint">
-                        {t('accountsCatalogUnavailable')}
-                      </p>
-                    )}
-                    <label style={{ ...stack, gap: 6 }}>
-                      <span className="dsh-subscription-label">
-                        {t('accountsAlias')}
-                      </span>
-                      <input
-                        value={preferences.alias ?? ''}
-                        placeholder={account.label}
-                        onChange={(event) => {
-                          const next = { ...preferences }
-                          if (event.target.value.trim())
-                            next.alias = event.target.value
-                          else delete next.alias
-                          edit(account.key, next)
-                        }}
-                      />
-                    </label>
-                    <label>
-                      <input
-                        type="checkbox"
-                        checked={preferences.poolEnabled !== false}
-                        onChange={(event) =>
-                          edit(account.key, {
-                            ...preferences,
-                            poolEnabled: event.target.checked,
-                          })
-                        }
-                      />{' '}
-                      {t('accountsPoolEnabled')}
-                    </label>
-                    <label>
-                      <input
-                        type="checkbox"
-                        checked={preferences.independentEntry === true}
-                        onChange={(event) =>
-                          edit(account.key, {
-                            ...preferences,
-                            independentEntry: event.target.checked,
-                          })
-                        }
-                      />{' '}
-                      {t('accountsIndependent')}
-                    </label>
+                    {account.label}
+                  </legend>
+                  {account.unavailable && (
                     <p className="dsh-subscription-hint">
-                      {t('accountsIndependentHint')}
+                      {t('accountsCatalogUnavailable')}
                     </p>
-                    <details>
-                      <summary style={{ cursor: 'pointer', fontSize: 13 }}>
-                        {t('accountsModels')} ·{' '}
-                        {preferences.poolModels === undefined
-                          ? t('accountsModelsAll')
-                          : t('accountsModelsCount', {
-                              count: preferences.poolModels.length,
-                            })}
-                      </summary>
-                      <div style={{ ...stack, marginTop: 12 }}>
-                        <p className="dsh-subscription-hint">
-                          {t('accountsModelsHint')}
-                        </p>
-                        <label>
-                          <input
-                            type="checkbox"
-                            checked={preferences.poolModels === undefined}
-                            onChange={(event) => {
-                              const next = { ...preferences }
-                              if (event.target.checked) delete next.poolModels
-                              else
-                                next.poolModels = account.models.map(
-                                  (model) => model.id,
-                                )
-                              edit(account.key, next)
-                            }}
-                          />{' '}
-                          {t('accountsModelsAutomatic')}
-                        </label>
-                        <div style={actions}>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              edit(account.key, {
-                                ...preferences,
-                                poolModels: models.map((model) => model.id),
-                              })
-                            }
-                          >
-                            {t('modelsSelectAll')}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              edit(account.key, {
-                                ...preferences,
-                                poolModels: [],
-                              })
-                            }
-                          >
-                            {t('modelsSelectNone')}
-                          </button>
-                        </div>
-                        <div
-                          style={{
-                            ...stack,
-                            gap: 8,
-                            maxHeight: 240,
-                            overflowY: 'auto',
+                  )}
+                  <label style={{ ...stack, gap: 6 }}>
+                    <span className="dsh-subscription-label">
+                      {t('accountsAlias')}
+                    </span>
+                    <input
+                      value={preferences.alias ?? ''}
+                      placeholder={account.label}
+                      onChange={(event) => {
+                        const next = { ...preferences }
+                        if (event.target.value.trim())
+                          next.alias = event.target.value
+                        else delete next.alias
+                        edit(account.key, next)
+                      }}
+                    />
+                  </label>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={preferences.poolEnabled !== false}
+                      onChange={(event) =>
+                        edit(account.key, {
+                          ...preferences,
+                          poolEnabled: event.target.checked,
+                        })
+                      }
+                    />{' '}
+                    {t('accountsPoolEnabled')}
+                  </label>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={preferences.independentEntry === true}
+                      onChange={(event) =>
+                        edit(account.key, {
+                          ...preferences,
+                          independentEntry: event.target.checked,
+                        })
+                      }
+                    />{' '}
+                    {t('accountsIndependent')}
+                  </label>
+                  <p className="dsh-subscription-hint">
+                    {t('accountsIndependentHint')}
+                  </p>
+                  <details>
+                    <summary style={{ cursor: 'pointer', fontSize: 13 }}>
+                      {t('accountsModels')} ·{' '}
+                      {preferences.poolModels === undefined
+                        ? t('accountsModelsAll')
+                        : t('accountsModelsCount', {
+                            count: preferences.poolModels.length,
+                          })}
+                    </summary>
+                    <div style={{ ...stack, marginTop: 12 }}>
+                      <p className="dsh-subscription-hint">
+                        {t('accountsModelsHint')}
+                      </p>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={preferences.poolModels === undefined}
+                          onChange={(event) => {
+                            const next = { ...preferences }
+                            if (event.target.checked) delete next.poolModels
+                            else
+                              next.poolModels = account.models.map(
+                                (model) => model.id,
+                              )
+                            edit(account.key, next)
                           }}
+                        />{' '}
+                        {t('accountsModelsAutomatic')}
+                      </label>
+                      <div style={actions}>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            edit(account.key, {
+                              ...preferences,
+                              poolModels: models.map((model) => model.id),
+                            })
+                          }
                         >
-                          {models.map((model) => (
-                            <label
-                              key={model.id}
-                              style={{ overflowWrap: 'anywhere' }}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={selected.has(model.id)}
-                                onChange={(event) => {
-                                  const next = new Set(selected)
-                                  if (event.target.checked) next.add(model.id)
-                                  else next.delete(model.id)
-                                  edit(account.key, {
-                                    ...preferences,
-                                    poolModels: [...next],
-                                  })
-                                }}
-                              />{' '}
-                              {model.name}
-                              {model.unavailable &&
-                                ` (${t('modelsUnavailable')})`}
-                            </label>
-                          ))}
-                          {models.length === 0 && (
-                            <p className="dsh-subscription-hint">
-                              {t('accountsNoModels')}
-                            </p>
-                          )}
-                        </div>
+                          {t('modelsSelectAll')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            edit(account.key, {
+                              ...preferences,
+                              poolModels: [],
+                            })
+                          }
+                        >
+                          {t('modelsSelectNone')}
+                        </button>
                       </div>
-                    </details>
-                  </fieldset>
-                )
-              })}
+                      <div
+                        style={{
+                          ...stack,
+                          gap: 8,
+                          maxHeight: 240,
+                          overflowY: 'auto',
+                        }}
+                      >
+                        {models.map((model) => (
+                          <label
+                            key={model.id}
+                            style={{ overflowWrap: 'anywhere' }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selected.has(model.id)}
+                              onChange={(event) => {
+                                const next = new Set(selected)
+                                if (event.target.checked) next.add(model.id)
+                                else next.delete(model.id)
+                                edit(account.key, {
+                                  ...preferences,
+                                  poolModels: [...next],
+                                })
+                              }}
+                            />{' '}
+                            {model.name}
+                            {model.unavailable &&
+                              ` (${t('modelsUnavailable')})`}
+                          </label>
+                        ))}
+                        {models.length === 0 && (
+                          <p className="dsh-subscription-hint">
+                            {t('accountsNoModels')}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </details>
+                </fieldset>
+              )
+            })}
           </fieldset>
         )}
-        {(provider !== 'cursor-subscription' ||
-          (catalog?.accounts.length ?? 0) > 0) && (
-          <ProviderModelEditor
-            ref={editor}
-            provider={provider}
-            rpc={rpc}
-            t={t}
-            disabled={saving}
-            onDirtyChange={setModelsDirty}
-          />
-        )}
+        <ProviderModelEditor
+          ref={editor}
+          provider={provider}
+          rpc={rpc}
+          t={t}
+          disabled={saving}
+          onDirtyChange={setModelsDirty}
+        />
         {provider === 'claude' && catalog && (
           <div
             style={{

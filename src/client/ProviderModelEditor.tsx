@@ -29,7 +29,7 @@ interface ModelRow {
   fastTier?: boolean
 }
 interface Catalog {
-  provider: SubscriptionProvider | 'cursor-subscription'
+  provider: SubscriptionProvider
   settings: ProviderPreferences
   models: ModelRow[]
   /** Subscription account evidence; account-neutral editors omit this field. */
@@ -37,7 +37,7 @@ interface Catalog {
   tools: SubscriptionTool[]
 }
 interface Props {
-  provider: SubscriptionProvider | 'cursor-subscription'
+  provider: SubscriptionProvider
   rpc: ConnectionHandle['rpc']
   t: (key: SubscriptionsKey, params?: Record<string, unknown>) => string
   /** Freeze the editor while the owning dialog submits. */
@@ -130,9 +130,7 @@ export const ProviderModelEditor = forwardRef<ProviderModelEditorHandle, Props>(
       try {
         const data = await callSubscriptionsAuth<Catalog>(
           rpc,
-          provider === 'cursor-subscription'
-            ? 'cursorSettings'
-            : 'providerSettings',
+          'providerSettings',
           { provider, force },
         )
         if (generation.current === request) reset(data)
@@ -221,13 +219,7 @@ export const ProviderModelEditor = forwardRef<ProviderModelEditorHandle, Props>(
       <div style={{ borderTop: border, marginTop: 12, paddingTop: 12 }}>
         <h3 style={{ margin: 0 }}>{t('modelsEdit')}</h3>
         <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
-          <p className="dsh-subscription-hint">
-            {t(
-              provider === 'cursor-subscription'
-                ? 'cursorManageHint'
-                : 'modelsHint',
-            )}
-          </p>
+          <p className="dsh-subscription-hint">{t('modelsHint')}</p>
           {error && <p role="alert">{error}</p>}
           <div style={actions}>
             <button
