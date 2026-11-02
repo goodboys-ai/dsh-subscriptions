@@ -34,12 +34,12 @@ exhaustion is red whatever the freshness, as before.
 
 No provider gains verified timing from this change. Antigravity reports a reset
 only. Kimi's five-hour limit has unverified rolling semantics. OpenCode Go's
-monthly window is anchored to the subscription date. Grok and Cursor show no
-cursor when the response omits the period start. These stay without a verified
-cursor because the provider has not said where the window began, not because of
-their percentage. A later
-[note](2026-10-12-display-only-assumed-window-start.md) lets a reader attach a
-display-only assumed start for some of them; it never reaches pace.
+monthly window is anchored to the subscription date. Grok shows no cursor when
+the response omits the period start. These stay without a verified cursor
+because the provider has not said where the window began, not because of their
+percentage. A later [note](2026-10-12-display-only-assumed-window-start.md) lets
+a reader attach a display-only assumed start for some of them; it never reaches
+pace.
 
 ## Alternatives considered
 

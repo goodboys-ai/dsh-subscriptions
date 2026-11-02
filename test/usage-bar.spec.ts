@@ -1,8 +1,8 @@
 /**
  * One signed-in profile, one fetch router, the real plugin.
  *
- * The usage bar is a single roster: OAuth sessions, the Cursor credential,
- * and the OpenCode Go and Kimi keys are read together, then each account's
+ * The usage bar is a single roster: OAuth sessions and the OpenCode Go and
+ * Kimi keys are read together, then each account's
  * usage endpoint is called. This file stands all of those up at once and
  * checks the bar helpers. It does not start DSH and does not render the
  * composer. The rendered bar is `scripts/host-e2e.sh`, which opens a real
@@ -37,7 +37,6 @@ const USED = {
   claude: 22,
   grok: 33,
   antigravity: 44,
-  cursor: 55,
   opencode: 66,
   kimi: 77,
 } as const
@@ -49,7 +48,6 @@ const ANTIGRAVITY_MODELS_URL =
   'https://daily-cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels'
 const ANTIGRAVITY_TIER_URL =
   'https://daily-cloudcode-pa.googleapis.com/v1internal:loadCodeAssist'
-const CURSOR_SUMMARY_URL = 'https://cursor.com/api/usage-summary'
 const OPENCODE_URL = 'https://opencode.ai/zen/go/v1/usage'
 const KIMI_URL = 'https://api.kimi.com/coding/v1/usages'
 
@@ -134,8 +132,6 @@ test('every signed-in usage account shows up in the bar', async (t) => {
         return { value: 'go-secret', source: 'file' }
       if (ref === 'KIMI_CODING_API_KEY')
         return { value: 'kimi-secret', source: 'file' }
-      if (ref === 'CURSOR_SUBSCRIPTION_OAUTH')
-        return { value: cursorCredential(), source: 'file' }
       return undefined
     },
   }
@@ -200,7 +196,6 @@ test('every signed-in usage account shows up in the bar', async (t) => {
     'claude',
     'codex',
     'copilot',
-    'cursor-subscription',
     'grok',
     'kimi-coding',
     'minimax',
@@ -216,7 +211,6 @@ test('every signed-in usage account shows up in the bar', async (t) => {
       'grok',
       'copilot',
       'antigravity',
-      'cursor-subscription',
       'opencode-go',
       'kimi-coding',
     ],
@@ -241,15 +235,7 @@ test('every signed-in usage account shows up in the bar', async (t) => {
 
   assert.deepEqual(
     displays.map((row) => row.provider),
-    [
-      'codex',
-      'claude',
-      'grok',
-      'antigravity',
-      'cursor-subscription',
-      'opencode-go',
-      'kimi-coding',
-    ],
+    ['codex', 'claude', 'grok', 'antigravity', 'opencode-go', 'kimi-coding'],
   )
   assert.equal(
     displays.some((row) => row.provider === 'copilot'),
@@ -264,7 +250,6 @@ test('every signed-in usage account shows up in the bar', async (t) => {
       USED.claude,
       USED.grok,
       USED.antigravity,
-      USED.cursor,
       USED.opencode,
       USED.kimi,
     ],
@@ -276,15 +261,7 @@ test('every signed-in usage account shows up in the bar', async (t) => {
   )
   assert.deepEqual(
     expandedDisplays(displays, 'claude').map((row) => row.provider),
-    [
-      'claude',
-      'codex',
-      'grok',
-      'antigravity',
-      'cursor-subscription',
-      'opencode-go',
-      'kimi-coding',
-    ],
+    ['claude', 'codex', 'grok', 'antigravity', 'opencode-go', 'kimi-coding'],
   )
   assert.deepEqual(
     displays.map((row) =>
@@ -298,7 +275,6 @@ test('every signed-in usage account shows up in the bar', async (t) => {
       `Claude 5h ${USED.claude}%`,
       `Grok W ${USED.grok}%`,
       `Antigravity Window ${USED.antigravity}%`,
-      `Cursor Included ${USED.cursor}%`,
       `OpenCode Go 5h ${USED.opencode}%`,
       `Kimi Code 5h ${USED.kimi}%`,
     ],
@@ -313,7 +289,6 @@ test('every signed-in usage account shows up in the bar', async (t) => {
     'copilot-access',
     'go-secret',
     'kimi-secret',
-    'cursor-access',
   ]) {
     assert.equal(rendered.includes(secret), false, secret)
   }
@@ -331,27 +306,10 @@ test('every signed-in usage account shows up in the bar', async (t) => {
     true,
   )
   assert.equal(
-    seen.some((call) => call.url.startsWith(CURSOR_SUMMARY_URL)),
-    true,
-  )
-  assert.equal(
     seen.some((call) => call.url.includes('githubcopilot.com')),
     false,
   )
 })
-
-/** Cursor's credential is a JWT whose `sub` is the dashboard user id. */
-function cursorCredential(): string {
-  const payload = Buffer.from(
-    JSON.stringify({ sub: 'auth0|user_bar' }),
-  ).toString('base64url')
-  return JSON.stringify({
-    type: 'oauth',
-    access: `header.${payload}.cursor-access`,
-    refresh: 'cursor-refresh',
-    expires: FAR,
-  })
-}
 
 /**
  * Canned usage body for one fixture URL.
@@ -388,14 +346,6 @@ function fixtureFor(url: string): unknown {
     }
   }
   if (url === ANTIGRAVITY_TIER_URL) return { paidTier: { name: 'Pro' } }
-  if (url.startsWith(CURSOR_SUMMARY_URL)) {
-    return {
-      membershipType: 'pro',
-      individualUsage: { plan: { totalPercentUsed: USED.cursor } },
-    }
-  }
-  if (url.startsWith('https://cursor.com/api/usage'))
-    return { 'gpt-4': { numRequests: 0 } }
   if (url === OPENCODE_URL)
     return { usage: { rolling: { percent: USED.opencode } } }
   if (url === KIMI_URL)

@@ -23,7 +23,6 @@ import { en } from '../src/client/locales.js'
 import { fetchAntigravityUsage } from '../src/providers/antigravity.js'
 import { fetchClaudeUsage } from '../src/providers/claude.js'
 import { fetchCodexUsage } from '../src/providers/codex.js'
-import { fetchCursorUsage } from '../src/providers/cursor-usage.js'
 import {
   fetchKimiCodeUsage,
   fetchOpenCodeGoUsage,
@@ -49,7 +48,6 @@ const t = (key: keyof typeof en, params?: Record<string, unknown>): string =>
 const answer = (body: unknown): FetchFn =>
   (async () => Response.json(body)) as unknown as FetchFn
 const session = { accessToken: 'at', refreshToken: 'rt', expiresAt: now + HOUR }
-const cursorToken = `h.${Buffer.from(JSON.stringify({ sub: 'auth0|user_1' })).toString('base64url')}.s`
 
 interface Case {
   name: string
@@ -193,31 +191,6 @@ const cases: Case[] = [
           },
         }),
       ),
-  },
-  {
-    name: 'Cursor: billing cycle start and end',
-    cursor: true,
-    load: () =>
-      fetchCursorUsage(cursorToken, (async (url: string | URL | Request) =>
-        String(url).includes('usage-summary')
-          ? Response.json({
-              billingCycleStart: iso(now - 10 * DAY),
-              billingCycleEnd: iso(now + 20 * DAY),
-              individualUsage: { plan: { totalPercentUsed: 0 } },
-            })
-          : Response.json({})) as typeof fetch),
-  },
-  {
-    name: 'Cursor: billing cycle end without a start',
-    cursor: false,
-    load: () =>
-      fetchCursorUsage(cursorToken, (async (url: string | URL | Request) =>
-        String(url).includes('usage-summary')
-          ? Response.json({
-              billingCycleEnd: iso(now + 20 * DAY),
-              individualUsage: { plan: { totalPercentUsed: 0 } },
-            })
-          : Response.json({})) as typeof fetch),
   },
   {
     name: 'Antigravity: reset only, no interval or duration the provider vouches for',

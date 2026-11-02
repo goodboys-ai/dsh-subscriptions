@@ -126,7 +126,6 @@ export function pillAccountOf(d: ProviderUsageDisplay): AccountUsageDisplay {
 /** Brand display names (short form for the compact badge). */
 export type BadgeProvider =
   | SubscriptionProvider
-  | 'cursor-subscription'
   | 'opencode-go'
   | 'kimi-coding'
   | 'minimax'
@@ -139,7 +138,6 @@ const PROVIDER_NAMES: Record<BadgeProvider, string> = {
   grok: 'Grok',
   copilot: 'Copilot',
   antigravity: 'Antigravity',
-  'cursor-subscription': 'Cursor',
   'opencode-go': 'OpenCode Go',
   'kimi-coding': 'Kimi Code',
   minimax: 'MiniMax',
@@ -202,11 +200,10 @@ export async function loadBadgeRoster(rpc: ConnectionHandle['rpc']): Promise<{
   roster: UsageRosterEntry[]
   refreshed: Set<BadgeProvider>
 }> {
-  const [subscriptions, cursor, external] = await Promise.allSettled([
+  const [subscriptions, external] = await Promise.allSettled([
     callSubscriptionsAuth<{
       providers: Record<SubscriptionProvider, ProviderStatus>
     }>(rpc, 'status', {}),
-    callSubscriptionsAuth<{ authenticated: boolean }>(rpc, 'cursorStatus', {}),
     callSubscriptionsAuth<
       Record<
         'opencode-go' | 'kimi-code' | 'minimax' | 'minimax-cn' | 'ollama-cloud',
@@ -228,14 +225,6 @@ export async function loadBadgeRoster(rpc: ConnectionHandle['rpc']): Promise<{
       for (const account of accountsOf(subscriptions.value.providers[provider]))
         roster.push({ provider, account })
     }
-  }
-  if (cursor.status === 'fulfilled') {
-    refreshed.add('cursor-subscription')
-    if (cursor.value.authenticated)
-      roster.push({
-        provider: 'cursor-subscription',
-        account: { key: 'cursor', isDefault: true },
-      })
   }
   if (external.status === 'fulfilled') {
     for (const [source, provider] of [
@@ -260,8 +249,6 @@ export async function usageOf(
   rpc: ConnectionHandle['rpc'],
   { provider, account }: UsageRosterEntry,
 ): Promise<ProviderUsage> {
-  if (provider === 'cursor-subscription')
-    return callSubscriptionsAuth(rpc, 'cursorUsage', {})
   if (
     provider === 'opencode-go' ||
     provider === 'kimi-coding' ||

@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.3.0 — 2026-11-02
+
+- **Cursor support removed (breaking).** The Cursor model route, Settings card,
+  quota reader, account RPCs, model settings, and `cursor-transport` package
+  export are no longer included. Install `dsh-subscriptions@0.2.3` to pin the
+  last release with Cursor support.
+
 ## v0.2.3 — 2026-10-31
 
 - **DSH 0.2.1-rc.5 support.** The gated support window now covers DSH

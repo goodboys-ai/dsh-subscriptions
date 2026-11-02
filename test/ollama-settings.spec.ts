@@ -52,7 +52,7 @@ test('Ollama settings persist, drop unknown keys, and keep the file private', as
         efforts: ['low', 'high', 'max'],
         defaultEffort: 'max',
       },
-      // A duplicate id keeps the first row, matching the Cursor store.
+      // A duplicate id keeps the first row.
       { id: 'glm-5.3:cloud', name: 'duplicate' },
       { id: 'kimi-k3:cloud', vision: true },
     ],

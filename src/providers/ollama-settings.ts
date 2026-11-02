@@ -173,7 +173,7 @@ function readModel(entry: unknown, index: number): OllamaModelSetting {
 
 /**
  * Validate one settings document, dropping unknown keys and duplicate model
- * ids (first wins, matching the Cursor store's visible-model handling).
+ * ids (first wins).
  * @param input - the parsed store document or an RPC payload.
  * @throws when a known field has the wrong type or an unusable value.
  */

@@ -37,11 +37,11 @@ moves; their header comment names the tag they match.
   section, RPC surface, and proxy removal conflict without end, and resolving
   them re-introduces the retired plugin proxy. Merge-only also imports
   upstream's release chores, which this repo's CI owns.
-- **Vendored-snapshot model (the cursor-transport pattern).** Copying upstream
-  files into `vendor/` with an origin record works for the Cursor transport
-  because that code has no shared history. The plugin-level upstream shares this
-  repo's commit graph, so vendoring would discard the cherry-pick path and
-  re-create the drift problem it solves.
+- **Vendored-snapshot model (the former cursor-transport pattern).** Copying
+  upstream files into `vendor/` with an origin record worked for the former
+  Cursor transport because that code had no shared history. The plugin-level
+  upstream shares this repo's commit graph, so vendoring would discard the
+  cherry-pick path and re-create the drift problem it solves.
 - **Stop tracking upstream.** The provider protocols (Codex, Claude, Grok,
   Copilot, Antigravity) keep changing server-side; upstream is where the
   community lands the fixes first. Untracked drift shows up as user-visible bugs

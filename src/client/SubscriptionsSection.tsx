@@ -20,7 +20,6 @@ import { visibleUsageWindows } from './usage-window-filter.js'
 import { ProviderAccountManager } from './ProviderAccountManager.js'
 import { providerSettingsCss } from './provider-settings-styles.js'
 import { ExternalUsageCards } from './ExternalUsageCards.js'
-import { CursorCard } from './CursorCard.js'
 import { OllamaCard } from './OllamaCard.js'
 import { UsageMeter } from './UsageMeter.js'
 import {
@@ -1166,7 +1165,6 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
           </div>
         )
       })}
-      <CursorCard rpc={rpc} t={t} />
       <OllamaCard rpc={rpc} t={t} />
       <ExternalUsageCards rpc={rpc} t={t} />
       {managedProvider && (

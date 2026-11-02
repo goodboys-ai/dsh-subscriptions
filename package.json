@@ -1,6 +1,6 @@
 {
   "name": "dsh-subscriptions",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "description": "Unified subscription providers and usage dashboard for DeepSeek Harness",
   "icon": "./icon.svg",
   "license": "MIT",
@@ -24,7 +24,6 @@
     "grok",
     "github-copilot",
     "google-antigravity",
-    "cursor",
     "opencode-go",
     "kimi-code"
   ],
@@ -40,16 +39,11 @@
       "types": "./lib/client/index.d.ts",
       "default": "./lib/client.js"
     },
-    "./cursor-transport": {
-      "types": "./vendor/cursor/index.d.ts",
-      "default": "./vendor/cursor/index.js"
-    },
     "./package.json": "./package.json",
     "./locale/*.json": "./locale/*.json"
   },
   "files": [
     "lib",
-    "vendor/cursor",
     "cordis.patch.yml",
     "locale/*.json",
     "icon.svg"

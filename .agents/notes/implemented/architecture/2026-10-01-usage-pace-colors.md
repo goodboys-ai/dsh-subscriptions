@@ -32,7 +32,7 @@ time progress: yellow when unrounded used minus elapsed is at least the preset
 allowance, otherwise green. Compare unrounded values and round only labels.
 
 The marker uses explicit valid start/end intervals, currently supplied by Grok
-periods and Cursor billing cycles. A duration enables inferred starts only with
+periods and MiniMax windows. A duration enables inferred starts only with
 provider-specific metadata (`fixedWindow`). Codex uses the duration reported
 alongside its reset. Claude recognizes its five-hour session and seven-day
 weekly buckets in both response shapes. Unknown kinds and reset-only windows

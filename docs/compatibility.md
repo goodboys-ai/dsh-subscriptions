@@ -99,7 +99,7 @@ That exemption is an at-your-own-risk escape hatch, not support.
 
 ## Compatibility table
 
-The source targets `0.2.3`, with peers `>=0.1.7-rc.2 <0.3.0-0`. Gate results
+The source targets `0.3.0`, with peers `>=0.1.7-rc.2 <0.3.0-0`. Gate results
 below were first recorded locally on 2026-09-30 and confirmed by main CI on
 2026-10-02; the `0.2.1-rc.2` and `0.2.1-rc.5` rows were recorded locally on
 2026-10-17 and 2026-10-31. The CI matrix runs identical gates on pull requests
@@ -122,12 +122,13 @@ directory picker.
 The plugin uses semver independently of DSH (`0.1.0`, `0.1.1`, …). During the
 `0.x` series, use a patch for compatible fixes or DSH support expansion that
 keeps the old window, and a minor for a new provider, a breaking setting, or
-dropped DSH support. A peer-range move still requires a new plugin version and
-tag; it does not create one plugin release line per DSH minor. The current
-source version `0.2.3` supports a four-version window (`0.1.7-rc.2`,
-`0.2.0-rc.2`, `0.2.1-rc.2`, and `0.2.1-rc.5`), so its minor version cannot
-identify one DSH minor. The peer range and CI matrix state host compatibility;
-plugin patches can ship between DSH releases.
+dropped DSH support. Removing a provider is also a breaking change and uses a
+minor. A peer-range move still requires a new plugin version and tag; it does
+not create one plugin release line per DSH minor. The current source version
+`0.3.0` supports a four-version window (`0.1.7-rc.2`, `0.2.0-rc.2`,
+`0.2.1-rc.2`, and `0.2.1-rc.5`), so its minor version cannot identify one DSH
+minor. The peer range and CI matrix state host compatibility; plugin patches can
+ship between DSH releases.
 
 Every release tag matches `package.json` (`v0.1.0` for version `0.1.0`). Once
 that tag is published, users can pin with it. The `v0.1.0` release predates the
@@ -239,12 +240,12 @@ old line that the current range no longer covers; they are not pre-created.
 
 ## What this policy deliberately does not promise
 
-- **Provider-side changes.** When ChatGPT, Claude, Grok, Copilot, Antigravity,
-  or Cursor change their login or API surface, the plugin can break on _every_
-  DSH version at once. Neither the DSH matrix nor offline virtual-provider tests
-  detect provider-side drift. The optional manual canary in
-  [testing.md](testing.md) checks live behavior; unverified live behavior does
-  not block a stable release and must be disclosed.
+- **Provider-side changes.** When ChatGPT, Claude, Grok, Copilot, or Antigravity
+  change their login or API surface, the plugin can break on _every_ DSH version
+  at once. Neither the DSH matrix nor offline virtual-provider tests detect
+  provider-side drift. The optional manual canary in [testing.md](testing.md)
+  checks live behavior; unverified live behavior does not block a stable release
+  and must be disclosed.
 - **Forward compatibility.** A new DSH RC can break the plugin; the policy
   guarantees a _process_ (detect → gate → disclose → tag), not that `main` works
   on a DSH released yesterday. The nightly `next-host` job shortens the detect

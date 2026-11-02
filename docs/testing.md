@@ -192,12 +192,11 @@ installs this plugin into the `web` profile with `dsh plugin add`, boots
   200 with the cookie;
 - the served app page references `dsh-subscriptions/client.js`, and its
   versioned URL returns non-empty JavaScript;
-- with that session cookie, POST `/api/subscriptions-auth.status`,
-  `externalStatus`, and `cursorStatus` in the browser's `client-request`
-  envelope. A fresh profile reports the five OAuth providers with empty account
-  lists, OpenCode Go, Kimi Code, and Ollama Cloud unconfigured, and Cursor
-  unauthenticated. `externalUsage` for each of those sources returns the
-  unconfigured-key error without calling the usage host;
+- with that session cookie, POST `/api/subscriptions-auth.status` and
+  `externalStatus` in the browser's `client-request` envelope. A fresh profile
+  reports the five OAuth providers with empty account lists, and OpenCode Go,
+  Kimi Code, and Ollama Cloud unconfigured. `externalUsage` for each of those
+  sources returns the unconfigured-key error without calling the usage host;
 - the log contains no cordis patch skips (`name mismatch` style silent skips)
   and no module-load failures.
 
@@ -228,7 +227,7 @@ registers providers is silently skipped.
 ## Integration tests with virtual providers
 
 `test/fakes/*.ts` + `test/*-integration.spec.ts`. Every provider route has one:
-Codex, Claude, Grok, GitHub Copilot, Google Antigravity, Cursor.
+Codex, Claude, Grok, GitHub Copilot, Google Antigravity.
 
 A **virtual provider** is a fetch-level router
 (`t.mock.method(globalThis, 'fetch', router)`) that simulates the provider's
@@ -260,19 +259,6 @@ header records where its payload shapes come from and what it does not prove.
 `test/usage-bar.spec.ts` stands up every usage source at once from one signed-in
 profile and checks the roster, the per-account fetch, and the grouping the
 composer bar renders. The rendered bar is the host E2E's job.
-
-**Cursor generation is covered at the adapter layer, not the socket layer.**
-Cursor's generation transport speaks ConnectRPC over a raw `node:http2` session
-(`/agent.v1.AgentService/Run`), which a fetch-level mock cannot intercept. The
-specs inject a canned `createAgentRun` instead: the real
-`CursorCompatAdapter.stream()` drives a fake run that yields protobuf-encoded
-server frames (built with a test-local writer whose field numbers are literals
-read from the vendored decoders). This proves the adapter logic that is ours:
-model remapping, tool-message projection, frame-to-chunk translation, usage
-accounting. It does not prove the HTTP/2 framing, TLS, or the real Cursor
-server; those stay with the manual pre-release canary. Cursor's fetch-level
-contract (browser-login poll, token refresh, usage, protobuf model discovery) is
-fully covered.
 
 To add a virtual provider for a future route, copy the pattern in
 `test/fakes/fake-codex.ts`: a router keyed on that provider's endpoint URLs
@@ -310,9 +296,9 @@ script:
 
 1. installs the plugin into an isolated web profile and copies in
    `test/fixtures/host-e2e-profile/`: fake OAuth sessions for all five OAuth
-   providers, and fake credential refs for Cursor, OpenCode Go, Kimi Code, and
-   Ollama Cloud. None of them is a real provider login. Real credential
-   variables in the parent environment are unset before launch;
+   providers, and fake credential refs for OpenCode Go, Kimi Code, and Ollama
+   Cloud. None of them is a real provider login. Real credential variables in
+   the parent environment are unset before launch;
 2. points the host's first-use workspace (`workspace-controller`
    `documentsDirectory`, set through a `--patch` overlay) at the temp home, so a
    fresh profile opens a workspace by itself;
@@ -323,11 +309,10 @@ script:
    is logged as such, and the driver then fails the run. So only a pass proves
    the plugin sent the credential it read from the profile;
 4. runs `scripts/host-e2e.mjs`, which asserts:
-   - the `usage`, `cursorUsage`, and `externalUsage` RPCs return the fixture
-     percentages (exact up to float rounding), and Copilot reports no usage
-     support. MiniMax returns four model-scoped windows with exact boundaries;
-     the other sources return one window each. A row showing another source's
-     number fails;
+   - the `usage` and `externalUsage` RPCs return the fixture percentages (exact
+     up to float rounding), and Copilot reports no usage support. MiniMax
+     returns four model-scoped windows with exact boundaries; the other sources
+     return one window each. A row showing another source's number fails;
    - MiniMax's percentage-only standard windows and count-backed video windows
      remain distinct in Settings and the badge dialog. Their current windows
      have time markers, including the standard model at 0% used;
@@ -355,12 +340,11 @@ script:
    - the plugin's settings section renders inside the host's settings panel: the
      panel opens from the host's settings trigger, the nav lists the
      Subscriptions entry, and the section body shows the intro copy, one card
-     per fixture-signed-in provider, the Cursor and built-in provider usage
-     cards, and the status-bar quota display control with its three options:
-     current / most recent provider with usage, always show one provider
-     (rotating through the rest), and Hidden. Flipping that control to Hidden
-     persists to localStorage, and after a page reload the control still reads
-     Hidden;
+     per fixture-signed-in provider, the built-in provider usage cards, and the
+     status-bar quota display control with its three options: current / most
+     recent provider with usage, always show one provider (rotating through the
+     rest), and Hidden. Flipping that control to Hidden persists to
+     localStorage, and after a page reload the control still reads Hidden;
    - no slot rendered its crash face (`data-slot-error`), the console shows no
      `slot entry crashed in` or `HOST_CONTRACT_MISS` line, the page threw no
      uncaught exception, and the page requested nothing outside loopback. The
@@ -368,9 +352,8 @@ script:
    - every provider request hit a fixture with the fixture credential, every
      fixture marked required was hit, the Codex request named the plugin's
      model, and every refusal is one planned in `scripts/host-e2e-fixture.mjs`
-     (model-catalog discovery and Cursor's HTTP/2 transport, whose failure the
-     plugin must survive). A planned URL matches exactly or with a query string;
-     a longer path is unplanned;
+     (model-catalog discovery whose failure the plugin must survive). A planned
+     URL matches exactly or with a query string; a longer path is unplanned;
 5. greps the server log for load and patch failures.
 
 Chrome does not load the Node preload, so the driver fences the browser
@@ -409,9 +392,9 @@ source; a settings control whose copy drifts from the locale dictionary or whose
 preference write does not survive a reload; and a request, from the server or
 the page, that the plugin started making without a planned fixture.
 
-It does not prove: live provider behavior, Cursor generation (raw HTTP/2,
-refused here), or UI paths other than the ones above. Login flows are covered by
-the integration tests against fakes and by the canary against real providers.
+It does not prove live provider behavior or UI paths other than the ones above.
+Login flows are covered by the integration tests against fakes and by the canary
+against real providers.
 
 ## Exit codes
 

@@ -42,7 +42,7 @@ trap 'echo "SMOKE SETUP FAILURE: command failed at line $LINENO: $BASH_COMMAND" 
 
 # Inherited process environment wins over $DSH_HOME/.credentials.yaml. The
 # logged-out checks need these unset, and a developer shell may export them.
-unset OPENCODE_GO_API_KEY KIMI_CODING_API_KEY CURSOR_SUBSCRIPTION_OAUTH || true
+unset OPENCODE_GO_API_KEY KIMI_CODING_API_KEY || true
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -205,10 +205,9 @@ rpc() {
 }
 rpc status '{}' status
 rpc externalStatus '{}' external-status
-rpc cursorStatus '{}' cursor-status
 rpc externalUsage '{"source":"opencode-go"}' external-usage
 rpc externalUsage '{"source":"kimi-code"}' external-usage
-echo "ok: logged-out auth, Cursor, and external-usage RPCs answer"
+echo "ok: logged-out auth and external-usage RPCs answer"
 
 # 5. No silent mount failures in the log.
 if grep -qiE "name mismatch|failed to load plugin|plugin failed|Cannot find module|ERR_MODULE_NOT_FOUND" "$WEB_LOG"; then

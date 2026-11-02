@@ -38,9 +38,6 @@ import { ResetRedemption } from './providers/reset-redemption.js'
 import { BadRequest, registerAuthRpc } from './auth/rpc.js'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import { ExternalUsageController } from './providers/external-usage-controller.js'
-import { CursorAuth } from './providers/cursor-auth.js'
-import { fetchCursorUsage } from './providers/cursor-usage.js'
-import { CursorCompatAdapter } from './providers/cursor-adapter.js'
 import {
   OllamaAdapter,
   DEFAULT_OLLAMA_API_KEY_REF,
@@ -54,10 +51,6 @@ import {
   OllamaWebFetchProvider,
   OllamaWebSearchProvider,
 } from './providers/ollama-web.js'
-import {
-  CursorModelSettingsStore,
-  validateCursorModelSettings,
-} from './providers/cursor-model-settings.js'
 import {
   OllamaSettingsStore,
   validateOllamaSettings,
@@ -1032,7 +1025,6 @@ export function apply(ctx: Context, config: Config): void {
     'dsh-subscriptions: connect attempt timeout',
   )
   const preferences = new ProviderSettingsStore()
-  const cursorModelSettings = new CursorModelSettingsStore()
   const ollamaSettings = new OllamaSettingsStore(undefined, (message) => {
     ctx.logger.warn(`${name}: ${message}`)
   })
@@ -1741,39 +1733,21 @@ export function apply(ctx: Context, config: Config): void {
   }
   let resolveExternalCredential:
     ((name: string) => Promise<{ value: string } | undefined>) | undefined
-  let cursorAuth: CursorAuth | undefined
-  let cursorAdapter: CursorCompatAdapter | undefined
-  let cursorHandle: AdapterRegistrationHandle | undefined
-  let cursorAuthenticated: boolean | undefined
-  let cursorAttachments: AttachmentStore | undefined
   let ollamaAdapter: OllamaAdapter | undefined
   let ollamaHandle: AdapterRegistrationHandle | undefined
-  ctx.inject(['attachments'], (attachmentsCtx) => {
-    cursorAttachments = attachmentsCtx.attachments
-  })
   ctx.inject(['credentials'], (credentialsCtx) => {
     resolveExternalCredential = (name) =>
       credentialsCtx.credentials.resolve(credentialRef(name))
-    cursorAuth = new CursorAuth(credentialsCtx.credentials, hostFetch)
-    cursorAdapter = new CursorCompatAdapter({
-      auth: cursorAuth,
-      resolveAttachments: () => cursorAttachments,
-      visibleModels: () => cursorModelSettings.visibleModels(),
-    })
-    cursorHandle = credentialsCtx.llm.registerAdapter(
-      ['cursor-subscription'],
-      cursorAdapter,
-    )
-    // Ollama Cloud rides beside cursor: a key-based route with no OAuth
-    // session. Every setting is read through the live getters above, so a
-    // Settings save reaches the next request without a restart; the stored
-    // catalog is the only source of models.
+    // Ollama Cloud is a key-based route with no OAuth session. Every setting
+    // is read through the live getters above, so a Settings save reaches the
+    // next request without a restart; the stored catalog is the only source
+    // of models.
     ollamaAdapter = new OllamaAdapter({
       apiKey: async () =>
         (await resolveExternalCredential?.(ollamaApiKeyRef()))?.value,
       baseURL: ollamaBaseURL,
       catalog: ollamaCatalog,
-      resolveAttachments: () => cursorAttachments,
+      resolveAttachments,
       streamIdleTimeoutMs,
       onWarn,
     })
@@ -2003,84 +1977,6 @@ export function apply(ctx: Context, config: Config): void {
       },
     },
     externalUsage,
-    {
-      status: async () => {
-        const status =
-          cursorAuth === undefined
-            ? { authenticated: false, busy: false }
-            : await cursorAuth.status()
-        if (cursorAuthenticated !== status.authenticated) {
-          cursorAuthenticated = status.authenticated
-          cursorAdapter?.invalidateModels()
-          cursorHandle?.replace(['cursor-subscription'])
-        }
-        return status
-      },
-      login: () => {
-        if (cursorAuth === undefined)
-          throw new Error('DSH credentials are unavailable')
-        return cursorAuth.login()
-      },
-      cancel: async () => {
-        await cursorAuth?.cancel()
-      },
-      logout: async () => {
-        await cursorAuth?.logout()
-        cursorAuthenticated = false
-        cursorAdapter?.invalidateModels()
-        cursorHandle?.replace(['cursor-subscription'])
-      },
-      usage: async (signal) => {
-        if (cursorAuth === undefined)
-          throw new Error('DSH credentials are unavailable')
-        return fetchCursorUsage(
-          await cursorAuth.accessToken({ signal }),
-          hostFetch,
-          signal,
-        )
-      },
-      models: async (force, signal) => {
-        if (cursorAdapter === undefined)
-          throw new Error('Cursor model provider is unavailable')
-        if (force) cursorAdapter.invalidateModels()
-        const models = await cursorAdapter.listModelsForRpc({ force, signal })
-        if (force) cursorHandle?.replace(['cursor-subscription'])
-        return models
-      },
-      settings: async (force, signal) => {
-        const status =
-          cursorAuth === undefined
-            ? { authenticated: false }
-            : await cursorAuth.status()
-        const models =
-          status.authenticated && cursorAdapter !== undefined
-            ? await cursorAdapter.listModelsForRpc({ force, signal })
-            : []
-        if (force && status.authenticated)
-          cursorHandle?.replace(['cursor-subscription'])
-        return {
-          provider: 'cursor-subscription',
-          settings: cursorModelSettings.get(),
-          models: models.map(({ id, name }) => ({ id, name, efforts: [] })),
-          tools: [],
-          accounts: status.authenticated
-            ? [{ key: 'cursor', label: 'Cursor', models }]
-            : [],
-        }
-      },
-      setSettings: async (input) => {
-        let validated
-        try {
-          validated = validateCursorModelSettings(input)
-        } catch (error) {
-          throw new BadRequest(
-            error instanceof Error ? error.message : String(error),
-          )
-        }
-        await cursorModelSettings.set(validated)
-        cursorHandle?.replace(['cursor-subscription'])
-      },
-    },
     {
       settings: async () => ({
         provider: 'ollama-cloud',

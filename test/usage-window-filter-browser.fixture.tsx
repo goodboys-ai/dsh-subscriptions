@@ -73,9 +73,6 @@ const rpc = {
         codexBusy = false
         value = {}
         break
-      case 'cursorStatus':
-        value = { authenticated: false, busy: false }
-        break
       case 'externalStatus':
         value = {}
         break

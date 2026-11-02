@@ -21,10 +21,10 @@ The status-bar quota display preference gains a third mode, `always`, alongside
   rotation never moves it. `always` reads the live selection, not the retained
   subscription — retention is a `recent` behavior.
 - Without a match, the pill shows one provider at a time, walking the display
-  order (roster order: Codex, Claude, Grok, Copilot, Antigravity, Cursor, then
-  the external sources) and wrapping around. The rotation index is taken modulo
-  the current provider count, so providers appearing or dropping out stay in
-  range; the provider under a given tick may shift when the roster changes.
+  order (roster order: Codex, Claude, Grok, Copilot, Antigravity, then the
+  external sources) and wrapping around. The rotation index is taken modulo the
+  current provider count, so providers appearing or dropping out stay in range;
+  the provider under a given tick may shift when the roster changes.
 - No provider reports usage means no pill, in every mode.
 
 The step advances on a 10-second interval that runs only while `always` is

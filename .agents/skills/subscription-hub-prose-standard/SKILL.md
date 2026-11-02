@@ -13,10 +13,10 @@ repetition, and decoration. This is editorial guidance, not a script or a
 deletion target. Use the requested files or PR as the scope. For a review,
 report findings; edit when the task authorizes changes.
 
-Leave `vendor/cursor/` and the upstream README snapshots out of broad prose
-passes. They are imported sources; inspect them only when needed as evidence or
-when the task explicitly targets them. Edit the owning source before generated
-`lib/` output and rebuild derivatives instead of hand-editing them.
+Leave the upstream README snapshots out of broad prose passes. They are source
+copies; inspect them only when needed as evidence or when the task explicitly
+targets them. Edit the owning source before generated `lib/` output and rebuild
+derivatives instead of hand-editing them.
 
 ## Preserve the complete proposition
 
