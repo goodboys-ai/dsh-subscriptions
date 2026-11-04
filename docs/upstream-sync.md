@@ -20,7 +20,7 @@ section is the human summary; the JSON is the source of truth.
 
 - **Baseline:** upstream `v0.9.5` — commit
   `75a83460b27f869d6972c6d0a2b39d76ca49eabb` (2026-09-28).
-- **Reviewed up to:** upstream `v0.9.12` — commit `b8023110`.
+- **Reviewed up to:** upstream commit `be350cd7` (after `v0.9.12`).
 - **Already covered before this ledger existed:** `f6e1b3f1` (the Settings card
   shows the CLI version Codex and Claude present, upstream issue
   [#108](https://github.com/V1ki/dsh-plugin-subscriptions/issues/108)). Ported
@@ -38,9 +38,11 @@ section is the human summary; the JSON is the source of truth.
   retry for Windows (`094f2b0a`, Windows only); pool exhaustion reporting
   (`fafd737c`), whose terminal warning and forced-refresh cooldown clear were
   the parts this fork still lacked; Gemini thought-signature replay (`0b8631ae`,
-  `62105ed5`); visible-model Google usage filtering (`1eb254ba`); per-model
-  subagent Speed defaults (`d73a2949`); honest empty model states (`8862e454`);
-  and the DSH load-check precedence clarification (`aedf8592`).
+  `62105ed5`); visible-model Google usage filtering in Settings and the dialog
+  (`1eb254ba`, `764d6d60`); exhausted-account pool guards and the Codex warning
+  (`be350cd7`); per-model subagent Speed defaults (`d73a2949`); honest empty
+  model states (`8862e454`); and the DSH load-check precedence clarification
+  (`aedf8592`).
 - **Deliberately not taken:** upstream's release and CI work (`564be625`,
   `800a08f5`, `69ac9c37`, `74f44a29`, `d8ab13e9`, `9e90ef87`, `a5b01068`,
   `7639ed99`, `b8023110`), its peer-range moves (`867136be`, `e1d3f427`,

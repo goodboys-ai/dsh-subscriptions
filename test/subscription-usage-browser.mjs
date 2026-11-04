@@ -1,8 +1,8 @@
 // Optional offline UI check: PLAYWRIGHT_PATH=/path/to/playwright node test/subscription-usage-browser.mjs
 // No running DSH server, real accounts, credentials, screenshots or model writes.
 import assert from 'node:assert/strict'
-import { readdir } from 'node:fs/promises'
-import { resolve } from 'node:path'
+import { mkdir, readdir } from 'node:fs/promises'
+import { dirname, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 const dependencies = await readdir('node_modules/.pnpm')
 const packagePath = (name) =>
@@ -26,6 +26,21 @@ const result = await build({
   transform: { define: { 'process.env.NODE_ENV': '"production"' } },
   plugins: [
     {
+      name: 'test-host-primitives',
+      resolveId(id) {
+        return id === '@deepseek-ai/dsh-client-ui-primitives'
+          ? '\0subscription-test-host-primitives'
+          : null
+      },
+      load(id) {
+        return id === '\0subscription-test-host-primitives'
+          ? `export const IconDataOutlineRegular = () => null
+             export const useAnchoredPosition = () => ({ left: 16, top: 100 })
+             export const useDismissOnOutsidePointer = () => {}`
+          : null
+      },
+    },
+    {
       name: 'test-css',
       load(id) {
         return id.endsWith('.css') ? 'export default {}' : null
@@ -36,7 +51,12 @@ const result = await build({
   write: false,
 })
 const code = result.output.find((file) => file.type === 'chunk').code
-const browser = await chromium.launch({ headless: true })
+const browser = await chromium.launch({
+  headless: true,
+  ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
+    ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE }
+    : {}),
+})
 try {
   const context = await browser.newContext({
     viewport: { width: 900, height: 900 },
@@ -64,7 +84,7 @@ try {
     exact: true,
   })
   const badge = page.locator('[data-composer-stats] button')
-  const title = 'Subscription usage'
+  const title = 'Provider usage'
   const panel = page.getByRole('dialog', { name: title, exact: true })
   await control.waitFor()
   await page.waitForFunction(
@@ -112,17 +132,100 @@ try {
     /^Antigravity/,
   )
   assert.equal(await anti.getByText('current', { exact: true }).count(), 0)
-  assert.equal(await anti.locator('dt:visible').count(), 1)
-  assert.match(await anti.locator('dt:visible').innerText(), /gemini-model-29/)
-  await anti.locator('summary').click()
-  assert.equal(await anti.locator('dt:visible').count(), 30)
+  assert.equal(await anti.locator('dt:visible').count(), 2)
+  assert.match(
+    await anti.locator('dt:visible').first().innerText(),
+    /gemini-model-59/,
+  )
+  await anti.locator('summary').first().click()
+  assert.equal(await anti.locator('dt:visible').count(), 61)
   await page.keyboard.press('Escape')
   await panel.waitFor({ state: 'detached' })
   await choose('antigravity', 'antigravity')
   await badge.click()
   await panel.waitFor()
-  assert.equal(await anti.locator('dt:visible').count(), 1)
-  assert.match(await anti.locator('dt:visible').innerText(), /gemini-model-29/)
+  assert.equal(await anti.locator('dt:visible').count(), 2)
+  assert.match(
+    await anti.locator('dt:visible').first().innerText(),
+    /gemini-model-59/,
+  )
+  const waitGoogleRows = async (expected) => {
+    await page.waitForFunction((count) => {
+      const sections = [
+        ...(document.querySelectorAll('[role="dialog"] section') ?? []),
+      ]
+      const google = sections.find((section) =>
+        section.textContent?.includes('Antigravity'),
+      )
+      return (google?.querySelectorAll('dt').length ?? 0) === count
+    }, expected)
+  }
+  const refreshGoogle = async (name) => {
+    const before = await page.evaluate(() => ({
+      status: Number(document.documentElement.dataset.statusCalls ?? 0),
+      usage: Number(document.documentElement.dataset.usageCalls ?? 0),
+    }))
+    await page.getByRole('button', { name, exact: true }).click()
+    await page.waitForFunction(
+      ({ status, usage }) =>
+        Number(document.documentElement.dataset.statusCalls) > status &&
+        Number(document.documentElement.dataset.usageCalls) >= usage + 2,
+      before,
+    )
+  }
+  await page.keyboard.press('Escape')
+  await panel.waitFor({ state: 'detached' })
+  await refreshGoogle('Filter Google models')
+  await badge.click()
+  await panel.waitFor()
+  await waitGoogleRows(4)
+  assert.equal(await anti.locator('dt:visible').count(), 2)
+  assert.match(
+    await anti.locator('dt:visible').first().innerText(),
+    /gemini-model-59/,
+  )
+  assert.equal(
+    await anti.getByText('More quota windows (1)', { exact: true }).count(),
+    2,
+  )
+  await anti.locator('summary').nth(0).click()
+  await anti.locator('summary').nth(1).click()
+  assert.equal(await anti.locator('dt:visible').count(), 4)
+  if (process.env.SUBSCRIPTION_USAGE_SCREENSHOT) {
+    const path = process.env.SUBSCRIPTION_USAGE_SCREENSHOT
+    await mkdir(dirname(path), { recursive: true })
+    await page.screenshot({ path, fullPage: true })
+  }
+  await page.keyboard.press('Escape')
+  await panel.waitFor({ state: 'detached' })
+  await refreshGoogle('Clear Google models')
+  await badge.click()
+  await panel.waitFor()
+  await waitGoogleRows(0)
+  assert.equal(
+    await anti
+      .getByText('No usage windows for the models visible in the picker.', {
+        exact: true,
+      })
+      .count(),
+    2,
+  )
+  assert.equal(await anti.locator('summary').count(), 0)
+  await page.keyboard.press('Escape')
+  await panel.waitFor({ state: 'detached' })
+  await refreshGoogle('Fail Google usage')
+  await refreshGoogle('Show all Google models')
+  await badge.click()
+  await panel.waitFor()
+  await waitGoogleRows(120)
+  assert.match(
+    await badge.innerText(),
+    /59%/,
+    'raw cached quotas survive hiding and restore after failed fetches',
+  )
+  console.log(
+    'Google visibility: previews, expanded counts, two accounts, empty selection and raw-cache recovery verified',
+  )
   // Change the preference from a second tab while the quota dialog is open.
   const other = await context.newPage()
   await other.goto('http://subscription-usage.test/')
@@ -154,6 +257,16 @@ try {
   await page.waitForFunction(
     () => localStorage.getItem('dsh.subscriptions.usageBadgeMode') === 'recent',
   )
+  await badge.click()
+  await panel.waitFor()
+  assert.equal(await panel.locator('section').count(), 3)
+  const sectionText = await panel.locator('section').allInnerTexts()
+  const providerOrder = sectionText.map((text) =>
+    ['Codex', 'Grok', 'Antigravity'].find((name) => text.startsWith(name)),
+  )
+  assert.deepEqual([...providerOrder].sort(), ['Antigravity', 'Codex', 'Grok'])
+  await page.keyboard.press('Escape')
+  await panel.waitFor({ state: 'detached' })
   console.log(
     '70%: compact Antigravity, cross-tab hiding and persisted preference verified',
   )
@@ -161,12 +274,12 @@ try {
   // rotates through the providers that report usage, in display order.
   // Unlike recent, a retained subscription must not pin: after switching to
   // the API model the pill has to start moving.
+  await page.getByRole('button', { name: 'Fast rotation', exact: true }).click()
   await control.selectOption('always')
   await choose('codex', 'codex')
   await badge.waitFor()
   assert.match(await badge.innerText(), /^Codex /)
   await choose('api', 'deepseek')
-  await page.getByRole('button', { name: 'Fast rotation', exact: true }).click()
   const sequence = []
   for (let i = 0; i < 4; i++) {
     await page.waitForFunction(
@@ -180,12 +293,18 @@ try {
     )
     sequence.push((await badge.innerText()).split(' ')[0])
   }
-  assert.deepEqual(sequence, ['Codex', 'Grok', 'Antigravity', 'Codex'])
+  const start = providerOrder.indexOf(sequence[0])
+  assert.notEqual(start, -1)
+  assert.deepEqual(
+    sequence,
+    sequence.map((_, index) => providerOrder[(start + index) % 3]),
+    `rotation follows dialog order: ${providerOrder.join(' → ')}`,
+  )
   // A pinned current model keeps its model scope in always mode: the
   // Antigravity pill reads the exact model, not the catalog count.
   await choose('antigravity', 'antigravity')
   await page.waitForFunction(() =>
-    /^Antigravity Window 29%/.test(
+    /^Antigravity Window 59%/.test(
       document.querySelector('[data-composer-stats] button')?.innerText ?? '',
     ),
   )
@@ -197,7 +316,7 @@ try {
       document.querySelector('[data-composer-stats] button')?.innerText ?? '',
     ),
   )
-  await badge.click()
+  await badge.click({ force: true })
   await panel.waitFor()
   assert.match(await panel.locator('section').first().innerText(), /^Grok/)
   await page.keyboard.press('Escape')

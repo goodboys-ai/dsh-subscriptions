@@ -4,16 +4,23 @@ import { SubscriptionUsageBadge } from '../src/client/SubscriptionUsageBadge.js'
 import type { SubscriptionUsageBadgeInjected } from '../src/client/SubscriptionUsageBadge.js'
 import { UsageBadgeDisplaySetting } from '../src/client/UsageBadgeDisplaySetting.js'
 import { en, zh } from '../src/client/locales.js'
+import { USAGE_BADGE_REFRESH_EVENT } from '../src/client/usage-badge-preferences.js'
 
 const selections = {
   api: { provider: 'deepseek', model: 'deepseek-chat' },
   codex: { provider: 'codex', model: 'gpt-test' },
   grok: { provider: 'grok', model: 'grok-test' },
-  antigravity: { provider: 'antigravity', model: 'gemini-model-29' },
+  antigravity: { provider: 'antigravity', model: 'gemini-model-59' },
 }
 let selection = selections.api
+let googleModels: string[] | undefined
+let failGoogleUsage = false
 let reads = 0
 let statusCalls = 0
+let usageCalls = 0
+const refreshUsage = () => {
+  window.dispatchEvent(new Event(USAGE_BADGE_REFRESH_EVENT))
+}
 const currentModel = async () => {
   document.documentElement.dataset.modelReads = String(++reads)
   document.documentElement.dataset.lastRead = selection.provider
@@ -34,18 +41,27 @@ const rpc = {
           providers: {
             codex: { accounts: [{ key: 'codex-test', isDefault: true }] },
             grok: { accounts: [{ key: 'grok-test', isDefault: true }] },
-            antigravity: { accounts: [{ key: 'anti-test', isDefault: true }] },
+            antigravity: {
+              accounts: [
+                { key: 'anti-test', isDefault: true },
+                { key: 'anti-other', isDefault: false },
+              ],
+              visibleModels: googleModels,
+            },
           },
         },
       }
-    if (method.endsWith('.usage'))
+    if (method.endsWith('.usage')) {
+      document.documentElement.dataset.usageCalls = String(++usageCalls)
+      if (payload.provider === 'antigravity' && failGoogleUsage)
+        throw new Error('synthetic Google usage failure')
       return {
         ok: true,
         value: {
           supported: true,
           windows:
             payload.provider === 'antigravity'
-              ? Array.from({ length: 30 }, (_, i) => ({
+              ? Array.from({ length: 60 }, (_, i) => ({
                   kind: 'other',
                   scope: `gemini-model-${i}`,
                   usedPercent: i,
@@ -58,6 +74,7 @@ const rpc = {
                 ],
         },
       }
+    }
     throw new Error(`Unexpected RPC: ${method}`)
   },
 } as unknown as SubscriptionUsageBadgeInjected['rpc']
@@ -77,8 +94,8 @@ function App() {
       </button>
       <button
         onClick={() => {
-          setRotationMs(200)
-          document.documentElement.dataset.rotationMs = '200'
+          setRotationMs(1000)
+          document.documentElement.dataset.rotationMs = '1000'
         }}
       >
         Fast rotation
@@ -93,6 +110,38 @@ function App() {
           {name}
         </button>
       ))}
+      <button
+        onClick={() => {
+          googleModels = ['gemini-model-1', 'gemini-model-59']
+          refreshUsage()
+        }}
+      >
+        Filter Google models
+      </button>
+      <button
+        onClick={() => {
+          googleModels = []
+          refreshUsage()
+        }}
+      >
+        Clear Google models
+      </button>
+      <button
+        onClick={() => {
+          googleModels = undefined
+          refreshUsage()
+        }}
+      >
+        Show all Google models
+      </button>
+      <button
+        onClick={() => {
+          failGoogleUsage = true
+          refreshUsage()
+        }}
+      >
+        Fail Google usage
+      </button>
       <UsageBadgeDisplaySetting t={t} />
       <div>
         <div data-composer-stats />

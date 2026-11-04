@@ -30,8 +30,10 @@ const FALLBACK_HORIZON_MS: Record<UsageWindow['kind'], number> = {
 
 /** The scheduling view of one member's quota. */
 export interface MemberQuota {
-  /** False when a window is effectively full or the login is gone. */
+  /** Near-full gate: false at 95% or when the login is gone; may still serve as a fallback. */
   available: boolean
+  /** True at 100%: never spend this member's subscription quota or paid fallback. */
+  exhausted: boolean
   /** Required burn rate (fraction of window per ms); 0 when unknown. */
   urgency: number
   /** Epoch ms of the snapshot this was computed from; 0 when none. */
@@ -102,21 +104,18 @@ export class PoolUsageTracker {
    * (member selection must never block on the network mid-conversation). A
    * failure still cooling down degrades immediately with no network call.
    *
-   * Deliberately does NOT fall back to `lastSnapshot` the way
-   * {@link snapshotFor} does: scoring routing decisions off data that is
-   * known to be stale-and-unrefreshable risks steering traffic by a urgency
-   * number the endpoint itself is no longer vouching for, whereas
-   * `snapshotFor`'s stale-display concern (the Settings page, the composer
-   * badge) has no such downside — showing an old percentage beats showing
-   * nothing.
+   * A failed refresh does not reuse stale urgency for routing order, but it
+   * does retain a stale snapshot's known exhaustion bit. That one-way safety
+   * guard prevents a failed Settings refresh from re-enabling paid-credit
+   * fallback; an account with no successful usage sample still fails open.
    * @param member - the pool member to score (account resolved).
-   * @returns availability plus the urgency score.
+   * @returns availability, known exhaustion, and the urgency score.
    */
   async quotaFor(member: ConcretePoolMember): Promise<MemberQuota> {
     const key = `${member.provider}/${member.account}`
     const fetcher = this.fetcherFor(member.provider, member.account)
     if (fetcher === undefined)
-      return { available: true, urgency: 0, fetchedAt: 0 }
+      return { available: true, exhausted: false, urgency: 0, fetchedAt: 0 }
     const entry = this.entries.get(key)
     if (entry !== undefined) {
       const fresh = Date.now() - entry.at < (entry.cooldownMs ?? this.ttlMs)
@@ -124,14 +123,19 @@ export class PoolUsageTracker {
         if (!fresh) void this.refresh(key, fetcher).catch(() => undefined)
         return this.score(member, entry)
       }
-      if (fresh) return degradedQuota(entry.error)
+      if (fresh) return this.degraded(member, entry.error, entry.lastSnapshot)
       // The cooldown expired: fall through to a fresh, blocking attempt.
     }
     try {
       const snapshot = await this.refresh(key, fetcher)
       return this.score(member, { snapshot, at: Date.now() })
     } catch (error: unknown) {
-      return degradedQuota(error)
+      const failed = this.entries.get(key)
+      return this.degraded(
+        member,
+        error,
+        failed?.snapshot ?? failed?.lastSnapshot,
+      )
     }
   }
 
@@ -277,31 +281,49 @@ export class PoolUsageTracker {
     return pending
   }
 
+  /** Degrade ordering while retaining only a cached safety exhaustion bit. */
+  private degraded(
+    member: ConcretePoolMember,
+    error: unknown,
+    snapshot: ProviderUsage | undefined,
+  ): MemberQuota {
+    const cached =
+      snapshot === undefined
+        ? undefined
+        : this.score(member, { snapshot, at: 0 })
+    return degradedQuota(error, cached?.exhausted === true)
+  }
+
   /** Score one member against a snapshot's windows. */
   private score(member: ConcretePoolMember, entry: SnapshotEntry): MemberQuota {
     const windows = (entry.snapshot.windows ?? []).filter((window) =>
       windowApplies(window, member.model),
     )
     let available = true
+    let exhausted = false
     let urgency = 0
     for (const window of windows) {
       if (window.usedPercent >= QUOTA_FULL_PERCENT) available = false
+      if (window.usedPercent >= 100) exhausted = true
       urgency = Math.max(urgency, windowUrgency(window))
     }
-    return { available, urgency, fetchedAt: entry.at }
+    return { available, exhausted, urgency, fetchedAt: entry.at }
   }
 }
 
 /**
  * The routing view of a fetch failure. Logged out: the member cannot serve
- * at all. Any other failure (network, endpoint rate limit) must not block
- * routing — the member stays available with a zero score, degrading the
- * strategy to plain priority order for it.
+ * at all. Any other failure (network, endpoint rate limit) has a zero urgency;
+ * without a successful sample it stays available, while known exhaustion
+ * remains unavailable so stale telemetry cannot re-enable paid fallback.
  */
-function degradedQuota(error: unknown): MemberQuota {
-  return isMissingOrInvalidCredential(error)
-    ? { available: false, urgency: 0, fetchedAt: 0 }
-    : { available: true, urgency: 0, fetchedAt: 0 }
+function degradedQuota(error: unknown, exhausted = false): MemberQuota {
+  return {
+    available: !isMissingOrInvalidCredential(error) && !exhausted,
+    exhausted,
+    urgency: 0,
+    fetchedAt: 0,
+  }
 }
 
 /** How long to hold a failure in the negative cache: the endpoint's own `retry-after`, or the default TTL. */

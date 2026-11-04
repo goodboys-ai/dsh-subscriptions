@@ -7,10 +7,10 @@
     "date": "2026-09-28"
   },
   "upstreamRef": {
-    "sha": "b8023110",
+    "sha": "be350cd7",
     "note": "Full sha is re-derived by the check from the remote ref; recorded here for humans."
   },
-  "updatedAt": "2026-10-31",
+  "updatedAt": "2026-11-04",
   "entries": [
     {
       "upstream": "527f4d90",
@@ -420,6 +420,31 @@
       "status": "not-applicable",
       "area": "release",
       "reason": "Combines an upstream release with an unbounded peer policy; the fork deliberately retains its independently gated bounded window."
+    },
+    {
+      "upstream": "764d6d60",
+      "subject": "fix: filter Google quotas in subscription usage dialog",
+      "status": "ported",
+      "area": "antigravity",
+      "forkCommits": ["f57fdc3"],
+      "evidence": {
+        "test": "test/subscription-usage-badge.spec.ts",
+        "test:browser": "test/subscription-usage-browser.mjs"
+      },
+      "reason": "Applies the existing visible-model filter to each dialog account without mutating raw cached windows, including empty selections and recovery after failed usage refreshes."
+    },
+    {
+      "upstream": "be350cd7",
+      "subject": "fix: skip exhausted subscription accounts and warn on depleted quota",
+      "status": "ported",
+      "area": "pool",
+      "forkCommits": ["f57fdc3"],
+      "evidence": {
+        "test": "test/pool.spec.ts",
+        "test:quota": "test/pool-usage.spec.ts",
+        "test:ui": "test/subscription-usage-badge.spec.ts"
+      },
+      "reason": "Both strategies exclude known exhausted members before selection and paid fallback, retain urgency for near-full accounts, and add bilingual Codex exhaustion guidance without weakening failure cooldowns."
     }
   ]
 }

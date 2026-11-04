@@ -220,6 +220,8 @@ export const en = {
   usageBadgeModelCount: '{count} model quotas',
   usageBadgeModelUnavailable: 'Current model quota unavailable',
   usageBadgeMoreWindows: 'More quota windows ({count})',
+  usageBadgeAllCodexExhausted:
+    'All displayed Codex accounts report exhausted subscription quota. New requests stop before spending paid credits. After an external reset, use Settings > Subscriptions > Refresh to re-check usage.',
   speed: 'Speed',
   speedStandard: 'Standard',
   speedStandardDescription: 'Default speed',
@@ -488,6 +490,8 @@ export const zh = {
   usageBadgeModelCount: '{count} 个模型配额',
   usageBadgeModelUnavailable: '当前模型暂无配额数据',
   usageBadgeMoreWindows: '更多配额窗口（{count}）',
+  usageBadgeAllCodexExhausted:
+    '当前显示的所有 Codex 账号都报告订阅额度已耗尽。新请求会在消耗付费额度前停止；外部额度重置后，请使用“设置 > 订阅 > 刷新”重新检查用量。',
   speed: '速度',
   speedStandard: '标准',
   speedStandardDescription: '默认速度',

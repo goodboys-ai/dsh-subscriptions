@@ -848,16 +848,16 @@ const CLAUDE_MODALITIES: readonly ('text' | 'image')[] = ['text', 'image']
  * @returns the JSON body to POST.
  */
 export function claudeRequestBody(
-  options: GenerateOptions,
+  options: Omit<GenerateOptions, 'purpose'> & { purpose?: string },
   messages: readonly TranslatableMessage[],
   maxTokens: number,
   thinking?: Record<string, unknown>,
   effort?: string,
   cacheTtl?: PromptCacheTtl,
 ): Record<string, unknown> {
-  // Read structurally so older host types need not declare `purpose`. Hosts
-  // that do not classify auxiliary calls follow the configured TTL.
-  const purpose = (options as GenerateOptions & { purpose?: string }).purpose
+  // Auxiliary callers own this extension even when a host's GenerateOptions
+  // omits or reserves `purpose`; ordinary turns retain the configured TTL.
+  const purpose = options.purpose
   const ttl = purpose === undefined ? cacheTtl : undefined
   const anthropicMessages = toAnthropicMessages(messages)
   markMessageCache(anthropicMessages, ttl)
