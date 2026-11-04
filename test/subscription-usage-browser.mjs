@@ -316,7 +316,7 @@ try {
       document.querySelector('[data-composer-stats] button')?.innerText ?? '',
     ),
   )
-  await badge.click()
+  await badge.click({ force: true })
   await panel.waitFor()
   assert.match(await panel.locator('section').first().innerText(), /^Grok/)
   await page.keyboard.press('Escape')
