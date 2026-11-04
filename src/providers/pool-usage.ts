@@ -30,8 +30,10 @@ const FALLBACK_HORIZON_MS: Record<UsageWindow['kind'], number> = {
 
 /** The scheduling view of one member's quota. */
 export interface MemberQuota {
-  /** False when a window is effectively full or the login is gone. */
+  /** Near-full gate: false at 95% or when the login is gone; may still serve as a fallback. */
   available: boolean
+  /** True at 100%: never spend this member's subscription quota or paid fallback. */
+  exhausted: boolean
   /** Required burn rate (fraction of window per ms); 0 when unknown. */
   urgency: number
   /** Epoch ms of the snapshot this was computed from; 0 when none. */
@@ -116,7 +118,7 @@ export class PoolUsageTracker {
     const key = `${member.provider}/${member.account}`
     const fetcher = this.fetcherFor(member.provider, member.account)
     if (fetcher === undefined)
-      return { available: true, urgency: 0, fetchedAt: 0 }
+      return { available: true, exhausted: false, urgency: 0, fetchedAt: 0 }
     const entry = this.entries.get(key)
     if (entry !== undefined) {
       const fresh = Date.now() - entry.at < (entry.cooldownMs ?? this.ttlMs)
@@ -283,12 +285,14 @@ export class PoolUsageTracker {
       windowApplies(window, member.model),
     )
     let available = true
+    let exhausted = false
     let urgency = 0
     for (const window of windows) {
       if (window.usedPercent >= QUOTA_FULL_PERCENT) available = false
+      if (window.usedPercent >= 100) exhausted = true
       urgency = Math.max(urgency, windowUrgency(window))
     }
-    return { available, urgency, fetchedAt: entry.at }
+    return { available, exhausted, urgency, fetchedAt: entry.at }
   }
 }
 
@@ -300,8 +304,8 @@ export class PoolUsageTracker {
  */
 function degradedQuota(error: unknown): MemberQuota {
   return isMissingOrInvalidCredential(error)
-    ? { available: false, urgency: 0, fetchedAt: 0 }
-    : { available: true, urgency: 0, fetchedAt: 0 }
+    ? { available: false, exhausted: false, urgency: 0, fetchedAt: 0 }
+    : { available: true, exhausted: false, urgency: 0, fetchedAt: 0 }
 }
 
 /** How long to hold a failure in the negative cache: the endpoint's own `retry-after`, or the default TTL. */

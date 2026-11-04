@@ -13,5 +13,5 @@
 #     bound is the minor line after the newest line below
 0.1.7-rc.2
 0.2.0-rc.2
-0.2.1-rc.2
 0.2.1-rc.5
+0.2.2-rc.1

@@ -387,12 +387,12 @@ export class PoolAdapter extends LlmAdapter {
   }
 
   /**
-   * Order the candidates for one request. Health filters both strategies;
-   * `quota_aware` then ranks by urgency (members without telemetry, e.g.
-   * copilot, score zero and sink to the bottom of their class), while
-   * quota-exhausted members stay as a last-resort tail in pool order. The
-   * sticky member keeps its lead unless a challenger out-scores it by
-   * `switchMargin`.
+   * Order the candidates for one request. Health and known exhaustion filter
+   * both strategies: an applicable window at 100% must never become a paid
+   * fallback. `quota_aware` then ranks by urgency (members without telemetry,
+   * e.g. copilot, score zero and sink to the bottom of their class), while
+   * near-full members stay as a last-resort tail in urgency order. The sticky
+   * member keeps its lead unless a challenger out-scores it by `switchMargin`.
    */
   private async select(
     poolId: string,
@@ -409,19 +409,6 @@ export class PoolAdapter extends LlmAdapter {
         ),
     )
     if (usable.length === 0) return []
-    const stickyMember =
-      sessionId === undefined
-        ? undefined
-        : usable.find(
-            (member) =>
-              memberKey(member.provider, member.account, member.model) ===
-              this.sticky.get(stickyKey(poolId, sessionId)),
-          )
-    if (this.options.strategy === 'priority') {
-      return stickyMember === undefined
-        ? usable
-        : [stickyMember, ...usable.filter((member) => member !== stickyMember)]
-    }
     const quotas = new Map<ConcretePoolMember, MemberQuota>(
       await Promise.all(
         usable.map(
@@ -430,13 +417,43 @@ export class PoolAdapter extends LlmAdapter {
         ),
       ),
     )
-    const scored = usable.filter(
+    const candidates = usable.filter(
+      (member) => quotas.get(member)?.exhausted !== true,
+    )
+    if (candidates.length === 0) {
+      const message =
+        `${poolId}: all currently usable accounts have exhausted subscription quota; ` +
+        'the request was stopped before spending paid credits. After an external reset, ' +
+        'use Settings > Subscriptions > Refresh to re-check usage.'
+      this.warnOnce(message)
+      throw new LlmError(message, QUOTA_EXCEEDED_CODE)
+    }
+    const stickyMember =
+      sessionId === undefined
+        ? undefined
+        : candidates.find(
+            (member) =>
+              memberKey(member.provider, member.account, member.model) ===
+              this.sticky.get(stickyKey(poolId, sessionId)),
+          )
+    if (this.options.strategy === 'priority') {
+      return stickyMember === undefined
+        ? candidates
+        : [
+            stickyMember,
+            ...candidates.filter((member) => member !== stickyMember),
+          ]
+    }
+    const scored = candidates.filter(
       (member) => quotas.get(member)?.available === true,
     )
-    const quotaFull = usable.filter(
+    const quotaFull = candidates.filter(
       (member) => quotas.get(member)?.available === false,
     )
     scored.sort(
+      (a, b) => (quotas.get(b)?.urgency ?? 0) - (quotas.get(a)?.urgency ?? 0),
+    )
+    quotaFull.sort(
       (a, b) => (quotas.get(b)?.urgency ?? 0) - (quotas.get(a)?.urgency ?? 0),
     )
     if (stickyMember !== undefined && scored.includes(stickyMember)) {

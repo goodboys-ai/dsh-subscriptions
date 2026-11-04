@@ -55,6 +55,7 @@ import {
   USAGE_BADGE_REFRESH_EVENT,
   useUsageBadgeMode,
 } from './usage-badge-preferences.js'
+import { visibleUsageWindows } from './usage-window-filter.js'
 
 /** DSH renamed the data icon in 0.1.7; retain older supported hosts too. */
 export function usageBadgeIcon(icons: {
@@ -199,6 +200,7 @@ export function groupUsageDisplays(
 export async function loadBadgeRoster(rpc: ConnectionHandle['rpc']): Promise<{
   roster: UsageRosterEntry[]
   refreshed: Set<BadgeProvider>
+  visibleModels: Map<BadgeProvider, string[]>
 }> {
   const [subscriptions, external] = await Promise.allSettled([
     callSubscriptionsAuth<{
@@ -213,6 +215,7 @@ export async function loadBadgeRoster(rpc: ConnectionHandle['rpc']): Promise<{
   ])
   const roster: UsageRosterEntry[] = []
   const refreshed = new Set<BadgeProvider>()
+  const visibleModels = new Map<BadgeProvider, string[]>()
   if (subscriptions.status === 'fulfilled') {
     for (const provider of [
       'codex',
@@ -222,6 +225,8 @@ export async function loadBadgeRoster(rpc: ConnectionHandle['rpc']): Promise<{
       'antigravity',
     ] as const) {
       refreshed.add(provider)
+      const visible = subscriptions.value.providers[provider]?.visibleModels
+      if (visible !== undefined) visibleModels.set(provider, visible)
       for (const account of accountsOf(subscriptions.value.providers[provider]))
         roster.push({ provider, account })
     }
@@ -242,7 +247,7 @@ export async function loadBadgeRoster(rpc: ConnectionHandle['rpc']): Promise<{
         })
     }
   }
-  return { roster, refreshed }
+  return { roster, refreshed, visibleModels }
 }
 
 export async function usageOf(
@@ -553,7 +558,7 @@ export function SubscriptionUsageBadge({
     if (rpc === undefined || inflightRef.current) return
     inflightRef.current = true
     try {
-      const { roster, refreshed } = await loadBadgeRoster(rpc)
+      const { roster, refreshed, visibleModels } = await loadBadgeRoster(rpc)
       if (!mountedRef.current) return
 
       const lastKnown = lastKnownRef.current
@@ -610,6 +615,13 @@ export function SubscriptionUsageBadge({
           ...display,
           accounts: display.accounts.map((account) => ({
             ...account,
+            // Filter only the display row, not lastKnown: restoring visibility
+            // must work even when the next usage request fails and uses cache.
+            windows: visibleUsageWindows(
+              display.provider,
+              account.windows,
+              visibleModels.get(display.provider),
+            ),
             ...observationsRef.current.get(
               `${display.provider}:${account.key}`,
             ),
@@ -867,6 +879,7 @@ export function SubscriptionUsageBadge({
                     />
                   )}
                 </div>
+                <CodexExhaustionNotice display={d} translate={translate} />
                 {d.accounts.map((account, accountIndex) => (
                   <div
                     key={account.key}
@@ -931,6 +944,31 @@ function statsScopeOf(seat: HTMLElement): HTMLElement | null {
   return seat.parentElement
 }
 
+/** Warn only when every displayed Codex account has a known exhausted window. */
+export function CodexExhaustionNotice({
+  display,
+  translate,
+}: {
+  display: ProviderUsageDisplay
+  translate: Translate
+}) {
+  if (
+    display.provider !== 'codex' ||
+    display.accounts.length === 0 ||
+    display.accounts.some(
+      (account) =>
+        account.windows.length === 0 ||
+        !account.windows.every((window) => window.usedPercent >= 100),
+    )
+  )
+    return null
+  return (
+    <p role="status" style={{ ...styles.providerMeta, margin: '8px 0 0' }}>
+      {translate('usageBadgeAllCodexExhausted')}
+    </p>
+  )
+}
+
 /**
  * One account's handle and plan: `★ ys@example.com · 计划：pro`. The star
  * marks the default account (the one direct routes serve and the collapsed
@@ -961,7 +999,7 @@ function AccountMeta({
   )
 }
 
-/** Preview each account independently; all remaining quotas stay accessible. */
+/** Preview each account independently; remaining visible quotas stay accessible. */
 export function AccountWindows({
   windows,
   model,
@@ -977,6 +1015,10 @@ export function AccountWindows({
   observedAt?: number | undefined
   stale?: boolean | undefined
 }) {
+  if (windows.length === 0)
+    return (
+      <p style={styles.providerMeta}>{translate('usageNoVisibleModels')}</p>
+    )
   const { shown, hidden } = previewWindows(windows, model, provider)
   const rows = (items: readonly UsageWindow[]) => (
     <dl style={styles.details}>

@@ -25,6 +25,7 @@ const css = registerHooks({
 })
 const {
   AccountWindows,
+  CodexExhaustionNotice,
   compactSegment,
   createCurrentModelReader,
   previewWindows,
@@ -45,6 +46,7 @@ import type {
 import type { ClientConnectionRpc } from '@deepseek-ai/dsh-client-connection/client'
 import type { UsageWindow } from '../src/client/SubscriptionsSection.js'
 import { en, zh } from '../src/client/locales.js'
+import { visibleUsageWindows } from '../src/client/usage-window-filter.js'
 import { fetchMiniMaxUsage } from '../src/providers/minimax-usage.js'
 import { fetchKimiCodeUsage } from '../src/providers/external-usage.js'
 import { externalUsageWindowLabel } from '../src/client/ExternalUsageCards.js'
@@ -64,6 +66,74 @@ function display(
     accounts: [{ key: 'default', isDefault: true, windows: values }],
   }
 }
+
+test('Codex exhaustion notice requires known exhaustion on every displayed account', () => {
+  const d = display('codex', [{ kind: 'weekly', usedPercent: 100 }])
+  d.accounts.push({
+    key: 'second',
+    isDefault: false,
+    windows: [{ kind: 'session', usedPercent: 105 }],
+  })
+  for (const dictionary of [en, zh]) {
+    const translate = (key: keyof typeof en) => dictionary[key]
+    const render = () =>
+      renderToStaticMarkup(
+        createElement(CodexExhaustionNotice, { display: d, translate }),
+      )
+    assert.match(render(), /role="status"/)
+    assert.ok(
+      render().includes(
+        dictionary.usageBadgeAllCodexExhausted.replaceAll('>', '&gt;'),
+      ),
+    )
+    d.accounts[1]!.windows[0]!.usedPercent = 99.99
+    assert.equal(render(), '', 'a rounded 100% is not known exhaustion')
+    d.accounts[1]!.windows = []
+    assert.equal(render(), '', 'unknown usage is not known exhaustion')
+    d.accounts[1]!.windows = [{ kind: 'session', usedPercent: 105 }]
+  }
+  assert.equal(
+    renderToStaticMarkup(
+      createElement(CodexExhaustionNotice, {
+        display: display('claude', [{ kind: 'weekly', usedPercent: 100 }]),
+        translate: (key) => en[key],
+      }),
+    ),
+    '',
+  )
+})
+
+test('Google dialog previews and disclosure counts include only selected models', () => {
+  const filtered = visibleUsageWindows('antigravity', windows, [
+    'gemini-model-1',
+    'gemini-model-59',
+  ])
+  const translate = (key: keyof typeof en, params?: Record<string, unknown>) =>
+    en[key].replace(/\{(\w+)\}/g, (_, name: string) =>
+      String(params?.[name] ?? ''),
+    )
+  const html = renderToStaticMarkup(
+    createElement(AccountWindows, {
+      windows: filtered,
+      model: 'gemini-model-59',
+      provider: 'antigravity',
+      translate,
+    }),
+  )
+  assert.equal((html.match(/<dt /g) ?? []).length, 2)
+  assert.ok(html.includes(translate('usageBadgeMoreWindows', { count: 1 })))
+  assert.equal(
+    renderToStaticMarkup(
+      createElement(AccountWindows, {
+        windows: visibleUsageWindows('antigravity', windows, []),
+        model: 'gemini-model-59',
+        provider: 'antigravity',
+        translate,
+      }),
+    ).includes(en.usageNoVisibleModels),
+    true,
+  )
+})
 
 test('Antigravity compact readout selects exact current model, not the entire catalog', () => {
   const d = display('antigravity', [

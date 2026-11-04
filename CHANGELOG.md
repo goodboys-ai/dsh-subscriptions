@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.3.1 — 2026-11-04
+
+- **DSH 0.2.2-rc.1 support.** The gated support window now covers DSH
+  `0.1.7-rc.2`, `0.2.0-rc.2`, `0.2.1-rc.5`, and `0.2.2-rc.1`. The older
+  `0.2.1-rc.2` transition entry leaves the window under the four-entry policy.
+  The peer range stays `>=0.1.7-rc.2 <0.3.0-0`, and development dependencies
+  stay pinned to the `0.1.7-rc.2` window floor.
+- **Google dialog follows visible models.** The subscription usage dialog now
+  applies the same Antigravity model visibility filter as Settings to previews,
+  disclosure counts, and every account. Raw cached quotas remain available when
+  visibility is restored after a failed refresh.
+- **Known exhausted pool accounts cannot spend credits.** Both pool strategies
+  skip members with an applicable usage window at 100% or above, including
+  sticky members and post-failure fallbacks. Near-full members remain ordered
+  fallbacks; when every usable candidate is exhausted, the request stops with
+  refresh guidance. The expanded usage dialog warns when all displayed Codex
+  accounts are exhausted.
+
 ## v0.3.0 — 2026-11-02
 
 - **Cursor support removed (breaking).** The Cursor model route, Settings card,

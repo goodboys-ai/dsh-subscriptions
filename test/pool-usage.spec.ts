@@ -54,9 +54,19 @@ test('quotaFor: a 429 with retry-after is cached — the second call within the 
   )
   const { tracker, calls } = trackerOf(() => Promise.reject(error))
   const first = await tracker.quotaFor(MEMBER)
-  assert.deepEqual(first, { available: true, urgency: 0, fetchedAt: 0 })
+  assert.deepEqual(first, {
+    available: true,
+    exhausted: false,
+    urgency: 0,
+    fetchedAt: 0,
+  })
   const second = await tracker.quotaFor(MEMBER)
-  assert.deepEqual(second, { available: true, urgency: 0, fetchedAt: 0 })
+  assert.deepEqual(second, {
+    available: true,
+    exhausted: false,
+    urgency: 0,
+    fetchedAt: 0,
+  })
   assert.equal(calls.count, 1, 'the cooling-down failure must not be retried')
 })
 
@@ -81,7 +91,12 @@ test('quotaFor: a missing/invalid credential is never negative-cached, so recove
       : Promise.resolve(OK_USAGE),
   )
   const first = await tracker.quotaFor(MEMBER)
-  assert.deepEqual(first, { available: false, urgency: 0, fetchedAt: 0 })
+  assert.deepEqual(first, {
+    available: false,
+    exhausted: false,
+    urgency: 0,
+    fetchedAt: 0,
+  })
   broken = false
   const second = await tracker.quotaFor(MEMBER)
   assert.equal(second.available, true)
@@ -308,6 +323,95 @@ test('snapshotFor: an invalidate during a fetch neither repopulates the cache no
       'the abandoned result must not be cached',
     )
   }
+})
+
+test('quotaFor: 95% remains a fallback but 100% is exhausted', async () => {
+  for (const [usedPercent, available, exhausted] of [
+    [95, false, false],
+    [100, false, true],
+    [105, false, true],
+  ] as const) {
+    const { tracker } = trackerOf(async () => ({
+      supported: true,
+      windows: [
+        { kind: 'session', usedPercent, resetsAt: Date.now() + 60_000 },
+      ],
+    }))
+    const quota = await tracker.quotaFor(MEMBER)
+    assert.equal(quota.available, available)
+    assert.equal(quota.exhausted, exhausted)
+  }
+})
+
+test('quotaFor: exhaustion on another model scope does not block this member', async () => {
+  const { tracker } = trackerOf(async () => ({
+    supported: true,
+    windows: [
+      {
+        kind: 'other',
+        scope: 'sonnet',
+        usedPercent: 100,
+        resetsAt: Date.now() + 60_000,
+      },
+      {
+        kind: 'other',
+        scope: 'opus',
+        usedPercent: 20,
+        resetsAt: Date.now() + 60_000,
+      },
+    ],
+  }))
+  const quota = await tracker.quotaFor(MEMBER)
+  assert.equal(quota.exhausted, false)
+  assert.equal(quota.available, true)
+})
+
+test('quotaFor: near-full members retain urgency for fallback ordering', async () => {
+  const now = Date.now()
+  const { tracker } = trackerOf(async () => ({
+    supported: true,
+    windows: [
+      { kind: 'weekly', usedPercent: 95, resetsAt: now + 86_400_000 },
+      { kind: 'other', usedPercent: 99, resetsAt: now + 10_000 },
+    ],
+  }))
+  const quota = await tracker.quotaFor(MEMBER)
+  assert.equal(quota.available, false)
+  assert.equal(quota.exhausted, false)
+  assert.ok(quota.urgency > 0.05 / 86_400_000)
+  assert.ok(quota.urgency >= 0.01 / 10_000)
+  assert.ok(quota.urgency < 0.01)
+})
+
+test('quotaFor: stale cached 100% recomputes exhaustion without awaiting refresh', async () => {
+  let release!: () => void
+  const gate = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  const { tracker, calls } = trackerOf(
+    () =>
+      calls.count === 1
+        ? Promise.resolve({
+            supported: true,
+            windows: [
+              {
+                kind: 'session',
+                usedPercent: 100,
+                resetsAt: Date.now() + 60_000,
+              },
+            ],
+          })
+        : gate.then(() => OK_USAGE),
+    10,
+  )
+  const first = await tracker.quotaFor(MEMBER)
+  assert.equal(first.exhausted, true)
+  await new Promise((resolve) => setTimeout(resolve, 15))
+  const stale = await tracker.quotaFor(MEMBER)
+  assert.equal(stale.exhausted, true)
+  assert.equal(stale.available, false)
+  assert.equal(calls.count, 2, 'the refresh started but was not awaited')
+  release()
 })
 
 test('snapshotFor: a discarded fetch that fails after a newer success cannot cache its cooldown', async () => {
