@@ -68,11 +68,17 @@ function display(
 }
 
 test('Codex exhaustion notice requires known exhaustion on every displayed account', () => {
-  const d = display('codex', [{ kind: 'weekly', usedPercent: 100 }])
+  const d = display('codex', [
+    { kind: 'session', usedPercent: 100 },
+    { kind: 'weekly', usedPercent: 20 },
+  ])
   d.accounts.push({
     key: 'second',
     isDefault: false,
-    windows: [{ kind: 'session', usedPercent: 105 }],
+    windows: [
+      { kind: 'session', usedPercent: 105 },
+      { kind: 'weekly', usedPercent: 20 },
+    ],
   })
   for (const dictionary of [en, zh]) {
     const translate = (key: keyof typeof en) => dictionary[key]

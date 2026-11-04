@@ -725,6 +725,29 @@ for (const strategy of ['priority', 'quota_aware'] as const) {
     )
   })
 
+  test(`${strategy}: a failed forced refresh cannot re-enable an exhausted account`, async () => {
+    let failFirst = false
+    const codex = new FakeAdapter(() => serveOk('would spend credits'))
+    const { pool, usage } = makePool(
+      { codex },
+      {
+        strategy,
+        usage: (_provider, account) => async () => {
+          if (account === 'a1' && failFirst)
+            throw new Error('usage endpoint offline')
+          return windowUsage(100, 60_000)
+        },
+      },
+    )
+    await assert.rejects(collect(pool.stream(OPTIONS)), { code: 'QUOTA' })
+    failFirst = true
+    const stale = await usage.snapshotFor('codex', 'a1', true)
+    assert.equal(stale.stale, true)
+    assert.equal(stale.windows?.[0]?.usedPercent, 100)
+    await assert.rejects(collect(pool.stream(OPTIONS)), { code: 'QUOTA' })
+    assert.deepEqual(codex.accounts, [])
+  })
+
   test(`${strategy}: sticky account loses eligibility once exhausted and returns after reset`, async () => {
     let firstUsed = 10
     const codex = new FakeAdapter((_options, account) => serveOk(account))

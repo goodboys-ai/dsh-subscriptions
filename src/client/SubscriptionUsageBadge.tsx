@@ -958,7 +958,7 @@ export function CodexExhaustionNotice({
     display.accounts.some(
       (account) =>
         account.windows.length === 0 ||
-        !account.windows.every((window) => window.usedPercent >= 100),
+        !account.windows.some((window) => window.usedPercent >= 100),
     )
   )
     return null

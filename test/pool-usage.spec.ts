@@ -414,6 +414,35 @@ test('quotaFor: stale cached 100% recomputes exhaustion without awaiting refresh
   release()
 })
 
+test('quotaFor: failed forced refresh retains cached exhaustion but not urgency', async () => {
+  let fail = false
+  const now = Date.now()
+  const { tracker, calls } = trackerOf(() => {
+    if (fail) return Promise.reject(new Error('usage endpoint offline'))
+    return Promise.resolve({
+      supported: true,
+      windows: [
+        { kind: 'session', usedPercent: 100, resetsAt: now + 60_000 },
+        { kind: 'weekly', usedPercent: 95, resetsAt: now + 86_400_000 },
+      ],
+    })
+  })
+  const first = await tracker.quotaFor(MEMBER)
+  assert.equal(first.exhausted, true)
+  assert.ok(first.urgency > 0)
+  fail = true
+  const stale = await tracker.snapshotFor('claude', 'a1', true)
+  assert.equal(stale.stale, true)
+  assert.equal(stale.windows?.[0]?.usedPercent, 100)
+  assert.deepEqual(await tracker.quotaFor(MEMBER), {
+    available: false,
+    exhausted: true,
+    urgency: 0,
+    fetchedAt: 0,
+  })
+  assert.equal(calls.count, 2, 'routing joins the fresh failure cooldown')
+})
+
 test('snapshotFor: a discarded fetch that fails after a newer success cannot cache its cooldown', async () => {
   // A starts, an invalidate abandons it, B starts and succeeds, then A rejects
   // late. A must not bury B's fresh numbers under a negative cache.
