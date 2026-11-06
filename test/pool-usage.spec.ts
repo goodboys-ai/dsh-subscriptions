@@ -11,8 +11,11 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { LlmError } from '@deepseek-ai/dsh-llm'
 import { OAuthEndpointError } from '../src/providers/common.js'
-import type { ProviderUsage } from '../src/providers/common.js'
-import { PoolUsageTracker } from '../src/providers/pool-usage.js'
+import type { ProviderUsage, UsageWindow } from '../src/providers/common.js'
+import {
+  normalizedWindowUrgency,
+  PoolUsageTracker,
+} from '../src/providers/pool-usage.js'
 import type { ProviderId } from '../src/auth/store.js'
 
 const MEMBER = {
@@ -441,6 +444,31 @@ test('quotaFor: failed forced refresh retains cached exhaustion but not urgency'
     fetchedAt: 0,
   })
   assert.equal(calls.count, 2, 'routing joins the fresh failure cooldown')
+})
+
+test('normalizedWindowUrgency uses reported duration only when timing is valid', () => {
+  const now = Date.now()
+  const base: UsageWindow = {
+    kind: 'session',
+    usedPercent: 20,
+    windowDurationMs: 5 * 60 * 60_000,
+    resetsAt: now + 60 * 60_000,
+  }
+  assert.ok(Math.abs(normalizedWindowUrgency(base, now) - 4) < 0.001)
+  const withoutDuration = { ...base }
+  delete withoutDuration.windowDurationMs
+  const withoutReset = { ...base }
+  delete withoutReset.resetsAt
+  assert.equal(normalizedWindowUrgency(withoutDuration, now), 0.8)
+  assert.equal(normalizedWindowUrgency(withoutReset, now), 0.8)
+  assert.equal(
+    normalizedWindowUrgency({ ...base, windowDurationMs: -1 }, now),
+    0.8,
+  )
+  assert.equal(
+    normalizedWindowUrgency({ ...base, resetsAt: now - 1 }, now),
+    800,
+  )
 })
 
 test('snapshotFor: a discarded fetch that fails after a newer success cannot cache its cooldown', async () => {

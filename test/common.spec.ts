@@ -227,7 +227,12 @@ const parseSites: ParseSite[] = [
     origin: 'Antigravity generateContent',
     payload: {
       response: {
-        candidates: [{ content: { role: 'model', parts: [{ text: 'ok' }] } }],
+        candidates: [
+          {
+            content: { role: 'model', parts: [{ text: 'ok' }] },
+            finishReason: 'STOP',
+          },
+        ],
       },
     },
     run: (http) => {

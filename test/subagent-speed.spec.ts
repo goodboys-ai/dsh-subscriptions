@@ -14,7 +14,7 @@ import { saveAccountSession } from '../src/auth/store.js'
 import * as plugin from '../src/index.js'
 import { createFakeConnection } from './fake-connection.js'
 
-test('main speed and per-model subagent defaults stay independent through RPC, routing and restart', async (t) => {
+test('main, model-bound and subagent speeds stay independent through RPC, routing and restart', async (t) => {
   const home = await mkdtemp(join(tmpdir(), 'subagent-speed-rpc-'))
   const previous = process.env.DSH_HOME
   process.env.DSH_HOME = home
@@ -171,6 +171,20 @@ test('main speed and per-model subagent defaults stay independent through RPC, r
       (await host.call('speed', { sessionId: 'child', model: 1 })).ok,
       false,
     )
+    assert.equal(
+      (await host.call('speed', { sessionId: 'child', model: '   ' })).ok,
+      false,
+    )
+    assert.equal(
+      (
+        await host.call('setSpeed', {
+          sessionId: 'child',
+          tier: 'fast',
+          model: '   ',
+        })
+      ).ok,
+      false,
+    )
     const catalog = await host.call('providerSettings', { provider: 'codex' })
     assert.ok(catalog.ok)
     assert.deepEqual(
@@ -214,6 +228,50 @@ test('main speed and per-model subagent defaults stay independent through RPC, r
     await host.stream('child', undefined)
     await host.setSpeed('child', 'fast')
     await host.stream('child', 'priority')
+    assert.equal(
+      (
+        await host.call('setSpeed', {
+          sessionId: 'child',
+          tier: 'fast',
+          model: 'fast-model',
+        })
+      ).ok,
+      true,
+    )
+    await host.runtime.dispose()
+    host = await mount(false)
+    assert.deepEqual(
+      await host.call('speed', { sessionId: 'child', model: 'fast-model' }),
+      {
+        ok: true,
+        value: {
+          tier: 'fast',
+          fastModels: ['fast-model', accountModelId('a', 'fast-model')],
+        },
+      },
+    )
+    await host.stream('child', 'priority')
+    assert.equal(
+      (
+        await host.call('setSpeed', {
+          sessionId: 'child',
+          tier: 'standard',
+          model: 'fast-model',
+        })
+      ).ok,
+      true,
+    )
+    await host.runtime.dispose()
+    host = await mount(false)
+    assert.equal(
+      (
+        (await host.call('speed', {
+          sessionId: 'child',
+          model: 'fast-model',
+        })) as { value: { tier: string } }
+      ).value.tier,
+      'standard',
+    )
   } finally {
     await host?.runtime.dispose()
     if (previous === undefined) delete process.env.DSH_HOME

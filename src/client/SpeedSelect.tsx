@@ -2,8 +2,8 @@
  * Codex Speed toggle: one small control in the composer's right tool row
  * (`conversation.input.right`), switching the session between standard routing
  * and the fast (priority) service tier — the Codex desktop app's Speed menu.
- * The choice is per session and lives in the node half (in-memory); this
- * component holds only viewing state. The control renders nothing until the
+ * Choices persist per model in the node half; legacy model-less RPC callers
+ * retain a session-only override. The control renders nothing until the
  * first load proves the session's current model is a codex model whose catalog
  * advertises the fast tier.
  *
@@ -35,6 +35,8 @@ export interface SpeedState {
 /** What {@link SpeedSelect} renders from: visibility plus the current tier. */
 export interface SpeedSelectState {
   visible: boolean
+  /** Model whose confirmed tier is displayed, used to reject stale saves. */
+  model?: string
   tier: SpeedTier
 }
 
@@ -74,7 +76,7 @@ export interface SpeedSelectInjected {
   /** Load the session's speed state; `visible` false keeps the control hidden. */
   loadSpeed: () => Promise<SpeedSelectState>
   /** Set the session's speed tier; resolves false when the write failed. */
-  setSpeed: (tier: SpeedTier) => Promise<boolean>
+  setSpeed: (tier: SpeedTier, displayedModel?: string) => Promise<boolean>
   /**
    * Subscribe to the session's selected model. The listener runs when
    * `provider` or `model` changes, and once when a directory that was missing
@@ -112,15 +114,18 @@ export function createSpeedLoader(
   sessionId: string,
 ): SpeedSelectInjected['loadSpeed'] {
   return async () => {
-    const directories = models()
-    let current: ModelSelectionSnapshot['current'] = null
-    if (directories !== undefined) {
+    const readCurrent = async (): Promise<
+      ModelSelectionSnapshot['current']
+    > => {
       try {
-        current = (await directories.directoryFor(sessionId).load()).current
+        const directory = models()?.directoryFor(sessionId)
+        return (await directory?.load())?.current ?? null
       } catch (error) {
         if (!modelSelectionUnavailable(error)) throw error
+        return null
       }
     }
+    const current = await readCurrent()
     const state = await callSubscriptionsAuth<SpeedState>(
       connection.rpc,
       'speed',
@@ -133,7 +138,18 @@ export function createSpeedLoader(
       current !== null &&
       current.provider === 'codex' &&
       state.fastModels.includes(current.model)
-    return { visible, tier: state.tier }
+    // Never publish a tier read for a selection that changed while RPC was pending.
+    const latest = await readCurrent()
+    if (
+      latest?.provider !== current?.provider ||
+      latest?.model !== current?.model
+    )
+      throw new Error('Model changed while loading speed')
+    return {
+      visible,
+      tier: state.tier,
+      ...(visible && current ? { model: current.model } : {}),
+    }
   }
 }
 
@@ -270,12 +286,27 @@ export function createModelSelectionWatch(
 export function createSpeedSetter(
   connection: ConnectionHandle,
   sessionId: string,
+  models?: () => ModelDirectoriesLike | undefined,
 ): SpeedSelectInjected['setSpeed'] {
-  return (tier) =>
-    callSubscriptionsAuth(connection.rpc, 'setSpeed', { sessionId, tier }).then(
-      () => true,
-      () => false,
-    )
+  return async (tier, displayedModel) => {
+    try {
+      const current =
+        models === undefined
+          ? null
+          : ((await models()?.directoryFor(sessionId).load())?.current ?? null)
+      if (models !== undefined && current?.provider !== 'codex') return false
+      if (displayedModel !== undefined && current?.model !== displayedModel)
+        return false
+      await callSubscriptionsAuth(connection.rpc, 'setSpeed', {
+        sessionId,
+        tier,
+        ...(current?.provider === 'codex' ? { model: current.model } : {}),
+      })
+      return true
+    } catch {
+      return false // Keep the last confirmed value on load or save failure.
+    }
+  }
 }
 
 /** English-dictionary fallback for a missing inject `t` (standalone renders). */
@@ -314,9 +345,13 @@ export function SpeedSelect({
   loadRef.current = loadSpeed
   const watchRef = useRef(watchModel)
   watchRef.current = watchModel
+  const mounted = useRef(false)
+  const generation = useRef(0)
+  const reloadRef = useRef<() => void>(() => undefined)
 
   useEffect(() => {
     if (loadRef.current === undefined) return
+    mounted.current = true
     let cancelled = false
     let inflight = false
     let again = false
@@ -328,23 +363,28 @@ export function SpeedSelect({
       clearInterval(retry)
       retry = undefined
     }
-    const reload = (): void => {
+    const reload = (invalidate = true): void => {
       const load = loadRef.current
       if (load === undefined) return
       if (inflight) {
-        again = true
+        if (invalidate) {
+          again = true
+          generation.current += 1
+        }
         return
       }
+      const id = ++generation.current
       inflight = true
       void load()
         .then(
           (loaded) => {
-            if (cancelled) return
+            if (cancelled || id !== generation.current) return
             loadedOnce = true
             stopRetry()
             setState(loaded)
           },
           () => {
+            if (cancelled || id !== generation.current) return
             failures += 1
             if (failures >= SPEED_MOUNT_READ_ATTEMPTS) stopRetry()
           },
@@ -356,9 +396,11 @@ export function SpeedSelect({
           reload()
         })
     }
+    reloadRef.current = reload
     reload()
     retry = setInterval(() => {
-      if (!loadedOnce) reload()
+      // A slow in-flight read is not stale merely because the retry timer fired.
+      if (!loadedOnce) reload(false)
     }, MODEL_DIRECTORY_POLL_INTERVAL_MS)
     const unsubscribe = watchRef.current?.(reload)
     const onSpeedChanged = (): void => {
@@ -367,6 +409,9 @@ export function SpeedSelect({
     window.addEventListener(SPEED_CHANGED_EVENT, onSpeedChanged)
     return () => {
       cancelled = true
+      mounted.current = false
+      generation.current += 1
+      reloadRef.current = () => undefined
       unsubscribe?.()
       stopRetry()
       window.removeEventListener(SPEED_CHANGED_EVENT, onSpeedChanged)
@@ -400,22 +445,25 @@ export function SpeedSelect({
       return
     }
     setBusy(true)
-    void setSpeed(tier).then((ok) => {
-      setBusy(false)
-      if (ok) {
-        setState({ visible: true, tier })
-        setOpen(false)
-      }
-    })
+    void setSpeed(tier, state.model).then(
+      (ok) => {
+        if (!mounted.current) return
+        setBusy(false)
+        if (ok) setOpen(false)
+        // Re-read the current model: a save may have completed after selection changed.
+        reloadRef.current()
+      },
+      () => {
+        if (!mounted.current) return
+        setBusy(false)
+        reloadRef.current()
+      },
+    )
   }
 
   const show = (): void => {
     setOpen(true)
-    const load = loadRef.current
-    if (load === undefined) return
-    void load().then(setState, () => {
-      /* keep showing the last good state */
-    })
+    reloadRef.current()
   }
 
   const tierName = (tier: SpeedTier): string =>

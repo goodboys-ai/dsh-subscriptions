@@ -459,6 +459,11 @@ export async function fetchGrokUsage(
       usedPercent,
       ...(resetsAt === undefined ? {} : { resetsAt }),
       ...(startsAt === undefined ? {} : { startsAt }),
+      ...(startsAt !== undefined &&
+      resetsAt !== undefined &&
+      resetsAt > startsAt
+        ? { windowDurationMs: resetsAt - startsAt }
+        : {}),
     })
   } else if (
     typeof config.monthlyLimit?.val === 'number' &&
@@ -522,6 +527,21 @@ type GrokCliModelMeta = Partial<
   Pick<DiscoveredModel, 'name' | 'description' | 'contextWindow' | 'reasoning'>
 >
 
+/** Strength rank of known efforts, weakest first; unknown ids keep catalog order last. */
+const EFFORT_STRENGTH: ReadonlyMap<string, number> = new Map([
+  ['off', 0],
+  ['minimal', 1],
+  ['low', 2],
+  ['medium', 3],
+  ['high', 4],
+  ['xhigh', 5],
+  ['max', 6],
+])
+
+function effortStrength(id: string): number {
+  return EFFORT_STRENGTH.get(id) ?? Number.MAX_SAFE_INTEGER
+}
+
 /** Map one CLI catalog entry's reasoning fields, or undefined when unsupported. */
 function grokCliReasoning(
   entry: GrokCliWireModel,
@@ -541,6 +561,8 @@ function grokCliReasoning(
         ? { description: level.description }
         : {}),
     }))
+    // Host effort pickers expect weakest first; the CLI lists strongest first.
+    .sort((left, right) => effortStrength(left.id) - effortStrength(right.id))
   if (efforts.length === 0) return undefined
   // The per-entry `default` flags are unreliable (the live catalog marks
   // several levels default at once), so the top-level `reasoning_effort`

@@ -34,7 +34,7 @@ export interface MemberQuota {
   available: boolean
   /** True at 100%: never spend this member's subscription quota or paid fallback. */
   exhausted: boolean
-  /** Required burn rate (fraction of window per ms); 0 when unknown. */
+  /** Burn rate in strategy-specific units; 0 when unmeasured. */
   urgency: number
   /** Epoch ms of the snapshot this was computed from; 0 when none. */
   fetchedAt: number
@@ -111,7 +111,10 @@ export class PoolUsageTracker {
    * @param member - the pool member to score (account resolved).
    * @returns availability, known exhaustion, and the urgency score.
    */
-  async quotaFor(member: ConcretePoolMember): Promise<MemberQuota> {
+  async quotaFor(
+    member: ConcretePoolMember,
+    normalized = false,
+  ): Promise<MemberQuota> {
     const key = `${member.provider}/${member.account}`
     const fetcher = this.fetcherFor(member.provider, member.account)
     if (fetcher === undefined)
@@ -121,14 +124,14 @@ export class PoolUsageTracker {
       const fresh = Date.now() - entry.at < (entry.cooldownMs ?? this.ttlMs)
       if (entry.snapshot !== undefined) {
         if (!fresh) void this.refresh(key, fetcher).catch(() => undefined)
-        return this.score(member, entry)
+        return this.score(member, entry, normalized)
       }
       if (fresh) return this.degraded(member, entry.error, entry.lastSnapshot)
       // The cooldown expired: fall through to a fresh, blocking attempt.
     }
     try {
       const snapshot = await this.refresh(key, fetcher)
-      return this.score(member, { snapshot, at: Date.now() })
+      return this.score(member, { snapshot, at: Date.now() }, normalized)
     } catch (error: unknown) {
       const failed = this.entries.get(key)
       return this.degraded(
@@ -295,7 +298,11 @@ export class PoolUsageTracker {
   }
 
   /** Score one member against a snapshot's windows. */
-  private score(member: ConcretePoolMember, entry: SnapshotEntry): MemberQuota {
+  private score(
+    member: ConcretePoolMember,
+    entry: SnapshotEntry,
+    normalized = false,
+  ): MemberQuota {
     const windows = (entry.snapshot.windows ?? []).filter((window) =>
       windowApplies(window, member.model),
     )
@@ -305,7 +312,12 @@ export class PoolUsageTracker {
     for (const window of windows) {
       if (window.usedPercent >= QUOTA_FULL_PERCENT) available = false
       if (window.usedPercent >= 100) exhausted = true
-      urgency = Math.max(urgency, windowUrgency(window))
+      urgency = Math.max(
+        urgency,
+        normalized
+          ? normalizedWindowUrgency(window, Date.now())
+          : windowUrgency(window),
+      )
     }
     return { available, exhausted, urgency, fetchedAt: entry.at }
   }
@@ -341,6 +353,28 @@ function cooldownFor(error: unknown, defaultTtlMs: number): number {
 function windowApplies(window: UsageWindow, model: string): boolean {
   if (window.scope === undefined) return true
   return model.toLowerCase().includes(window.scope.toLowerCase())
+}
+
+/** Dimensionless urgency for opt-in normalized scheduling. */
+export function normalizedWindowUrgency(
+  window: UsageWindow,
+  now: number,
+): number {
+  const remaining = Math.max(0, Math.min(1, 1 - window.usedPercent / 100))
+  const { windowDurationMs, resetsAt } = window
+  if (
+    windowDurationMs === undefined ||
+    !Number.isFinite(windowDurationMs) ||
+    windowDurationMs <= 0 ||
+    resetsAt === undefined ||
+    !Number.isFinite(resetsAt)
+  )
+    return remaining
+  const timeFraction = Math.min(
+    1,
+    Math.max(0.001, (resetsAt - now) / windowDurationMs),
+  )
+  return remaining / timeFraction
 }
 
 /** The required burn rate of one window (fraction per ms). */

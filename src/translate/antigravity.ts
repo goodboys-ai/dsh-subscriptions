@@ -5,6 +5,8 @@
  */
 
 import { randomUUID } from 'node:crypto'
+import type { AttachmentStore } from '@deepseek-ai/dsh-attachment'
+import { AntigravityOutputImages } from './antigravity-images.js'
 import { ToolCallId } from '../compat.js'
 import { EMPTY_RESPONSE_CODE, LlmError } from '@deepseek-ai/dsh-llm'
 import type {
@@ -251,6 +253,9 @@ export function toAntigravityContents(
           if ('dataBase64' in block) {
             parts.push({
               inlineData: { mimeType: block.mediaType, data: block.dataBase64 },
+              ...(metadata[index]?.thoughtSignature === undefined
+                ? {}
+                : { thoughtSignature: metadata[index].thoughtSignature }),
             })
           }
           break
@@ -428,8 +433,16 @@ export class AntigravityStreamTranslator {
   private closed: AntigravityBlockReplay[] = []
   private nextIndex = 0
   private sawContent = false
+  private sawThoughtImage = false
+  private sawReasoning = false
   private sawToolCall = false
   terminated = false
+  private usage: TokenUsage | undefined
+  private readonly images: AntigravityOutputImages
+
+  constructor(attachments?: AttachmentStore, signal?: AbortSignal) {
+    this.images = new AntigravityOutputImages(attachments, signal)
+  }
 
   private open(
     key: string,
@@ -482,7 +495,7 @@ export class AntigravityStreamTranslator {
       } satisfies AntigravityReplayResponse,
       blocks: this.closed,
     }
-    if (!this.sawContent) {
+    if (!this.sawContent && (!this.sawReasoning || this.sawThoughtImage)) {
       return {
         type: 'finish',
         reason: {
@@ -520,13 +533,21 @@ export class AntigravityStreamTranslator {
   }
 
   /** Process one decoded Antigravity response frame. */
-  push(event: AntigravityResponseEvent): StreamChunk[] {
+  async push(event: AntigravityResponseEvent): Promise<StreamChunk[]> {
     if (this.terminated) return []
     const chunks: StreamChunk[] = []
+    const usage = event.response?.usageMetadata
+    if (usage !== undefined) this.usage = mapAntigravityUsage(usage)
     const candidate = event.response?.candidates?.[0]
     for (const [partIndex, part] of (
       candidate?.content?.parts ?? []
     ).entries()) {
+      if (part.thought === true && part.inlineData !== undefined) {
+        // Intermediate sketches are neither answer attachments nor replayable images.
+        this.closeAll(chunks)
+        this.sawThoughtImage = true
+        continue
+      }
       if (
         part.thought === true &&
         typeof part.text === 'string' &&
@@ -538,7 +559,7 @@ export class AntigravityStreamTranslator {
         block.text += part.text
         if (part.thoughtSignature !== undefined)
           block.thoughtSignature = part.thoughtSignature
-        this.sawContent = true
+        this.sawReasoning = true
         chunks.push({
           type: 'reasoning-delta',
           index: block.index,
@@ -552,6 +573,18 @@ export class AntigravityStreamTranslator {
           block.thoughtSignature = part.thoughtSignature
         this.sawContent = true
         chunks.push({ type: 'text-delta', index: block.index, text: part.text })
+      } else if (part.inlineData !== undefined) {
+        // Publish only after storage/admission succeeds, and keep text blocks split.
+        const block = await this.images.save(part.inlineData)
+        this.closeAll(chunks)
+        const index = this.nextIndex++
+        chunks.push({ type: 'block-start', index, blockType: 'image' })
+        chunks.push({ type: 'block-end', index, block })
+        this.closed[index] =
+          part.thoughtSignature === undefined
+            ? {}
+            : { thoughtSignature: part.thoughtSignature }
+        this.sawContent = true
       } else if (part.functionCall !== undefined) {
         const call = part.functionCall
         const id =
@@ -582,9 +615,8 @@ export class AntigravityStreamTranslator {
     }
     if (candidate?.finishReason !== undefined) {
       this.closeAll(chunks)
-      const usage = event.response?.usageMetadata
-      if (usage !== undefined)
-        chunks.push({ type: 'usage', usage: mapAntigravityUsage(usage) })
+      if (this.usage !== undefined)
+        chunks.push({ type: 'usage', usage: this.usage })
       chunks.push(this.finish(candidate.finishReason))
       this.terminated = true
     }
@@ -596,8 +628,10 @@ export class AntigravityStreamTranslator {
 export async function* streamAntigravity(
   stream: ReadableStream<Uint8Array>,
   onActivity?: () => void,
+  attachments?: AttachmentStore,
+  signal?: AbortSignal,
 ): AsyncGenerator<StreamChunk> {
-  const translator = new AntigravityStreamTranslator()
+  const translator = new AntigravityStreamTranslator(attachments, signal)
   for await (const event of parseSse(stream, onActivity)) {
     if (event.data === '[DONE]') break
     let parsed: AntigravityResponseEvent
@@ -609,7 +643,7 @@ export async function* streamAntigravity(
         'MALFORMED_RESPONSE',
       )
     }
-    yield* translator.push(parsed)
+    yield* await translator.push(parsed)
     if (translator.terminated) return
   }
   if (!translator.terminated) {
@@ -621,8 +655,18 @@ export async function* streamAntigravity(
 }
 
 /** Translate a non-stream generateContent response using the same state machine. */
-export function parseAntigravityResponse(
+export async function parseAntigravityResponse(
   event: AntigravityResponseEvent,
-): StreamChunk[] {
-  return new AntigravityStreamTranslator().push(event)
+  attachments?: AttachmentStore,
+  signal?: AbortSignal,
+): Promise<StreamChunk[]> {
+  const translator = new AntigravityStreamTranslator(attachments, signal)
+  const chunks = await translator.push(event)
+  if (!translator.terminated) {
+    throw new LlmError(
+      'Antigravity response ended before a finish reason',
+      'STREAM_CLOSED',
+    )
+  }
+  return chunks
 }

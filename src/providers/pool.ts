@@ -38,7 +38,7 @@ import type { MemberQuota, PoolUsageTracker } from './pool-usage.js'
 import { streamAccountWithReplay } from './replay.js'
 
 /** Member-selection strategy: plain priority failover or quota-aware scheduling. */
-export type PoolStrategy = 'priority' | 'quota_aware'
+export type PoolStrategy = 'priority' | 'quota_aware' | 'quota_normalized'
 
 export interface PoolAdapterOptions {
   /** The live subscription adapters, by provider route. */
@@ -311,6 +311,7 @@ export class PoolAdapter extends LlmAdapter {
     if (candidates.length === 0)
       throw this.exhaustedWithWarn(options.model, members)
     const failures: LlmError[] = []
+    const emptied: ConcretePoolMember[] = []
     for (const member of candidates) {
       const adapter = this.options.adapters[member.provider]
       if (adapter === undefined) continue
@@ -321,13 +322,36 @@ export class PoolAdapter extends LlmAdapter {
         member.model,
       )[Symbol.asyncIterator]()
       let first: IteratorResult<StreamChunk>
+      const leading: StreamChunk[] = []
       try {
         first = await iterator.next()
+        // Usage is not answer content. Buffer it until the first real chunk so
+        // an ensuing empty-response finish still enters the failover path.
+        while (first.done !== true && first.value.type === 'usage') {
+          leading.push(first.value)
+          first = await iterator.next()
+        }
         if (first.done === true) {
           throw new LlmError(
             `${memberLabel(member)} returned an empty stream`,
             EMPTY_RESPONSE_CODE,
           )
+        }
+        if (
+          first.value.type === 'finish' &&
+          first.value.reason.kind === 'error'
+        ) {
+          const failure = first.value.reason.failure
+          try {
+            await iterator.return?.()
+          } catch {
+            // Preserve the member's original failure when closing the stream.
+          }
+          throw new LlmError(failure.message, failure.code, {
+            ...(failure.providerRetryAfterMs === undefined
+              ? {}
+              : { providerRetryAfterMs: failure.providerRetryAfterMs }),
+          })
         }
       } catch (error: unknown) {
         const classification = classifyPoolFailure(error, member.provider)
@@ -356,6 +380,7 @@ export class PoolAdapter extends LlmAdapter {
             ` (${error instanceof Error ? error.message : String(error)}); trying the next member`,
         )
         failures.push(error)
+        if (error.code === EMPTY_RESPONSE_CODE) emptied.push(member)
         continue
       }
       this.remember(options.model, options.sessionId, member)
@@ -366,6 +391,7 @@ export class PoolAdapter extends LlmAdapter {
       // closure the way `yield*` would, and a half-consumed member stream
       // must not linger holding its connection.
       try {
+        yield* leading
         yield first.value
         for (
           let next = await iterator.next();
@@ -383,7 +409,14 @@ export class PoolAdapter extends LlmAdapter {
       }
       return
     }
-    throw this.exhaustedWithWarn(options.model, members, failures)
+    const retryNow = emptied.some((member) =>
+      this.options.health.isMemberAvailable(
+        member.provider,
+        member.account,
+        member.model,
+      ),
+    )
+    throw this.exhaustedWithWarn(options.model, members, failures, retryNow)
   }
 
   /**
@@ -413,7 +446,13 @@ export class PoolAdapter extends LlmAdapter {
       await Promise.all(
         usable.map(
           async (member) =>
-            [member, await this.options.usage.quotaFor(member)] as const,
+            [
+              member,
+              await this.options.usage.quotaFor(
+                member,
+                this.options.strategy === 'quota_normalized',
+              ),
+            ] as const,
         ),
       ),
     )
@@ -502,8 +541,9 @@ export class PoolAdapter extends LlmAdapter {
     model: string,
     pool: ConcretePoolMember[],
     failures: readonly LlmError[] = [],
+    retryNow = false,
   ): LlmError {
-    const error = this.exhausted(model, pool, failures)
+    const error = this.exhausted(model, pool, failures, retryNow)
     this.options.onWarn(
       `pool "${model}": exhausted (${error.code}: ${error.message})`,
     )
@@ -515,6 +555,7 @@ export class PoolAdapter extends LlmAdapter {
     model: string,
     pool: ConcretePoolMember[],
     failures: readonly LlmError[] = [],
+    retryNow = false,
   ): LlmError {
     if (pool.length === 0) {
       return new LlmError(
@@ -527,7 +568,11 @@ export class PoolAdapter extends LlmAdapter {
       keys.add(memberKey(member.provider, member.account, member.model))
       keys.add(accountKey(member.provider, member.account))
     }
-    const recovery = this.options.health.earliestRecovery(keys)
+    // An empty completion leaves its member immediately retryable; unrelated
+    // cooldowns must not tell the caller to wait when that member can serve now.
+    const recovery = retryNow
+      ? undefined
+      : this.options.health.earliestRecovery(keys)
     const retryAfterMs =
       recovery === undefined ? undefined : Math.max(recovery - Date.now(), 1)
     const coolingReasons = this.options.health.unavailableReasons(keys)
@@ -548,8 +593,9 @@ export class PoolAdapter extends LlmAdapter {
       // replace that snapshot to correct only providerRetryAfterMs for pool
       // routing; this is not permission to rewrite other frozen failure facts.
       if (
-        retryAfterMs !== undefined &&
-        retryAfterMs !== failure.failure.providerRetryAfterMs
+        (retryNow && failure.failure.providerRetryAfterMs !== undefined) ||
+        (retryAfterMs !== undefined &&
+          retryAfterMs !== failure.failure.providerRetryAfterMs)
       ) {
         Object.defineProperty(failure, 'failure', {
           value: Object.freeze({

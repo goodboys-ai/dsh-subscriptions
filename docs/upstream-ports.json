@@ -7,10 +7,10 @@
     "date": "2026-09-28"
   },
   "upstreamRef": {
-    "sha": "be350cd7",
+    "sha": "8193df1b",
     "note": "Full sha is re-derived by the check from the remote ref; recorded here for humans."
   },
-  "updatedAt": "2026-11-04",
+  "updatedAt": "2026-11-06",
   "entries": [
     {
       "upstream": "527f4d90",
@@ -445,6 +445,238 @@
         "test:ui": "test/subscription-usage-badge.spec.ts"
       },
       "reason": "Both strategies exclude known exhausted members before selection and paid fallback, retain urgency for near-full accounts, and add bilingual Codex exhaustion guidance without weakening failure cooldowns."
+    },
+    {
+      "upstream": "fde9a6d6",
+      "subject": "fix(grok): order CLI catalog reasoning efforts weakest-first",
+      "status": "ported",
+      "area": "grok",
+      "forkCommits": ["1729bed"],
+      "evidence": { "test": "test/models.spec.ts" },
+      "reason": "Sorts known efforts weakest-first with stable unknown-id ordering and no object-prototype lookups."
+    },
+    {
+      "upstream": "493aa796",
+      "subject": "docs: list a sidebar model-icon companion under Related plugins",
+      "status": "ported",
+      "area": "docs",
+      "forkCommits": ["1729bed"],
+      "evidence": { "docs": "docs/upstream-README.md" },
+      "reason": "Refreshes the final upstream bilingual README snapshot, including the sidebar companion entry."
+    },
+    {
+      "upstream": "faca32c3",
+      "subject": "fix(pool): switch members on an empty completion without a cooldown",
+      "status": "ported",
+      "area": "pool",
+      "forkCommits": ["1729bed"],
+      "evidence": { "test": "test/pool.spec.ts" },
+      "reason": "Converts initial error finishes into failover even after leading usage, leaves empty members immediately retryable, and suppresses unrelated recovery waits."
+    },
+    {
+      "upstream": "c8a81487",
+      "subject": "fix: remember composer speed per model across switches and restarts",
+      "status": "ported",
+      "area": "codex",
+      "forkCommits": ["1729bed"],
+      "evidence": {
+        "test": "test/model-speeds.spec.ts",
+        "test:ui": "test/speed-select.spec.ts",
+        "test:rpc": "test/subagent-speed.spec.ts"
+      },
+      "reason": "Adds durable per-model composer choices and stale-selection guards while retaining the fork's model watch, bounded mount retries, and legacy session-only behavior."
+    },
+    {
+      "upstream": "f5348e5b",
+      "subject": "feat(pool): normalize burn rate urgency across multi-tier quota windows",
+      "status": "ported",
+      "area": "pool",
+      "forkCommits": ["1729bed"],
+      "evidence": { "test": "test/pool.spec.ts" },
+      "reason": "Includes the normalized scoring concept only in its final opt-in form after 43843476, leaving the default absolute burn-rate strategy unchanged."
+    },
+    {
+      "upstream": "5d89c40e",
+      "subject": "Merge pull request #142 from Mintapril/fix/grok-effort-ascending-order",
+      "status": "ported",
+      "area": "grok",
+      "forkCommits": ["1729bed"],
+      "reason": "Merge-only integration of fde9a6d6; no additional behavior remains to port."
+    },
+    {
+      "upstream": "38fcb061",
+      "subject": "fix(antigravity): persist generated images and preserve image-only responses",
+      "status": "ported",
+      "area": "antigravity",
+      "forkCommits": ["1729bed"],
+      "evidence": {
+        "test": "test/antigravity-images.spec.ts",
+        "docs": "docs/antigravity-output-images.md"
+      },
+      "reason": "Persists final images before host emission, preserves ordering, signatures, replay and usage, and keeps validation or storage failures outside account cooldowns."
+    },
+    {
+      "upstream": "fa7559c2",
+      "subject": "Merge current main into PR #163 and reconcile pool documentation",
+      "status": "ported",
+      "area": "pool",
+      "forkCommits": ["1729bed"],
+      "reason": "Merge-only reconciliation covered by the final empty-response behavior and upstream README snapshot."
+    },
+    {
+      "upstream": "8fe2984a",
+      "subject": "Merge main into #145 and clarify host catalog use in both READMEs",
+      "status": "ported",
+      "area": "docs",
+      "forkCommits": ["1729bed"],
+      "reason": "Merge-only documentation integration covered by the final bilingual README snapshot."
+    },
+    {
+      "upstream": "14da5e4e",
+      "subject": "Integrate #162 with stale-selection guards and BOM-safe speed settings",
+      "status": "ported",
+      "area": "codex",
+      "forkCommits": ["1729bed"],
+      "reason": "Integration-only combination covered by the model-bound Speed and shared BOM parser implementations."
+    },
+    {
+      "upstream": "2c396189",
+      "subject": "Accept a leading UTF-8 BOM in subscription JSON stores (#185)",
+      "status": "ported",
+      "area": "storage",
+      "forkCommits": ["1729bed"],
+      "evidence": { "test": "test/json-bom.spec.ts" },
+      "reason": "Uses one BOM-tolerant parser for auth, provider settings, model defaults, model speeds, and catalog caches; the retired proxy store is not applicable."
+    },
+    {
+      "upstream": "27148c03",
+      "subject": "Honor valid Codex stream retry hints through pool cooldown (#185)",
+      "status": "ported",
+      "area": "codex",
+      "forkCommits": ["1729bed"],
+      "evidence": {
+        "test": "test/responses-failure.spec.ts",
+        "test:pool": "test/pool.spec.ts"
+      },
+      "reason": "Parses nested and flat Responses retry metadata and propagates valid delays through Codex cooldowns while preserving provider-text redaction."
+    },
+    {
+      "upstream": "07e9722e",
+      "subject": "Correct conflicting Gemini display labels without creating model IDs (#165)",
+      "status": "ported",
+      "area": "antigravity",
+      "forkCommits": ["1729bed"],
+      "evidence": { "test": "test/antigravity.spec.ts" },
+      "reason": "Corrects stale labels only when the wire enum and existing catalog ID agree, preserving all service IDs and unrelated labels."
+    },
+    {
+      "upstream": "9210a4cf",
+      "subject": "Merge pull request #191 from V1ki/review/145-sidebar-docs",
+      "status": "ported",
+      "area": "docs",
+      "forkCommits": ["1729bed"],
+      "reason": "Merge-only integration covered by 493aa796 and the final README snapshots."
+    },
+    {
+      "upstream": "be301211",
+      "subject": "Merge pull request #192 from V1ki/review/163-empty-response",
+      "status": "ported",
+      "area": "pool",
+      "forkCommits": ["1729bed"],
+      "reason": "Merge-only integration covered by faca32c3 and the final pool regressions."
+    },
+    {
+      "upstream": "732aeba5",
+      "subject": "Merge pull request #193 from V1ki/review/162-model-speed",
+      "status": "ported",
+      "area": "codex",
+      "forkCommits": ["1729bed"],
+      "reason": "Merge-only integration covered by c8a81487 and the final Speed tests."
+    },
+    {
+      "upstream": "53cdee13",
+      "subject": "Merge pull request #194 from V1ki/review/185-storage-bom",
+      "status": "ported",
+      "area": "storage",
+      "forkCommits": ["1729bed"],
+      "reason": "Merge-only integration covered by 2c396189 and the shared parser tests."
+    },
+    {
+      "upstream": "b94f7502",
+      "subject": "Merge pull request #195 from V1ki/review/185-retry-after",
+      "status": "ported",
+      "area": "codex",
+      "forkCommits": ["1729bed"],
+      "reason": "Merge-only integration covered by 27148c03 and the cooldown regressions."
+    },
+    {
+      "upstream": "20132667",
+      "subject": "Merge pull request #196 from V1ki/review/165-model-names",
+      "status": "ported",
+      "area": "antigravity",
+      "forkCommits": ["1729bed"],
+      "reason": "Merge-only integration covered by 07e9722e and the catalog-name tests."
+    },
+    {
+      "upstream": "979675c1",
+      "subject": "Merge commit 'refs/turn137/main' into HEAD",
+      "status": "ported",
+      "area": "upstream",
+      "forkCommits": ["1729bed"],
+      "reason": "Branch-integration commit; its constituent fixes are individually classified and included in 1729bed."
+    },
+    {
+      "upstream": "5b21b9c9",
+      "subject": "Merge commit 'refs/turn137/main' into HEAD",
+      "status": "ported",
+      "area": "upstream",
+      "forkCommits": ["1729bed"],
+      "reason": "Second branch-integration commit with no additional diff beyond the individually ported fixes."
+    },
+    {
+      "upstream": "7bc7fa6b",
+      "subject": "Keep intermediate Antigravity images out of answers and replay",
+      "status": "ported",
+      "area": "antigravity",
+      "forkCommits": ["1729bed"],
+      "evidence": { "test": "test/antigravity-images.spec.ts" },
+      "reason": "Skips thought-marked inline sketches without saving or replaying them and still returns EMPTY_RESPONSE when no final content exists."
+    },
+    {
+      "upstream": "43843476",
+      "subject": "Make normalized quota pacing opt-in and use reported window lengths",
+      "status": "ported",
+      "area": "pool",
+      "forkCommits": ["1729bed"],
+      "evidence": {
+        "test": "test/pool-usage.spec.ts",
+        "test:pool": "test/pool.spec.ts"
+      },
+      "reason": "Adds quota_normalized using the fork's windowDurationMs telemetry and remaining-fraction fallback, while keeping quota_aware as the default and preserving all exhaustion guards."
+    },
+    {
+      "upstream": "cac7bb3f",
+      "subject": "Merge pull request #189 from V1ki/fix/186-antigravity-output-images",
+      "status": "ported",
+      "area": "antigravity",
+      "forkCommits": ["1729bed"],
+      "reason": "Merge-only integration covered by 38fcb061 and the image adapter/pool tests."
+    },
+    {
+      "upstream": "f03ec8e1",
+      "subject": "Merge commit 'refs/turn137/with189' into HEAD",
+      "status": "ported",
+      "area": "upstream",
+      "forkCommits": ["1729bed"],
+      "reason": "Integration-only combination of the already classified pool and image changes."
+    },
+    {
+      "upstream": "8193df1b",
+      "subject": "Merge pull request #197 from V1ki/review/188-normalized-quota",
+      "status": "ported",
+      "area": "pool",
+      "forkCommits": ["1729bed"],
+      "reason": "Final merge integration covered by 43843476 and the normalized strategy regressions."
     }
   ]
 }

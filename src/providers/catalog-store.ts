@@ -22,6 +22,7 @@ import type {
   CatalogSnapshot,
   DiscoveredModel,
 } from './common.js'
+import { parseJsonText } from '../json-text.js'
 
 /**
  * Absolute path of the catalog store file.
@@ -221,7 +222,8 @@ async function readCatalogFile(path: string): Promise<CatalogFile> {
     return {}
   }
   try {
-    const parsed: unknown = JSON.parse(text)
+    // A leading BOM must not hide a hand-edited cache behind the static catalog.
+    const parsed: unknown = parseJsonText(text)
     if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed))
       return {}
     return parsed as CatalogFile

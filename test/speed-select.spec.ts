@@ -14,6 +14,7 @@ import {
   SPEED_MOUNT_READ_ATTEMPTS,
   createModelSelectionWatch,
   createSpeedLoader,
+  createSpeedSetter,
   MODEL_DIRECTORY_POLL_INTERVAL_MS,
 } from '../src/client/SpeedSelect.js'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-api-remotes/client'
@@ -124,6 +125,50 @@ describe('speed select load timing', { concurrency: false }, () => {
     }
   })
 
+  test('SpeedSelect mount retry does not invalidate a slow in-flight read', async () => {
+    mock.timers.enable({ apis: ['setInterval'] })
+    const uninstall = installWindow()
+    try {
+      let calls = 0
+      const pending: (() => void)[] = []
+      const component = new Component(
+        () =>
+          SpeedSelect({
+            loadSpeed: () => {
+              calls += 1
+              return new Promise<{ visible: true; tier: 'standard' }>(
+                (resolve) => {
+                  pending.push(() =>
+                    resolve({ visible: true, tier: 'standard' }),
+                  )
+                },
+              )
+            },
+            setSpeed: async () => true,
+            watchModel: () => () => {},
+          } as SpeedSelectProps) as Node,
+      )
+      component.render()
+      await settle(component)
+      assert.equal(calls, 1)
+      mock.timers.tick(MODEL_DIRECTORY_POLL_INTERVAL_MS * 2)
+      await settle(component)
+      assert.equal(calls, 1, 'timer ticks must not invalidate the same read')
+      assert.equal(component.tree, null)
+      pending.shift()!()
+      await settle(component)
+      assert.equal(calls, 1)
+      assert.notEqual(component.tree, null)
+      mock.timers.tick(MODEL_DIRECTORY_POLL_INTERVAL_MS * 3)
+      await settle(component)
+      assert.equal(calls, 1, 'a successful read stops mount retries')
+      component.unmount()
+    } finally {
+      uninstall()
+      mock.timers.reset()
+    }
+  })
+
   test('createSpeedLoader hides a session whose model selection is unavailable', async () => {
     let speedCalls = 0
     const load = createSpeedLoader(
@@ -184,7 +229,11 @@ describe('speed select load timing', { concurrency: false }, () => {
       }),
       'child',
     )
-    assert.deepEqual(await load(), { visible: true, tier: 'fast' })
+    assert.deepEqual(await load(), {
+      visible: true,
+      tier: 'fast',
+      model: 'fast-model',
+    })
     current = { provider: 'codex', model: 'plain-model' }
     assert.deepEqual(await load(), { visible: false, tier: 'standard' })
     current = { provider: 'claude', model: 'fast-model' }
@@ -198,6 +247,45 @@ describe('speed select load timing', { concurrency: false }, () => {
       await createSpeedLoader(connection, () => undefined, 'unknown')(),
       { visible: false, tier: 'standard' },
     )
+  })
+
+  test('speed loads and saves reject stale model selections', async () => {
+    let current = { provider: 'codex', model: 'fast-model' }
+    const requests: unknown[] = []
+    const connection = {
+      rpc: {
+        call: async (
+          _channel: string,
+          _endpoint: string,
+          payload: { model?: string },
+        ) => {
+          requests.push(payload)
+          return {
+            ok: true,
+            value: { tier: 'fast', fastModels: ['fast-model'] },
+          }
+        },
+      },
+    } as unknown as ConnectionHandle
+    const models = () => ({
+      directoryFor: () => ({ load: async () => ({ current }) }),
+    })
+    const load = createSpeedLoader(connection, models, 'session')
+    const pending = load()
+    current = { provider: 'codex', model: 'other-model' }
+    await assert.rejects(pending, /Model changed while loading speed/)
+
+    requests.length = 0
+    current = { provider: 'codex', model: 'fast-model' }
+    const set = createSpeedSetter(connection, 'session', models)
+    assert.equal(await set('fast', 'other-model'), false)
+    assert.equal(requests.length, 0)
+    assert.equal(await set('fast', 'fast-model'), true)
+    assert.deepEqual(requests, [
+      { sessionId: 'session', tier: 'fast', model: 'fast-model' },
+    ])
+    current = { provider: 'claude', model: 'fast-model' }
+    assert.equal(await set('standard'), false)
   })
 
   test('SpeedSelect retries a failed mount read, then stops', async () => {
