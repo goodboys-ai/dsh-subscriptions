@@ -77,7 +77,13 @@ try {
   const menu = page.getByRole('menu', { name: 'Speed', exact: true })
   await menu.waitFor()
   const bounds = await menu.boundingBox()
-  assert.ok(bounds && bounds.y >= 0 && bounds.y + bounds.height <= 420)
+  assert.ok(
+    bounds &&
+      bounds.x >= 0 &&
+      bounds.x + bounds.width <= 600 &&
+      bounds.y >= 0 &&
+      bounds.y + bounds.height <= 420,
+  )
   const screenshot =
     process.env.SPEED_SCREENSHOT ?? '.cache/speed-model-memory.png'
   await mkdir(dirname(screenshot), { recursive: true })

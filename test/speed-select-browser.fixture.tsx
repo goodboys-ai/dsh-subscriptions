@@ -59,7 +59,9 @@ function Fixture() {
   const [locale, setLocale] = useState<'en' | 'zh'>('en')
   const dictionary = locale === 'en' ? en : zh
   return (
-    <main style={{ fontFamily: 'sans-serif', padding: '150px 24px 24px' }}>
+    <main
+      style={{ fontFamily: 'sans-serif', padding: '150px 24px 24px 260px' }}
+    >
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
         <button
           onClick={() => {
