@@ -231,7 +231,7 @@ interface PoolHarness {
 function makePool(
   adapters: Partial<Record<ProviderId, FakeAdapter>>,
   options: {
-    strategy?: 'priority' | 'quota_aware'
+    strategy?: 'priority' | 'quota_aware' | 'quota_normalized'
     switchMargin?: number
     usage?: (
       provider: ProviderId,
@@ -657,6 +657,59 @@ test('quota_aware: the most urgent window (soon reset, plenty left) wins', async
   assert.equal((chunks[0] as { text: string }).text, 'a2')
 })
 
+for (const strategy of ['quota_aware', 'quota_normalized'] as const) {
+  test(`${strategy}: mixed session and weekly windows use their own scoring units`, async () => {
+    const codex = new FakeAdapter((_options, account) => serveOk(account))
+    const { pool } = makePool(
+      { codex },
+      {
+        strategy,
+        usage: usageFetchers({
+          'codex/a1': {
+            supported: true,
+            windows: [
+              {
+                kind: 'session',
+                windowDurationMs: 18_000_000,
+                usedPercent: 20,
+                resetsAt: Date.now() + 3 * 60 * 60_000,
+              },
+              {
+                kind: 'weekly',
+                windowDurationMs: 604_800_000,
+                usedPercent: 10,
+                resetsAt: Date.now() + 6 * 24 * 60 * 60_000,
+              },
+            ],
+          },
+          'codex/a2': {
+            supported: true,
+            windows: [
+              {
+                kind: 'session',
+                windowDurationMs: 18_000_000,
+                usedPercent: 0,
+                resetsAt: Date.now() + 5 * 60 * 60_000,
+              },
+              {
+                kind: 'weekly',
+                windowDurationMs: 604_800_000,
+                usedPercent: 5,
+                resetsAt: Date.now() + 36 * 60 * 60_000,
+              },
+            ],
+          },
+        }),
+      },
+    )
+    const chunks = await collect(pool.stream(OPTIONS))
+    assert.equal(
+      (chunks[0] as { text: string }).text,
+      strategy === 'quota_aware' ? 'a1' : 'a2',
+    )
+  })
+}
+
 test('quota_aware: a near-full account is deferred behind a healthy account', async () => {
   const codex = new FakeAdapter((_options, account) => serveOk(account))
   const { pool } = makePool(
@@ -673,7 +726,11 @@ test('quota_aware: a near-full account is deferred behind a healthy account', as
   assert.deepEqual(codex.accounts, ['a1'])
 })
 
-for (const strategy of ['priority', 'quota_aware'] as const) {
+for (const strategy of [
+  'priority',
+  'quota_aware',
+  'quota_normalized',
+] as const) {
   for (const full of [100, 105])
     test(`${strategy}: ${full}% never spends credits ahead of 95%`, async () => {
       const codex = new FakeAdapter((_options, account) => serveOk(account))
@@ -1045,6 +1102,73 @@ test('stream: request-fault failures rethrow without trying other accounts', asy
   assert.equal(health.isAvailable(memberKey('codex', 'a1', 'm')), true)
 })
 
+test('stream: an empty completion fails over without parking the member', async () => {
+  const codex = new FakeAdapter((_options, account) =>
+    account === 'a1'
+      ? serveFail(new LlmError('empty response', 'EMPTY_RESPONSE'))
+      : serveOk('a2'),
+  )
+  const { pool, health } = makePool({ codex })
+  const chunks = await collect(pool.stream(OPTIONS))
+  assert.equal((chunks[0] as { text: string }).text, 'a2')
+  assert.equal(health.isMemberAvailable('codex', 'a1', 'm'), true)
+})
+
+test('stream: empty completions in one session do not stall another session', async () => {
+  const codex = new FakeAdapter((options, account) =>
+    options.sessionId === SessionId('poison')
+      ? serveFail(new LlmError('empty response', 'EMPTY_RESPONSE'))
+      : serveOk(account),
+  )
+  const { pool } = makePool({ codex })
+  await assert.rejects(
+    collect(pool.stream({ ...OPTIONS, sessionId: SessionId('poison') })),
+    (error: unknown) => {
+      assert.ok(error instanceof LlmError)
+      assert.equal(error.code, 'EMPTY_RESPONSE')
+      assert.equal(error.failure.providerRetryAfterMs, undefined)
+      return true
+    },
+  )
+  const chunks = await collect(
+    pool.stream({ ...OPTIONS, sessionId: SessionId('healthy') }),
+  )
+  assert.equal((chunks[0] as { text: string }).text, 'a1')
+  assert.deepEqual(codex.accounts, ['a1', 'a2', 'a1'])
+})
+
+for (const strategy of [
+  'priority',
+  'quota_aware',
+  'quota_normalized',
+] as const) {
+  test(`stream: ${strategy} gives no wait when an empty member can retry at once`, async () => {
+    let empties = 0
+    const codex = new FakeAdapter((_options, account) => {
+      if (account === 'a1')
+        return serveFail(
+          new LlmError('usage limit', 'RATE_LIMIT', {
+            providerRetryAfterMs: 3 * 24 * 60 * 60_000,
+          }),
+        )
+      return empties++ === 0
+        ? serveFail(new LlmError('empty response', 'EMPTY_RESPONSE'))
+        : serveOk(account)
+    })
+    const { pool, health } = makePool({ codex }, { strategy })
+    await assert.rejects(collect(pool.stream(OPTIONS)), (error: unknown) => {
+      assert.ok(error instanceof LlmError)
+      assert.equal(error.code, 'EMPTY_RESPONSE')
+      assert.equal(error.failure.providerRetryAfterMs, undefined)
+      return true
+    })
+    assert.equal(health.isMemberAvailable('codex', 'a2', 'm'), true)
+    const chunks = await collect(pool.stream(OPTIONS))
+    assert.equal((chunks[0] as { text: string }).text, 'a2')
+    assert.deepEqual(codex.accounts, ['a1', 'a2', 'a2'])
+  })
+}
+
 test('stream: an empty first stream counts as a transient failure', async () => {
   const codex = new FakeAdapter((_options, account) =>
     account === 'a1' ? serveEmpty() : serveOk('a2'),
@@ -1104,9 +1228,9 @@ test('stream: recovery hint revision uses scoped recovery before the member hint
   t.mock.method(Date, 'now', () => 1000)
   for (const [code, ownHint, expected] of [
     ['SERVER', undefined, 60_000],
-    ['SERVER', 10_000, 60_000],
+    ['SERVER', 10_000, 10_000],
     ['SERVER', 60_000, 60_000],
-    ['SERVER', 90_000, 60_000],
+    ['SERVER', 90_000, 90_000],
     ['TRANSPORT', 10_000, 10_000],
     ['TRANSPORT', undefined, undefined],
   ] as const) {
@@ -1151,7 +1275,7 @@ test('stream: recovery hint revision uses scoped recovery before the member hint
 
 test('stream: recovery hint revision uses the earliest member recovery despite a late AUTH cooldown', async (t) => {
   t.mock.method(Date, 'now', () => 1000)
-  for (const earliest of [60_000, 30_000]) {
+  for (const earliest of [120_000, 30_000]) {
     const cause = new Error('fixture outage')
     const failure = new LlmError('provider temporarily unavailable', 'SERVER', {
       status: 503,
@@ -1474,6 +1598,39 @@ test('stream: mixed cooldowns do not turn a fresh quota failure into pure rate-l
     return true
   })
   assert.deepEqual(codex.accounts, ['a2'])
+})
+
+test('Codex stream overload preserves retry seconds through pool exhaustion', async (t) => {
+  const now = Date.now()
+  t.mock.timers.enable({ apis: ['Date'], now })
+  const { ResponsesStreamTranslator } =
+    await import('../src/translate/responses.js')
+  const codex = new FakeAdapter(
+    // eslint-disable-next-line require-yield -- the Responses failure throws before any chunk
+    async function* () {
+      new ResponsesStreamTranslator().push({
+        type: 'response.failed',
+        response: {
+          error: {
+            code: 'server_is_overloaded',
+            message: 'busy',
+            headers: { 'retry-after-ms': null, 'retry-after': '120' },
+          },
+        },
+      })
+    },
+  )
+  const { pool } = makePool({ codex })
+  for (const expected of [120000, 30000]) {
+    await assert.rejects(collect(pool.stream(OPTIONS)), (error: unknown) => {
+      assert.ok(error instanceof LlmError)
+      assert.equal(error.code, 'SERVER')
+      assert.equal(error.failure.providerRetryAfterMs, expected)
+      return true
+    })
+    assert.deepEqual(codex.accounts, ['a1', 'a2'])
+    t.mock.timers.tick(90000)
+  }
 })
 
 test('stream: an exhausted pool throws RATE_LIMIT with the earliest recovery hint', async (t) => {

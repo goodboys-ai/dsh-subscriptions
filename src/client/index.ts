@@ -191,7 +191,7 @@ export function apply(ctx: ClientContext): void {
         locale: NS,
         inject: (sessionId: string): SpeedSelectInjected => ({
           loadSpeed: createSpeedLoader(connection, models, sessionId),
-          setSpeed: createSpeedSetter(connection, sessionId),
+          setSpeed: createSpeedSetter(connection, sessionId, models),
           watchModel: createModelSelectionWatch(models, sessionId),
         }),
       },
@@ -271,6 +271,7 @@ export function apply(ctx: ClientContext): void {
               const wrote = await createSpeedSetter(
                 connection,
                 session.sessionId,
+                models,
               )(option.id as 'standard' | 'fast')
               if (wrote) notifySpeedChanged()
             },

@@ -118,7 +118,7 @@ for (const mode of ['independent', 'pool', 'direct'] as const) {
         ): AsyncIterable<StreamChunk> {
           wire = toAntigravityContents(options.messages, options.model)
           const translator = new AntigravityStreamTranslator()
-          yield* translator.push({
+          yield* await translator.push({
             response: {
               candidates: [
                 {

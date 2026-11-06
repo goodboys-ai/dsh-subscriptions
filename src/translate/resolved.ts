@@ -249,12 +249,15 @@ export async function resolveImages(
   }
   const resolveBlock = async (
     block: TranslatableBlock,
+    assistant = false,
   ): Promise<TranslatableBlock[]> => {
     if (block.type === 'tool-result') {
       return [
         {
           ...block,
-          content: (await Promise.all(block.content.map(resolveBlock))).flat(),
+          content: (
+            await Promise.all(block.content.map((part) => resolveBlock(part)))
+          ).flat(),
         },
       ]
     }
@@ -282,12 +285,16 @@ export async function resolveImages(
       ref,
     } = await readForRequest(block.attachment)
     const { attachmentId, mediaType, bytes, width, height, name } = ref
+    const image: ResolvedImagePart = {
+      type: 'image',
+      mediaType: sentType,
+      dataBase64: Buffer.from(data).toString('base64'),
+    }
+    // Assistant replay metadata is indexed by content block. A helper text
+    // block here would shift every later thought signature onto the wrong block.
+    if (assistant) return [image]
     return [
-      {
-        type: 'image',
-        mediaType: sentType,
-        dataBase64: Buffer.from(data).toString('base64'),
-      },
+      image,
       {
         type: 'text',
         text: `Image reference (for image_generate.referenceImages): ${JSON.stringify(
@@ -310,7 +317,13 @@ export async function resolveImages(
       ...(message.role === 'tool'
         ? { toolCallId: message.toolCallId, isError: message.isError }
         : {}),
-      content: (await Promise.all(message.content.map(resolveBlock))).flat(),
+      content: (
+        await Promise.all(
+          message.content.map((block) =>
+            resolveBlock(block, message.role === 'assistant'),
+          ),
+        )
+      ).flat(),
     })),
   )
 }

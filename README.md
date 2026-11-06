@@ -72,7 +72,8 @@ overrides either.
 ![Reasoning effort selector](docs/images/model-effort.png)
 
 Codex models whose catalog advertises the fast tier get a **Speed** toggle in
-the composer's tool row: Standard or Fast, per session.
+the composer's tool row: Standard or Fast, remembered separately for each model
+across restarts.
 
 ![Speed toggle with the Standard/Fast menu open](docs/images/speed-toggle.png)
 
@@ -85,13 +86,21 @@ support it, and it does not enlarge the API's capacity.
 For Codex, **Subagent default speed** applies to subsequent subagent requests
 using that model, regardless of the parent model. An explicit Speed choice in
 the subagent session overrides the saved default, and a parent's choice never
-propagates. The default survives restart; session overrides do not. Fast still
-requires current model support, and requests without live subagent metadata use
-Standard.
+propagates. The default and model-bound composer choices survive restart; legacy
+model-less session overrides do not. Fast still requires current model support,
+and requests without live subagent metadata use Standard.
 
 ![Model settings](docs/images/model-settings.png)
 
 ![Provider tools](docs/images/provider-tools.png)
+
+Final Antigravity `inlineData` images become durable, attachment-backed image
+blocks in both streaming and JSON responses, with ordered text and replay
+signatures. Intermediate thought sketches are not answer attachments. Image
+output requires the host attachment store; malformed images, disabled media
+types, missing storage, and host admission failures stop the attempt instead of
+being silently discarded or charged as an account failure. See
+[Antigravity output images](docs/antigravity-output-images.md).
 
 ### Quota while you work
 

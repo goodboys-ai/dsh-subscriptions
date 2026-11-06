@@ -1,5 +1,30 @@
 # Changelog
 
+## v0.3.2 — 2026-11-06
+
+- **Antigravity output images.** SSE and JSON responses now persist final
+  `inlineData` images as host attachment-backed blocks before emitting them,
+  preserving order, thought signatures, replay, usage, and completion reasons.
+  Intermediate thought sketches stay out of answers and replay. Invalid images,
+  missing storage, and host admission failures report explicit errors.
+- **Composer Speed persists per model.** Standard/Fast choices survive restart
+  independently for each Codex model, separately from subagent defaults. Loading
+  and saving reject stale model selections; legacy model-less RPC callers retain
+  session-only overrides.
+- **Pool failover honors empty responses and retry hints.** Empty completions
+  switch without parking the member or leaking another member's wait into the
+  terminal error, including an initial usage chunk. Codex Responses errors keep
+  valid `retry-after` / `retry-after-ms` hints through member cooldowns without
+  exposing provider text.
+- **Opt-in normalized quota pacing.** `pool.strategy: quota_normalized` compares
+  remaining quota against each window's elapsed-time fraction using reported
+  durations. The default `quota_aware` strategy and absolute burn-rate scoring
+  remain unchanged; all strategies preserve exhaustion and stale-cache guards.
+- **Catalog and storage robustness.** Grok reasoning efforts sort weakest-first,
+  Gemini labels are corrected only when the catalog ID and wire enum agree, and
+  plugin-owned JSON stores accept a leading UTF-8 BOM without changing their
+  malformed-file error paths.
+
 ## v0.3.1 — 2026-11-04
 
 - **DSH 0.2.2-rc.1 support.** The gated support window now covers DSH

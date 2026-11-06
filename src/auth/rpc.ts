@@ -96,8 +96,8 @@ export interface SpeedState {
 export interface SpeedController {
   /** Pass the current Codex model to resolve a subagent's default speed. */
   speed(sessionId: string, model?: string): Promise<SpeedState>
-  /** Set one session's speed tier. */
-  setSpeed(sessionId: string, tier: SpeedTier): Promise<void>
+  /** Set the session override and persist it for this model when supplied. */
+  setSpeed(sessionId: string, tier: SpeedTier, model?: string): Promise<void>
 }
 
 /** One logged-in account, as rendered by the Settings page. */
@@ -798,7 +798,13 @@ async function dispatch(
         ),
       )
     case 'setSpeed':
-      await speed.setSpeed(readSessionId(payload), readSpeedTier(payload))
+      await speed.setSpeed(
+        readSessionId(payload),
+        readSpeedTier(payload),
+        (payload as Record<string, unknown>).model === undefined
+          ? undefined
+          : readString(payload, 'model'),
+      )
       return ok({ ok: true })
     case 'modelDefaults': {
       if (modelDefaults === undefined)

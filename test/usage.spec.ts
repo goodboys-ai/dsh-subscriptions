@@ -420,6 +420,7 @@ test('fetchGrokUsage maps the credits-config shape (weekly percent + reset)', as
         usedPercent: 2,
         startsAt: Date.parse('2026-08-11T10:14:00Z'),
         resetsAt: Date.parse('2026-08-18T10:14:00Z'),
+        windowDurationMs: 7 * 24 * 60 * 60_000,
       },
     ],
   })

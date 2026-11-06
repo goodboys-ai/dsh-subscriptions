@@ -246,11 +246,13 @@ export interface ResponsesStreamEvent {
   response?: {
     status?: string
     usage?: ResponsesUsage
-    error?: { code?: string; message?: string }
+    error?: { code?: string; message?: string; headers?: unknown }
     incomplete_details?: { reason?: string }
   }
   code?: string
   message?: string
+  /** Nested error shape emitted by Codex; flat fields remain for gateways. */
+  error?: { code?: string; message?: string; headers?: unknown }
 }
 
 /** Responses `usage` object shape. */
@@ -278,15 +280,35 @@ export function mapResponsesUsage(usage: ResponsesUsage): TokenUsage {
   }
 }
 
+/** Read a finite positive backoff hint without trusting payload text elsewhere. */
+function retryAfterMsFromPayload(headers: unknown): number | undefined {
+  if (typeof headers !== 'object' || headers === null) return undefined
+  const record = headers as Record<string, unknown>
+  for (const [name, multiplier] of [
+    ['retry-after-ms', 1],
+    ['retry-after', 1000],
+  ] as const) {
+    const raw = record[name]
+    if (typeof raw !== 'number' && typeof raw !== 'string') continue
+    const value = Number(raw)
+    if (!Number.isFinite(value) || value <= 0) continue
+    const delay = Math.max(1, Math.round(value * multiplier))
+    if (Number.isSafeInteger(delay) && delay <= 2_147_483_647) return delay
+  }
+  return undefined
+}
+
 /**
  * Classify a Responses failure payload into a thrown LlmError.
  * @param code - provider error code, when present.
  * @param message - provider error message, when present.
+ * @param headers - optional retry metadata; never copied into diagnostics.
  * @returns the mapped error (context overflow, quota, otherwise SERVER).
  */
 export function responsesFailure(
   code: string | undefined,
   message: string | undefined,
+  headers?: unknown,
 ): LlmError {
   // Safe here means this diagnostic path carries no provider-controlled free text,
   // not that no secret can exist anywhere. Raw values remain local classification inputs.
@@ -303,9 +325,11 @@ export function responsesFailure(
   ) {
     classification = QUOTA_EXCEEDED_CODE
   }
+  const retryAfterMs = retryAfterMsFromPayload(headers)
   return new LlmError(
     `Responses failure (${classification}): [provider response body omitted]`,
     classification,
+    retryAfterMs === undefined ? {} : { providerRetryAfterMs: retryAfterMs },
   )
 }
 
@@ -561,6 +585,7 @@ export class ResponsesStreamTranslator {
         throw responsesFailure(
           event.response?.error?.code,
           event.response?.error?.message,
+          event.response?.error?.headers,
         )
       case 'response.incomplete':
         throw responsesFailure(
@@ -569,7 +594,11 @@ export class ResponsesStreamTranslator {
             `the provider reported an incomplete response (${event.response?.incomplete_details?.reason ?? 'unknown reason'})`,
         )
       case 'error':
-        throw responsesFailure(event.code, event.message)
+        throw responsesFailure(
+          event.error?.code ?? event.code,
+          event.error?.message ?? event.message,
+          event.error?.headers,
+        )
       default:
         // response.created, response.in_progress, content_part events, etc.: no chunks.
         return chunks
