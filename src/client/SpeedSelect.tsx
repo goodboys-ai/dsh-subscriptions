@@ -363,14 +363,17 @@ export function SpeedSelect({
       clearInterval(retry)
       retry = undefined
     }
-    const reload = (): void => {
+    const reload = (invalidate = true): void => {
       const load = loadRef.current
       if (load === undefined) return
-      const id = ++generation.current
       if (inflight) {
-        again = true
+        if (invalidate) {
+          again = true
+          generation.current += 1
+        }
         return
       }
+      const id = ++generation.current
       inflight = true
       void load()
         .then(
@@ -396,7 +399,8 @@ export function SpeedSelect({
     reloadRef.current = reload
     reload()
     retry = setInterval(() => {
-      if (!loadedOnce) reload()
+      // A slow in-flight read is not stale merely because the retry timer fired.
+      if (!loadedOnce) reload(false)
     }, MODEL_DIRECTORY_POLL_INTERVAL_MS)
     const unsubscribe = watchRef.current?.(reload)
     const onSpeedChanged = (): void => {

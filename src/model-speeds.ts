@@ -38,6 +38,7 @@ export class ModelSpeeds {
   }
 
   set(model: string, tier: SpeedTier): Promise<void> {
+    if (!model.trim()) throw new Error('invalid model speed')
     const run = this.writes.then(async () => {
       const next = new Map(this.current).set(model, tier)
       await mkdir(dirname(this.path), { recursive: true })

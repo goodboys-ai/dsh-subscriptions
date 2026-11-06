@@ -74,7 +74,10 @@ try {
   const fast = page.getByRole('button', { name: 'Speed · Fast', exact: true })
   await standard.waitFor()
   await standard.click()
-  await page.getByRole('menu', { name: 'Speed', exact: true }).waitFor()
+  const menu = page.getByRole('menu', { name: 'Speed', exact: true })
+  await menu.waitFor()
+  const bounds = await menu.boundingBox()
+  assert.ok(bounds && bounds.y >= 0 && bounds.y + bounds.height <= 420)
   const screenshot =
     process.env.SPEED_SCREENSHOT ?? '.cache/speed-model-memory.png'
   await mkdir(dirname(screenshot), { recursive: true })

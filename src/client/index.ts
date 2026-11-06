@@ -227,6 +227,7 @@ export function apply(ctx: ClientContext): void {
   // in-popup error posture the /model contribution uses for its guards).
   ctx.inject(['commandUi'], (scope: ClientContext) => {
     const command = scope.get('commandUi') as CommandUiContract
+    let displayedSpeedModel: string | undefined
     scope.effect(
       () =>
         command.register({
@@ -248,7 +249,11 @@ export function apply(ctx: ClientContext): void {
                 models,
                 session.sessionId,
               )()
-              if (!state.visible) throw new Error(t('commandFastUnavailable'))
+              if (!state.visible) {
+                displayedSpeedModel = undefined
+                throw new Error(t('commandFastUnavailable'))
+              }
+              displayedSpeedModel = state.model
               return (
                 [
                   {
@@ -272,7 +277,7 @@ export function apply(ctx: ClientContext): void {
                 connection,
                 session.sessionId,
                 models,
-              )(option.id as 'standard' | 'fast')
+              )(option.id as 'standard' | 'fast', displayedSpeedModel)
               if (wrote) notifySpeedChanged()
             },
           },

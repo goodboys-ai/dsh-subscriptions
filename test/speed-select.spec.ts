@@ -125,6 +125,50 @@ describe('speed select load timing', { concurrency: false }, () => {
     }
   })
 
+  test('SpeedSelect mount retry does not invalidate a slow in-flight read', async () => {
+    mock.timers.enable({ apis: ['setInterval'] })
+    const uninstall = installWindow()
+    try {
+      let calls = 0
+      const pending: (() => void)[] = []
+      const component = new Component(
+        () =>
+          SpeedSelect({
+            loadSpeed: () => {
+              calls += 1
+              return new Promise<{ visible: true; tier: 'standard' }>(
+                (resolve) => {
+                  pending.push(() =>
+                    resolve({ visible: true, tier: 'standard' }),
+                  )
+                },
+              )
+            },
+            setSpeed: async () => true,
+            watchModel: () => () => {},
+          } as SpeedSelectProps) as Node,
+      )
+      component.render()
+      await settle(component)
+      assert.equal(calls, 1)
+      mock.timers.tick(MODEL_DIRECTORY_POLL_INTERVAL_MS * 2)
+      await settle(component)
+      assert.equal(calls, 1, 'timer ticks must not invalidate the same read')
+      assert.equal(component.tree, null)
+      pending.shift()!()
+      await settle(component)
+      assert.equal(calls, 1)
+      assert.notEqual(component.tree, null)
+      mock.timers.tick(MODEL_DIRECTORY_POLL_INTERVAL_MS * 3)
+      await settle(component)
+      assert.equal(calls, 1, 'a successful read stops mount retries')
+      component.unmount()
+    } finally {
+      uninstall()
+      mock.timers.reset()
+    }
+  })
+
   test('createSpeedLoader hides a session whose model selection is unavailable', async () => {
     let speedCalls = 0
     const load = createSpeedLoader(

@@ -171,6 +171,20 @@ test('main, model-bound and subagent speeds stay independent through RPC, routin
       (await host.call('speed', { sessionId: 'child', model: 1 })).ok,
       false,
     )
+    assert.equal(
+      (await host.call('speed', { sessionId: 'child', model: '   ' })).ok,
+      false,
+    )
+    assert.equal(
+      (
+        await host.call('setSpeed', {
+          sessionId: 'child',
+          tier: 'fast',
+          model: '   ',
+        })
+      ).ok,
+      false,
+    )
     const catalog = await host.call('providerSettings', { provider: 'codex' })
     assert.ok(catalog.ok)
     assert.deepEqual(

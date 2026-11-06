@@ -26,6 +26,8 @@ test('composer model speeds persist independently and concurrent writes retain a
     )
     await writeFile(path, '\uFEFF{"first":"fast"}')
     assert.equal(new ModelSpeeds(path).get('first'), 'fast')
+    assert.throws(() => store.set('   ', 'fast'), /invalid model speed/)
+    assert.equal(new ModelSpeeds(path).get('first'), 'fast')
     await writeFile(path, '\uFEFF{"first":"invalid"}')
     assert.throws(() => new ModelSpeeds(path), /Cannot read model speeds/)
   } finally {
