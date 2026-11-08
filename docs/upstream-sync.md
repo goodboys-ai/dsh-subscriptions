@@ -20,7 +20,7 @@ section is the human summary; the JSON is the source of truth.
 
 - **Baseline:** upstream `v0.9.5` — commit
   `75a83460b27f869d6972c6d0a2b39d76ca49eabb` (2026-09-28).
-- **Reviewed up to:** upstream commit `8193df1b` (after `v0.9.12`).
+- **Reviewed up to:** upstream commit `dad6ff1c` (after `v0.9.12`).
 - **Already covered before this ledger existed:** `f6e1b3f1` (the Settings card
   shows the CLI version Codex and Claude present, upstream issue
   [#108](https://github.com/V1ki/dsh-plugin-subscriptions/issues/108)). Ported
@@ -50,8 +50,11 @@ section is the human summary; the JSON is the source of truth.
   `9210a4cf`, `be301211`, `732aeba5`, `53cdee13`, `b94f7502`, `20132667`,
   `979675c1`, `5b21b9c9`, `cac7bb3f`, `f03ec8e1`, and `8193df1b` are covered by
   those same ports. Also ported: per-model subagent Speed defaults (`d73a2949`);
-  honest empty model states (`8862e454`); and the DSH load-check precedence
-  clarification (`aedf8592`).
+  honest empty model states (`8862e454`); the DSH load-check precedence
+  clarification (`aedf8592`); and used/remaining quota display with freshness
+  guards (`8dfc4870`, `427bc887`), including merge nodes `a01cfe14` and
+  `dad6ff1c`. The fork deliberately retains its existing observedAt/stale model
+  and default-account summaries instead of a second client cache.
 - **Deliberately not taken:** upstream's release and CI work (`564be625`,
   `800a08f5`, `69ac9c37`, `74f44a29`, `d8ab13e9`, `9e90ef87`, `a5b01068`,
   `7639ed99`, `b8023110`), its peer-range moves (`867136be`, `e1d3f427`,

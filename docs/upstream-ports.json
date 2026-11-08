@@ -7,10 +7,10 @@
     "date": "2026-09-28"
   },
   "upstreamRef": {
-    "sha": "8193df1b",
+    "sha": "dad6ff1c",
     "note": "Full sha is re-derived by the check from the remote ref; recorded here for humans."
   },
-  "updatedAt": "2026-11-06",
+  "updatedAt": "2026-11-08",
   "entries": [
     {
       "upstream": "527f4d90",
@@ -677,6 +677,48 @@
       "area": "pool",
       "forkCommits": ["1729bed"],
       "reason": "Final merge integration covered by 43843476 and the normalized strategy regressions."
+    },
+    {
+      "upstream": "8dfc4870",
+      "subject": "feat(ui): add used and remaining quota display with account freshness",
+      "status": "ported",
+      "area": "ui",
+      "forkCommits": ["28e67ed"],
+      "evidence": {
+        "test": "test/quota-display.spec.ts",
+        "test:preferences": "test/usage-badge-preferences.spec.ts",
+        "test:badge": "test/subscription-usage-badge.spec.ts",
+        "test:browser": "test/subscription-usage-browser.mjs"
+      },
+      "reason": "Adds the used/remaining preference across Settings, meters, compact and expanded badge views with raw-usage warning colors. Retains the fork's observedAt/stale server-shared freshness and default-account summaries rather than adding a parallel client cache or account-count-only summary."
+    },
+    {
+      "upstream": "a01cfe14",
+      "subject": "Merge pull request #203 from V1ki/feat/183-quota-display",
+      "status": "ported",
+      "area": "ui",
+      "forkCommits": ["28e67ed"],
+      "reason": "Merge-only integration covered by the used/remaining implementation and its browser regression."
+    },
+    {
+      "upstream": "427bc887",
+      "subject": "fix(ui): distinguish quota availability from missing update timestamps",
+      "status": "ported",
+      "area": "ui",
+      "forkCommits": ["28e67ed"],
+      "evidence": {
+        "test": "test/quota-display.spec.ts",
+        "test:freshness": "test/usage-pace.spec.ts"
+      },
+      "reason": "Keeps unknown, non-finite and out-of-range values explicit, preserves existing observedAt/stale failure semantics, and adds the presentation-only expiry clock without treating RPC receipt as upstream freshness."
+    },
+    {
+      "upstream": "dad6ff1c",
+      "subject": "Merge pull request #204 from V1ki/fix/quota-freshness-feedback",
+      "status": "ported",
+      "area": "ui",
+      "forkCommits": ["28e67ed"],
+      "reason": "Merge-only integration covered by the final unknown-value guards, expiry presentation and existing freshness tests."
     }
   ]
 }
