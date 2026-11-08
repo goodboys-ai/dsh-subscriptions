@@ -116,7 +116,9 @@ export function usageBarColor(
     ? 'var(--dsw-alias-state-error-primary)'
     : state === 'yellow'
       ? 'var(--dsw-alias-state-warn-label)'
-      : 'var(--dsw-alias-state-success-primary)'
+      : state === 'neutral'
+        ? 'var(--dsw-alias-label-dimmed)'
+        : 'var(--dsw-alias-state-success-primary)'
 }
 
 /**

@@ -11,7 +11,8 @@ import { OllamaSettingsManager } from './OllamaSettingsManager.js'
 import { USAGE_BADGE_REFRESH_EVENT } from './usage-badge-preferences.js'
 import { subscriptionCardStyles as styles } from './subscription-card-styles.js'
 import { UsageMeter } from './UsageMeter.js'
-import { displayUsedPercent } from './usage-pace.js'
+import { quotaText, useQuotaClock } from './quota-display.js'
+import { useQuotaDisplayMode } from './usage-badge-preferences.js'
 
 type Translate = SubscriptionsSectionInjected['t']
 
@@ -31,6 +32,8 @@ export function OllamaCard({
   rpc: ConnectionHandle['rpc']
   t: Translate
 }) {
+  const quotaMode = useQuotaDisplayMode()
+  const quotaNow = useQuotaClock()
   const [view, setView] = useState<OllamaSettingsView>()
   const [configured, setConfigured] = useState<boolean>()
   const [usage, setUsage] = useState<ProviderUsage>()
@@ -168,19 +171,19 @@ export function OllamaCard({
               <p style={styles.status}>{t('usageEmpty')}</p>
             )}
             {usage?.windows?.map((window, index) => {
-              const percent = displayUsedPercent(window.usedPercent)
               const label = externalUsageWindowLabel(t, window)
               return (
                 <div key={index} style={styles.usageRow}>
                   <div style={styles.usageMeta}>
                     <span>{label}</span>
                     <span>
-                      {percent === undefined
-                        ? t('usageMeterInvalid')
-                        : `${percent}%`}
+                      {quotaText(window.usedPercent, quotaMode, t)}
                       {window.resetsAt === undefined
                         ? ''
                         : ` · ${t('usageResets', { date: new Date(window.resetsAt).toLocaleString() })}`}
+                      {window.resetsAt !== undefined &&
+                        window.resetsAt <= quotaNow &&
+                        ` · ${t('quotaExpiredWindow')}`}
                     </span>
                   </div>
                   <UsageMeter

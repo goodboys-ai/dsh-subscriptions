@@ -4,6 +4,8 @@ import type { SubscriptionsKey } from './locales.js'
 import {
   setUsageBadgeMode,
   useUsageBadgeMode,
+  setQuotaDisplayMode,
+  useQuotaDisplayMode,
 } from './usage-badge-preferences.js'
 import {
   isUsageColorPreset,
@@ -19,6 +21,7 @@ type Translate = (
 /** Browser-local display preference; never changes provider or account settings. */
 export function UsageBadgeDisplaySetting({ t }: { t: Translate }) {
   const mode = useUsageBadgeMode()
+  const quotaMode = useQuotaDisplayMode()
   const preset = useUsageColorPreset()
   const [failed, setFailed] = useState(false)
   return (
@@ -52,6 +55,33 @@ export function UsageBadgeDisplaySetting({ t }: { t: Translate }) {
         </select>
       </label>
       <p style={styles.hint}>{t('usageBadgeDisplayHint')}</p>
+      <label style={styles.field}>
+        <span>{t('quotaDisplay')}</span>
+        <select
+          style={styles.select}
+          aria-label={t('quotaDisplay')}
+          value={quotaMode}
+          onChange={(event) => {
+            const value = event.currentTarget.value
+            if (value !== 'used' && value !== 'remaining') return
+            try {
+              setQuotaDisplayMode(value)
+              setFailed(false)
+            } catch (error) {
+              if (
+                !(error instanceof DOMException) ||
+                !['SecurityError', 'QuotaExceededError'].includes(error.name)
+              )
+                throw error
+              setFailed(true)
+            }
+          }}
+        >
+          <option value="used">{t('quotaUsed')}</option>
+          <option value="remaining">{t('quotaRemaining')}</option>
+        </select>
+      </label>
+      <p style={styles.hint}>{t('quotaDisplayHint')}</p>
       <label style={styles.field}>
         <span>{t('usageColorLabel')}</span>
         <select

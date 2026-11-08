@@ -259,8 +259,8 @@ try {
   )
   await badge.click()
   await panel.waitFor()
-  assert.equal(await panel.locator('section').count(), 3)
   const sectionText = await panel.locator('section').allInnerTexts()
+  assert.equal(await panel.locator('section').count(), 3)
   const providerOrder = sectionText.map((text) =>
     ['Codex', 'Grok', 'Antigravity'].find((name) => text.startsWith(name)),
   )
@@ -355,6 +355,64 @@ try {
     ),
     true,
   )
+  await page
+    .getByRole('button', { name: 'Toggle settings', exact: true })
+    .click()
+  const quotaMode = page.getByRole('combobox', {
+    name: '额度百分比',
+    exact: true,
+  })
+  await quotaMode.waitFor()
+  await page
+    .getByRole('combobox', { name: '状态栏额度显示', exact: true })
+    .selectOption('recent')
+  await badge.waitFor()
+  await quotaMode.selectOption('remaining')
+  await page.waitForFunction(() =>
+    document
+      .querySelector('[data-composer-stats] button')
+      ?.innerText.includes('87%'),
+  )
+  await badge.click()
+  const remainingPanel = page.getByRole('dialog', {
+    name: '服务商用量',
+    exact: true,
+  })
+  await remainingPanel.waitFor()
+  const currentSection = remainingPanel.locator('section').first()
+  await currentSection.getByText('剩余 87%', { exact: true }).waitFor()
+  const settings = page.locator('[data-settings]')
+  const cards = ['OpenCode Go', 'Ollama Cloud'].map((name) =>
+    settings.getByText(name, { exact: true }).locator('xpath=../..'),
+  )
+  for (const card of cards) {
+    await card.getByText(/剩余 87%/).waitFor()
+    const meter = card.locator('[role="img"]')
+    assert.match((await meter.getAttribute('aria-label')) ?? '', /剩余 87%/)
+    assert.match(
+      (await meter.locator('div').first().getAttribute('style')) ?? '',
+      /width: 87%/,
+    )
+    await card.getByText(/重置时间已过，等待刷新/).waitFor()
+  }
+  const quotaScreenshot =
+    process.env.QUOTA_SCREENSHOT ?? '.cache/quota-remaining-zh.png'
+  await page.setViewportSize({ width: 900, height: 900 })
+  await page.screenshot({ path: quotaScreenshot, fullPage: false })
+  await quotaMode.selectOption('used')
+  await page.waitForFunction(() =>
+    document
+      .querySelector('[data-composer-stats] button')
+      ?.innerText.includes('13%'),
+  )
+  await currentSection.getByText('已用 13%', { exact: true }).waitFor()
+  for (const card of cards) {
+    await card.getByText(/已用 13%/).waitFor()
+    assert.match(
+      (await card.locator('[role="img"]').getAttribute('aria-label')) ?? '',
+      /已用 13%/,
+    )
+  }
   assert.deepEqual(errors, [])
   console.log(
     '100%: offline badge browser checks passed, including storage errors and bilingual setting',

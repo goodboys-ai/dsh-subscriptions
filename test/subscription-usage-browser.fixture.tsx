@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { SubscriptionUsageBadge } from '../src/client/SubscriptionUsageBadge.js'
 import type { SubscriptionUsageBadgeInjected } from '../src/client/SubscriptionUsageBadge.js'
+import { SubscriptionsSection } from '../src/client/SubscriptionsSection.js'
 import { UsageBadgeDisplaySetting } from '../src/client/UsageBadgeDisplaySetting.js'
 import { en, zh } from '../src/client/locales.js'
 import { USAGE_BADGE_REFRESH_EVENT } from '../src/client/usage-badge-preferences.js'
@@ -15,6 +16,7 @@ const selections = {
 let selection = selections.api
 let googleModels: string[] | undefined
 let failGoogleUsage = false
+let showExternal = false
 let reads = 0
 let statusCalls = 0
 let usageCalls = 0
@@ -39,6 +41,8 @@ const rpc = {
         ok: true,
         value: {
           providers: {
+            claude: { busy: false, accounts: [] },
+            copilot: { busy: false, accounts: [] },
             codex: { accounts: [{ key: 'codex-test', isDefault: true }] },
             grok: { accounts: [{ key: 'grok-test', isDefault: true }] },
             antigravity: {
@@ -75,6 +79,48 @@ const rpc = {
         },
       }
     }
+    if (method.endsWith('.externalStatus'))
+      return {
+        ok: true,
+        value: Object.fromEntries(
+          [
+            'opencode-go',
+            'kimi-code',
+            'minimax',
+            'minimax-cn',
+            'ollama-cloud',
+          ].map((source) => [source, { configured: showExternal }]),
+        ),
+      }
+    if (method.endsWith('.externalUsage'))
+      return {
+        ok: true,
+        value: {
+          supported: true,
+          windows: [
+            {
+              kind: 'weekly',
+              usedPercent: 13,
+              resetsAt: Date.now() - 1000,
+            },
+          ],
+        },
+      }
+    if (method.endsWith('.ollamaSettings'))
+      return {
+        ok: true,
+        value: {
+          provider: 'ollama-cloud',
+          settings: {},
+          effective: {
+            baseURL: 'https://fixture.invalid',
+            apiKeyRef: 'OLLAMA_API_KEY',
+            web: false,
+          },
+          models: [],
+          configOverridesModels: false,
+        },
+      }
     throw new Error(`Unexpected RPC: ${method}`)
   },
 } as unknown as SubscriptionUsageBadgeInjected['rpc']
@@ -82,6 +128,7 @@ const rpc = {
 function App() {
   const [locale, setLocale] = useState<'en' | 'zh'>('en')
   const [rotationMs, setRotationMs] = useState(10_000)
+  const [showSettings, setShowSettings] = useState(false)
   const dictionary = locale === 'en' ? en : zh
   const t = (key: keyof typeof en, params?: Record<string, unknown>) =>
     dictionary[key].replace(/\{(\w+)\}/g, (_, name: string) =>
@@ -89,8 +136,17 @@ function App() {
     )
   return (
     <>
+      <style>{`:root { font-family: system-ui; --dsw-alias-bg-layer-1: #f3f4f6; --dsw-alias-bg-layer-2: #fff; --dsw-specific-menu: #fff; --dsw-elevation-prominent: 0 4px 20px #0003; --dsw-menu-backdrop-filter: none; --dsw-alias-label-primary: #171717; --dsw-alias-label-secondary: #444; --dsw-alias-label-tertiary: #666; --dsw-alias-label-dimmed: #888; --dsw-alias-border-l2: #ddd; --dsw-alias-border-l4: #eee; --dsw-alias-state-success-primary: #198754; --dsw-alias-state-error-primary: #cf222e; --dsw-alias-state-warn-label: #9a6700; } body { margin: 0; background: #f3f4f6; } button, select { font: inherit; }`}</style>
       <button onClick={() => setLocale(locale === 'en' ? 'zh' : 'en')}>
         Locale
+      </button>
+      <button
+        onClick={() => {
+          showExternal = !showSettings
+          setShowSettings(!showSettings)
+        }}
+      >
+        Toggle settings
       </button>
       <button
         onClick={() => {
@@ -142,7 +198,13 @@ function App() {
       >
         Fail Google usage
       </button>
-      <UsageBadgeDisplaySetting t={t} />
+      {showSettings ? (
+        <div data-settings>
+          <SubscriptionsSection rpc={rpc} t={t} />
+        </div>
+      ) : (
+        <UsageBadgeDisplaySetting t={t} />
+      )}
       <div>
         <div data-composer-stats />
         <SubscriptionUsageBadge

@@ -128,6 +128,9 @@ when a fresh reading leads elapsed time by 10 points, and Relaxed uses 15; 90%
 used turns it red and takes priority. Windows without known timing omit the
 cursor, and a stale or old reading keeps its cursor without a pace warning.
 Choose Standard, Relaxed, or Remaining colors in **Settings → Subscriptions**.
+The separate **Quota percentages** preference switches Settings and the status
+bar between used and remaining values. Warning colors always describe the raw
+used share; missing, non-finite, or out-of-range readings stay unknown.
 
 ![Usage dialog with elapsed-time cursors](docs/images/usage-badge.png)
 
