@@ -38,7 +38,8 @@ import {
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import { callSubscriptionsAuth } from './SubscriptionsSection.js'
 import { UsageMeter } from './UsageMeter.js'
-import { displayUsedPercent } from './usage-pace.js'
+import { quotaPercent, quotaText, useQuotaClock } from './quota-display.js'
+import type { QuotaDisplayMode } from './usage-badge-preferences.js'
 import type {
   AccountStatus,
   ProviderStatus,
@@ -54,6 +55,7 @@ import { HOST_CONTRACT, markerSelector } from './host-contract.js'
 import {
   USAGE_BADGE_REFRESH_EVENT,
   useUsageBadgeMode,
+  useQuotaDisplayMode,
 } from './usage-badge-preferences.js'
 import { visibleUsageWindows } from './usage-window-filter.js'
 
@@ -317,8 +319,12 @@ export function windowLabel(w: UsageWindow): string {
  * One compact segment piece (`6d1h 25%`); an unusable provider percentage
  * renders as the no-data dash, consistent with the meter's unavailable state.
  */
-function windowSegment(label: string, w: UsageWindow): string {
-  const percent = displayUsedPercent(w.usedPercent)
+function windowSegment(
+  label: string,
+  w: UsageWindow,
+  mode: QuotaDisplayMode,
+): string {
+  const percent = quotaPercent(w.usedPercent, mode)
   return percent === undefined ? `${label} —` : `${label} ${percent}%`
 }
 
@@ -361,6 +367,7 @@ export function compactSegment(
   d: ProviderUsageDisplay,
   model?: string,
   t: Translate = fallbackTranslate,
+  mode: QuotaDisplayMode = 'used',
 ): string {
   const windows = pillAccountOf(d).windows
   if (d.provider === 'antigravity') {
@@ -380,13 +387,28 @@ export function compactSegment(
       .slice(0, 2)
       .map((w) =>
         windowSegment(
-          w.kind === 'weekly' ? t('usageWeekly') : t('usageWindow'),
+          w.resetsAt !== undefined && w.resetsAt <= Date.now()
+            ? t('quotaExpiredWindow')
+            : w.kind === 'weekly'
+              ? t('usageWeekly')
+              : t('usageWindow'),
           w,
+          mode,
         ),
       )
     return `${d.name} ${parts.join(' · ')}`
   }
-  const parts = windows.slice(0, 2).map((w) => windowSegment(windowLabel(w), w))
+  const parts = windows
+    .slice(0, 2)
+    .map((w) =>
+      windowSegment(
+        w.resetsAt !== undefined && w.resetsAt <= Date.now()
+          ? t('quotaExpiredWindow')
+          : windowLabel(w),
+        w,
+        mode,
+      ),
+    )
   if (windows.length > 2) parts.push(`+${windows.length - 2}`)
   return `${d.name} ${parts.join(' · ')}`
 }
@@ -520,6 +542,8 @@ export function SubscriptionUsageBadge({
     ModelSelection | undefined
   >(undefined)
   const displayMode = useUsageBadgeMode()
+  const quotaMode = useQuotaDisplayMode()
+  useQuotaClock()
   const current = selection?.provider
   const badgeSelection = retainSubscriptionSelection(
     lastSubscription,
@@ -797,7 +821,7 @@ export function SubscriptionUsageBadge({
         ? selection?.model
         : undefined
       : badgeSelection?.model
-  const label = compactSegment(collapsed[0]!, pillModel, translate)
+  const label = compactSegment(collapsed[0]!, pillModel, translate, quotaMode)
   // The dialog opens from the badge, so it follows the provider and model the
   // badge shows (a retained subscription when the current model is not one).
   // In `always` mode the pill moves under the cursor, so an open dialog keeps
@@ -958,7 +982,10 @@ export function CodexExhaustionNotice({
     display.accounts.some(
       (account) =>
         account.windows.length === 0 ||
-        !account.windows.some((window) => window.usedPercent >= 100),
+        !account.windows.some(
+          (window) =>
+            Number.isFinite(window.usedPercent) && window.usedPercent >= 100,
+        ),
     )
   )
     return null
@@ -1063,14 +1090,19 @@ function WindowRow({
   observedAt?: number | undefined
   stale?: boolean | undefined
 }) {
-  const percent = displayUsedPercent(w.usedPercent)
+  const quotaMode = useQuotaDisplayMode()
   return (
     <>
       <dt style={styles.dt}>{label}</dt>
       <dd style={styles.dd}>
-        {percent === undefined ? t('usageMeterInvalid') : `${percent}%`}
+        {quotaText(w.usedPercent, quotaMode, t)}
         {w.resetsAt !== undefined && Number.isFinite(w.resetsAt) && (
-          <span style={styles.reset}> · {windowLabel(w)}</span>
+          <span style={styles.reset}>
+            {' · '}
+            {w.resetsAt <= Date.now()
+              ? t('quotaExpiredWindow')
+              : windowLabel(w)}
+          </span>
         )}
       </dd>
       <UsageMeter

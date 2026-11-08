@@ -6,6 +6,9 @@ import {
   readUsageBadgeMode,
   setUsageBadgeMode,
   subscribeUsageBadgeMode,
+  readQuotaDisplayMode,
+  setQuotaDisplayMode,
+  subscribeQuotaDisplayMode,
 } from '../src/client/usage-badge-preferences.js'
 import { UsageBadgeDisplaySetting } from '../src/client/UsageBadgeDisplaySetting.js'
 import { en, zh } from '../src/client/locales.js'
@@ -52,8 +55,11 @@ test('display preference defaults safely without a browser and renders bilingual
     assert.ok(html.includes(dictionary.usageBadgeDisplayHidden))
     assert.ok(html.includes(dictionary.usageBadgeDisplayRecent))
     assert.ok(html.includes(dictionary.usageBadgeDisplayAlways))
-    assert.equal((html.match(/<option /g) ?? []).length, 6)
-    assert.equal((html.match(/<select /g) ?? []).length, 2)
+    assert.ok(html.includes(dictionary.quotaDisplay))
+    assert.ok(html.includes(dictionary.quotaUsed))
+    assert.ok(html.includes(dictionary.quotaRemaining))
+    assert.equal((html.match(/<option /g) ?? []).length, 8)
+    assert.equal((html.match(/<select /g) ?? []).length, 3)
     assert.ok(html.includes(dictionary.usageColorLabel))
     assert.ok(html.includes(dictionary.usageColorStandard))
     assert.ok(html.includes('<label'))
@@ -169,5 +175,40 @@ test('blocked storage reads fall back; failed writes do not announce false succe
       throw new Error('unexpected')
     }
     assert.throws(() => readUsageBadgeMode(), /unexpected/)
+    unsubscribe()
+  }))
+
+const quotaKey = 'dsh.subscriptions.quotaDisplayMode'
+test('quota direction persists independently of visibility and color', () =>
+  withBrowser((browser) => {
+    assert.equal(readQuotaDisplayMode(), 'used')
+    setUsageBadgeMode('hidden')
+    setUsageColorPreset('remaining')
+    let updates = 0
+    const unsubscribe = subscribeQuotaDisplayMode(() => {
+      updates++
+    })
+    setQuotaDisplayMode('remaining')
+    assert.equal(readQuotaDisplayMode(), 'remaining')
+    assert.equal(readUsageBadgeMode(), 'hidden')
+    assert.equal(readUsageColorPreset(), 'remaining')
+    assert.equal(updates, 1)
+    const storage = new Event('storage')
+    Object.defineProperty(storage, 'key', { value: quotaKey })
+    browser.dispatchEvent(storage)
+    assert.equal(updates, 2)
+    browser.values.set(quotaKey, 'invalid')
+    assert.equal(readQuotaDisplayMode(), 'used')
+    assert.throws(
+      () => Reflect.apply(setQuotaDisplayMode, undefined, ['invalid']),
+      TypeError,
+    )
+    browser.localStorage.setItem = () => {
+      throw new DOMException('full', 'QuotaExceededError')
+    }
+    assert.throws(() => setQuotaDisplayMode('remaining'), {
+      name: 'QuotaExceededError',
+    })
+    assert.equal(updates, 2)
     unsubscribe()
   }))

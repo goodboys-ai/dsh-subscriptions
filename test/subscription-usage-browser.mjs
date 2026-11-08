@@ -355,6 +355,39 @@ try {
     ),
     true,
   )
+  const quotaMode = page.getByRole('combobox', {
+    name: '额度百分比',
+    exact: true,
+  })
+  await quotaMode.waitFor()
+  await page
+    .getByRole('combobox', { name: '状态栏额度显示', exact: true })
+    .selectOption('recent')
+  await badge.waitFor()
+  await quotaMode.selectOption('remaining')
+  await page.waitForFunction(() =>
+    document
+      .querySelector('[data-composer-stats] button')
+      ?.innerText.includes('87%'),
+  )
+  await badge.click()
+  const remainingPanel = page.getByRole('dialog', {
+    name: '服务商用量',
+    exact: true,
+  })
+  await remainingPanel.waitFor()
+  const currentSection = remainingPanel.locator('section').first()
+  await currentSection.getByText('剩余 87%', { exact: true }).waitFor()
+  const quotaScreenshot =
+    process.env.QUOTA_SCREENSHOT ?? '.cache/quota-remaining-zh.png'
+  await page.screenshot({ path: quotaScreenshot, fullPage: true })
+  await quotaMode.selectOption('used')
+  await page.waitForFunction(() =>
+    document
+      .querySelector('[data-composer-stats] button')
+      ?.innerText.includes('13%'),
+  )
+  await currentSection.getByText('已用 13%', { exact: true }).waitFor()
   assert.deepEqual(errors, [])
   console.log(
     '100%: offline badge browser checks passed, including storage errors and bilingual setting',

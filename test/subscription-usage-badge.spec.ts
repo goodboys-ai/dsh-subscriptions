@@ -94,6 +94,8 @@ test('Codex exhaustion notice requires known exhaustion on every displayed accou
     )
     d.accounts[1]!.windows[0]!.usedPercent = 99.99
     assert.equal(render(), '', 'a rounded 100% is not known exhaustion')
+    d.accounts[1]!.windows[0]!.usedPercent = Infinity
+    assert.equal(render(), '', 'non-finite telemetry is not known exhaustion')
     d.accounts[1]!.windows = []
     assert.equal(render(), '', 'unknown usage is not known exhaustion')
     d.accounts[1]!.windows = [{ kind: 'session', usedPercent: 105 }]
@@ -128,6 +130,7 @@ test('Google dialog previews and disclosure counts include only selected models'
   )
   assert.equal((html.match(/<dt /g) ?? []).length, 2)
   assert.ok(html.includes(translate('usageBadgeMoreWindows', { count: 1 })))
+  assert.ok(html.includes(translate('quotaUsedPercent', { percent: 59 })))
   assert.equal(
     renderToStaticMarkup(
       createElement(AccountWindows, {
@@ -150,6 +153,10 @@ test('Antigravity compact readout selects exact current model, not the entire ca
     compactSegment(d, 'gemini-model-59'),
     'Antigravity Window 59% · Weekly 81%',
   )
+  assert.equal(
+    compactSegment(d, 'gemini-model-59', undefined, 'remaining'),
+    'Antigravity Window 41% · Weekly 19%',
+  )
   assert.equal(compactSegment(d), 'Antigravity 60 model quotas')
   assert.equal(
     compactSegment(d, 'missing'),
@@ -169,6 +176,10 @@ test('compact summary uses default account and preserves bounded non-Antigravity
     windows: [{ kind: 'session', usedPercent: 99 }],
   })
   assert.equal(compactSegment(d), 'Codex 5h 13% · Wk 25%')
+  assert.equal(
+    compactSegment(d, undefined, undefined, 'remaining'),
+    'Codex 5h 87% · Wk 75%',
+  )
   assert.ok(compactSegment(display('codex')).endsWith('+58'))
 })
 
@@ -207,6 +218,17 @@ test('an unusable percentage shows the no-data state instead of a clamped number
     assert.ok(html.includes(translate('usageMeterInvalid')), html)
     assert.ok(!html.includes('150%'), html)
   }
+})
+
+test('expired windows say they await refresh in both display directions', () => {
+  const d = display('codex', [
+    { kind: 'session', usedPercent: 25, resetsAt: Date.now() - 1 },
+  ])
+  assert.equal(compactSegment(d), `Codex ${en.quotaExpiredWindow} 25%`)
+  assert.equal(
+    compactSegment(d, undefined, undefined, 'remaining'),
+    `Codex ${en.quotaExpiredWindow} 75%`,
+  )
 })
 
 test('preview promotes current-model windows without losing, merging, or mutating data', () => {

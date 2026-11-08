@@ -53,3 +53,48 @@ export function useUsageBadgeMode(): UsageBadgeMode {
     () => 'recent',
   )
 }
+
+/** Display direction, independent of visibility and warning-color semantics. */
+export type QuotaDisplayMode = 'used' | 'remaining'
+const QUOTA_KEY = 'dsh.subscriptions.quotaDisplayMode'
+const QUOTA_EVENT = 'dsh:subscriptions:quota-display-mode'
+
+export function readQuotaDisplayMode(): QuotaDisplayMode {
+  if (typeof window === 'undefined') return 'used'
+  try {
+    return window.localStorage.getItem(QUOTA_KEY) === 'remaining'
+      ? 'remaining'
+      : 'used'
+  } catch (error) {
+    if (!(error instanceof DOMException) || error.name !== 'SecurityError')
+      throw error
+    return 'used'
+  }
+}
+
+export function setQuotaDisplayMode(mode: QuotaDisplayMode): void {
+  if (mode !== 'used' && mode !== 'remaining')
+    throw new TypeError('Invalid subscription quota display mode')
+  window.localStorage.setItem(QUOTA_KEY, mode)
+  window.dispatchEvent(new Event(QUOTA_EVENT))
+}
+
+export function subscribeQuotaDisplayMode(notify: () => void): () => void {
+  const onStorage = (event: StorageEvent): void => {
+    if (event.key === QUOTA_KEY || event.key === null) notify()
+  }
+  window.addEventListener(QUOTA_EVENT, notify)
+  window.addEventListener('storage', onStorage)
+  return () => {
+    window.removeEventListener(QUOTA_EVENT, notify)
+    window.removeEventListener('storage', onStorage)
+  }
+}
+
+export function useQuotaDisplayMode(): QuotaDisplayMode {
+  return useSyncExternalStore(
+    subscribeQuotaDisplayMode,
+    readQuotaDisplayMode,
+    () => 'used',
+  )
+}

@@ -15,6 +15,8 @@ import {
 } from './usage-pace.js'
 import type { CountdownPart, UsageObservation } from './usage-pace.js'
 import { useUsageColorPreset } from './usage-color-preferences.js'
+import { quotaPercent, quotaText } from './quota-display.js'
+import { useQuotaDisplayMode } from './usage-badge-preferences.js'
 import type { SubscriptionsKey } from './locales.js'
 
 /** Singular/plural locale keys per countdown unit (zh maps both to one string). */
@@ -39,6 +41,7 @@ export function UsageMeter({
   style?: CSSProperties
 } & UsageObservation) {
   const preset = useUsageColorPreset()
+  const quotaMode = useQuotaDisplayMode()
   const [now, setNow] = useState(Date.now)
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 60_000)
@@ -47,6 +50,7 @@ export function UsageMeter({
   // Use render time for new readings, without trusting a future observation timestamp.
   const current = Math.max(now, Date.now())
   const valid = validUsage(quota.usedPercent)
+  const displayed = quotaPercent(quota.usedPercent, quotaMode)
   const used = valid ? quota.usedPercent : 0
   const fresh = isUsageFresh(quota, { observedAt, stale }, current)
   // The cursor is where the window stands in time: a provider-verified start
@@ -60,12 +64,7 @@ export function UsageMeter({
   const state = usageColorState(quota.usedPercent, pace, preset, fresh)
   const lead = pace === undefined ? 0 : Math.round(used - pace)
   const label = [
-    valid
-      ? t('usageMeterUsed', {
-          used: Math.round(used),
-          remaining: Math.round(100 - used),
-        })
-      : t('usageMeterInvalid'),
+    valid ? quotaText(quota.usedPercent, quotaMode, t) : t('usageMeterInvalid'),
     // An invalid reading already states unavailability; the stale line would repeat it.
     !valid
       ? ''
@@ -124,7 +123,7 @@ export function UsageMeter({
         style={{
           height: '100%',
           borderRadius: 'inherit',
-          width: `${used}%`,
+          width: `${displayed ?? 0}%`,
           background: usageBarColor(quota.usedPercent, pace, preset, fresh),
         }}
       />

@@ -22,14 +22,17 @@ import { providerSettingsCss } from './provider-settings-styles.js'
 import { ExternalUsageCards } from './ExternalUsageCards.js'
 import { OllamaCard } from './OllamaCard.js'
 import { UsageMeter } from './UsageMeter.js'
+import { quotaText, useQuotaClock } from './quota-display.js'
 import {
   ResetCreditsDisclosure,
   ResetCreditsErrorLine,
   showsResetCredits,
 } from './reset-credits-view.js'
-import { displayUsedPercent } from './usage-pace.js'
 import { UsageBadgeDisplaySetting } from './UsageBadgeDisplaySetting.js'
-import { USAGE_BADGE_REFRESH_EVENT } from './usage-badge-preferences.js'
+import {
+  USAGE_BADGE_REFRESH_EVENT,
+  useQuotaDisplayMode,
+} from './usage-badge-preferences.js'
 import { subscriptionCardStyles as cardStyles } from './subscription-card-styles.js'
 import type { SubscriptionsKey } from './locales.js'
 
@@ -393,6 +396,8 @@ export { usageBarColor } from './usage-pace.js'
 export function SubscriptionsSection(props: SubscriptionsSectionProps) {
   const { rpc } = props
   const t = props.t ?? fallbackTranslate
+  const quotaMode = useQuotaDisplayMode()
+  const quotaNow = useQuotaClock()
   const [statuses, setStatuses] = useState<
     Partial<Record<SubscriptionProvider, ProviderStatus>>
   >({})
@@ -968,17 +973,17 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
                           </p>
                         )}
                       {shownWindows.map((window, index) => {
-                        const percent = displayUsedPercent(window.usedPercent)
                         return (
                           <div key={index} style={styles.usageRow}>
                             <div style={styles.usageMeta}>
                               <span>{usageWindowLabel(t, window)}</span>
                               <span>
-                                {percent === undefined
-                                  ? t('usageMeterInvalid')
-                                  : `${percent}%`}
+                                {quotaText(window.usedPercent, quotaMode, t)}
                                 {window.resetsAt !== undefined &&
                                   ` · ${t('usageResets', { date: new Date(window.resetsAt).toLocaleString() })}`}
+                                {window.resetsAt !== undefined &&
+                                  window.resetsAt <= quotaNow &&
+                                  ` · ${t('quotaExpiredWindow')}`}
                               </span>
                             </div>
                             <UsageMeter

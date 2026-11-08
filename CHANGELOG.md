@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.3.3 — 2026-11-08
+
+- **Used or remaining quota display.** A browser-local **Quota percentages**
+  preference switches Settings, meters, the compact badge, and expanded dialog
+  between used and remaining values. It persists independently of visibility and
+  color settings. Warning colors still use the raw used share; missing,
+  non-finite, and out-of-range telemetry remains unknown rather than appearing
+  as 0% used or 100% remaining.
+- **Existing freshness semantics retained.** The port keeps the fork's
+  `observedAt`, stale/failure retention, server-side cache sharing, and default
+  account window summaries instead of adopting upstream's parallel client cache
+  or replacing multi-account percentages with an account count.
+
 ## v0.3.2 — 2026-11-06
 
 - **Antigravity output images.** SSE and JSON responses now persist final
