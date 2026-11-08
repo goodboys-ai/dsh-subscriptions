@@ -7,9 +7,12 @@ import type {
 } from './SubscriptionsSection.js'
 import { callSubscriptionsAuth } from './subscriptions-rpc.js'
 import { subscriptionCardStyles as styles } from './subscription-card-styles.js'
-import { USAGE_BADGE_REFRESH_EVENT } from './usage-badge-preferences.js'
+import {
+  USAGE_BADGE_REFRESH_EVENT,
+  useQuotaDisplayMode,
+} from './usage-badge-preferences.js'
 import { UsageMeter } from './UsageMeter.js'
-import { displayUsedPercent } from './usage-pace.js'
+import { quotaText, useQuotaClock } from './quota-display.js'
 
 type Source = 'opencode-go' | 'kimi-code' | 'minimax' | 'minimax-cn'
 type Translate = SubscriptionsSectionInjected['t']
@@ -60,6 +63,8 @@ export function ExternalUsageCards({
   rpc: ConnectionHandle['rpc']
   t: Translate
 }) {
+  const quotaMode = useQuotaDisplayMode()
+  const quotaNow = useQuotaClock()
   const [status, setStatus] = useState<Status>()
   const [statusError, setStatusError] = useState<string>()
   const [usage, setUsage] = useState<Partial<Record<Source, ProviderUsage>>>({})
@@ -195,19 +200,19 @@ export function ExternalUsageCards({
                     <p style={styles.status}>{t('usageEmpty')}</p>
                   )}
                   {snapshot?.windows?.map((window, index) => {
-                    const percent = displayUsedPercent(window.usedPercent)
                     const label = externalUsageWindowLabel(t, window)
                     return (
                       <div key={index} style={styles.usageRow}>
                         <div style={styles.usageMeta}>
                           <span>{label}</span>
                           <span>
-                            {percent === undefined
-                              ? t('usageMeterInvalid')
-                              : `${percent}%`}
+                            {quotaText(window.usedPercent, quotaMode, t)}
                             {window.resetsAt === undefined
                               ? ''
                               : ` · ${t('usageResets', { date: new Date(window.resetsAt).toLocaleString() })}`}
+                            {window.resetsAt !== undefined &&
+                              window.resetsAt <= quotaNow &&
+                              ` · ${t('quotaExpiredWindow')}`}
                           </span>
                         </div>
                         <UsageMeter
