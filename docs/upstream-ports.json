@@ -7,10 +7,10 @@
     "date": "2026-09-28"
   },
   "upstreamRef": {
-    "sha": "dad6ff1c",
+    "sha": "9d1415c0",
     "note": "Full sha is re-derived by the check from the remote ref; recorded here for humans."
   },
-  "updatedAt": "2026-11-08",
+  "updatedAt": "2026-11-11",
   "entries": [
     {
       "upstream": "527f4d90",
@@ -719,6 +719,21 @@
       "area": "ui",
       "forkCommits": ["28e67ed"],
       "reason": "Merge-only integration covered by the final unknown-value guards, expiry presentation and existing freshness tests."
+    },
+    {
+      "upstream": "d5f2b9da",
+      "subject": "fix(antigravity): integrate grouped efforts with used/remaining quota display mode",
+      "status": "pending",
+      "area": "antigravity",
+      "reason": "Introduces provider-native grouped catalogs, variant-specific effort/replay metadata and a new shared quota-summary endpoint, not a drop-in correction to the fork's flat model IDs and per-model visibility. Requires a separate design and full host evidence rather than a daily maintenance patch."
+    },
+    {
+      "upstream": "9d1415c0",
+      "subject": "feat(codex): keep using remaining credits after included quota",
+      "status": "declined",
+      "area": "codex",
+      "evidence": { "test": "test/pool.spec.ts" },
+      "reason": "Directly reverses the fork's explicit guarantee that an applicable window at >=100% cannot silently spill into paid credits. There is no user opt-in for that spending; existing tests keep exhausted accounts and stale failure snapshots blocked. Reconsider only through a separately designed opt-in billing policy."
     }
   ]
 }

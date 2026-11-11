@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.3.4 — 2026-11-11
+
+- **Upstream review recorded; no provider behavior changes.** The ledger and
+  bilingual upstream README snapshots now cover `9d1415c0`. Antigravity's new
+  grouped catalog and native quota-summary architecture remain an explicit open
+  design decision. Codex automatic credit-funded routing after included quota
+  exhaustion is deliberately not adopted: the fork has no user opt-in for paid
+  spillover and keeps its existing >=100% account exclusion and failure-cache
+  protections.
+
 ## v0.3.3 — 2026-11-08
 
 - **Used or remaining quota display.** A browser-local **Quota percentages**
