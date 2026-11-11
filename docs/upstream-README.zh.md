@@ -1,4 +1,4 @@
-<!-- 上游 V1ki/dsh-plugin-subscriptions README.zh.md 在 dad6ff1c（2026-11-08）的快照。同步状态见 docs/upstream-sync.md。 -->
+<!-- 上游 V1ki/dsh-plugin-subscriptions README.zh.md 在 9d1415c0（2026-11-11）的快照。同步状态见 docs/upstream-sync.md。 -->
 # dsh-plugin-subscriptions [![Awesome DSH Plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com)
 
 [English](README.md) | 中文
@@ -10,6 +10,14 @@
 在 **设置 → 订阅 → 管理** 顶部修改订阅显示名，在 **编辑模型列表** 中修改模型显示名；使用同一组保存／取消按钮，留空或恢复默认后保存可恢复原名。名称按服务商和模型 ID 存储在原有 `provider-settings.json`，跨重启和目录刷新保留。名称为最多 80 字符的单行文本，仅改变显示，不改变 provider、模型 ID、推理参数或账号路由；现有账号别名可继续独立使用。
 
 订阅显示名也用于原生模型选择器的服务商分组标题；清空显示名并保存后，分组恢复为服务商默认名称。
+
+## Antigravity 模型与推理强度选择
+
+将同一模型的 Low / Medium / High 变体合并为一个条目，复用 Codex 的原生模型与推理强度选择控件。存在时，`agentModelSorts` 决定可选模型及顺序，只合并其中明确的 Low / Medium / High 变体。`tieredModelIds` 中的 `pro` / `flashLite` 是分类键，不会创建模型或扩展列表。请求保留目录中的 `thinkingLevel` / `thinkingBudget`，旧的具体模型 ID 仍可用于历史会话。
+
+未设置有效偏好时，默认按 High、Medium、Low 的顺序选择可用强度。账号池沿用各成员能力交集。安装后请刷新模型目录；旧目录缺少官方列表元数据时只能按兼容规则过滤，真实账号的选择器与用量显示已有截图验证；所有模型及强度的实际请求仍需进一步验证。参见 [验证说明](docs/issue180-testing.md)。
+
+Antigravity 用量优先读取 `retrieveUserQuotaSummary`，只展示服务端明确返回的共享限额。Gemini 组包含 Argon；原生常见的两组（Gemini、Claude/GPT）各有周/5小时窗口，账户共享组不随模型白名单隐藏。设置页与订阅弹层复用分组展示，横条和百分比均表示剩余份额，不按Low/Medium/High重复列出。摘要缺少共享组时补读未覆盖的可选型号原始额度，不根据重置时间推断周期；补读失败保留有效摘要、取消向上传播。
 
 ## 演示
 
@@ -75,7 +83,7 @@
 
 只有已登录的 provider 才会出现在会话模型选择器里;登录/退出后列表自动刷新。支持视觉的模型会声明 `['text', 'image']` 输入模态,图片内容会被翻译成各 provider 的 wire 格式。
 
-已登录的卡片还会显示**订阅用量**——按限额窗口(5 小时会话窗、每周窗,以及计划包含的按模型每周窗)展示已用百分比、进度条和重置时间,并带刷新按钮。Codex 用量来自 `chatgpt.com/backend-api/wham/usage`(同时报告计划类型),Claude 用量来自 `api.anthropic.com/api/oauth/usage`,Grok 用量来自 Grok Build CLI 代理的 `cli-chat-proxy.grok.com/v1/billing`(即 CLI `/usage` 面板的数据源,报告共享每周额度和订阅档位)。Antigravity 会在上游字段存在时从 `loadCodeAssist` 与 `fetchAvailableModels` 显示订阅档位、积分及按模型限额。Copilot 没有用量接口,其卡片不显示用量区块。
+已登录的卡片还会显示**订阅用量**——按限额窗口(5 小时会话窗、每周窗,以及计划包含的按模型每周窗)展示已用百分比、进度条和重置时间,并带刷新按钮。Codex 用量来自 `chatgpt.com/backend-api/wham/usage`(同时报告计划类型),Claude 用量来自 `api.anthropic.com/api/oauth/usage`,Grok 用量来自 Grok Build CLI 代理的 `cli-chat-proxy.grok.com/v1/billing`(即 CLI `/usage` 面板的数据源,报告共享每周额度和订阅档位)。Antigravity 从 `retrieveUserQuotaSummary` 显示共享限额，按 Gemini、Claude/GPT 与 Gemini 4 Argon 展示剩余百分比和重置时间；`loadCodeAssist` 提供订阅档位与积分。摘要不可用时仅回退到可选模型的原始限额。Copilot 没有用量接口,其卡片不显示用量区块。
 
 随 provider 启用自动注册的工具:
 
@@ -252,9 +260,9 @@ Antigravity 为 Gemini 使用 `parametersJsonSchema`，为 Claude/GPT-OSS 使用
   `account` 填 `status` 接口返回的稳定账号 key——Claude 是邮箱,Grok / Copilot / Antigravity 是登录名。Codex 的 key 同时包含 workspace 和用户(`["<workspace-id>","user","<user-id>"]`),因此 Codex 也可以直接填登录邮箱,或在该 workspace 只登录了一个用户时填 workspace ID;有歧义的引用不会解析到任何账号,以免打到别人的账号。
 - **档位额外项(`tiers`,可选)**：额外的选择器条目,failover 可以跨模型;出现在首个成员所在的 provider 分组。不会自动创建。
 
-成员选择按会话粘性(prompt 缓存不失效),可选策略:`priority`(按顺序取第一个健康成员)和 `quota_aware`(默认——按"必需消耗速率 = 剩余配额 / 距重置时间"给成员打分,快重置且剩余多的窗口优先被用掉而不是浪费;粘性成员除非被挑战者以 `switchMargin` 倍分差击败否则不换)。`quota_aware` 会把适用窗口已用 95%～不足 100% 的成员放到后备组，组内仍按消耗速率排序。**所有策略都会跳过任一适用窗口已知达到 100% 的成员**；当前健康候选全部满额时，停止请求并提示额度耗尽，不再静默消耗付费 credits。展开的订阅用量面板也会在当前显示的 Codex 账号均满额时提示。外部使用重置卡后，请点击对应账号的 **设置 → 订阅 → 刷新**（用量接口处于失败冷却时仍需等待）。这是基于缓存用量的尽力保护，不是账单硬上限：未知用量仍可用、缓存可能滞后，独立账号/直连及图片视频路由不受此模型账号池保护。在尚未输出内容时，空回复或传输错误会让账号池尝试下一个可用成员，不触发冷却。其他会话仍可使用刚才返回空回复的成员。额度耗尽和限流仍按供应方提供的重试提示或重置时间执行冷却（如有）；通常冷却整个账号，Claude 按模型限制的额度只冷却对应成员。瞬时服务端错误也只冷却出错成员。Copilot 没有用量接口,恒为 0 分,自然充当最后的保底。
+成员选择按会话粘性(prompt 缓存不失效),可选策略:`priority`(按顺序取第一个健康成员)和 `quota_aware`(默认——按"必需消耗速率 = 剩余配额 / 距重置时间"给成员打分,快重置且剩余多的窗口优先被用掉而不是浪费;粘性成员除非被挑战者以 `switchMargin` 倍分差击败否则不换)。`quota_aware` 会把适用窗口已用 95%～不足 100% 的成员放到后备组，组内仍按消耗速率排序。**所有策略都会跳过任一适用窗口已知达到 100% 的成员，除非该 Codex 账号仍报告有剩余 credits。** 有剩余 credits 的账号仍可用，但排在所有仍有订阅额度的账号之后。当前健康候选全部满额且都没有剩余 credits 时，停止请求并提示额度耗尽。展开的订阅用量面板会显示 credits 余额，并在当前显示的 Codex 账号均满额时提示。外部使用重置卡后，请点击对应账号的 **设置 → 订阅 → 刷新**（用量接口处于失败冷却时仍需等待）。这是基于缓存用量的尽力保护，不是账单硬上限：未知用量仍可用、缓存可能滞后，独立账号/直连及图片视频路由不受此模型账号池保护。在尚未输出内容时，空回复或传输错误会让账号池尝试下一个可用成员，不触发冷却。其他会话仍可使用刚才返回空回复的成员。额度耗尽和限流仍按供应方提供的重试提示或重置时间执行冷却（如有）；通常冷却整个账号，Claude 按模型限制的额度只冷却对应成员。瞬时服务端错误也只冷却出错成员。Copilot 没有用量接口,恒为 0 分,自然充当最后的保底。
 
-将 `pool.strategy` 设为 `quota_normalized` 可按窗口消耗进度选账号：用剩余额度比例除以窗口剩余时间比例（后者限制在 0.001 到 1 之间）。窗口总时长或重置时间未知时，仅按剩余额度比例评分，不根据距重置的时间猜测总时长。95% 后备、100% 排除及会话粘性规则不变。改回 `quota_aware` 或删除该设置即可恢复默认排序。
+将 `pool.strategy` 设为 `quota_normalized` 可按窗口消耗进度选账号：用剩余额度比例除以窗口剩余时间比例（后者限制在 0.001 到 1 之间）。窗口总时长或重置时间未知时，仅按剩余额度比例评分，不根据距重置的时间猜测总时长。95% 后备、100% 排除（Codex 仍报告剩余 credits 时除外）及会话粘性规则不变。改回 `quota_aware` 或删除该设置即可恢复默认排序。
 
 ```yaml
 - id: llm-subscriptions

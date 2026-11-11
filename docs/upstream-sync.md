@@ -20,7 +20,7 @@ section is the human summary; the JSON is the source of truth.
 
 - **Baseline:** upstream `v0.9.5` — commit
   `75a83460b27f869d6972c6d0a2b39d76ca49eabb` (2026-09-28).
-- **Reviewed up to:** upstream commit `dad6ff1c` (after `v0.9.12`).
+- **Reviewed up to:** upstream commit `9d1415c0` (after `v0.9.12`).
 - **Already covered before this ledger existed:** `f6e1b3f1` (the Settings card
   shows the CLI version Codex and Claude present, upstream issue
   [#108](https://github.com/V1ki/dsh-plugin-subscriptions/issues/108)). Ported
@@ -64,9 +64,14 @@ section is the human summary; the JSON is the source of truth.
   upstream and must not be absorbed without its revert. `9930c5ee` hardens the
   schedule assertion for the hourly catalog refresh; this fork refreshes
   catalogs on an explicit user action, so it has no schedule to harden.
+  `9d1415c0` (credit-funded Codex routing after included-quota exhaustion) is
+  declined because the fork has no opt-in for paid spillover and deliberately
+  keeps known exhausted accounts blocked.
 - **Open decisions:** `998cea06` and `a85fb93a` (display names) collide with
   this fork's own localized naming; `f359301e` (hourly catalog refresh) changes
-  list freshness.
+  list freshness. `d5f2b9da` introduces provider-native grouped catalogs and a
+  shared quota summary; adopting that architecture requires a separate design,
+  not an incremental display-mode fix.
 
 ## How the baseline was determined
 
