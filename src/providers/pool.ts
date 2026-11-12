@@ -14,6 +14,7 @@ import {
   LlmError,
   QUOTA_EXCEEDED_CODE,
 } from '@deepseek-ai/dsh-llm'
+import { subscriptionError } from '../llm-error.js'
 import type {
   GenerateOptions,
   LlmModelInfo,
@@ -347,7 +348,7 @@ export class PoolAdapter extends LlmAdapter {
           } catch {
             // Preserve the member's original failure when closing the stream.
           }
-          throw new LlmError(failure.message, failure.code, {
+          throw subscriptionError(failure.message, failure.code, {
             ...(failure.providerRetryAfterMs === undefined
               ? {}
               : { providerRetryAfterMs: failure.providerRetryAfterMs }),
@@ -633,7 +634,7 @@ export class PoolAdapter extends LlmAdapter {
       ? 'RATE_LIMIT'
       : (attemptedCodes.filter((code) => !isQuotaFailure(code)).at(-1) ??
         coolingReasons.filter((code) => !isQuotaFailure(code)).at(-1)!)
-    return new LlmError(message, code, {
+    return subscriptionError(message, code, {
       ...(retryAfterMs === undefined
         ? {}
         : { providerRetryAfterMs: retryAfterMs }),

@@ -80,6 +80,15 @@ function useFallbackAnchoredPosition(
   return position
 }
 
+// The optional host hook is absent from RC2's types as well as its runtime.
+const hostAnchoredPosition = (
+  primitives as unknown as {
+    useAnchoredPosition?: (
+      options: SubscriptionAnchorOptions,
+    ) => CSSProperties | null
+  }
+).useAnchoredPosition
+
 // Select once at module load, so no component conditionally changes hook order.
 export const useSubscriptionAnchoredPosition =
-  primitives.useAnchoredPosition ?? useFallbackAnchoredPosition
+  hostAnchoredPosition ?? useFallbackAnchoredPosition

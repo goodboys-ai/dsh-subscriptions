@@ -17,6 +17,7 @@ import {
 } from '@deepseek-ai/dsh-llm'
 import { durationMs, retryAfterInstant, waitFromReset } from './rate-limit.js'
 import type { RateLimitResetReader } from './rate-limit.js'
+import { subscriptionError } from '../llm-error.js'
 
 /** One configured model catalog entry. */
 export interface ModelEntry {
@@ -281,7 +282,7 @@ export async function httpLlmError(
       ),
     )
   }
-  return new LlmError(message, code, {
+  return subscriptionError(message, code, {
     status: response.status,
     ...(reset === undefined
       ? {}

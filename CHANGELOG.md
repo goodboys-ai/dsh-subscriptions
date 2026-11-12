@@ -11,7 +11,10 @@
   available and otherwise a local measured fallback that tracks scrolling,
   resizing, and panel size changes without crashing. Contract checks now accept
   all JavaScript quote styles for slot outlets and service registration; the
-  other previously reported RC2 removals were checker false positives.
+  other previously reported RC2 removals were checker false positives. A shared
+  `subscriptionError()` boundary also keeps custom failure codes working when
+  RC2 narrows the `LlmError` constructor's declared code type; runtime codes and
+  error instances are unchanged.
 
 ## v0.3.4 — 2026-11-11
 

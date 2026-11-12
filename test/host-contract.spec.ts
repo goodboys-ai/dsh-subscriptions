@@ -136,6 +136,16 @@ const SCANNERS = {
         )) {
           found.add(`${from} ${name}`)
         }
+        // Optional host APIs may be read after a namespace type assertion.
+        for (const name of namesIn(
+          code,
+          new RegExp(
+            String.raw`\b${alias}\s+as\s+[^;]*?\)\s*\.(?<name>[A-Za-z_$][\w$]*)`,
+            'g',
+          ),
+        )) {
+          found.add(`${from} ${name}`)
+        }
       }
       const named = /\{([^}]*)\}/.exec(clause as string)
       for (const part of (named?.[1] ?? '')
@@ -310,6 +320,7 @@ test('the scanners catch each quote style and access form', () => {
         "import type { U } from '@deepseek-ai/types-only'",
         "import { useState } from 'react'",
         'p.Member; p["Indexed"]',
+        '(p as unknown as { Optional?: unknown }).Optional',
       ].join('\n'),
     ),
     [
@@ -317,6 +328,7 @@ test('the scanners catch each quote style and access form', () => {
       '@deepseek-ai/other b',
       '@deepseek-ai/pkg Indexed',
       '@deepseek-ai/pkg Member',
+      '@deepseek-ai/pkg Optional',
     ],
   )
 })
