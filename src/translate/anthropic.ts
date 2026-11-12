@@ -11,6 +11,7 @@ import {
   LlmError,
 } from '@deepseek-ai/dsh-llm'
 import { ToolCallId } from '../compat.js'
+import { subscriptionError } from '../llm-error.js'
 import type {
   ContentBlock,
   StreamChunk,
@@ -456,7 +457,7 @@ export function anthropicFailure(
   } else if (type === 'authentication_error') {
     classification = 'AUTH'
   }
-  return new LlmError(
+  return subscriptionError(
     `Anthropic failure (${classification}): [provider response body omitted]`,
     classification,
   )

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { SubscriptionUsageBadge } from '../src/client/SubscriptionUsageBadge.js'
 import type { SubscriptionUsageBadgeInjected } from '../src/client/SubscriptionUsageBadge.js'
@@ -6,6 +6,7 @@ import { SubscriptionsSection } from '../src/client/SubscriptionsSection.js'
 import { UsageBadgeDisplaySetting } from '../src/client/UsageBadgeDisplaySetting.js'
 import { en, zh } from '../src/client/locales.js'
 import { USAGE_BADGE_REFRESH_EVENT } from '../src/client/usage-badge-preferences.js'
+import { useSubscriptionAnchoredPosition } from '../src/client/useSubscriptionAnchoredPosition.js'
 
 const selections = {
   api: { provider: 'deepseek', model: 'deepseek-chat' },
@@ -125,6 +126,68 @@ const rpc = {
   },
 } as unknown as SubscriptionUsageBadgeInjected['rpc']
 
+function AnchorFallbackFixture() {
+  const anchorRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const [open, setOpen] = useState(false)
+  const [height, setHeight] = useState(60)
+  const [version, setVersion] = useState(0)
+  const position = useSubscriptionAnchoredPosition({
+    open,
+    anchorRef,
+    panelRef,
+    side: 'top',
+    gap: 8,
+    margin: 12,
+  })
+  return (
+    <div style={{ height: 1000, position: 'relative' }}>
+      <style>{'body { margin: 0 }'}</style>
+      <button
+        key={version}
+        ref={anchorRef}
+        type="button"
+        onClick={() => setOpen(true)}
+        style={{
+          position: 'absolute',
+          top: version === 0 ? 240 : 320,
+          left: 120,
+        }}
+      >
+        Anchor
+      </button>
+      <button type="button" onClick={() => setHeight(100)}>
+        Resize panel
+      </button>
+      <button type="button" onClick={() => setVersion(1)}>
+        Replace anchor
+      </button>
+      <button type="button" onClick={() => setOpen(false)}>
+        Close panel
+      </button>
+      {open && (
+        <div
+          ref={panelRef}
+          role="dialog"
+          aria-label="Anchor fixture"
+          style={
+            position
+              ? { ...position, width: 100, height }
+              : {
+                  position: 'fixed',
+                  visibility: 'hidden',
+                  width: 100,
+                  height,
+                }
+          }
+        >
+          Fixture panel
+        </div>
+      )}
+    </div>
+  )
+}
+
 function App() {
   const [locale, setLocale] = useState<'en' | 'zh'>('en')
   const [rotationMs, setRotationMs] = useState(10_000)
@@ -217,4 +280,10 @@ function App() {
     </>
   )
 }
-createRoot(document.getElementById('root')!).render(<App />)
+createRoot(document.getElementById('root')!).render(
+  new URLSearchParams(window.location.search).has('anchor') ? (
+    <AnchorFallbackFixture />
+  ) : (
+    <App />
+  ),
+)

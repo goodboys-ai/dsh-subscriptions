@@ -22,6 +22,7 @@ import type {
 } from '@deepseek-ai/dsh-llm'
 import { parseSse } from './sse.js'
 import { withToolResultImages } from './resolved.js'
+import { subscriptionError } from '../llm-error.js'
 import type {
   ResolvedToolResultBlock,
   TranslatableMessage,
@@ -326,7 +327,7 @@ export function responsesFailure(
     classification = QUOTA_EXCEEDED_CODE
   }
   const retryAfterMs = retryAfterMsFromPayload(headers)
-  return new LlmError(
+  return subscriptionError(
     `Responses failure (${classification}): [provider response body omitted]`,
     classification,
     retryAfterMs === undefined ? {} : { providerRetryAfterMs: retryAfterMs },

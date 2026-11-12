@@ -2,7 +2,7 @@ import type {
   AttachmentStore,
   ImageMediaType,
 } from '@deepseek-ai/dsh-attachment'
-import { LlmError } from '@deepseek-ai/dsh-llm'
+import { subscriptionError } from '../llm-error.js'
 import type { ImageBlock } from '@deepseek-ai/dsh-llm'
 
 const MEDIA_TYPES: readonly string[] = [
@@ -25,7 +25,7 @@ export class AntigravityOutputImages {
   async save(value: unknown): Promise<ImageBlock> {
     this.signal?.throwIfAborted()
     if (value === null || typeof value !== 'object') {
-      throw new LlmError(
+      throw subscriptionError(
         'Antigravity returned invalid inlineData',
         'INVALID_IMAGE_RESPONSE',
       )
@@ -37,14 +37,14 @@ export class AntigravityOutputImages {
       typeof data !== 'string' ||
       data.length === 0
     ) {
-      throw new LlmError(
+      throw subscriptionError(
         'Antigravity returned an unsupported image MIME type or empty image',
         'INVALID_IMAGE_RESPONSE',
       )
     }
     const store = this.attachments
     if (store === undefined) {
-      throw new LlmError(
+      throw subscriptionError(
         'Antigravity image output requires the DSH attachment store',
         'UNSUPPORTED',
       )
@@ -58,33 +58,33 @@ export class AntigravityOutputImages {
       this.count >= limits.maxImagesPerMessage ||
       data.length > Math.ceil(byteBudget / 3) * 4
     ) {
-      throw new LlmError(
+      throw subscriptionError(
         'Antigravity image output exceeds host attachment limits',
         'IMAGE_OUTPUT_LIMIT',
       )
     }
     // Buffer's decoder is permissive; require canonical, padded base64.
     if (data.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(data)) {
-      throw new LlmError(
+      throw subscriptionError(
         'Antigravity returned invalid image base64',
         'INVALID_IMAGE_RESPONSE',
       )
     }
     const bytes = Buffer.from(data, 'base64')
     if (bytes.toString('base64') !== data) {
-      throw new LlmError(
+      throw subscriptionError(
         'Antigravity returned non-canonical image base64',
         'INVALID_IMAGE_RESPONSE',
       )
     }
     if (bytes.length > byteBudget) {
-      throw new LlmError(
+      throw subscriptionError(
         'Antigravity image output exceeds host attachment limits',
         'IMAGE_OUTPUT_LIMIT',
       )
     }
     if (!limits.mediaTypes.includes(mimeType as ImageMediaType)) {
-      throw new LlmError(
+      throw subscriptionError(
         'Antigravity image MIME type is disabled by the host',
         'INVALID_IMAGE_RESPONSE',
       )
@@ -99,7 +99,7 @@ export class AntigravityOutputImages {
       })
     } catch {
       this.signal?.throwIfAborted()
-      throw new LlmError(
+      throw subscriptionError(
         'Could not validate or persist Antigravity output image',
         'IMAGE_OUTPUT_STORAGE',
       )

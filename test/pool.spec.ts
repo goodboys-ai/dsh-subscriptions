@@ -14,6 +14,7 @@ import {
   QUOTA_EXCEEDED_CODE,
   ReasoningEffortId,
 } from '@deepseek-ai/dsh-llm'
+import { subscriptionError } from '../src/llm-error.js'
 import type {
   GenerateOptions,
   LlmModelInfo,
@@ -1194,7 +1195,7 @@ test('stream: pool failure reporting preserves a single member failure', async (
       401,
       'invalid_grant',
     )
-    const failure = new LlmError(`member failed: ${code}`, code, {
+    const failure = subscriptionError(`member failed: ${code}`, code, {
       cause,
       status: 503,
     })
@@ -1400,7 +1401,7 @@ test('stream: pool failure reporting distinguishes no resolved account from a ra
 test('stream: pool failure reporting pins quota exhaustion on the first and cooling requests', async (t) => {
   t.mock.method(Date, 'now', () => 1000)
   for (const code of [QUOTA_EXCEEDED_CODE, 'RATE_LIMIT']) {
-    const failure = new LlmError('usage window exhausted', code, {
+    const failure = subscriptionError('usage window exhausted', code, {
       providerRetryAfterMs: 42_000,
     })
     const codex = new FakeAdapter(() => serveFail(failure))
@@ -1504,8 +1505,8 @@ test('stream: pool failure reporting summarizes distinct failures and retains ev
     ['AUTH', 'SERVER', 'RATE_LIMIT'],
     ['RATE_LIMIT', 'SERVER', 'AUTH'],
   ]) {
-    const failures = codes.map(
-      (code) => new LlmError(`provider failure: ${code}`, code),
+    const failures = codes.map((code) =>
+      subscriptionError(`provider failure: ${code}`, code),
     )
     const codex = new FakeAdapter((_options, account) =>
       serveFail(failures[Number(account)]),

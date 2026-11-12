@@ -82,7 +82,7 @@ test('main, model-bound and subagent speeds stay independent through RPC, routin
         options: { provider },
         session: { id, header: { id, ...header } },
       } as unknown as Agent
-      agents!.enter(agent, undefined)
+      ;(agents!.enter as unknown as (agent: Agent) => void).call(agents, agent)
     }
     if (agents) {
       register('parent', {}, 'claude')

@@ -32,10 +32,8 @@ import type {
 } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-api-remotes/client'
 import * as primitives from '@deepseek-ai/dsh-client-ui-primitives'
-import {
-  useAnchoredPosition,
-  useDismissOnOutsidePointer,
-} from '@deepseek-ai/dsh-client-ui-primitives'
+import { useDismissOnOutsidePointer } from '@deepseek-ai/dsh-client-ui-primitives'
+import { useSubscriptionAnchoredPosition } from './useSubscriptionAnchoredPosition.js'
 import { callSubscriptionsAuth } from './SubscriptionsSection.js'
 import { UsageMeter } from './UsageMeter.js'
 import { quotaPercent, quotaText, useQuotaClock } from './quota-display.js'
@@ -732,7 +730,7 @@ export function SubscriptionUsageBadge({
     }
   }, [])
 
-  const pos = useAnchoredPosition({
+  const pos = useSubscriptionAnchoredPosition({
     open,
     anchorRef: rootRef,
     panelRef,

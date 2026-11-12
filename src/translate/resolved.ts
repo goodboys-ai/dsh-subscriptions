@@ -6,7 +6,7 @@
  * base64 data.
  */
 
-import { LlmError } from '@deepseek-ai/dsh-llm'
+import { subscriptionError } from '../llm-error.js'
 import * as llm from '@deepseek-ai/dsh-llm'
 import type {
   ContentBlock,
@@ -216,7 +216,7 @@ export async function resolveImages(
     attachments === undefined &&
     messages.some((message) => message.content.some(hasRetainedImage))
   ) {
-    throw new LlmError(
+    throw subscriptionError(
       'dsh-subscriptions: the request carries an image but no attachments service is mounted; ' +
         'image input requires the harness attachment store',
       'UNSUPPORTED',

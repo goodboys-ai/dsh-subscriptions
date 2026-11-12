@@ -9,6 +9,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { LlmError } from '@deepseek-ai/dsh-llm'
+import { subscriptionError } from '../src/llm-error.js'
 import {
   accountKey,
   AUTH_COOLDOWN_MS,
@@ -80,7 +81,7 @@ test('classifyPoolFailure: the provider retry-after wins over the default cooldo
 test('classifyPoolFailure: auth failures park the account until re-login', () => {
   for (const code of ['AUTH', 'INVALID_CREDENTIAL', 'MISSING_CREDENTIAL']) {
     assert.deepEqual(
-      classifyPoolFailure(new LlmError('denied', code), 'claude'),
+      classifyPoolFailure(subscriptionError('denied', code), 'claude'),
       {
         action: 'switch',
         cooldownMs: AUTH_COOLDOWN_MS,
@@ -93,12 +94,15 @@ test('classifyPoolFailure: auth failures park the account until re-login', () =>
 
 test('classifyPoolFailure: transient server failures cool the member briefly', () => {
   for (const code of ['SERVER', 'TIMEOUT']) {
-    assert.deepEqual(classifyPoolFailure(new LlmError('oops', code), 'codex'), {
-      action: 'switch',
-      cooldownMs: TRANSIENT_COOLDOWN_MS,
-      reason: code,
-      scope: 'member',
-    })
+    assert.deepEqual(
+      classifyPoolFailure(subscriptionError('oops', code), 'codex'),
+      {
+        action: 'switch',
+        cooldownMs: TRANSIENT_COOLDOWN_MS,
+        reason: code,
+        scope: 'member',
+      },
+    )
   }
 })
 
@@ -119,7 +123,7 @@ test('classifyPoolFailure: an empty completion switches without a health record'
 test('classifyPoolFailure: plan/model availability switches the member', () => {
   for (const code of ['HTTP_402', 'HTTP_404']) {
     assert.deepEqual(
-      classifyPoolFailure(new LlmError('unavailable', code), 'codex'),
+      classifyPoolFailure(subscriptionError('unavailable', code), 'codex'),
       {
         action: 'switch',
         cooldownMs: TRANSIENT_COOLDOWN_MS,
@@ -133,7 +137,7 @@ test('classifyPoolFailure: plan/model availability switches the member', () => {
 test('classifyPoolFailure: request-fault and unknown failures rethrow', () => {
   for (const code of ['CONTEXT_WINDOW_EXCEEDED', 'ABORTED', 'HTTP_400']) {
     assert.deepEqual(
-      classifyPoolFailure(new LlmError('bad request', code), 'codex'),
+      classifyPoolFailure(subscriptionError('bad request', code), 'codex'),
       { action: 'throw' },
     )
   }
