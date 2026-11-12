@@ -35,7 +35,6 @@ const result = await build({
       load(id) {
         return id === '\0subscription-test-host-primitives'
           ? `export const IconDataOutlineRegular = () => null
-             export const useAnchoredPosition = () => ({ left: 16, top: 100 })
              export const useDismissOnOutsidePointer = () => {}`
           : null
       },

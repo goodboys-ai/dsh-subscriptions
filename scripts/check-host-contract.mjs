@@ -199,6 +199,12 @@ function bundleRequires() {
     .sort()
 }
 
+/** Match one literal host name in any JavaScript quote style. */
+function literalPattern(value) {
+  const escaped = value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return `["'\\\`]${escaped}["'\\\`]`
+}
+
 /** Check one DSH version. Returns the list of failures (empty when it holds). */
 function checkVersion(version) {
   const failures = []
@@ -238,7 +244,9 @@ function checkVersion(version) {
 
   for (const [slot, owner] of Object.entries(HOST_CONTRACT.slots)) {
     expect(
-      codeOf(owner).includes(`renderSlot("${slot}"`),
+      new RegExp(`renderSlot\\(\\s*${literalPattern(slot)}`).test(
+        codeOf(owner),
+      ),
       `slot ${slot}`,
       `${owner} no longer renders an outlet for it (renderSlot("${slot}", …)); entries registered there never mount`,
     )
@@ -247,8 +255,12 @@ function checkVersion(version) {
   for (const [service, owner] of Object.entries(HOST_CONTRACT.services)) {
     const source = codeOf(owner)
     expect(
-      source.includes(`super(ctx, "${service}")`) ||
-        source.includes(`ctx.provide("${service}"`),
+      new RegExp(`super\\(ctx,\\s*${literalPattern(service)}\\)`).test(
+        source,
+      ) ||
+        new RegExp(`ctx\\.provide\\(\\s*${literalPattern(service)}`).test(
+          source,
+        ),
       `service ${service}`,
       `${owner} neither provides nor declares a service named "${service}"`,
     )

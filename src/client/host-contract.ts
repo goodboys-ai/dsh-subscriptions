@@ -33,10 +33,12 @@ export const HOST_CONTRACT = {
 
   /** Named runtime exports the client reads from a host module. */
   exports: {
-    '@deepseek-ai/dsh-client-ui-primitives': [
-      'useAnchoredPosition',
-      'useDismissOnOutsidePointer',
-    ],
+    '@deepseek-ai/dsh-client-ui-primitives': ['useDismissOnOutsidePointer'],
+  },
+
+  /** Optional host hooks with a tested local fallback when absent. */
+  optionalExports: {
+    '@deepseek-ai/dsh-client-ui-primitives': ['useAnchoredPosition'],
   },
 
   /**

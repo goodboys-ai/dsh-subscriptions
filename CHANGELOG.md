@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.3.5 — 2026-11-12
+
+- **DSH 0.2.2-rc.2 support.** The gated window now covers DSH `0.1.7-rc.2`,
+  `0.2.0-rc.2`, `0.2.1-rc.5`, and `0.2.2-rc.2`; RC1 leaves the window under the
+  existing four-entry policy. Peers remain `>=0.1.7-rc.2 <0.3.0-0`, and
+  development dependencies remain pinned to `0.1.7-rc.2`.
+- **Host positioning compatibility.** DSH RC2 removes the primitives
+  `useAnchoredPosition` export. The usage dialog now uses the host hook when
+  available and otherwise a local measured fallback that tracks scrolling,
+  resizing, and panel size changes without crashing. Contract checks now accept
+  all JavaScript quote styles for slot outlets and service registration; the
+  other previously reported RC2 removals were checker false positives.
+
 ## v0.3.4 — 2026-11-11
 
 - **Upstream review recorded; no provider behavior changes.** The ledger and

@@ -264,9 +264,10 @@ test('a host-contract marker field counts as a use of that attribute', () => {
 
 test('every host glyph and named host export the client reads is in the host contract', () => {
   assertSameNames('icons', used(SCANNERS.icons), HOST_CONTRACT.icons.names)
-  const listed = Object.entries(HOST_CONTRACT.exports).flatMap(
-    ([from, names]) => names.map((name) => `${from} ${name}`),
-  )
+  const listed = [
+    ...Object.entries(HOST_CONTRACT.exports),
+    ...Object.entries(HOST_CONTRACT.optionalExports),
+  ].flatMap(([from, names]) => names.map((name) => `${from} ${name}`))
   assertSameNames('host imports', used(SCANNERS.imports), listed)
 })
 
