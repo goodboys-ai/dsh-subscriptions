@@ -412,9 +412,87 @@ try {
       /已用 13%/,
     )
   }
+  // A dedicated real-DOM fixture verifies the RC2 fallback's geometry and
+  // lifecycle, including anchor replacement while the dialog stays open.
+  await page.addInitScript(() => {
+    const NativeObserver = window.ResizeObserver
+    const active = new Set()
+    window.__activeResizeObservers = active
+    window.ResizeObserver = class extends NativeObserver {
+      observe(...args) {
+        super.observe(...args)
+        active.add(this)
+      }
+      disconnect() {
+        super.disconnect()
+        active.delete(this)
+      }
+    }
+  })
+  await page.goto('http://subscription-usage.test/?anchor=1')
+  await page.getByRole('button', { name: 'Anchor', exact: true }).click()
+  const anchorPanel = page.getByRole('dialog', {
+    name: 'Anchor fixture',
+    exact: true,
+  })
+  await page.waitForFunction(() => {
+    const panel = document.querySelector('[role="dialog"]')
+    return panel?.getBoundingClientRect().top === 172
+  })
+  const initial = await anchorPanel.evaluate((element) => ({
+    position: getComputedStyle(element).position,
+    left: element.getBoundingClientRect().left,
+    top: element.getBoundingClientRect().top,
+  }))
+  assert.deepEqual(initial, { position: 'fixed', left: 120, top: 172 })
+  assert.equal(
+    await page.evaluate(() => window.__activeResizeObservers.size),
+    1,
+  )
+  await page.evaluate(() => window.scrollTo(0, 80))
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[role="dialog"]')?.getBoundingClientRect().top ===
+      92,
+  )
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await page.setViewportSize({ width: 160, height: 600 })
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[role="dialog"]')?.getBoundingClientRect()
+        .left === 48,
+  )
+  await page.setViewportSize({ width: 900, height: 900 })
+  await page.getByRole('button', { name: 'Resize panel', exact: true }).click()
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[role="dialog"]')?.getBoundingClientRect().top ===
+      132,
+  )
+  await page
+    .getByRole('button', { name: 'Replace anchor', exact: true })
+    .click()
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[role="dialog"]')?.getBoundingClientRect().top ===
+      212,
+  )
+  assert.equal(
+    await page.evaluate(() => window.__activeResizeObservers.size),
+    1,
+  )
+  await page.getByRole('button', { name: 'Close panel', exact: true }).click()
+  await anchorPanel.waitFor({ state: 'detached' })
+  assert.equal(
+    await page.evaluate(() => window.__activeResizeObservers.size),
+    0,
+  )
+  await page.setViewportSize({ width: 180, height: 600 })
+  await page.evaluate(() => window.dispatchEvent(new Event('scroll')))
+  assert.equal(await anchorPanel.count(), 0)
   assert.deepEqual(errors, [])
   console.log(
-    '100%: offline badge browser checks passed, including storage errors and bilingual setting',
+    '100%: offline badge browser checks passed, including fallback geometry, ref replacement, observer cleanup, storage errors and bilingual setting',
   )
 } finally {
   await browser.close()

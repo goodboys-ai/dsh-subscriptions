@@ -29,15 +29,17 @@ function useFallbackAnchoredPosition(
     margin,
   } = options
   const [position, setPosition] = useState<CSSProperties | null>(null)
+  // DOM replacement can keep the same RefObject identities. A mutation observer
+  // rebinds the size observer without re-running this effect after every render.
   useLayoutEffect(() => {
     if (!open) {
       setPosition(null)
       return
     }
-    const anchor = anchorRef.current
-    const panel = panelRef.current
-    if (!anchor || !panel) return
     const update = (): void => {
+      const anchor = anchorRef.current
+      const panel = panelRef.current
+      if (!anchor || !panel) return
       const anchorRect = anchor.getBoundingClientRect()
       const panelRect = panel.getBoundingClientRect()
       const wantedLeft =
@@ -62,16 +64,31 @@ function useFallbackAnchoredPosition(
           : { position: 'fixed', left, top },
       )
     }
-    update()
     const observer =
       typeof ResizeObserver === 'undefined'
         ? undefined
         : new ResizeObserver(update)
-    observer?.observe(anchor)
-    observer?.observe(panel)
+    let observedAnchor: HTMLElement | null = null
+    let observedPanel: HTMLElement | null = null
+    const syncObserver = (): void => {
+      const anchor = anchorRef.current
+      const panel = panelRef.current
+      if (anchor !== observedAnchor || panel !== observedPanel) {
+        observer?.disconnect()
+        observedAnchor = anchor
+        observedPanel = panel
+        if (anchor) observer?.observe(anchor)
+        if (panel) observer?.observe(panel)
+      }
+      update()
+    }
+    syncObserver()
+    const mutations = new MutationObserver(syncObserver)
+    mutations.observe(document.body, { childList: true, subtree: true })
     window.addEventListener('resize', update)
     window.addEventListener('scroll', update, true)
     return () => {
+      mutations.disconnect()
       observer?.disconnect()
       window.removeEventListener('resize', update)
       window.removeEventListener('scroll', update, true)
