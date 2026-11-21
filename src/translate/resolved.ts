@@ -186,7 +186,6 @@ export function imageRequestTarget(
       height: number
       maxPixels: number
       maxBytes: number
-      softBytes?: number
     }
   | undefined {
   const longEdge = Math.max(ref.width, ref.height)
@@ -205,8 +204,7 @@ export function imageRequestTarget(
     width,
     height,
     maxPixels: width * height,
-    maxBytes: limit.maxBytes,
-    ...(limit.softBytes === undefined ? {} : { softBytes: limit.softBytes }),
+    maxBytes: Math.min(limit.maxBytes, limit.softBytes ?? limit.maxBytes),
   }
 }
 

@@ -10,18 +10,19 @@ import {
   classifyPoolFailure,
 } from '../src/providers/pool-health.js'
 
-test('a structured ToS violation gets a stable code without exposing provider text', async () => {
+test('Google error.details ToS violations get a stable code without exposing provider text', async () => {
+  const secret = `${'x'.repeat(700)}SHORT_SECRET!`
+  const body = JSON.stringify({
+    error: {
+      code: 403,
+      status: 'PERMISSION_DENIED',
+      message: `${secret} https://example.invalid/appeal`,
+      details: [{ reason: 'TOS_VIOLATION' }],
+    },
+  })
+  assert.ok(body.length > 500)
   const error = await httpLlmError(
-    Response.json(
-      {
-        error: {
-          message:
-            'customer-input SHORT_SECRET! contact https://example.invalid/appeal',
-        },
-        details: [{ reason: 'TOS_VIOLATION' }],
-      },
-      { status: 403 },
-    ),
+    new Response(body, { status: 403 }),
     'antigravity API',
   )
   assert.equal(error.code, ACCOUNT_SUSPENDED_CODE)
@@ -36,6 +37,15 @@ test('a structured ToS violation gets a stable code without exposing provider te
     reason: ACCOUNT_SUSPENDED_CODE,
     scope: 'account',
   })
+})
+
+test('top-level details remain compatible without changing redaction', async () => {
+  const error = await httpLlmError(
+    Response.json({ details: [{ reason: 'TOS_VIOLATION' }] }, { status: 403 }),
+    'antigravity API',
+  )
+  assert.equal(error.code, ACCOUNT_SUSPENDED_CODE)
+  assert.doesNotMatch(error.message, /TOS_VIOLATION/)
 })
 
 test('ordinary and malformed 403 responses, plus 401, remain authentication failures', async () => {

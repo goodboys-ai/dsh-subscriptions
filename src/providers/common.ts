@@ -237,18 +237,21 @@ export const ACCOUNT_SUSPENDED_CODE = 'ACCOUNT_SUSPENDED'
  */
 async function hasTermsOfServiceViolation(body: string): Promise<boolean> {
   try {
-    const payload = await parseProviderJson<{ details?: unknown }>(
-      body,
-      'provider error response',
-    )
-    return (
-      Array.isArray(payload?.details) &&
-      payload.details.some(
-        (detail) =>
-          typeof detail === 'object' &&
-          detail !== null &&
-          (detail as { reason?: unknown }).reason === 'TOS_VIOLATION',
-      )
+    const payload = await parseProviderJson<{
+      details?: unknown
+      error?: { details?: unknown }
+    }>(body, 'provider error response')
+    // Google APIs place details under error.details; tolerate the legacy top-level
+    // shape too, without ever carrying provider text into the thrown error.
+    return [payload?.details, payload?.error?.details].some(
+      (details) =>
+        Array.isArray(details) &&
+        details.some(
+          (detail) =>
+            typeof detail === 'object' &&
+            detail !== null &&
+            (detail as { reason?: unknown }).reason === 'TOS_VIOLATION',
+        ),
     )
   } catch {
     return false
