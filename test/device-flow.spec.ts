@@ -276,3 +276,41 @@ test('device flow: a malformed token-poll response fails the login without quoti
   )
   assert.equal(manager.isBusy('copilot'), false)
 })
+
+test('device flow: initial transport failures retry within a bounded budget', async () => {
+  let attempts = 0
+  const fetchFn = (async () => {
+    attempts += 1
+    if (attempts < 3) throw new Error('connection reset')
+    return Response.json(DEVICE_CODE)
+  }) as typeof fetch
+  const manager = new DeviceFlowManager()
+  const attempt = await manager.start('copilot', spec(fetchFn))
+  attempt.cancel()
+  assert.equal(attempts, 3)
+})
+
+test('device flow: an HTTP response never retries the initial device-code request', async () => {
+  let attempts = 0
+  const fetchFn = (async () => {
+    attempts += 1
+    return Response.json({ error: 'denied' }, { status: 400 })
+  }) as typeof fetch
+  const manager = new DeviceFlowManager()
+  await assert.rejects(manager.start('copilot', spec(fetchFn)), /HTTP 400/)
+  assert.equal(attempts, 1)
+})
+
+test('device flow: one dropped poll survives, then a valid response resets the budget', async () => {
+  let polls = 0
+  const fetchFn = (async (input: RequestInfo | URL) => {
+    if (String(input) === DEVICE_CODE_URL) return Response.json(DEVICE_CODE)
+    polls += 1
+    if (polls === 1) throw new Error('connection reset')
+    return Response.json({ access_token: 'gh-token' })
+  }) as typeof fetch
+  const manager = new DeviceFlowManager()
+  const attempt = await manager.start('copilot', spec(fetchFn))
+  assert.equal(await attempt.waitToken(), 'gh-token')
+  assert.equal(polls, 2)
+})

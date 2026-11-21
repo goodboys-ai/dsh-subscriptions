@@ -246,6 +246,7 @@ export interface ResponsesStreamEvent {
   }
   response?: {
     status?: string
+    output?: NonNullable<ResponsesStreamEvent['item']>[]
     usage?: ResponsesUsage
     error?: { code?: string; message?: string; headers?: unknown }
     incomplete_details?: { reason?: string }
@@ -336,6 +337,7 @@ export function responsesFailure(
 
 /** One open harness block under assembly. */
 interface OpenBlock {
+  key: string
   index: number
   kind: 'text' | 'reasoning' | 'tool-call'
   text: string
@@ -372,6 +374,9 @@ export class ResponsesStreamTranslator {
   private order: OpenBlock[] = []
   private nextIndex = 0
   private sawToolCall = false
+  // Declarations are not executable calls until a tool-call block was assembled.
+  private declaredCalls = new Set<string>()
+  private completedCallItems = new Set<string>()
   /** Set once `response.completed` produced the terminal finish chunk. */
   terminated = false
 
@@ -383,6 +388,7 @@ export class ResponsesStreamTranslator {
     name?: string,
   ): OpenBlock {
     const block: OpenBlock = {
+      key,
       index: this.nextIndex++,
       kind,
       text: '',
@@ -448,6 +454,20 @@ export class ResponsesStreamTranslator {
   push(event: ResponsesStreamEvent): StreamChunk[] {
     if (this.terminated) return []
     const chunks: StreamChunk[] = []
+    if (
+      (event.type === 'response.output_item.added' ||
+        event.type === 'response.output_item.done') &&
+      event.item?.type === 'function_call'
+    ) {
+      this.declaredCalls.add(
+        typeof event.item.call_id === 'string' ? event.item.call_id : '',
+      )
+    }
+    if (event.type === 'response.function_call_arguments.done') {
+      this.completedCallItems.add(
+        typeof event.item_id === 'string' ? `${event.item_id}:call` : '',
+      )
+    }
     switch (event.type) {
       case 'response.output_item.added': {
         const item = event.item
@@ -536,11 +556,8 @@ export class ResponsesStreamTranslator {
           ) {
             // No deltas arrived for this item; synthesize blocks from the done payload.
             for (const [partIndex, part] of (item.content ?? []).entries()) {
-              if (
-                part?.type !== 'output_text' ||
-                typeof part.text !== 'string' ||
-                part.text.length === 0
-              )
+              // An explicit empty string is valid silent output, just like an empty delta.
+              if (part?.type !== 'output_text' || typeof part.text !== 'string')
                 continue
               const block = this.open(
                 `${item.id}:text:${partIndex}`,
@@ -558,12 +575,47 @@ export class ResponsesStreamTranslator {
         return chunks
       }
       case 'response.completed': {
+        // Do not let an empty text block hide a call that was declared but never
+        // assembled. Compare call_id, not item.id: gateways may rewrite item IDs.
+        for (const item of event.response?.output ?? []) {
+          if (item.type === 'function_call') {
+            this.declaredCalls.add(
+              typeof item.call_id === 'string' ? item.call_id : '',
+            )
+          }
+        }
+        const callBlocks = this.order.filter(
+          (block) => block.kind === 'tool-call',
+        )
+        const representedCalls = new Set(
+          callBlocks.map((block) => block.callId),
+        )
+        const representedItems = new Set(callBlocks.map((block) => block.key))
+        const missingCall =
+          [...this.declaredCalls].some(
+            (id) => id.length === 0 || !representedCalls.has(id),
+          ) ||
+          [...this.completedCallItems].some(
+            (key) => key.length === 0 || !representedItems.has(key),
+          )
         this.terminated = true
         this.closeAll(chunks)
         const usage = event.response?.usage
         if (usage !== undefined)
           chunks.push({ type: 'usage', usage: mapResponsesUsage(usage) })
-        if (this.order.length === 0) {
+        if (missingCall) {
+          chunks.push({
+            type: 'finish',
+            reason: {
+              kind: 'error',
+              failure: {
+                message:
+                  'completed response contains an unassembled function call',
+                code: 'MALFORMED_RESPONSE',
+              },
+            },
+          })
+        } else if (this.order.length === 0) {
           chunks.push({
             type: 'finish',
             reason: {

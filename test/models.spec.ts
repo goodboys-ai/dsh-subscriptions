@@ -119,15 +119,37 @@ test('Codex context overrides clamp per account, restore defaults, and distrust 
     272000,
   )
   requested = undefined
+  // No explicit override follows the conservative local default, not the API max.
   assert.equal(
     (await adapter.resolveOwnModel('codex', 'm', 'pro')).context?.contextWindow,
-    272000,
+    128000,
   )
   requested = 128000
   assert.equal(
     (await adapter.resolveOwnModel('codex', 'm', 'pro')).context?.contextWindow,
     128000,
   )
+})
+
+test('Codex local output reserve defaults to 8192 and explicit model limits still win', async () => {
+  const adapter = new CodexAdapter({
+    models: [],
+    discovery: false,
+    tokens: memoryAccounts({}),
+    streamIdleTimeoutMs: 1000,
+  })
+  const resolved = await adapter.resolveModel('codex', 'm')
+  assert.equal(resolved.defaultMaxTokens, 8192)
+  assert.equal(resolved.context?.contextWindow, 128000)
+  const custom = new CodexAdapter({
+    models: [{ id: 'm', maxTokens: 32768, contextWindow: 200000 }],
+    discovery: false,
+    tokens: memoryAccounts({}),
+    streamIdleTimeoutMs: 1000,
+  })
+  const overridden = await custom.resolveModel('codex', 'm')
+  assert.equal(overridden.defaultMaxTokens, 32768)
+  assert.equal(overridden.context?.contextWindow, 200000)
 })
 
 const codexSession: CodexSession = {
@@ -449,7 +471,7 @@ test('resolveModel prefers discovered context window and reasoning efforts', asy
   const adapter = codexAdapter({ session: codexSession, fetchFn })
   await adapter.listModels('codex')
   const resolved = await adapter.resolveModel('codex', 'gpt-5.2-codex')
-  assert.equal(resolved.context?.contextWindow, 500_000)
+  assert.equal(resolved.context?.contextWindow, 128_000)
   assert.deepEqual(
     resolved.reasoning?.efforts.map((effort) => effort.id),
     ['low', 'high'],
@@ -458,7 +480,7 @@ test('resolveModel prefers discovered context window and reasoning efforts', asy
   assert.equal(resolved.reasoning?.defaultEffort, 'high')
   // A model the catalog did not advertise falls back to static defaults.
   const fallback = await adapter.resolveModel('codex', 'gpt-unknown')
-  assert.equal(fallback.context?.contextWindow, 400_000)
+  assert.equal(fallback.context?.contextWindow, 128_000)
   assert.equal(fallback.reasoning?.efforts.length, 5)
 })
 
@@ -1914,7 +1936,7 @@ test('codex resolveModel on a cold cache fetches the catalog itself', async () =
     resolved.reasoning?.efforts.map((effort) => effort.id),
     ['low', 'high'],
   )
-  assert.equal(resolved.context?.contextWindow, 500_000)
+  assert.equal(resolved.context?.contextWindow, 128_000)
 })
 
 const STATIC_COPILOT = [

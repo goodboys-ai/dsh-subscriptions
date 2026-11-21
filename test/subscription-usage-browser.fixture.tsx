@@ -18,12 +18,21 @@ let selection = selections.api
 let googleModels: string[] | undefined
 let failGoogleUsage = false
 let showExternal = false
+let noAccounts = false
 let reads = 0
 let statusCalls = 0
 let usageCalls = 0
 const refreshUsage = () => {
   window.dispatchEvent(new Event(USAGE_BADGE_REFRESH_EVENT))
 }
+window.addEventListener('test-no-accounts', () => {
+  noAccounts = true
+  refreshUsage()
+})
+window.addEventListener('test-restore-accounts', () => {
+  noAccounts = false
+  refreshUsage()
+})
 const currentModel = async () => {
   document.documentElement.dataset.modelReads = String(++reads)
   document.documentElement.dataset.lastRead = selection.provider
@@ -44,13 +53,23 @@ const rpc = {
           providers: {
             claude: { busy: false, accounts: [] },
             copilot: { busy: false, accounts: [] },
-            codex: { accounts: [{ key: 'codex-test', isDefault: true }] },
-            grok: { accounts: [{ key: 'grok-test', isDefault: true }] },
+            codex: {
+              accounts: noAccounts
+                ? []
+                : [{ key: 'codex-test', isDefault: true }],
+            },
+            grok: {
+              accounts: noAccounts
+                ? []
+                : [{ key: 'grok-test', isDefault: true }],
+            },
             antigravity: {
-              accounts: [
-                { key: 'anti-test', isDefault: true },
-                { key: 'anti-other', isDefault: false },
-              ],
+              accounts: noAccounts
+                ? []
+                : [
+                    { key: 'anti-test', isDefault: true },
+                    { key: 'anti-other', isDefault: false },
+                  ],
               visibleModels: googleModels,
             },
           },
