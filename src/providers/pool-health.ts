@@ -16,6 +16,7 @@ import {
   LlmError,
   QUOTA_EXCEEDED_CODE,
 } from '@deepseek-ai/dsh-llm'
+import { ACCOUNT_SUSPENDED_CODE } from './common.js'
 import type { ProviderId } from '../auth/store.js'
 
 /** Registry key for one pool member. */
@@ -102,6 +103,7 @@ export function classifyPoolFailure(
           ? 'member'
           : 'account',
       }
+    case ACCOUNT_SUSPENDED_CODE:
     case 'AUTH':
     case 'INVALID_CREDENTIAL':
     case 'MISSING_CREDENTIAL':

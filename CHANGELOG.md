@@ -1,5 +1,32 @@
 # Changelog
 
+## v0.3.10 — 2026-11-21
+
+- **Responses output is preserved safely.** Explicit empty text is valid silent
+  output, while declared but unassembled function calls now fail with
+  `MALFORMED_RESPONSE` instead of being hidden by an empty text block.
+- **Device authorization tolerates bounded transport failures.** Initial
+  device-code requests retry up to three times and polling survives up to five
+  consecutive transport failures. HTTP responses, cancellation, and malformed
+  JSON are not retried; provider response text remains omitted.
+- **Antigravity suspension is distinct from bad credentials.** Structured
+  `TOS_VIOLATION` responses map to `ACCOUNT_SUSPENDED` with account-scoped pool
+  cooldown, without exposing the provider body.
+- **Codex local budgeting is less compaction-prone.** The default local output
+  reservation is 8192 tokens and the default context window is 128k. Explicit
+  per-model limits still win within account/catalog maxima; no new wire limit is
+  sent to Codex.
+- **Claude screenshots use a soft byte threshold.** Stored images above 1MB get
+  a same-size request projection even when their edges already fit the 2000px
+  hard limit. Stored attachments and offloaded history are not rewritten.
+- **Badge and reset state survive visibility changes.** Hiding or emptying the
+  badge closes its dialog without reopening it when accounts return. A reset
+  completion message keeps its disclosure mounted after the last credit is used.
+- **Upstream review advanced to `c58464c`.** Claude signed-thinking replay and
+  deferred tools remain pending design work rather than an unsafe partial port;
+  the upstream UI tabs/redesign and independent release mechanics are not
+  absorbed into this fork.
+
 ## v0.3.9 — 2026-11-19
 
 - **DSH 0.2.2-rc.5 support.** The gated window now covers DSH `0.1.7-rc.2`,

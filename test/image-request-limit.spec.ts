@@ -124,6 +124,38 @@ test('image request targets fit the long edge and carry both host projection sha
   assert.equal(imageRequestTarget(SMALL, LIMIT), undefined)
 })
 
+test('softBytes re-encodes a large stored image without changing its dimensions', () => {
+  const limit = { ...LIMIT, softBytes: 1_000_000 }
+  assert.equal(
+    imageRequestTarget({ ...SMALL, bytes: 1_000_000 }, limit),
+    undefined,
+  )
+  assert.deepEqual(imageRequestTarget({ ...SMALL, bytes: 1_000_001 }, limit), {
+    width: 800,
+    height: 600,
+    maxPixels: 480_000,
+    maxBytes: 1_000_000,
+  })
+})
+
+test('soft-byte projection passes the capped maxBytes to the host reader', async () => {
+  const fixture = store()
+  await resolveImages(
+    withImages({ ...SMALL, bytes: 1_000_001 }),
+    fixture.attachments,
+    undefined,
+    { ...LIMIT, softBytes: 1_000_000 },
+  )
+  assert.deepEqual(fixture.targets, [
+    {
+      width: 800,
+      height: 600,
+      maxPixels: 480_000,
+      maxBytes: 1_000_000,
+    },
+  ])
+})
+
 test('a limited route sends oversized images downscaled and leaves the rest as stored', async () => {
   const { attachments, calls, targets } = store()
   const [message] = await resolveImages(

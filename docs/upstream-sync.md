@@ -20,7 +20,7 @@ section is the human summary; the JSON is the source of truth.
 
 - **Baseline:** upstream `v0.9.5` — commit
   `75a83460b27f869d6972c6d0a2b39d76ca49eabb` (2026-09-28).
-- **Reviewed up to:** upstream commit `e2ed02b9` (after `v0.9.12`).
+- **Reviewed up to:** upstream commit `c58464c9` (at `v0.9.14`).
 - **Already covered before this ledger existed:** `f6e1b3f1` (the Settings card
   shows the CLI version Codex and Claude present, upstream issue
   [#108](https://github.com/V1ki/dsh-plugin-subscriptions/issues/108)). Ported
@@ -29,7 +29,8 @@ section is the human summary; the JSON is the source of truth.
   WebRuntime adaptation in `f35b3b7b` and the Claude fallback restored by
   `0bd56951`; neither requires another port. The independent RC3 support in
   `8ba471c` and the media-argument port in `4db7609` also cover the integration
-  node `48f1fa10`.
+  node `48f1fa10`. The provider hardening commit `ce73f63` also covers merge
+  integrations `a07407f`, `3de0cc2`, `9e519af`, and `0f32594`.
 - **Ported since:** Codex reasoning-effort `ultra` handling (`0c65c7d0`,
   `527f4d90`); Codex reset credits, end to end (`62453f2f`, `9c0ae036`,
   `d7a7f752`, `53577040`, `b0c6220a`); the Claude prompt-cache TTL setting
@@ -58,7 +59,11 @@ section is the human summary; the JSON is the source of truth.
   `dad6ff1c`; and incremental media tool-call arguments from `59764ff2`, whose
   RC3 window and positioning/error-code adaptations were already covered by this
   fork. The fork deliberately retains its existing observedAt/stale model and
-  default-account summaries instead of a second client cache.
+  default-account summaries instead of a second client cache. This sync also
+  ports Responses silent output (`6ff264b`), bounded device-flow retry
+  (`b561150`), the Claude soft-byte image projection (`e18a269`), redacted
+  Antigravity suspension (`7a337f0`), reset feedback and badge visibility state
+  (`58b2ac4`, `716a9e5`), and Codex's local budget defaults (`348ea90`).
 - **Deliberately not taken:** upstream's release and CI work (`564be625`,
   `800a08f5`, `69ac9c37`, `74f44a29`, `d8ab13e9`, `9e90ef87`, `a5b01068`,
   `7639ed99`, `b8023110`), its peer-range moves (`867136be`, `e1d3f427`,
@@ -73,6 +78,9 @@ section is the human summary; the JSON is the source of truth.
   keeps known exhausted accounts blocked. `b5b0605a` is README-only upstream
   content covered by this sync's refreshed snapshots. `e2ed02b9` is a merge-only
   node with no independent change beyond the grouped-registry decision below.
+  Also not adopted here: README-only `3d59360`, upstream-local ignore rule
+  `b16afd5`, upstream-only screenshots `ef34b71`, and upstream release
+  versioning `c58464c`.
 - **Open decisions:** `998cea06` and `a85fb93a` (display names) collide with
   this fork's own localized naming; `f359301e` (hourly catalog refresh) changes
   list freshness. `d5f2b9da` introduces provider-native grouped catalogs and a
@@ -80,6 +88,17 @@ section is the human summary; the JSON is the source of truth.
   not an incremental display-mode fix. `185ab5e9` extends the same grouped
   registry with `xhigh`, so it belongs to that pending design rather than a
   nonexistent fork code path.
+
+  The Claude replay cluster (`78cd40a`, `bd2abd3`, `3faf959`) remains pending:
+  the fork currently discards signatures, and upstream's refusal matcher
+  conflicts with redacted error messages. A future port needs private response
+  classification, prefix/reset handling and the final merge resolution, with no
+  raw provider text. Deferred tools (`341709f`, `886fce4`) are an optional
+  default-off feature, not a required fix to existing requests. The upstream UI
+  redesign (`5fadc07`, `0abbb71`, `0a3458d`, `3b31c12`, `75c8c58`, `46eeb8e`,
+  `fc77699`, `bf3c680`, `86a7cac`, `962ea66`) remains pending rather than
+  replacing the fork's recent/always contract, external sources and reset/grant
+  presentation.
 
 ## How the baseline was determined
 

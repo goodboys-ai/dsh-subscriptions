@@ -112,6 +112,8 @@ export interface ImageRequestLimit {
   maxEdge: number
   /** Encoded-byte target before base64 expansion. */
   maxBytes: number
+  /** Re-encode stored images above this byte size even within maxEdge. */
+  softBytes?: number
 }
 
 /**
@@ -176,18 +178,34 @@ export function requiredImageOffloadCount(
  * one projection carries both.
  */
 export function imageRequestTarget(
-  ref: { width: number; height: number },
+  ref: { width: number; height: number; bytes?: number },
   limit: ImageRequestLimit,
 ):
-  | { width: number; height: number; maxPixels: number; maxBytes: number }
+  | {
+      width: number
+      height: number
+      maxPixels: number
+      maxBytes: number
+    }
   | undefined {
   const longEdge = Math.max(ref.width, ref.height)
-  if (!(longEdge > limit.maxEdge)) return undefined
+  if (
+    !(longEdge > limit.maxEdge) &&
+    !(limit.softBytes !== undefined && (ref.bytes ?? 0) > limit.softBytes)
+  )
+    return undefined
+  // Soft-byte re-encoding may keep the same size, but must never upscale it.
+  const targetEdge = Math.min(limit.maxEdge, longEdge)
   const short = (edge: number): number =>
-    Math.max(1, Math.floor((edge * limit.maxEdge) / longEdge))
-  const width = ref.width >= ref.height ? limit.maxEdge : short(ref.width)
-  const height = ref.width >= ref.height ? short(ref.height) : limit.maxEdge
-  return { width, height, maxPixels: width * height, maxBytes: limit.maxBytes }
+    Math.max(1, Math.floor((edge * targetEdge) / longEdge))
+  const width = ref.width >= ref.height ? targetEdge : short(ref.width)
+  const height = ref.width >= ref.height ? short(ref.height) : targetEdge
+  return {
+    width,
+    height,
+    maxPixels: width * height,
+    maxBytes: Math.min(limit.maxBytes, limit.softBytes ?? limit.maxBytes),
+  }
 }
 
 /**
