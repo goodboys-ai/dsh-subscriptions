@@ -7,10 +7,10 @@
     "date": "2026-09-28"
   },
   "upstreamRef": {
-    "sha": "e2ed02b9",
+    "sha": "c58464c9",
     "note": "Full sha is re-derived by the check from the remote ref; recorded here for humans."
   },
-  "updatedAt": "2026-11-17",
+  "updatedAt": "2026-11-21",
   "entries": [
     {
       "upstream": "527f4d90",
@@ -452,7 +452,9 @@
       "status": "ported",
       "area": "grok",
       "forkCommits": ["1729bed"],
-      "evidence": { "test": "test/models.spec.ts" },
+      "evidence": {
+        "test": "test/models.spec.ts"
+      },
       "reason": "Sorts known efforts weakest-first with stable unknown-id ordering and no object-prototype lookups."
     },
     {
@@ -461,7 +463,9 @@
       "status": "ported",
       "area": "docs",
       "forkCommits": ["1729bed"],
-      "evidence": { "docs": "docs/upstream-README.md" },
+      "evidence": {
+        "docs": "docs/upstream-README.md"
+      },
       "reason": "Refreshes the final upstream bilingual README snapshot, including the sidebar companion entry."
     },
     {
@@ -470,7 +474,9 @@
       "status": "ported",
       "area": "pool",
       "forkCommits": ["1729bed"],
-      "evidence": { "test": "test/pool.spec.ts" },
+      "evidence": {
+        "test": "test/pool.spec.ts"
+      },
       "reason": "Converts initial error finishes into failover even after leading usage, leaves empty members immediately retryable, and suppresses unrelated recovery waits."
     },
     {
@@ -492,7 +498,9 @@
       "status": "ported",
       "area": "pool",
       "forkCommits": ["1729bed"],
-      "evidence": { "test": "test/pool.spec.ts" },
+      "evidence": {
+        "test": "test/pool.spec.ts"
+      },
       "reason": "Includes the normalized scoring concept only in its final opt-in form after 43843476, leaving the default absolute burn-rate strategy unchanged."
     },
     {
@@ -545,7 +553,9 @@
       "status": "ported",
       "area": "storage",
       "forkCommits": ["1729bed"],
-      "evidence": { "test": "test/json-bom.spec.ts" },
+      "evidence": {
+        "test": "test/json-bom.spec.ts"
+      },
       "reason": "Uses one BOM-tolerant parser for auth, provider settings, model defaults, model speeds, and catalog caches; the retired proxy store is not applicable."
     },
     {
@@ -566,7 +576,9 @@
       "status": "ported",
       "area": "antigravity",
       "forkCommits": ["1729bed"],
-      "evidence": { "test": "test/antigravity.spec.ts" },
+      "evidence": {
+        "test": "test/antigravity.spec.ts"
+      },
       "reason": "Corrects stale labels only when the wire enum and existing catalog ID agree, preserving all service IDs and unrelated labels."
     },
     {
@@ -639,7 +651,9 @@
       "status": "ported",
       "area": "antigravity",
       "forkCommits": ["1729bed"],
-      "evidence": { "test": "test/antigravity-images.spec.ts" },
+      "evidence": {
+        "test": "test/antigravity-images.spec.ts"
+      },
       "reason": "Skips thought-marked inline sketches without saving or replaying them and still returns EMPTY_RESPONSE when no final content exists."
     },
     {
@@ -732,7 +746,9 @@
       "subject": "feat(codex): keep using remaining credits after included quota",
       "status": "declined",
       "area": "codex",
-      "evidence": { "test": "test/pool.spec.ts" },
+      "evidence": {
+        "test": "test/pool.spec.ts"
+      },
       "reason": "Directly reverses the fork's explicit guarantee that an applicable window at >=100% cannot silently spill into paid credits. There is no user opt-in for that spending; existing tests keep exhausted accounts and stale failure snapshots blocked. Reconsider only through a separately designed opt-in billing policy."
     },
     {
@@ -741,7 +757,9 @@
       "status": "ported",
       "area": "ui",
       "forkCommits": ["4db7609"],
-      "evidence": { "test": "test/media-arguments.spec.ts" },
+      "evidence": {
+        "test": "test/media-arguments.spec.ts"
+      },
       "reason": "Ports incremental media tool-call arguments with legacy raw-JSON fallback. RC3 support, anchored positioning, LlmError compatibility and AgentRegistry fixture adaptations were already covered independently by 8ba471c, 5f1d29a and 6c9ccad."
     },
     {
@@ -772,6 +790,248 @@
       "status": "not-applicable",
       "area": "antigravity",
       "reason": "Merge-only integration with no changes beyond 185ab5e9; the actual grouped-registry decision remains pending."
+    },
+    {
+      "upstream": "78cd40a",
+      "subject": "fix(claude): replay signed thinking blocks to the same account and model",
+      "status": "pending",
+      "area": "claude",
+      "reason": "Requires the final version-2 prefix/refusal design and private error classification; the fork currently discards signatures and has no replay seam. Do not ship the intermediate first-stage implementation."
+    },
+    {
+      "upstream": "6ff264b",
+      "subject": "fix(responses): preserve explicit silent text safely",
+      "status": "ported",
+      "area": "responses",
+      "forkCommits": ["ce73f63"],
+      "evidence": {
+        "test": "test/responses-silent.spec.ts"
+      },
+      "reason": "Ports explicit empty text and the MALFORMED_RESPONSE guard for declared but unassembled calls, including real assembler/SSE/Copilot coverage."
+    },
+    {
+      "upstream": "bd2abd3",
+      "subject": "fix(claude): bind replayed thinking to its prefix",
+      "status": "pending",
+      "area": "claude",
+      "reason": "Pending with the complete replay cluster: prefix/prev/content binding, refusal reset and redacted error classification must arrive together without exposing provider text."
+    },
+    {
+      "upstream": "341709f",
+      "subject": "feat(claude): optional deferred tool loading with tool search (claudeDeferTools)",
+      "status": "pending",
+      "area": "claude",
+      "reason": "Optional new feature requiring config, request assembly, usage accounting and tests. Keep default-off and decide separately; no existing default request needs it."
+    },
+    {
+      "upstream": "b561150",
+      "subject": "fix(auth): retry the device-code request and survive transient poll failures",
+      "status": "ported",
+      "area": "auth",
+      "forkCommits": ["ce73f63"],
+      "evidence": {
+        "test": "test/device-flow.spec.ts"
+      },
+      "reason": "Ports bounded initial and poll transport retries while preserving parseProviderJson, immediate cancellation and no retry after an HTTP response. No exactly-once claim is made."
+    },
+    {
+      "upstream": "e18a269",
+      "subject": "fix(claude): keep screenshots within the request image budget",
+      "status": "ported",
+      "area": "claude",
+      "forkCommits": ["ce73f63"],
+      "evidence": {
+        "test": "test/image-request-limit.spec.ts"
+      },
+      "reason": "Ports the 1MB softBytes projection without upscaling or rewriting stored attachments. The optional fs mapper/read-only path remains a separate host-capability decision."
+    },
+    {
+      "upstream": "7a337f0",
+      "subject": "fix(antigravity): surface ToS-suspended accounts instead of \"invalid API key\"",
+      "status": "ported",
+      "area": "antigravity",
+      "forkCommits": ["ce73f63"],
+      "evidence": {
+        "test": "test/account-suspension.spec.ts"
+      },
+      "reason": "Maps structured TOS_VIOLATION to ACCOUNT_SUSPENDED with account cooldown in chat/image pools while preserving redacted diagnostics. Upstream grouped-quota fallback does not exist here."
+    },
+    {
+      "upstream": "5fadc07",
+      "subject": "feat(ui): keep the quota pill to two percentages and drop stale subscriptions",
+      "status": "pending",
+      "area": "ui",
+      "reason": "Changes the fork's explicit recent/always/hidden contract and removes freshness/source presentation. Requires a separate UX decision; no automatic adoption."
+    },
+    {
+      "upstream": "0abbb71",
+      "subject": "feat: organize subscription providers into tabs",
+      "status": "pending",
+      "area": "ui",
+      "reason": "Provider tabs conflict with the fork's external sources and Settings layout. Needs an independent UI design and browser evidence."
+    },
+    {
+      "upstream": "0a3458d",
+      "subject": "feat: move settings descriptions into help tooltips",
+      "status": "pending",
+      "area": "ui",
+      "reason": "Tooltip-based help is a separate accessibility and mobile layout choice; no protocol fix applies."
+    },
+    {
+      "upstream": "3b31c12",
+      "subject": "feat: refine subscriptions settings layout",
+      "status": "pending",
+      "area": "ui",
+      "reason": "Account tabs and settings restructuring cannot replace fork save/TTL/partial-save behavior without an independent design."
+    },
+    {
+      "upstream": "3d59360",
+      "subject": "revert: preserve upstream readme content",
+      "status": "not-applicable",
+      "area": "docs",
+      "reason": "README-only upstream correction; bilingual snapshots are refreshed to the final c58464c content with no fork runtime effect."
+    },
+    {
+      "upstream": "75c8c58",
+      "subject": "fix: clarify subscription tab overflow",
+      "status": "pending",
+      "area": "ui",
+      "reason": "Only applies to the unadopted SubscriptionTabs component; include its final form if tabs are ever adopted."
+    },
+    {
+      "upstream": "46eeb8e",
+      "subject": "feat: surface subscription account actions",
+      "status": "pending",
+      "area": "ui",
+      "reason": "Account-action redesign is pending; preserve fork reset confirmation, read-only Claude grants and external sources."
+    },
+    {
+      "upstream": "bf3c680",
+      "subject": "style: reuse the provider refresh button",
+      "status": "pending",
+      "area": "ui",
+      "reason": "A shared refresh-button component belongs to the pending Settings redesign and has no independent protocol fix."
+    },
+    {
+      "upstream": "fc77699",
+      "subject": "style: simplify subscription credit and reset layout",
+      "status": "pending",
+      "area": "ui",
+      "reason": "Credit/reset layout changes must preserve the fork's separate Codex credits and read-only Claude grants contracts."
+    },
+    {
+      "upstream": "b16afd5",
+      "subject": "chore: ignore local pnpm store and worktrees",
+      "status": "not-applicable",
+      "area": "upstream",
+      "reason": "Upstream-only local ignore rules do not apply to the fork's canonical/worktree layout."
+    },
+    {
+      "upstream": "86a7cac",
+      "subject": "Merge pull request #219 from victorwads/feat/provider-settings-tabs",
+      "status": "pending",
+      "area": "ui",
+      "reason": "Integration node for the pending provider-tabs redesign; no independent protocol fix is claimed."
+    },
+    {
+      "upstream": "58b2ac4",
+      "subject": "fix(ui): fix wide-tab chevron deadlock, last-reset feedback, and tab reveal on reorder/resize",
+      "status": "ported",
+      "area": "ui",
+      "forkCommits": ["ce73f63"],
+      "evidence": {
+        "test": "test/claude-reset-credits-ui.spec.ts"
+      },
+      "reason": "Ports the applicable last-reset feedback by keeping the existing disclosure mounted while its status message is active. Wide-tab chevron/reorder/resize parts remain pending with tabs."
+    },
+    {
+      "upstream": "962ea66",
+      "subject": "Merge pull request #236 from ss-yanhao/feat/compact-quota-pill",
+      "status": "pending",
+      "area": "ui",
+      "reason": "Integration node for the pending compact-pill product change; the fork's recent/always contract is unchanged."
+    },
+    {
+      "upstream": "716a9e5",
+      "subject": "fix(ui): reset badge dialog state when hidden, align docs/tests after merging #219 and #236",
+      "status": "ported",
+      "area": "ui",
+      "forkCommits": ["ce73f63"],
+      "evidence": {
+        "test": "test/subscription-usage-browser.mjs"
+      },
+      "reason": "Resets open whenever the badge is hidden or has no visible accounts, with a real browser regression covering removal and restoration. Other tab/docs changes are not adopted."
+    },
+    {
+      "upstream": "a07407f",
+      "subject": "Merge pull request #235 from ss-yanhao/fix/antigravity-tos-suspended-account",
+      "status": "already-covered",
+      "area": "antigravity",
+      "forkCommits": ["ce73f63"],
+      "reason": "Merge-only integration covered by the redacted ToS classification and pool tests in the same port."
+    },
+    {
+      "upstream": "3de0cc2",
+      "subject": "Merge pull request #230 from tobi-songhana/fix/device-flow-transport-retry",
+      "status": "already-covered",
+      "area": "auth",
+      "forkCommits": ["ce73f63"],
+      "reason": "Merge-only integration covered by the bounded device-flow retry implementation and tests."
+    },
+    {
+      "upstream": "9e519af",
+      "subject": "Merge pull request #231 from gaodaqigou-coder/fix/claude-image-offload",
+      "status": "already-covered",
+      "area": "claude",
+      "forkCommits": ["ce73f63"],
+      "reason": "Merge-only integration covered by the softBytes projection port; no additional independent resolution."
+    },
+    {
+      "upstream": "0f32594",
+      "subject": "Merge pull request #207 from jishi7/codex/responses-explicit-empty-text",
+      "status": "already-covered",
+      "area": "responses",
+      "forkCommits": ["ce73f63"],
+      "reason": "Merge-only integration covered by the silent-text and unassembled-call regression suite."
+    },
+    {
+      "upstream": "886fce4",
+      "subject": "Merge pull request #228 from brungcm/feat/claude-deferred-tool-loading",
+      "status": "pending",
+      "area": "claude",
+      "reason": "Integration node for the optional deferred-tools feature, which remains pending and default-off."
+    },
+    {
+      "upstream": "3faf959",
+      "subject": "Merge pull request #205 from Campionnn/fix/claude-thinking-replay",
+      "status": "pending",
+      "area": "claude",
+      "reason": "Contains substantive replay integration, not merge-only: dropped thinking-only messages, adjacent-role merging, actual wire-prefix recalculation and deferred-tools digest. Pending with the full replay design."
+    },
+    {
+      "upstream": "348ea90",
+      "subject": "fix(codex): reduce premature context compaction (#238)",
+      "status": "ported",
+      "area": "codex",
+      "forkCommits": ["ce73f63"],
+      "evidence": {
+        "test": "test/models.spec.ts"
+      },
+      "reason": "Ports the local 8192 output reservation and conservative 128k default context budget with explicit per-model overrides. Provider-wide Settings inputs remain a separate preference feature."
+    },
+    {
+      "upstream": "ef34b71",
+      "subject": "docs: refresh anonymized README UI screenshots",
+      "status": "not-applicable",
+      "area": "docs",
+      "reason": "Upstream-only anonymized screenshots depict a different UI and are not fork evidence; no image assets are adopted."
+    },
+    {
+      "upstream": "c58464c",
+      "subject": "chore: release v0.9.14",
+      "status": "not-applicable",
+      "area": "release",
+      "reason": "Upstream release versioning does not apply; the fork keeps its independent plugin version and bounded peer policy."
     }
   ]
 }
