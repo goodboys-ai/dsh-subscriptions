@@ -81,7 +81,9 @@ across restarts.
 participation, model allowlists, and the per-model effort, subagent speed,
 context, and tool settings. A context value only lowers the window a session
 plans against, never above what the provider advertises; Codex and Claude
-support it, and it does not enlarge the API's capacity.
+support it, and it does not enlarge the API's capacity. Without an override,
+Codex uses a 128k local context budget and reserves 8192 tokens for output;
+neither value is sent as a new Codex API limit.
 
 For Codex, **Subagent default speed** applies to subsequent subagent requests
 using that model, regardless of the parent model. An explicit Speed choice in

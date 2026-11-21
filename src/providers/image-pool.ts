@@ -1,7 +1,7 @@
 /** Account scheduling shared by image generation and editing, independent of chat catalogs/quota. */
 import { LlmError } from '@deepseek-ai/dsh-llm'
 import type { AccountTokenManager } from './accounts.js'
-import { httpLlmError } from './common.js'
+import { ACCOUNT_SUSPENDED_CODE, httpLlmError } from './common.js'
 import type { RateLimitResetReader } from './rate-limit.js'
 import {
   AUTH_COOLDOWN_MS,
@@ -111,6 +111,7 @@ export class ImageAccountPool {
         if (
           !(error instanceof LlmError) ||
           ![
+            ACCOUNT_SUSPENDED_CODE,
             'AUTH',
             'INVALID_CREDENTIAL',
             'MISSING_CREDENTIAL',
@@ -127,9 +128,12 @@ export class ImageAccountPool {
         failure.failure.providerRetryAfterMs ??
         (failure.code === 'RATE_LIMIT'
           ? DEFAULT_QUOTA_COOLDOWN_MS
-          : ['AUTH', 'INVALID_CREDENTIAL', 'MISSING_CREDENTIAL'].includes(
-                failure.code,
-              )
+          : [
+                ACCOUNT_SUSPENDED_CODE,
+                'AUTH',
+                'INVALID_CREDENTIAL',
+                'MISSING_CREDENTIAL',
+              ].includes(failure.code)
             ? AUTH_COOLDOWN_MS
             : TRANSIENT_COOLDOWN_MS)
       this.health.markUnavailable(key, delay, failure.code)

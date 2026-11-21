@@ -1006,7 +1006,9 @@ export function SubscriptionsSection(props: SubscriptionsSectionProps) {
                           />
                         )}
                       {(id === 'codex' || id === 'claude') &&
-                        showsResetCredits(id, usage?.resetCredits) && (
+                        (showsResetCredits(id, usage?.resetCredits) ||
+                          (resetAccount === account.key &&
+                            resetMessage !== '')) && (
                           <ResetCreditsDisclosure
                             mode={id === 'claude' ? 'grants' : 'credits'}
                             credits={sortedCredits}

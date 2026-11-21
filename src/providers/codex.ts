@@ -20,6 +20,11 @@ import type {
   LlmResolvedModelInfo,
   StreamChunk,
 } from '@deepseek-ai/dsh-llm'
+import {
+  CODEX_CONTEXT_WINDOW,
+  CODEX_DEFAULT_CONTEXT_WINDOW,
+  CODEX_DEFAULT_MAX_TOKENS,
+} from '../codex-budget-defaults.js'
 import { decodeJwtPayload } from '../auth/jwt.js'
 import type { FlowSpec } from '../auth/oauth-flow.js'
 import type { CodexSession } from '../auth/store.js'
@@ -80,8 +85,6 @@ export const CODEX_API_URL = 'https://chatgpt.com/backend-api/codex/responses'
 const CODEX_SCOPE =
   'openid profile email offline_access api.connectors.read api.connectors.invoke'
 const CODEX_CALLBACK_PATH = '/auth/callback'
-const CODEX_CONTEXT_WINDOW = 400_000
-const CODEX_DEFAULT_MAX_TOKENS = 128_000
 /** Refresh when the access token has less than this much life left. */
 export const CODEX_PREEMPT_MS = 5 * 60_000
 
@@ -1280,7 +1283,11 @@ export class CodexAdapter extends LlmAdapter {
       discovered?.contextWindow ??
       configured?.contextWindow ??
       CODEX_CONTEXT_WINDOW
-    return { default: fallback, max: discovered?.maxContextWindow ?? fallback }
+    const defaultWindow = Math.min(fallback, CODEX_DEFAULT_CONTEXT_WINDOW)
+    return {
+      default: defaultWindow,
+      max: discovered?.maxContextWindow ?? fallback,
+    }
   }
 
   private async contextWindowFor(
@@ -1288,8 +1295,11 @@ export class CodexAdapter extends LlmAdapter {
     account?: string,
   ): Promise<number> {
     const limits = await this.contextLimits(model, account)
+    const configured = this.options.models.find((entry) => entry.id === model)
     return Math.min(
-      this.options.contextWindowOf?.(model) ?? limits.default,
+      this.options.contextWindowOf?.(model) ??
+        configured?.contextWindow ??
+        limits.default,
       limits.max,
     )
   }

@@ -813,7 +813,11 @@ export interface ClaudeAdapterOptions {
  * screenshot would fail the session for good (#110). Images are sent within
  * this cap; 3.75MB encoded stays under the 5MB base64 per-image limit.
  */
-const CLAUDE_IMAGE_LIMIT = { maxEdge: 2000, maxBytes: 3_750_000 }
+const CLAUDE_IMAGE_LIMIT = {
+  maxEdge: 2000,
+  maxBytes: 3_750_000,
+  softBytes: 1_000_000,
+}
 
 /**
  * Inline image data a Claude request may carry, in base64 bytes. Every turn

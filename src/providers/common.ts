@@ -228,6 +228,33 @@ export interface HttpLlmErrorOptions {
  * @param options - the calling provider's rate-limit reader and warning sink.
  * @returns the classified error.
  */
+/** Stable code for an account rejected for a terms-of-service violation. */
+export const ACCOUNT_SUSPENDED_CODE = 'ACCOUNT_SUSPENDED'
+
+/**
+ * Recognize a structured ToS rejection without exposing the provider body.
+ * Classification happens inside the private response-consumption boundary.
+ */
+async function hasTermsOfServiceViolation(body: string): Promise<boolean> {
+  try {
+    const payload = await parseProviderJson<{ details?: unknown }>(
+      body,
+      'provider error response',
+    )
+    return (
+      Array.isArray(payload?.details) &&
+      payload.details.some(
+        (detail) =>
+          typeof detail === 'object' &&
+          detail !== null &&
+          (detail as { reason?: unknown }).reason === 'TOS_VIOLATION',
+      )
+    )
+  } catch {
+    return false
+  }
+}
+
 export async function httpLlmError(
   response: Response,
   label: string,
@@ -242,7 +269,9 @@ export async function httpLlmError(
   // Preserve the existing classification window; reset readers need the full body.
   const shown = body.slice(0, 500)
   let code: string
-  if (response.status === 401 || response.status === 403) code = 'AUTH'
+  if (response.status === 403 && (await hasTermsOfServiceViolation(body)))
+    code = ACCOUNT_SUSPENDED_CODE
+  else if (response.status === 401 || response.status === 403) code = 'AUTH'
   else if (response.status === 429) code = 'RATE_LIMIT'
   else if (isQuotaExceededError(shown)) code = QUOTA_EXCEEDED_CODE
   else if (response.status === 400 && isContextWindowExceededError(shown))

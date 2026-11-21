@@ -326,6 +326,18 @@ try {
   await badge.waitFor()
   assert.match(await badge.innerText(), /^Codex /)
   console.log('85%: always-mode rotation verified')
+  // Removing every account while the dialog is open must reset `open`; restoring
+  // accounts shows the badge but must not reopen a stale panel by itself.
+  await badge.click()
+  await panel.waitFor()
+  await page.evaluate(() => window.dispatchEvent(new Event('test-no-accounts')))
+  await panel.waitFor({ state: 'detached' })
+  assert.equal(await badge.count(), 0)
+  await page.evaluate(() =>
+    window.dispatchEvent(new Event('test-restore-accounts')),
+  )
+  await badge.waitFor()
+  assert.equal(await panel.count(), 0)
   await page.evaluate(() => {
     window.savedSetItem = Storage.prototype.setItem
     Storage.prototype.setItem = function (key, value) {

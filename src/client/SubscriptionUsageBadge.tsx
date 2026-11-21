@@ -782,10 +782,6 @@ export function SubscriptionUsageBadge({
     }
   }, [])
 
-  useEffect(() => {
-    if (displayMode === 'hidden') setOpen(false)
-  }, [displayMode])
-
   // `always` mode advances the rotation on its own cadence; other modes
   // never advance, so the pill never changes on its own.
   useEffect(() => {
@@ -809,7 +805,13 @@ export function SubscriptionUsageBadge({
     displayMode === 'always'
       ? rotatingDisplay(displays, current, rotation)
       : collapsedDisplays(displays, badgeSelection?.provider)
-  if (displayMode === 'hidden' || collapsed.length === 0) return seat
+  const visible = displayMode !== 'hidden' && collapsed.length > 0
+  // Reset the dialog whenever its badge is hidden or has no visible accounts,
+  // so restored data cannot reopen a stale panel without a new user action.
+  useEffect(() => {
+    if (!visible) setOpen(false)
+  }, [visible])
+  if (!visible) return seat
 
   // Model scope only while the pill shows the current model's provider;
   // a rotated provider has no live model, so it reads at account level.
