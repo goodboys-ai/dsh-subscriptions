@@ -333,15 +333,17 @@ test('device flow: a successful pending response resets the consecutive-failure 
   const fetchFn = (async (input: RequestInfo | URL) => {
     if (String(input) === DEVICE_CODE_URL) return Response.json(DEVICE_CODE)
     polls += 1
-    if (polls === 1 || polls === 3) throw new Error('connection reset')
-    if (polls === 2 || polls === 4)
-      return Response.json({ error: 'authorization_pending' })
+    // Four failures, one successful pending response, then four more failures:
+    // each segment stays below five while the cumulative total exceeds it.
+    if (polls <= 4 || (polls >= 6 && polls <= 9))
+      throw new Error('connection reset')
+    if (polls === 5) return Response.json({ error: 'authorization_pending' })
     return Response.json({ access_token: 'gh-token' })
   }) as typeof fetch
   const manager = new DeviceFlowManager()
   const attempt = await manager.start('copilot', spec(fetchFn))
   assert.equal(await attempt.waitToken(), 'gh-token')
-  assert.equal(polls, 5)
+  assert.equal(polls, 10)
 })
 
 test('device flow: cancellation after a rejected poll never retries it', async () => {
