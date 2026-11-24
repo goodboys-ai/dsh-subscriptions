@@ -20,7 +20,7 @@ section is the human summary; the JSON is the source of truth.
 
 - **Baseline:** upstream `v0.9.5` — commit
   `75a83460b27f869d6972c6d0a2b39d76ca49eabb` (2026-09-28).
-- **Reviewed up to:** upstream commit `c58464c9` (at `v0.9.14`).
+- **Reviewed up to:** upstream commit `f422cb56` (after `v0.9.15`).
 - **Already covered before this ledger existed:** `f6e1b3f1` (the Settings card
   shows the CLI version Codex and Claude present, upstream issue
   [#108](https://github.com/V1ki/dsh-plugin-subscriptions/issues/108)). Ported
@@ -30,7 +30,8 @@ section is the human summary; the JSON is the source of truth.
   `0bd56951`; neither requires another port. The independent RC3 support in
   `8ba471c` and the media-argument port in `4db7609` also cover the integration
   node `48f1fa10`. The provider hardening commit `ce73f63` also covers merge
-  integrations `a07407f`, `3de0cc2`, `9e519af`, and `0f32594`.
+  integrations `a07407f`, `3de0cc2`, `9e519af`, and `0f32594`. The Claude ID
+  normalization commit `d8c5c83` also covers merge integration `8773d74`.
 - **Ported since:** Codex reasoning-effort `ultra` handling (`0c65c7d0`,
   `527f4d90`); Codex reset credits, end to end (`62453f2f`, `9c0ae036`,
   `d7a7f752`, `53577040`, `b0c6220a`); the Claude prompt-cache TTL setting
@@ -63,7 +64,9 @@ section is the human summary; the JSON is the source of truth.
   ports Responses silent output (`6ff264b`), bounded device-flow retry
   (`b561150`), the Claude soft-byte image projection (`e18a269`), redacted
   Antigravity suspension (`7a337f0`), reset feedback and badge visibility state
-  (`58b2ac4`, `716a9e5`), and Codex's local budget defaults (`348ea90`).
+  (`58b2ac4`, `716a9e5`), and Codex's local budget defaults (`348ea90`). This
+  sync also ports Claude tool-call ID normalization (`374f91f`) and the
+  independent settings timeout boundary (`29f6c5e`).
 - **Deliberately not taken:** upstream's release and CI work (`564be625`,
   `800a08f5`, `69ac9c37`, `74f44a29`, `d8ab13e9`, `9e90ef87`, `a5b01068`,
   `7639ed99`, `b8023110`), its peer-range moves (`867136be`, `e1d3f427`,
@@ -80,7 +83,10 @@ section is the human summary; the JSON is the source of truth.
   node with no independent change beyond the grouped-registry decision below.
   Also not adopted here: README-only `3d59360`, upstream-local ignore rule
   `b16afd5`, upstream-only screenshots `ef34b71`, and upstream release
-  versioning `c58464c`.
+  versioning `c58464c`. Also not applicable here: grouped-model legacy
+  allowlists (`4a619b3`, `a28ab85`), dashboard-only documentation (`0ac4fa9`),
+  upstream release `733c692`, schedule-only test hardening `093569c`, and Codex
+  credit-balance/credit-funded routing `f422cb5`.
 - **Open decisions:** `998cea06` and `a85fb93a` (display names) collide with
   this fork's own localized naming; `f359301e` (hourly catalog refresh) changes
   list freshness. `d5f2b9da` introduces provider-native grouped catalogs and a
@@ -99,6 +105,14 @@ section is the human summary; the JSON is the source of truth.
   `fc77699`, `bf3c680`, `86a7cac`, `962ea66`) remains pending rather than
   replacing the fork's recent/always contract, external sources and reset/grant
   presentation.
+
+  Grok's context-tier picker (`416e27e`, `d98c9fc`, `a0ca629`) is an optional
+  settings feature rather than a default-path protocol fix. The Usage Dashboard
+  and its persistence/tracking stack (`63ae200`, `35e8dec`, `aa591d0`,
+  `8e036c0`, `6ab555b`) plus the unified settings page (`c743a78`) require
+  independent data, UI and migration designs. Antigravity's default-disable risk
+  opt-in (`45150ae`) changes existing provider policy and must not silently
+  disable current users.
 
 ## How the baseline was determined
 
