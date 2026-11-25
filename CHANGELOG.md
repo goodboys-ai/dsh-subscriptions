@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.3.11 — 2026-11-24
+
+- **Claude accepts tool-call ids imported from other providers.** Messages API
+  requests now normalize refused ids to deterministic, bounded ids while
+  preserving accepted ids and every tool_use/tool_result pairing. Normalization
+  is request-local, collision-safe, and leaves stored history unchanged.
+- **Model settings cannot hang on account context discovery.** Codex and Claude
+  per-account context-limit lookups now use the same discovery timeout as the
+  rest of the provider-settings RPC.
+- **Upstream review advanced to `407256c`.** The Usage Dashboard, Grok window
+  picker, unified settings page, and Antigravity default-disable feature remain
+  pending designs. Grouped-model allowlist fixes, upstream release mechanics,
+  and credit-funded routing changes do not apply to this fork.
+
 ## v0.3.10 — 2026-11-21
 
 - **Responses output is preserved safely.** Explicit empty text is valid silent

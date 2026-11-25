@@ -5,6 +5,7 @@
  * ({@link AnthropicStreamTranslator}) so tests need no streams.
  */
 
+import { createHash } from 'node:crypto'
 import {
   CONTEXT_WINDOW_EXCEEDED_CODE,
   EMPTY_RESPONSE_CODE,
@@ -131,6 +132,66 @@ function parseToolInput(raw: string): Record<string, unknown> {
   }
 }
 
+/** The Messages API accepts only these characters in tool_use/tool_result ids. */
+const ANTHROPIC_TOOL_ID = /^[a-zA-Z0-9_-]+$/
+const GENERATED_TOOL_ID_MAX_LENGTH = 64
+const GENERATED_TOOL_ID_DIGEST = 16
+
+/** The call id a tool-role message answers, across supported history shapes. */
+function toolMessageCallId(message: TranslatableMessage): string | undefined {
+  return (
+    message.toolCallId ??
+    message.tool_call_id ??
+    (message.source?.kind === 'tool'
+      ? String(message.source.callId)
+      : undefined)
+  )
+}
+
+/** Build a deterministic, bounded id from a refused id and collision attempt. */
+function generatedToolId(id: string, attempt: number): string {
+  const digest = createHash('sha256')
+    .update(attempt === 0 ? id : `${attempt}\u0000${id}`)
+    .digest('base64url')
+  const stem = id
+    .replace(/[^a-zA-Z0-9_-]+/g, '_')
+    .slice(0, GENERATED_TOOL_ID_MAX_LENGTH - GENERATED_TOOL_ID_DIGEST - 1)
+  return `${stem}_${digest.slice(0, GENERATED_TOOL_ID_DIGEST)}`
+}
+
+/**
+ * Map every stored tool-call id to a unique Messages API wire id for one request.
+ * Accepted ids stay verbatim. Refused ids get deterministic digest-suffixed ids;
+ * accepted ids are reserved first so normalization cannot collide with them.
+ * The mapping changes only the request, never stored history.
+ */
+function anthropicToolIds(
+  messages: readonly TranslatableMessage[],
+): (id: string) => string {
+  const stored = new Set<string>()
+  for (const message of messages) {
+    const answered =
+      message.role === 'tool' ? toolMessageCallId(message) : undefined
+    if (answered !== undefined) stored.add(answered)
+    for (const block of message.content) {
+      if (block.type === 'tool-call') stored.add(String(block.id))
+      else if (block.type === 'tool-result')
+        stored.add(String(block.toolCallId))
+    }
+  }
+  const taken = new Set([...stored].filter((id) => ANTHROPIC_TOOL_ID.test(id)))
+  const generated = new Map<string, string>()
+  for (const id of stored) {
+    if (ANTHROPIC_TOOL_ID.test(id)) continue
+    let attempt = 0
+    let wire = generatedToolId(id, attempt)
+    while (taken.has(wire)) wire = generatedToolId(id, ++attempt)
+    taken.add(wire)
+    generated.set(id, wire)
+  }
+  return (id) => generated.get(id) ?? id
+}
+
 /**
  * Move a user message's `tool_result` blocks into one contiguous run at the
  * front, preserving the relative order of both groups.
@@ -186,15 +247,17 @@ function conversationStart(messages: readonly TranslatableMessage[]): number {
  * messages before the conversation starts are handled by
  * {@link toAnthropicSystem} and skipped here, while a later one rides in
  * place as a user-role `<system-reminder>` block.
- * Reasoning blocks are not replayed (v1). Images must arrive pre-resolved
- * ({@link TranslatableMessage}); an unresolved ImageBlock is skipped because
- * its bytes are unreachable here.
+ * Reasoning blocks are not replayed (v1). Tool-call ids from other providers
+ * are normalized only on the wire; accepted ids and stored history stay unchanged.
+ * Images must arrive pre-resolved ({@link TranslatableMessage}); an unresolved
+ * ImageBlock is skipped because its bytes are unreachable here.
  * @param messages - ordered conversation messages with resolved images.
  * @returns Anthropic messages in conversation order.
  */
 export function toAnthropicMessages(
   messages: readonly TranslatableMessage[],
 ): AnthropicMessage[] {
+  const toolId = anthropicToolIds(messages)
   const out: AnthropicMessage[] = []
   const start = conversationStart(messages)
   for (const [index, message] of messages.entries()) {
@@ -215,7 +278,7 @@ export function toAnthropicMessages(
         throw new LlmError('tool result has no call id', 'INVALID_REQUEST')
       blocks.push({
         type: 'tool_result',
-        tool_use_id: id,
+        tool_use_id: toolId(id),
         content: toolResultContent({
           type: 'tool-result',
           toolCallId: ToolCallId(id),
@@ -250,7 +313,7 @@ export function toAnthropicMessages(
             role === 'assistant'
               ? {
                   type: 'tool_use',
-                  id: String(block.id),
+                  id: toolId(String(block.id)),
                   name: block.name,
                   input: parseToolInput(block.arguments),
                 }
@@ -263,7 +326,7 @@ export function toAnthropicMessages(
         case 'tool-result':
           blocks.push({
             type: 'tool_result',
-            tool_use_id: String(block.toolCallId),
+            tool_use_id: toolId(String(block.toolCallId)),
             content: toolResultContent(block),
             ...(block.isError === true ? { is_error: true } : {}),
           })

@@ -1911,9 +1911,10 @@ export function apply(ctx: Context, config: Config): void {
             if (provider === 'codex' && codexAdapter) {
               for (const account of accountCatalogs) {
                 if (account.models?.some((entry) => entry.id === model.id)) {
-                  const limits = await codexAdapter
-                    .contextLimits(model.id, account.account)
-                    .catch(() => undefined)
+                  const limits = await withTimeout(
+                    () => codexAdapter.contextLimits(model.id, account.account),
+                    DISCOVERY_TIMEOUT_MS,
+                  ).catch(() => undefined)
                   if (limits) contexts.push(limits)
                 }
               }
@@ -1921,9 +1922,11 @@ export function apply(ctx: Context, config: Config): void {
             if (provider === 'claude' && claudeAdapter) {
               for (const account of accountCatalogs) {
                 if (account.models?.some((entry) => entry.id === model.id)) {
-                  const limits = await claudeAdapter
-                    .contextLimits(model.id, account.account)
-                    .catch(() => undefined)
+                  const limits = await withTimeout(
+                    () =>
+                      claudeAdapter.contextLimits(model.id, account.account),
+                    DISCOVERY_TIMEOUT_MS,
+                  ).catch(() => undefined)
                   if (limits) contexts.push(limits)
                 }
               }

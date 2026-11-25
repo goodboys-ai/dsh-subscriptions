@@ -7,10 +7,10 @@
     "date": "2026-09-28"
   },
   "upstreamRef": {
-    "sha": "c58464c9",
+    "sha": "407256ca",
     "note": "Full sha is re-derived by the check from the remote ref; recorded here for humans."
   },
-  "updatedAt": "2026-11-21",
+  "updatedAt": "2026-11-25",
   "entries": [
     {
       "upstream": "527f4d90",
@@ -1032,6 +1032,155 @@
       "status": "not-applicable",
       "area": "release",
       "reason": "Upstream release versioning does not apply; the fork keeps its independent plugin version and bounded peer policy."
+    },
+    {
+      "upstream": "416e27e",
+      "subject": "feat(grok): choose catalog context windows from the model editor",
+      "status": "pending",
+      "area": "grok",
+      "reason": "New tier-picker feature requiring catalog types, persistence, UI and bilingual evidence. The fork currently follows the scalar advertised window; keep this optional enhancement separate from protocol fixes."
+    },
+    {
+      "upstream": "29f6c5e",
+      "subject": "fix(grok): bound the settings catalog lookup",
+      "status": "ported",
+      "area": "settings",
+      "forkCommits": ["d8c5c83"],
+      "evidence": {
+        "test": "test/provider-settings-rpc.spec.ts"
+      },
+      "reason": "Ports the independent timeout boundary for Codex per-account context lookups and applies the same bound to Claude. Grok tier contextLimits/lookup changes remain pending with the tier feature."
+    },
+    {
+      "upstream": "d98c9fc",
+      "subject": "fix(ui): do not persist a default-sized context override",
+      "status": "pending",
+      "area": "grok",
+      "reason": "Save semantics for the unadopted Grok tier picker; no fork picker currently claims follow-provider while persisting a hidden tier override."
+    },
+    {
+      "upstream": "4a619b3",
+      "subject": "修复 Antigravity 模型分组后旧账号池白名单失效",
+      "status": "not-applicable",
+      "area": "antigravity",
+      "reason": "Fixes legacy allowlists after upstream grouped model IDs. This fork deliberately retains flat provider model IDs, so the grouped-ID migration path does not exist."
+    },
+    {
+      "upstream": "63ae200",
+      "subject": "feat(usage): track subscription tokens by model, window and day",
+      "status": "pending",
+      "area": "usage",
+      "reason": "New persistent token/window/day tracking architecture and storage format, not an incremental fix to current quota summaries."
+    },
+    {
+      "upstream": "35e8dec",
+      "subject": "Merge PR #232 (feat/usage-details) into feat/usage-dashboard",
+      "status": "pending",
+      "area": "usage",
+      "reason": "Integration node for the pending usage-tracking/dashboard architecture; no independent default-path protocol fix is claimed."
+    },
+    {
+      "upstream": "374f91f",
+      "subject": "fix(claude): normalize tool-call ids refused by the Messages API",
+      "status": "ported",
+      "area": "claude",
+      "forkCommits": ["d8c5c83"],
+      "evidence": {
+        "test": "test/claude-tool-call-ids.spec.ts"
+      },
+      "reason": "Ports deterministic request-local ID normalization, collision avoidance, all supported tool-result history shapes and real request-builder regression tests without adopting the unrelated thinking replay."
+    },
+    {
+      "upstream": "aa591d0",
+      "subject": "fix(usage): harden multi-process persistence and record cycle quota utilization",
+      "status": "pending",
+      "area": "usage",
+      "reason": "Persistence hardening for the unadopted usage window store and cycle dashboard; no corresponding fork storage exists."
+    },
+    {
+      "upstream": "8e036c0",
+      "subject": "feat(usage): add aggregated usageDashboard RPC and all-provider history clear",
+      "status": "pending",
+      "area": "usage",
+      "reason": "New aggregated history RPC and destructive history-clear behavior belong to the pending Usage Dashboard design."
+    },
+    {
+      "upstream": "6ab555b",
+      "subject": "feat(client): add Usage Dashboard with heatmap, SVG charts, and quota cycle combo chart",
+      "status": "pending",
+      "area": "ui",
+      "reason": "Large new dashboard surface with separate data, accessibility, visual and persistence requirements; not adopted by routine protocol maintenance."
+    },
+    {
+      "upstream": "c743a78",
+      "subject": "feat(client): add unified Subscriptions sidebar page and 2-column embedded settings layout",
+      "status": "pending",
+      "area": "ui",
+      "reason": "New navigation and settings architecture conflicts with the fork's current composer/settings surfaces and needs independent UX review."
+    },
+    {
+      "upstream": "0ac4fa9",
+      "subject": "docs: document Usage Dashboard and add anonymized screenshots",
+      "status": "not-applicable",
+      "area": "docs",
+      "reason": "Documentation and images for the unadopted dashboard. Final upstream bilingual README snapshots are refreshed without presenting that UI as fork behavior."
+    },
+    {
+      "upstream": "a0ca629",
+      "subject": "Merge pull request #213 from zeos3154/feat/grok-context-windows",
+      "status": "pending",
+      "area": "grok",
+      "reason": "Merge integration for the pending Grok tier-picker feature; only the independent settings timeout from its follow-up is ported."
+    },
+    {
+      "upstream": "8773d74",
+      "subject": "Merge pull request #242 from paQQuete/fix/anthropic-tool-call-id-normalization",
+      "status": "already-covered",
+      "area": "claude",
+      "forkCommits": ["d8c5c83"],
+      "reason": "Merge-only integration covered by the Claude tool-call ID normalization port and its protocol regression suite."
+    },
+    {
+      "upstream": "a28ab85",
+      "subject": "Merge pull request #226 from wangpfcn/fix/antigravity-legacy-account-allowlists",
+      "status": "not-applicable",
+      "area": "antigravity",
+      "reason": "Merge-only integration for grouped Antigravity legacy allowlists, which do not exist in this flat-model fork."
+    },
+    {
+      "upstream": "45150ae",
+      "subject": "feat(antigravity): disable provider by default with persistent risk notice and manual opt-in",
+      "status": "pending",
+      "area": "antigravity",
+      "reason": "Changes the default provider policy and adds persistent risk consent. Requires an explicit product/security decision and migration UX; do not silently disable existing users during maintenance."
+    },
+    {
+      "upstream": "733c692",
+      "subject": "chore: release v0.9.15",
+      "status": "not-applicable",
+      "area": "release",
+      "reason": "Upstream release versioning does not apply; the fork keeps its independent plugin version and bounded peer policy."
+    },
+    {
+      "upstream": "093569c",
+      "subject": "fix(test): bound catalog-refresh-schedule waits by real wall time",
+      "status": "not-applicable",
+      "area": "upstream",
+      "reason": "The fork refreshes catalogs on explicit user action and has no upstream catalog-refresh schedule test to harden."
+    },
+    {
+      "upstream": "f422cb5",
+      "subject": "fix(codex): hide zero credit balance and keep included quota ahead of sticky credits",
+      "status": "not-applicable",
+      "area": "codex",
+      "reason": "The fork has no Codex credit-balance display and deliberately stops before paid-credit spillover, so neither the display helper nor credit-funded sticky ordering applies."
+    },
+    {
+      "upstream": "407256c",
+      "subject": "fix(usage): include pre-tracking daily history in the dashboard",
+      "status": "pending",
+      "area": "usage",
+      "reason": "Changes pre-tracking history migration, schema and dashboard presentation inside the unadopted Usage Dashboard architecture. The fork has no corresponding history store or dashboard; include with that future design, not as a standalone protocol fix."
     }
   ]
 }
