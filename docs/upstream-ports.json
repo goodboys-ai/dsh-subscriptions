@@ -7,10 +7,10 @@
     "date": "2026-09-28"
   },
   "upstreamRef": {
-    "sha": "f422cb56",
+    "sha": "407256ca",
     "note": "Full sha is re-derived by the check from the remote ref; recorded here for humans."
   },
-  "updatedAt": "2026-11-24",
+  "updatedAt": "2026-11-25",
   "entries": [
     {
       "upstream": "527f4d90",
@@ -1174,6 +1174,13 @@
       "status": "not-applicable",
       "area": "codex",
       "reason": "The fork has no Codex credit-balance display and deliberately stops before paid-credit spillover, so neither the display helper nor credit-funded sticky ordering applies."
+    },
+    {
+      "upstream": "407256c",
+      "subject": "fix(usage): include pre-tracking daily history in the dashboard",
+      "status": "pending",
+      "area": "usage",
+      "reason": "Changes pre-tracking history migration, schema and dashboard presentation inside the unadopted Usage Dashboard architecture. The fork has no corresponding history store or dashboard; include with that future design, not as a standalone protocol fix."
     }
   ]
 }

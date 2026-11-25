@@ -1,4 +1,4 @@
-<!-- Snapshot of upstream V1ki/dsh-plugin-subscriptions README.md at f422cb56 (2026-11-24). Sync state: docs/upstream-sync.md. -->
+<!-- Snapshot of upstream V1ki/dsh-plugin-subscriptions README.md at 407256ca (2026-11-25). Sync state: docs/upstream-sync.md. -->
 # dsh-plugin-subscriptions [![Awesome DSH Plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com)
 
 English | [中文](README.zh.md)
@@ -82,7 +82,7 @@ Open **Subscriptions** from the DSH sidebar to view the unified page with **Usag
 
 ![Quota Cycles dual-axis combo chart comparing cycle tokens and quota utilization percentage](https://raw.githubusercontent.com/V1ki/dsh-plugin-subscriptions/main/docs/images/usage-quota-cycles.png)
 
-The plugin saves aggregate counts, cycle quota percentages, and window metadata locally under `~/.dsh/plugins/subscriptions/usage/` (mode `0600`); it does not store prompts, credentials, or per-request logs there. **Clear history** removes this plugin's local usage history for a selected provider or all providers without affecting DSH sessions, accounts, or live quota. Opening the dashboard makes no extra quota requests and does not estimate cost.
+Usage from DSH sessions before tracking began is read once from the session history and saved as per-provider UTC daily totals; it appears in the **All accounts** view only. The plugin saves aggregate counts, cycle quota percentages, and window metadata locally under `~/.dsh/plugins/subscriptions/usage/` (mode `0600`); it does not store prompts, credentials, or per-request logs there. **Clear history** removes this plugin's local usage history for a selected provider or all providers without affecting DSH sessions, accounts, or live quota. Opening the dashboard makes no extra quota requests and does not estimate cost.
 
 ## Providers
 

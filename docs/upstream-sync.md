@@ -20,7 +20,7 @@ section is the human summary; the JSON is the source of truth.
 
 - **Baseline:** upstream `v0.9.5` — commit
   `75a83460b27f869d6972c6d0a2b39d76ca49eabb` (2026-09-28).
-- **Reviewed up to:** upstream commit `f422cb56` (after `v0.9.15`).
+- **Reviewed up to:** upstream commit `407256ca` (after `v0.9.15`).
 - **Already covered before this ledger existed:** `f6e1b3f1` (the Settings card
   shows the CLI version Codex and Claude present, upstream issue
   [#108](https://github.com/V1ki/dsh-plugin-subscriptions/issues/108)). Ported
@@ -109,10 +109,10 @@ section is the human summary; the JSON is the source of truth.
   Grok's context-tier picker (`416e27e`, `d98c9fc`, `a0ca629`) is an optional
   settings feature rather than a default-path protocol fix. The Usage Dashboard
   and its persistence/tracking stack (`63ae200`, `35e8dec`, `aa591d0`,
-  `8e036c0`, `6ab555b`) plus the unified settings page (`c743a78`) require
-  independent data, UI and migration designs. Antigravity's default-disable risk
-  opt-in (`45150ae`) changes existing provider policy and must not silently
-  disable current users.
+  `8e036c0`, `6ab555b`, `407256c`) plus the unified settings page (`c743a78`)
+  require independent data, UI and migration designs. Antigravity's
+  default-disable risk opt-in (`45150ae`) changes existing provider policy and
+  must not silently disable current users.
 
 ## How the baseline was determined
 

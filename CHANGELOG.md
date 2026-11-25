@@ -9,7 +9,7 @@
 - **Model settings cannot hang on account context discovery.** Codex and Claude
   per-account context-limit lookups now use the same discovery timeout as the
   rest of the provider-settings RPC.
-- **Upstream review advanced to `f422cb5`.** The Usage Dashboard, Grok window
+- **Upstream review advanced to `407256c`.** The Usage Dashboard, Grok window
   picker, unified settings page, and Antigravity default-disable feature remain
   pending designs. Grouped-model allowlist fixes, upstream release mechanics,
   and credit-funded routing changes do not apply to this fork.
