@@ -7,10 +7,10 @@
     "date": "2026-09-28"
   },
   "upstreamRef": {
-    "sha": "407256ca",
+    "sha": "3381cc1a",
     "note": "Full sha is re-derived by the check from the remote ref; recorded here for humans."
   },
-  "updatedAt": "2026-11-25",
+  "updatedAt": "2026-11-27",
   "entries": [
     {
       "upstream": "527f4d90",
@@ -1181,6 +1181,31 @@
       "status": "pending",
       "area": "usage",
       "reason": "Changes pre-tracking history migration, schema and dashboard presentation inside the unadopted Usage Dashboard architecture. The fork has no corresponding history store or dashboard; include with that future design, not as a standalone protocol fix."
+    },
+    {
+      "upstream": "b4048c0",
+      "subject": "fix: support DSH 0.2.3-alpha.2 (#245)",
+      "status": "not-applicable",
+      "area": "upstream",
+      "reason": "Alpha is not an RC candidate. The fork keeps its bounded RC window, development floor and attachment contract; no 0.2.3 peer or new image-field changes are adopted before a supported RC exists."
+    },
+    {
+      "upstream": "a4ffe40",
+      "subject": "fix(claude): fall back silently when Claude CLI is absent",
+      "status": "ported",
+      "area": "claude",
+      "forkCommits": ["7016c80"],
+      "evidence": {
+        "test": "test/detect-cli.spec.ts"
+      },
+      "reason": "Removes raw spawn error logging on the expected missing-CLI fallback while preserving the same fallback version and successful CLI detection."
+    },
+    {
+      "upstream": "3381cc1",
+      "subject": "docs: reorganize bilingual docs and slim down READMEs",
+      "status": "not-applicable",
+      "area": "docs",
+      "reason": "Upstream-only documentation layout. The fork keeps its own compatibility/testing/Agent Notes structure and refreshes the two upstream README snapshots without importing the new doc tree."
     }
   ]
 }

@@ -20,7 +20,7 @@ section is the human summary; the JSON is the source of truth.
 
 - **Baseline:** upstream `v0.9.5` — commit
   `75a83460b27f869d6972c6d0a2b39d76ca49eabb` (2026-09-28).
-- **Reviewed up to:** upstream commit `407256ca` (after `v0.9.15`).
+- **Reviewed up to:** upstream commit `3381cc1a` (after `v0.9.15`).
 - **Already covered before this ledger existed:** `f6e1b3f1` (the Settings card
   shows the CLI version Codex and Claude present, upstream issue
   [#108](https://github.com/V1ki/dsh-plugin-subscriptions/issues/108)). Ported
@@ -66,7 +66,8 @@ section is the human summary; the JSON is the source of truth.
   Antigravity suspension (`7a337f0`), reset feedback and badge visibility state
   (`58b2ac4`, `716a9e5`), and Codex's local budget defaults (`348ea90`). This
   sync also ports Claude tool-call ID normalization (`374f91f`) and the
-  independent settings timeout boundary (`29f6c5e`).
+  independent settings timeout boundary (`29f6c5e`) and silent missing-CLI
+  fallback (`a4ffe40`).
 - **Deliberately not taken:** upstream's release and CI work (`564be625`,
   `800a08f5`, `69ac9c37`, `74f44a29`, `d8ab13e9`, `9e90ef87`, `a5b01068`,
   `7639ed99`, `b8023110`), its peer-range moves (`867136be`, `e1d3f427`,
@@ -86,7 +87,9 @@ section is the human summary; the JSON is the source of truth.
   versioning `c58464c`. Also not applicable here: grouped-model legacy
   allowlists (`4a619b3`, `a28ab85`), dashboard-only documentation (`0ac4fa9`),
   upstream release `733c692`, schedule-only test hardening `093569c`, and Codex
-  credit-balance/credit-funded routing `f422cb5`.
+  credit-balance/credit-funded routing `f422cb5`. DSH alpha support `b4048c0` is
+  outside the RC-only policy, and the upstream documentation reorganization
+  `3381cc1` does not replace this fork's own docs structure.
 - **Open decisions:** `998cea06` and `a85fb93a` (display names) collide with
   this fork's own localized naming; `f359301e` (hourly catalog refresh) changes
   list freshness. `d5f2b9da` introduces provider-native grouped catalogs and a
