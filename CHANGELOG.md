@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.3.12 — 2026-11-27
+
+- **Claude CLI absence is quiet again.** When no local Claude Code executable
+  exists, version detection falls back to the bundled floor without logging the
+  raw spawn error object or stack trace. CLI version and request behavior are
+  unchanged.
+- **Upstream review advanced to `3381cc1`.** DSH alpha support and its peer,
+  development-floor, and new attachment-field changes are not adopted. The
+  upstream bilingual documentation reorganization is snapshot-only here.
+
 ## v0.3.11 — 2026-11-24
 
 - **Claude accepts tool-call ids imported from other providers.** Messages API

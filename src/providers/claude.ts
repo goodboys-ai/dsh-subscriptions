@@ -162,7 +162,6 @@ const CLAUDE_VERSION_PROBES: readonly (readonly [
     : [['claude', ['--version'], {}]]
 
 export function detectClaudeVersion(): string {
-  let lastError: unknown
   for (const [command, args, options] of CLAUDE_VERSION_PROBES) {
     try {
       const raw = execFileSync(command, [...args], {
@@ -173,16 +172,9 @@ export function detectClaudeVersion(): string {
       })
       const match = raw.match(/(\d+\.\d+\.\d+)/)
       if (match) return match[1]
-    } catch (error) {
-      lastError = error
+    } catch {
+      // Expected when Claude Code is absent; silently fall back to the floor.
     }
-  }
-  // This is debug-only: the fallback is expected when Claude Code is absent.
-  if (lastError !== undefined) {
-    console.debug(
-      'dsh-subscriptions: Claude CLI version detection fell back',
-      lastError,
-    )
   }
   return CLAUDE_CLI_FALLBACK_VERSION
 }
